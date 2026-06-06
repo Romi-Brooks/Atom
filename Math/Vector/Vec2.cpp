@@ -1,5 +1,5 @@
 /**
-* @file             : Vec2.hpp
+* @file             : Vec2.cpp
   * @author         : Romi Brooks
   * @brief          : Vector 2d for Atom Engine
   * @attention      :
@@ -7,26 +7,24 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifndef ATOM_VEC2_HPP
-#define ATOM_VEC2_HPP
+#ifndef ATOM_VEC2_CPP
+#define ATOM_VEC2_CPP
+#include "Vec2.hpp"
 
-namespace atom {
-  class Vec2 {
-  private:
-    int x_ = 0;
-    int y_ = 0;
+auto atom::Vec2::GetX() const -> int {
+    return x_;
+}
 
-  public:
-    Vec2() = default;
-    Vec2(const int x, const int y) : x_(x), y_(y) {}
+auto atom::Vec2::GetY() const -> int {
+    return y_;
+}
 
-    [[nodiscard]] auto GetX() const -> int { return x_; }
-    [[nodiscard]] auto GetY() const -> int { return y_; }
+auto atom::Vec2::SetX(const int x) {
+    this->x_ = x;
+}
 
-    auto SetX(const int x) -> void { x_ = x; }
-    auto SetY(const int y) -> void { y_ = y; }
-  };
+auto atom::Vec2::SetY(const int y) {
+    this->y_ = y;
+}
 
-} // namespace atom
-
-#endif // ATOM_VEC2_HPP
+#endif // ATOM_VEC2_CPP
