@@ -124,4 +124,5 @@ Atom Engine uses the following open-source libraries. We extend our sincere grat
 ---
 
 ## License
+This Project is licensed under the [MIT License](LICENSE) 
 
