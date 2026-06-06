@@ -20,11 +20,11 @@ namespace atom {
 			Vec2() = default;
 			Vec2(const int x, const int y) : x_(x), y_(y) {}
 
-			[[nodiscard]] auto GetX() const -> int { return x_; }
-			[[nodiscard]] auto GetY() const -> int { return y_; }
+			[[nodiscard]] auto GetX() const -> int;
+			[[nodiscard]] auto GetY() const -> int;
 
-			auto SetX(const int x) -> void { x_ = x; }
-			auto SetY(const int y) -> void { y_ = y; }
+			auto SetX(int x) -> void;
+			auto SetY(int y) -> void;
 	};
 
 } // namespace atom
