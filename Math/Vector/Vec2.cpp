@@ -1,30 +1,30 @@
 /**
-* @file             : Vec2.cpp
-  * @author         : Romi Brooks
-  * @brief          : Vector 2d for Atom Engine
-  * @attention      :
-  * @date           : 2026/6/6
-  Copyright (c) 2026 Romi Brooks, All rights reserved.
+	* @file           : Vec2.cpp
+	* @author         : Romi Brooks
+	* @brief          : Vec2 implementation
+	* @attention      :
+	* @date           : 2026/6/6
+	Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifndef ATOM_VEC2_CPP
-#define ATOM_VEC2_CPP
+// Self Dependencies
 #include "Vec2.hpp"
 
-auto atom::Vec2::GetX() const -> int {
-    return x_;
-}
+namespace atom {
+    auto Vec2::GetX() const -> float {
+        return x_;
+    }
 
-auto atom::Vec2::GetY() const -> int {
-    return y_;
-}
+    auto Vec2::GetY() const -> float {
+        return y_;
+    }
 
-auto atom::Vec2::SetX(const int x) {
-    this->x_ = x;
-}
+    auto Vec2::SetX(const float x) -> void {
+        x_ = x;
+    }
 
-auto atom::Vec2::SetY(const int y) {
-    this->y_ = y;
-}
+    auto Vec2::SetY(const float y) -> void {
+        y_ = y;
+    }
 
-#endif // ATOM_VEC2_CPP
+} // namespace atom

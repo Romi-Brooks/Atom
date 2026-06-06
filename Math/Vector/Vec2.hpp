@@ -13,18 +13,18 @@
 namespace atom {
 	class Vec2 {
 		private:
-			int x_ = 0;
-			int y_ = 0;
+			float x_ = 0;
+			float y_ = 0;
 
 		public:
 			Vec2() = default;
-			Vec2(const int x, const int y) : x_(x), y_(y) {}
+			Vec2(const float x, const float y) : x_(x), y_(y) {}
 
-			[[nodiscard]] auto GetX() const -> int;
-			[[nodiscard]] auto GetY() const -> int;
+			[[nodiscard]] auto GetX() const -> float;
+			[[nodiscard]] auto GetY() const -> float;
 
-			auto SetX(int x) -> void;
-			auto SetY(int y) -> void;
+			auto SetX(float x) -> void;
+			auto SetY(float y) -> void;
 	};
 
 } // namespace atom
