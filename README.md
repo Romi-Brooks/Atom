@@ -102,7 +102,7 @@ brew install sfml@3.0.0
 
 Atom is planned to evolve significantly:
 
-- **Backend Abstraction** — Decouple from SFML to a multi-backend renderer supporting **SDL3**, **Vulkan**, **OpenGL**, and **DirectX**.
+- **Backend Migration**: Decouple from **SFML** and migrate to **SDL3** to deliver improved underlying performance, alongside native support for multi-backend renderers including **Vulkan**, **OpenGL**, and **DirectX**, etc...
 - **Renderer Plugin System** — Users will be able to choose or write their own rendering backend.
 - **ECS Framework** — Replace the current simple entity system with a proper Entity-Component-System architecture.
 - **Tooling** — Editor, asset pipeline, and profiling tools.
