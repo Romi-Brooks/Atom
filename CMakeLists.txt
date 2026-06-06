@@ -174,6 +174,8 @@ add_library(engine_media STATIC
         Media/Audio/Music.hpp
         Media/Audio/SFX.cpp
         Media/Audio/SFX.hpp
+        Media/Decoder/WavRiff/WavDecoder.cpp
+        Media/Decoder/WavRiff/WavDecoder.hpp
         Media/Video/Video.cpp
         Media/Video/Video.hpp
 )
@@ -209,8 +211,8 @@ add_library(engine_windows STATIC
         Windows/Manager/ScreenManager.cpp
         Windows/Manager/ScreenManager.hpp
 )
-# Dependency Libraries: SFML, Engine.Log
-target_link_libraries(engine_windows PUBLIC sfml_all engine_log)
+# Dependency Libraries: SFML, Engine.Log, Engine.Math
+target_link_libraries(engine_windows PUBLIC sfml_all engine_log engine_math)
 
 # 8. Debugger
 add_library(engine_debugger STATIC
