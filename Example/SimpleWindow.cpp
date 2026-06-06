@@ -11,9 +11,9 @@
 #include <SFML/Graphics.hpp>
 
 // Engine Headers
-#include <Windows/RenderWindow.hpp>
-#include <Windows/Manager/ScreenManager.hpp>
-#include <Windows/Screen.hpp>
+#include <Window/RenderWindow.hpp>
+#include <Window/Manager/ScreenManager.hpp>
+#include <Window/Screen.hpp>
 
 class ExampleScreen final : public atom::Screen {
 	public:

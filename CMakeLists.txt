@@ -204,20 +204,20 @@ target_link_libraries(engine_packager PUBLIC utfcpp engine_log)
 
 # 7. Windows
 add_library(engine_windows STATIC
-        Windows/RenderWindow.cpp
-        Windows/RenderWindow.hpp
-        Windows/Screen.cpp
-        Windows/Screen.hpp
-        Windows/Manager/ScreenManager.cpp
-        Windows/Manager/ScreenManager.hpp
+        Window/RenderWindow.cpp
+        Window/RenderWindow.hpp
+        Window/Screen.cpp
+        Window/Screen.hpp
+        Window/Manager/ScreenManager.cpp
+        Window/Manager/ScreenManager.hpp
 )
 # Dependency Libraries: SFML, Engine.Log, Engine.Math
 target_link_libraries(engine_windows PUBLIC sfml_all engine_log engine_math)
 
 # 8. Debugger
 add_library(engine_debugger STATIC
-        Windows/Debugger.hpp
-        Windows/Debugger.cpp
+        Window/Debugger.hpp
+        Window/Debugger.cpp
 )
 target_include_directories(engine_debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(engine_debugger PUBLIC engine_windows imgui_sfml_lib)
@@ -281,10 +281,16 @@ if(WIN32)
     target_link_libraries(example_media_metadata PRIVATE ws2_32 winmm)
 endif()
 
-add_executable(example_audio_playback Example/AudioPlayback.cpp)
-target_link_libraries(example_audio_playback PRIVATE engine_media)
+add_executable(example_audio_playback Example/MusicPlayback.cpp)
+target_link_libraries(example_audio_playback PRIVATE engine_media engine_windows sfml_all engine_debugger)
 if(WIN32)
     target_link_libraries(example_audio_playback PRIVATE)
+endif()
+
+add_executable(example_sfx_playback Example/SFXPlayback.cpp)
+target_link_libraries(example_sfx_playback PRIVATE engine_media engine_windows sfml_all engine_debugger)
+if(WIN32)
+    target_link_libraries(example_sfx_playback PRIVATE)
 endif()
 
 add_executable(example_ffmepg_playback Example/FFmpegPlayback.cpp)
@@ -293,16 +299,16 @@ if(WIN32)
     target_link_libraries(example_ffmepg_playback PRIVATE)
 endif()
 
-add_executable(test_simple_window Example/SimpleWindow.cpp)
-target_link_libraries(test_simple_window PRIVATE engine_windows sfml_all)
+add_executable(example_simple_window Example/SimpleWindow.cpp)
+target_link_libraries(example_simple_window PRIVATE engine_windows sfml_all)
 if(WIN32)
-    target_link_libraries(test_simple_window PRIVATE)
+    target_link_libraries(example_simple_window PRIVATE)
 endif()
 
-add_executable(test_simple_window_debug Example/SimpleWindowWithDebugger.cpp)
-target_link_libraries(test_simple_window_debug PRIVATE engine_windows sfml_all engine_debugger)
+add_executable(example_simple_window_debug Example/SimpleWindowWithDebugger.cpp)
+target_link_libraries(example_simple_window_debug PRIVATE engine_windows sfml_all engine_debugger)
 if(WIN32)
-    target_link_libraries(test_simple_window_debug PRIVATE)
+    target_link_libraries(example_simple_window_debug PRIVATE)
 endif()
 
 # ============================================================================
