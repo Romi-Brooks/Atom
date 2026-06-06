@@ -12,10 +12,10 @@
 #include <imgui.h>
 
 // Engine Headers
-#include <Windows/RenderWindow.hpp>
-#include <Windows/Manager/ScreenManager.hpp>
-#include <Windows/Screen.hpp>
-#include <Windows/Debugger.hpp>
+#include <Window/RenderWindow.hpp>
+#include <Window/Manager/ScreenManager.hpp>
+#include <Window/Screen.hpp>
+#include <Window/Debugger.hpp>
 
 // simple FPS debugger
 class ExampleDebugger final : public atom::Debugger {
@@ -79,6 +79,4 @@ auto main() -> int {
 
 	// 4. Run the main loop
 	window.Run();
-
-	return 0;
 }

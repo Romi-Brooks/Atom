@@ -18,7 +18,7 @@
 
 // Engine Headers
 #include <Math/Vector/Vec2.hpp>
-#include <Windows/Manager/ScreenManager.hpp>
+#include <Window/Manager/ScreenManager.hpp>
 
 namespace atom {
 	class RenderWindow {

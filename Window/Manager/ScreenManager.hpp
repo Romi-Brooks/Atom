@@ -24,7 +24,7 @@
 #include <vector>
 
 // Engine Headers
-#include <Windows/Screen.hpp>
+#include <Window/Screen.hpp>
 
 namespace atom {
 	class ScreenManager {
