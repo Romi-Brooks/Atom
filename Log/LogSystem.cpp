@@ -33,39 +33,33 @@ auto GetLogLevel(const LogLevel& logLevel) -> std::string {
 	return "Error log level";
 }
 
+// Pre-defined engine channel constants
+const LogChannel LogChannel::ATOM_ENTITY("Atom.Entity", "Atom.Entity -> ");
+const LogChannel LogChannel::ATOM_ENTITY_NPC("Atom.Entity.NPC", "Atom.Entity.NPC -> ");
+const LogChannel LogChannel::ATOM_ENTITY_PLAYER("Atom.Entity.Player", "Atom.Entity.Player -> ");
+
+const LogChannel LogChannel::ATOM_CONFIG_MOVEMENT("Atom.Movement", "Atom.Movement -> ");
+
+const LogChannel LogChannel::ATOM_FILESYSTEM("Atom.Filesystem", "Atom.Filesystem -> ");
+
+const LogChannel LogChannel::ATOM_MAIN("Atom.Main", "Atom.Main -> ");
+
+const LogChannel LogChannel::ATOM_LUA("Atom.Lua", "Atom.Lua -> ");
+
+const LogChannel LogChannel::ATOM_AUDIO_MUSIC("Atom.Audio.Music", "Atom.Audio.Music -> ");
+const LogChannel LogChannel::ATOM_AUDIO_SFX("Atom.Audio.SFX", "Atom.Audio.SFX -> ");
+const LogChannel LogChannel::ATOM_AUDIO_PLUG_MUSICFADE("Atom.Audio.Plug.MusicFade", "Atom.Audio.Plug.MusicFade -> ");
+
+const LogChannel LogChannel::ATOM_VIDEO("Atom.Video", "Atom.Video -> ");
+
+const LogChannel LogChannel::ATOM_WINDOW("Atom.Window", "Atom.Window -> ");
+const LogChannel LogChannel::ATOM_SCREEN("Atom.Screen", "Atom.Screen -> ");
+const LogChannel LogChannel::ATOM_SCREEN_MANAGER("Atom.Screen.Manager", "Atom.Screen.Manager -> ");
+
+const LogChannel LogChannel::ATOM_UTILITIES_PACKAGER("Atom.Utilities.Packager", "Atom.Utilities.Packager -> ");
+
 auto GetLogChannel(const LogChannel& channel) -> std::string {
-	switch (channel) {
-		case LogChannel::ATOM_ENTITY:return "ATOM.Entity -> ";
-		case LogChannel::ATOM_ENTITY_NPC: return "ATOM.Entity.NPC -> ";
-		case LogChannel::ATOM_ENTITY_PLAYER: return "ATOM.Entity.Player -> ";
-
-		case LogChannel::ATOM_CONFIG_MOVEMENT: return "ATOM.Movement -> ";
-
-		case LogChannel::ATOM_FILESYSTEM: return "ATOM.Filesystem -> ";
-
-		case LogChannel::ATOM_LOGGER: return "ATOM.Logger -> ";
-
-		case LogChannel::ATOM_LUA: return "ATOM.Lua -> ";
-
-		case LogChannel::ATOM_AUDIO_MUSIC: return "ATOM.Audio.Music -> ";
-		case LogChannel::ATOM_AUDIO_SFX: return"ATOM.Audio.SFX -> ";
-		case LogChannel::ATOM_AUDIO_PLUG_MUSICFADE: return "ATOM.Audio.Plug.MusicFade -> ";
-
-		case LogChannel::ATOM_VIDEO: return"ATOM.Video -> ";
-
-		case LogChannel::ATOM_WINDOW: return "ATOM.Window -> ";
-		case LogChannel::ATOM_SCREEN: return  "ATOM.Screen -> ";
-		case LogChannel::ATOM_SCREEN_MANAGER: return "ATOM.Screen.Manager -> ";
-
-		case LogChannel::ATOM_UTILITIES_PACKAGER: return "ATOM.Utilities.Packager -> ";
-
-		case LogChannel::GAME_NPC: return "Game.NPC -> ";
-		case LogChannel::GAME_PLAYER: return "Game.Player -> ";
-		case LogChannel::GAME_SCREEN: return "Game.Screen -> ";
-
-		case LogChannel::GAME_MAIN: return "Game.Main -> ";
-	}
-	return "Call func with error channel.";
+	return channel.GetDisplayString();
 }
 auto GetCurrentTime() -> std::stringstream {
     const auto Time = std::chrono::system_clock::now();
