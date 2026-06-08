@@ -14,6 +14,8 @@
 #include <mutex>
 #include <string>
 
+//	using reference: LogSystem.md
+
 namespace atom {
 	enum class LogLevel {
 		ATOM_INFO,
@@ -21,36 +23,50 @@ namespace atom {
 		ATOM_ERROR,
 		ATOM_DEBUG
 	};
-	enum class LogChannel {
-		ATOM_ENTITY,
-		ATOM_ENTITY_NPC,
-		ATOM_ENTITY_PLAYER,
 
-		ATOM_CONFIG_MOVEMENT,
+	class LogChannel {
+	public:
+		// User can create custom channels directly
+		explicit LogChannel(std::string channelName)
+			: channelName_(std::move(channelName))
+			, displayString_(channelName_ + " -> ") {}
 
-		ATOM_FILESYSTEM,
+		[[nodiscard]] const std::string& GetChannelName() const { return channelName_; }
+		[[nodiscard]] const std::string& GetDisplayString() const { return displayString_; }
 
-		ATOM_LOGGER,
+		// Pre-defined engine channels
+		static const LogChannel ATOM_ENTITY;
+		static const LogChannel ATOM_ENTITY_NPC;
+		static const LogChannel ATOM_ENTITY_PLAYER;
 
-		ATOM_LUA,
+		static const LogChannel ATOM_CONFIG_MOVEMENT;
 
-		ATOM_AUDIO_MUSIC,
-		ATOM_AUDIO_SFX,
-		ATOM_AUDIO_PLUG_MUSICFADE,
+		static const LogChannel ATOM_FILESYSTEM;
 
-		ATOM_VIDEO,
+		static const LogChannel ATOM_MAIN;
 
-		ATOM_UTILITIES_PACKAGER,
+		static const LogChannel ATOM_LUA;
 
-		ATOM_WINDOW,
-		ATOM_SCREEN,
-		ATOM_SCREEN_MANAGER,
+		static const LogChannel ATOM_AUDIO_MUSIC;
+		static const LogChannel ATOM_AUDIO_SFX;
+		static const LogChannel ATOM_AUDIO_PLUG_MUSICFADE;
 
-		GAME_NPC,
-		GAME_PLAYER,
-		GAME_SCREEN,
+		static const LogChannel ATOM_VIDEO;
 
-		GAME_MAIN,
+		static const LogChannel ATOM_UTILITIES_PACKAGER;
+
+		static const LogChannel ATOM_WINDOW;
+		static const LogChannel ATOM_SCREEN;
+		static const LogChannel ATOM_SCREEN_MANAGER;
+
+	private:
+		std::string channelName_;
+		std::string displayString_;
+
+		// Private constructor for pre-defined channels with custom display string format
+		LogChannel(std::string channelName, std::string displayString)
+			: channelName_(std::move(channelName))
+			, displayString_(std::move(displayString)) {}
 	};
 
 	class Log {
