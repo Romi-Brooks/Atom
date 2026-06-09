@@ -1,4 +1,4 @@
-[English](README.md) | [中文](README-CN.md)
+[English](Packager.md) | [中文](Packager-CN.md)
 
 ***
 

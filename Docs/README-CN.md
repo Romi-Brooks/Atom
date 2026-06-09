@@ -38,7 +38,7 @@
 
 Atom 提供了资源打包工具，用于将游戏资源打包/解包为 HPKG 存档格式。
 
-- [打包工具文档](Packager/README-CN.md) — CLI 使用、API 参考和代码示例
+- [打包工具文档](../Utilities/Packager/Doc/README-CN.md) — CLI 使用、API 参考和代码示例
 
 ***
 
