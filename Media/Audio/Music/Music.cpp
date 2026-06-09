@@ -12,27 +12,18 @@
 
 // Engine Headers
 #include <Log/LogSystem.hpp>
+#include <Media/Audio/Manager/VolumeManager.hpp>
 
 // Self Dependency
 #include "Music.hpp"
 
 namespace atom {
-
-	Music& Music::GetInstance() {
-		static Music instance;
-		return instance;
-	}
-
 	auto Music::Load(const std::string& id, const std::string& file) -> bool {
-		// 0. Check if already loaded
-		// 0. 检查是否已加载
 		if (musics_.contains(id)) {
 			LOG_WARNING(atom::LogChannel::ATOM_AUDIO_MUSIC, "Music with id '" + id + "' is already loaded");
-			return true; // Successfully loaded
+			return true;
 		}
 
-		// 1. Load from file
-		// 1. 从文件加载
 		auto music = std::make_unique<sf::Music>(file);
 
 		if (!music) {
@@ -40,8 +31,6 @@ namespace atom {
 			return false;
 		}
 
-		// 2. Store into map
-		// 2. 存放到map
 		musics_[id] = std::move(music);
 		LOG_INFO(atom::LogChannel::ATOM_AUDIO_MUSIC, "Successfully loaded music from file for id: " + id);
 
@@ -52,13 +41,10 @@ namespace atom {
 		std::lock_guard<std::mutex> lock(mutex_);
 		const auto it = musics_.find(id);
 		if (it != musics_.end() && it->second) {
-			// Set volume and play
-			// 设置音量并播放
-			it->second->setVolume(music_volume_);
+			// Read global volume from VolumeManager
+			it->second->setVolume(VolumeManager::GetInstance().GetEffectiveMusicVolume());
 			it->second->play();
 
-			// Update current playing status
-			// 更新当前播放状态
 			{
 				std::lock_guard<std::mutex> current_lock(current_playing_mutex_);
 				current_playing_id_ = id;
@@ -76,8 +62,6 @@ namespace atom {
 		if (it != musics_.end() && it->second) {
 			it->second->stop();
 
-			// If stopping the currently playing song, clear the state
-			// 如果停止的是当前播放的歌曲，清除状态
 			{
 				std::lock_guard<std::mutex> current_lock(current_playing_mutex_);
 				if (current_playing_id_ == id) {
@@ -104,8 +88,6 @@ namespace atom {
 			it->second->setVolume(volume);
 			it->second->play();
 
-			// Update current playing status
-			// 更新当前播放状态
 			{
 				std::lock_guard<std::mutex> current_lock(current_playing_mutex_);
 				current_playing_id_ = id;
@@ -117,15 +99,15 @@ namespace atom {
 		}
 	}
 
-	auto Music::SetMusicVolume(const float volume) const -> void {
-		music_volume_ = volume;
+	auto Music::SetMusicVolume(const float volume) -> void {
+		VolumeManager::GetInstance().SetMusicVolume(volume);
 		for (const auto& val : musics_ | std::views::values) {
-			val->setVolume(music_volume_);
+			val->setVolume(volume);
 		}
 	}
 
 	auto Music::GetMusicVolume() const -> float {
-		return music_volume_;
+		return VolumeManager::GetInstance().GetMusicVolume();
 	}
 
 	auto Music::IsLoaded(const std::string& id) const -> bool {

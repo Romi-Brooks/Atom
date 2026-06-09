@@ -11,55 +11,53 @@
 #include <imgui.h>
 
 // Engine Headers
-#include <Media/Audio/SFX.hpp>
-
+#include <Media/Audio/SFX/SFX.hpp>
 #include <Window/Screen.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Debugger.hpp>
 
-using Screen = atom::Screen;
-using Debugger = atom::Debugger;
-using SFX = atom::SFX;
+class SFXDebugger final : public atom::Debugger {
+    public:
+        explicit SFXDebugger(atom::SFX& sfx) : sfx_(sfx) {}
 
-class SFXDebugger final : public Debugger {
     protected:
         auto OnDrawOverlay() -> void override {
             ImGui::Begin("SFX Debugger");
             ImGui::Text("Press A to play sfx1, B to play sfx2");
             if (ImGui::Button("A")) {
-                SFX::GetInstance().Play("registerId_1");
+                sfx_.Play("registerId_1");
             }
             if (ImGui::Button("B")) {
-                SFX::GetInstance().Play("registerId_2");
+                sfx_.Play("registerId_2");
             }
             ImGui::Separator();
 
             ImGui::Text("this btm allows you play those file at the same time:");
             if (ImGui::Button("Play")) {
-                SFX::GetInstance().Play("registerId_1");
-                SFX::GetInstance().Play("registerId_2");
+                sfx_.Play("registerId_1");
+                sfx_.Play("registerId_2");
             }
             ImGui::Separator();
 
             ImGui::Text("Press ESC to exit");
             ImGui::End();
         }
+
+    private:
+        atom::SFX& sfx_;
 };
 
 
-class SFXScreen final : public Screen {
+class SFXScreen final : public atom::Screen {
 public:
     auto Render(sf::RenderWindow& window) -> void override {
-        // dark blue background
         window.clear(sf::Color(30, 30, 60));
     }
 
     auto HandleEvent(const sf::Event& event) -> bool override {
-        // Close the window when Escape is pressed
         if (event.is<sf::Event::KeyPressed>()) {
             const auto& key = event.getIf<sf::Event::KeyPressed>();
             if (key->code == sf::Keyboard::Key::Escape) {
-                // Access the RenderWindow singleton and close the window
                 atom::RenderWindow::GetInstance().Shutdown();
                 return true;
             }
@@ -73,18 +71,18 @@ public:
 
 
 auto main() -> int {
-    SFX::GetInstance().Load("registerId_1", R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 1 - C.wav)");
-    SFX::GetInstance().Load("registerId_2", R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 2 - C.wav)");
+    atom::SFX sfx;
 
-    auto& screenManager = atom::ScreenManager::GetInstance();
-    screenManager.LoadScreen("SFX", std::make_unique<SFXScreen>());
-    screenManager.SwitchScreen("SFX");
+    sfx.Load("registerId_1", R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 1 - C.wav)");
+    sfx.Load("registerId_2", R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 2 - C.wav)");
 
+    atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen("SFX");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine -SFX Playback Example", atom::Vec2{720, 720});
+    window.Initialize("Atom Engine - SFX Playback Example", atom::Vec2{720, 720});
 
-    SFXDebugger debugger {};
+    SFXDebugger debugger{sfx};
     debugger.Attach(window);
 
     window.Run();

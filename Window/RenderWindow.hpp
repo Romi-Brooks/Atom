@@ -13,11 +13,11 @@
 // Standard Library
 #include <functional>
 
-// Third Party Library
+// Engine Library
 #include <SFML/Graphics.hpp>
 
 // Engine Headers
-#include <Math/Vector/Vec2.hpp>
+#include <Algorithm/Vector/Vec2.hpp>
 #include <Window/Manager/ScreenManager.hpp>
 
 namespace atom {
@@ -31,8 +31,8 @@ namespace atom {
 
 			auto ProcessEvents(const ScreenManager& screenManager) -> void {
 				while (const auto event = window_.pollEvent()) {
-					// Optional overlay event processing (e.g., ImGui)
-					// 可选的叠加层事件处理（例如 ImGui）
+					// Optional overlay event processing
+					// 可选的叠加层事件处理
 					if (on_process_event_) {
 						on_process_event_(window_, *event);
 					}
@@ -51,8 +51,8 @@ namespace atom {
 				return instance;
 			}
 
-			// --- Callback hooks for optional debug overlays (e.g. ImGui-SFML) ---
-			//     可选的调试叠加层回调钩子（例如 ImGui-SFML）
+			// --- Callback hooks for optional debug overlays ---
+			//     可选的调试叠加层回调钩子
 
 			// Called per event for overlay event processing
 			// 每事件调用一次，用于叠加层事件处理
@@ -70,8 +70,7 @@ namespace atom {
 			// 关闭时调用，用于叠加层清理
 			std::function<void()> on_shutdown_;
 
-			// --- Core API ---
-
+			// Core API
 			auto Initialize(const std::string& title, Vec2 resolution) -> void {
 				window_.create(sf::VideoMode(
 					{static_cast<unsigned>(resolution.GetX()),
@@ -80,10 +79,9 @@ namespace atom {
 			}
 
 			auto Run() -> void {
-				const auto& screenManager = atom::ScreenManager::GetInstance();
-
 				// Check if there is a current screen
 				// 检查是否有当前屏幕
+				const auto& screenManager = atom::ScreenManager::GetInstance();
 				if (screenManager.GetCurrentScreenName().empty()) {
 					throw std::runtime_error("No current screen set. Cannot run application.");
 				}

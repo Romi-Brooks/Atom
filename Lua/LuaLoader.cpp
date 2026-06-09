@@ -44,6 +44,7 @@ auto LuaLoader::Initialize() -> bool {
 	RegisterEntityToLua(L_); // Register Entity bindings
 	RegisterMusicToLua(L_);  // Register Music bindings
 	RegisterSFXToLua(L_);     // Register SFX and SFXManager
+	RegisterVolumeToLua(L_);  // Register VolumeManager
 
     return true;
 }

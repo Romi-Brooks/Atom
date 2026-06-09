@@ -14,19 +14,25 @@
 #include "lua.hpp"
 
 // Engine Headers
-#include <Media/Audio/SFX.hpp>
-#include <Media/Audio/Manager/SFXManager.hpp>
+#include <Media/Audio/SFX/SFX.hpp>
+#include <Media/Audio/SFX/Manager/SFXManager.hpp>
 #include <Log/LogSystem.hpp>
 
-#define GET_SFX() (atom::SFX::GetInstance())
+// Global bridge pointer — set by the application after constructing SFX
+// 全局桥接指针 — 由应用在构造 SFX 后设置
+namespace {
+    atom::SFX* g_sfx = nullptr;
+}
 
-#define GET_SFX_MANAGER() (atom::SFXManager::GetManager())
+auto SetLuaSFXInstance(atom::SFX& sfx) -> void {
+    g_sfx = &sfx;
+}
 
 static int lua_SFX_Load(lua_State* L) {
     const char* sfx_id = luaL_checkstring(L, 1);
     const char* file_path = luaL_checkstring(L, 2);
 
-    bool load_result = GET_SFX().Load(sfx_id, file_path);
+    bool load_result = g_sfx->Load(sfx_id, file_path);
 
     lua_pushboolean(L, load_result);
     return 1;
@@ -34,51 +40,39 @@ static int lua_SFX_Load(lua_State* L) {
 
 static int lua_SFX_Play(lua_State* L) {
     const char* sfx_id = luaL_checkstring(L, 1);
-    GET_SFX().Play(sfx_id);
+    g_sfx->Play(sfx_id);
     return 0;
 }
 
 static int lua_SFX_Stop(lua_State* L) {
     const char* sfx_id = luaL_checkstring(L, 1);
-    GET_SFX().Stop(sfx_id);
+    g_sfx->Stop(sfx_id);
     return 0;
 }
 
 static int lua_SFX_StopAll(lua_State* L) {
-    GET_SFX().StopAll();
+    g_sfx->StopAll();
     return 0;
 }
 
 static int lua_SFX_SetVolume(lua_State* L) {
     const char* sfx_id = luaL_checkstring(L, 1);
-    float volume = static_cast<float>(luaL_checknumber(L, 2)); // Convert to float (Lua passes double by default)
+    float volume = static_cast<float>(luaL_checknumber(L, 2));
 
-    GET_SFX().SetVolume(sfx_id, volume);
+    g_sfx->SetVolume(sfx_id, volume);
     return 0;
-}
-
-static int lua_SFX_SetGlobalVolume(lua_State* L) {
-    float global_volume = static_cast<float>(luaL_checknumber(L, 1));
-    atom::SFX::SetSfxVolume(global_volume); // Call static method
-    return 0;
-}
-
-static int lua_SFX_GetGlobalVolume(lua_State* L) {
-    float current_volume = atom::SFX::GetSfxVolume();
-    lua_pushnumber(L, current_volume);
-    return 1;
 }
 
 static int lua_SFX_IsLoaded(lua_State* L) {
     const char* sfx_id = luaL_checkstring(L, 1);
-    bool is_loaded = GET_SFX().IsLoaded(sfx_id);
+    bool is_loaded = g_sfx->IsLoaded(sfx_id);
 
     lua_pushboolean(L, is_loaded);
     return 1;
 }
 
 static int lua_SFX_Reset(lua_State* L) {
-    GET_SFX().Reset();
+    g_sfx->Reset();
     return 0;
 }
 
@@ -86,35 +80,35 @@ static int lua_SFXManager_LoadSFXFiles(lua_State* L) {
     const char* buf_id = luaL_checkstring(L, 1);
     const char* file_path = luaL_checkstring(L, 2);
 
-    bool load_result = GET_SFX_MANAGER().LoadSFXFiles(buf_id, file_path);
+    bool load_result = atom::SFXManager::GetManager().LoadSFXFiles(buf_id, file_path);
     lua_pushboolean(L, load_result);
     return 1;
 }
 
 static int lua_SFXManager_UnloadSFX(lua_State* L) {
     const char* buf_id = luaL_checkstring(L, 1);
-    bool unload_result = GET_SFX_MANAGER().UnloadSFX(buf_id);
+    bool unload_result = atom::SFXManager::GetManager().UnloadSFX(buf_id);
 
     lua_pushboolean(L, unload_result);
     return 1;
 }
 
 static int lua_SFXManager_UnloadAll(lua_State* L) {
-    GET_SFX_MANAGER().UnloadAll();
+    atom::SFXManager::GetManager().UnloadAll();
     return 0;
 }
 
 static int lua_SFXManager_HasSFX(lua_State* L) {
     const char* buf_id = luaL_checkstring(L, 1);
-    bool has_buf = GET_SFX_MANAGER().HasSFX(buf_id);
+    bool has_buf = atom::SFXManager::GetManager().HasSFX(buf_id);
 
     lua_pushboolean(L, has_buf);
     return 1;
 }
 
 static int lua_SFXManager_GetLoadedCount(lua_State* L) {
-    size_t count = GET_SFX_MANAGER().GetLoadedCount();
-    lua_pushinteger(L, static_cast<lua_Integer>(count)); // Convert to Lua integer type
+    size_t count = atom::SFXManager::GetManager().GetLoadedCount();
+    lua_pushinteger(L, static_cast<lua_Integer>(count));
     return 1;
 }
 
@@ -126,8 +120,6 @@ auto RegisterSFXToLua(lua_State* L) -> void {
         {"Stop",            lua_SFX_Stop},
         {"StopAll",         lua_SFX_StopAll},
         {"SetVolume",       lua_SFX_SetVolume},
-        {"SetGlobalVolume", lua_SFX_SetGlobalVolume},
-        {"GetGlobalVolume", lua_SFX_GetGlobalVolume},
         {"IsLoaded",        lua_SFX_IsLoaded},
         {"Reset",           lua_SFX_Reset},
         {nullptr, nullptr}

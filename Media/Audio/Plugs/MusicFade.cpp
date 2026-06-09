@@ -18,7 +18,7 @@
 
 // Engine Headers
 #include <Log/LogSystem.hpp>
-#include <Media/Audio/Music.hpp>
+#include <Media/Audio/Music/Music.hpp>
 #include <Media/Audio/Manager/VolumeManager.hpp>
 
 // Self Dependency
@@ -62,12 +62,11 @@ namespace atom::audio {
 
 	    // 2. Get the currently playing music as source
 	    // 2. 获取当前播放的音乐作为源
-	    auto& music = Music::GetInstance();
-		const std::string fromId = music.GetNowPlaying();
+		const std::string fromId = music_.GetNowPlaying();
 
 	    // 3. Check if music is loaded
 	    // 3. 音乐是否已加载
-	    if (!music.IsLoaded(toId)) {
+	    if (!music_.IsLoaded(toId)) {
 	        LOG_ERROR(atom::LogChannel::ATOM_AUDIO_PLUG_MUSICFADE, "Cannot switch music: target music not loaded: " + toId);
 	        return false;
 	    }
@@ -76,7 +75,7 @@ namespace atom::audio {
 	    // 4. 如果当前没有音乐在播放，直接开始播放目标音乐
 	    if (fromId.empty()) {
 	        LOG_INFO(atom::LogChannel::ATOM_AUDIO_PLUG_MUSICFADE, "No current music, starting playback of: " + toId);
-	        music.Play(toId);
+	        music_.Play(toId);
 	        return true;
 	    }
 
@@ -89,7 +88,7 @@ namespace atom::audio {
 
 	    // 6. Check if target music is loaded
 	    // 6. 目标音乐是否已加载
-	    if (!music.IsLoaded(fromId)) {
+	    if (!music_.IsLoaded(fromId)) {
 	        LOG_ERROR(atom::LogChannel::ATOM_AUDIO_PLUG_MUSICFADE, "Cannot switch music: current playing music is not loaded: " + fromId);
 	        return false;
 	    }
@@ -209,10 +208,8 @@ namespace atom::audio {
 	}
 
 	auto MusicFade::FadeProcess() -> void {
-		// TODO: wtf, this function needs to be rewritten to use the proper throw an exception approach...
 	    try {
-	        auto& music = Music::GetInstance();
-	        const float peakVolume = atom::VolumeManager::GetMusicVolume();
+	        const float peakVolume = music_.GetMusicVolume();
 	        constexpr int steps = 100;
 	        int stepDuration = 0;
 	        std::string fromId, toId;
@@ -238,7 +235,7 @@ namespace atom::audio {
 	            }
 
 	            const float volume = peakVolume * (1.0f - static_cast<float>(i) / steps);
-	            music.SetVolume(fromId, volume);
+	            music_.SetVolume(fromId, volume);
 
 	            {
 	                std::lock_guard<std::mutex> lock(mutex_);
@@ -250,9 +247,9 @@ namespace atom::audio {
 	        // 3. Switch music
 	        // 3.切换音乐
 	        if (!stop_requested_) {
-	            music.Stop(fromId);
-	            music.Play(toId, 0.0f);
-	            music.SetNowPlaying(toId); // Ensure current playing state is updated
+	            music_.Stop(fromId);
+	            music_.Play(toId, 0.0f);
+	            music_.SetNowPlaying(toId); // Ensure current playing state is updated
 
 	            {
 	                std::lock_guard<std::mutex> lock(mutex_);
@@ -267,15 +264,15 @@ namespace atom::audio {
 	        // 4.淡入阶段
 	        for (int i = 0; i <= steps; ++i) {
 	            if (stop_requested_) {
-	                music.Stop(toId);
-	                music.ClearNowPlaying();
+	                music_.Stop(toId);
+	                music_.ClearNowPlaying();
 	                std::lock_guard<std::mutex> lock(mutex_);
 	                context_.state = FadeState::Idle;
 	                return;
 	            }
 
 	            const float volume = peakVolume * (static_cast<float>(i) / steps);
-	            music.SetVolume(toId, volume);
+	            music_.SetVolume(toId, volume);
 
 	            {
 	                std::lock_guard<std::mutex> lock(mutex_);
@@ -302,13 +299,13 @@ namespace atom::audio {
 		        std::lock_guard<std::mutex> lock(mutex_);
 		        LOG_ERROR(atom::LogChannel::ATOM_AUDIO_PLUG_MUSICFADE, "Exception in fade process: " + std::string(e.what()));
 		        context_.state = FadeState::Idle;
-		        Music::GetInstance().ClearNowPlaying();
+		        music_.ClearNowPlaying();
 		    }
 		    catch (...) {
 		        std::lock_guard<std::mutex> lock(mutex_);
 		        LOG_ERROR(atom::LogChannel::ATOM_AUDIO_PLUG_MUSICFADE, "Unknown exception in fade process");
 		        context_.state = FadeState::Idle;
-		        Music::GetInstance().ClearNowPlaying();
+		        music_.ClearNowPlaying();
 		    }
 	}
 }

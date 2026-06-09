@@ -24,7 +24,17 @@
 auto RegisterEntityToLua(lua_State* L) -> void;
 auto RegisterMusicToLua(lua_State* L) -> void;
 auto RegisterSFXToLua(lua_State* L) -> void;
+auto RegisterVolumeToLua(lua_State* L) -> void;
 auto PushEntityToLua(lua_State* L, atom::Entity* entity, const std::string& luaVarName) -> void;
+
+// Set Lua bridge instances
+// 设置 Lua 桥接实例
+namespace atom {
+    class Music;
+    class SFX;
+}
+auto SetLuaMusicInstance(atom::Music& music) -> void;
+auto SetLuaSFXInstance(atom::SFX& sfx) -> void;
 
 class LuaLoader {
 private:

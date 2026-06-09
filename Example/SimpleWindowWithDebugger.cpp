@@ -17,11 +17,9 @@
 #include <Window/Screen.hpp>
 #include <Window/Debugger.hpp>
 
-// simple FPS debugger
 class ExampleDebugger final : public atom::Debugger {
     protected:
         auto OnDrawOverlay() -> void override {
-            // Calculate FPS every second
             ++frame_count_;
             if (fps_clock_.getElapsedTime().asSeconds() >= 1.0f) {
                 fps_value_ = static_cast<float>(frame_count_);
@@ -64,19 +62,14 @@ class ExampleScreen final : public atom::Screen {
 };
 
 auto main() -> int {
-	// 1. Register the example screen
-	auto& screenManager = atom::ScreenManager::GetInstance();
-	screenManager.LoadScreen("Example", std::make_unique<ExampleScreen>());
-	screenManager.SwitchScreen("Example");
+	atom::ScreenManager::GetInstance().LoadScreen("Example", std::make_unique<ExampleScreen>());
+	atom::ScreenManager::GetInstance().SwitchScreen("Example");
 
-	// 2. Initialize the render window
 	auto& window = atom::RenderWindow::GetInstance();
 	window.Initialize("Atom Engine - Debug Overlay Example", atom::Vec2{1280, 720});
 
-	// 3. attach a custom debug overlay to the window
 	ExampleDebugger debugger {};
 	debugger.Attach(window);
 
-	// 4. Run the main loop
 	window.Run();
 }
