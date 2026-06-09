@@ -25,10 +25,10 @@ using atom::LogChannel;
 // Forward Function
 auto GetLogLevel(const LogLevel& logLevel) -> std::string {
     switch (logLevel) {
-        case LogLevel::ATOM_INFO: return "INFO";
-        case LogLevel::ATOM_WARNING: return"WARNING";
-        case LogLevel::ATOM_ERROR: return "ERROR";
         case LogLevel::ATOM_DEBUG: return "DEBUG";
+        case LogLevel::ATOM_INFO: return "INFO";
+        case LogLevel::ATOM_WARNING: return "WARNING";
+        case LogLevel::ATOM_ERROR: return "ERROR";
     }
 	return "Error log level";
 }
@@ -75,7 +75,14 @@ auto Log::GetLogInstance() -> Log& {
 }
 
 auto Log::LogOut(const LogChannel channel, const LogLevel level, const std::string& logMessage) -> void {
-    std::lock_guard<std::mutex> lock(GetLogInstance().log_mutex_);
+    auto& instance = GetLogInstance();
+
+    // only output logs at or above the current view level
+    if (level < instance.view_log_level_) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(instance.log_mutex_);
 
 	const std::string FullLogMessage = "[" + GetCurrentTime().str() + "] [" + GetLogLevel(level) + "] " + GetLogChannel(channel) + logMessage;
     std::cout << FullLogMessage << std::endl;

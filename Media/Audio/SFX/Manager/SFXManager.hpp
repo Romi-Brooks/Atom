@@ -2,9 +2,7 @@
   * @file           : SFXManager.hpp
   * @author         : Romi Brooks
   * @brief          : Sound Effect Resource Manager
-  * @attention      : We use a singleton class manager to properly guide the "load", "unload" and "get" operations
-  *					  of the SFX to ensure that the SFX is correctly and logically played by the engine.
-  *					  playback by the engine in a logical and practical way.
+  * @attention      : Manages loading, unloading and retrieval of SFX sound buffers.
   * @date           : 2025/9/19
   Copyright (c) 2025 Romi Brooks, All rights reserved.
 **/
@@ -32,7 +30,8 @@ namespace atom {
 		    SFXManager(const SFXManager&) = delete;
 		    SFXManager& operator=(const SFXManager&) = delete;
 
-			// Get a singleton instance
+			// Get the singleton instance
+			// 获取单例实例
 			[[nodiscard]] static auto GetManager() -> SFXManager&;
 
 		    // Load SFX file

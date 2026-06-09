@@ -12,22 +12,20 @@
 #include <imgui.h>
 
 // Engine Headers
-#include <Media/Audio/Music.hpp>
-#include "Media/Audio/Plug/MusicFade.hpp"
-
+#include <Media/Audio/Music/Music.hpp>
+#include <Media/Audio/Plugs/MusicFade.hpp>
 #include <Window/Screen.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Debugger.hpp>
 
-using Screen = atom::Screen;
-using Debugger = atom::Debugger;
-using Music = atom::Music;
-using Fade = atom::audio::MusicFade;
+class MusicDebugger final : public atom::Debugger {
+    public:
+        MusicDebugger(atom::Music& music, atom::audio::MusicFade& fade)
+            : music_(music), fade_(fade) {}
 
-class SFXDebugger final : public Debugger {
     protected:
         auto OnDrawOverlay() -> void override {
-            ImGui::Begin("SFX Debugger");
+            ImGui::Begin("Music Debugger");
 
             ImGui::Text("Press A to play music1, B to play music2");
             static std::string now_key_playing;
@@ -37,7 +35,7 @@ class SFXDebugger final : public Debugger {
             if (ImGui::Button("A")) {
                 if (now_key_playing != "registerId_1")
                 {
-                    Fade::GetInstance().Switch("registerId_1", fade_time);
+                    fade_.Switch("registerId_1", fade_time);
                     now_key_playing = "registerId_1";
                 }
             }
@@ -45,7 +43,7 @@ class SFXDebugger final : public Debugger {
             if (ImGui::Button("B")) {
                 if (now_key_playing != "registerId_2")
                 {
-                    Fade::GetInstance().Switch("registerId_2", fade_time);
+                    fade_.Switch("registerId_2", fade_time);
                     now_key_playing = "registerId_2";
                 }
             }
@@ -55,34 +53,34 @@ class SFXDebugger final : public Debugger {
 
             ImGui::Text("this btm allows you play those file at the same time");
             if (ImGui::Button("Play")) {
-                // if playing
-                Music::GetInstance().Stop("registerId_1");
-                Music::GetInstance().Stop("registerId_2");
+                music_.Stop("registerId_1");
+                music_.Stop("registerId_2");
 
-                Music::GetInstance().Play("registerId_1");
-                Music::GetInstance().Play("registerId_2");
+                music_.Play("registerId_1");
+                music_.Play("registerId_2");
             }
             ImGui::Separator();
 
             ImGui::Text("Press ESC to exit");
             ImGui::End();
         }
+
+    private:
+        atom::Music& music_;
+        atom::audio::MusicFade& fade_;
 };
 
 
-class MusicScreen final : public Screen {
+class MusicScreen final : public atom::Screen {
     public:
         auto Render(sf::RenderWindow& window) -> void override {
-            // dark blue background
             window.clear(sf::Color(30, 30, 60));
         }
 
         auto HandleEvent(const sf::Event& event) -> bool override {
-            // Close the window when Escape is pressed
             if (event.is<sf::Event::KeyPressed>()) {
                 const auto& key = event.getIf<sf::Event::KeyPressed>();
                 if (key->code == sf::Keyboard::Key::Escape) {
-                    // Access the RenderWindow singleton and close the window
                     atom::RenderWindow::GetInstance().Shutdown();
                     return true;
                 }
@@ -95,17 +93,19 @@ class MusicScreen final : public Screen {
 };
 
 auto main() -> int {
-    Music::GetInstance().Load("registerId_1",R"(E:\Music\永恒 - 幼稚园杀手.wav)");
-    Music::GetInstance().Load("registerId_2",R"(E:\Music\1_So Far Away (feat. Jamie Scott & Romy Dya)_(Instrumental).wav)");
+    atom::Music music;
+    atom::audio::MusicFade music_fade{music};
 
-    auto& screenManager = atom::ScreenManager::GetInstance();
-    screenManager.LoadScreen("Music", std::make_unique<MusicScreen>());
-    screenManager.SwitchScreen("Music");
+    music.Load("registerId_1", R"(E:\Music\永恒 - 幼稚园杀手.wav)");
+    music.Load("registerId_2", R"(E:\Music\1_So Far Away (feat. Jamie Scott & Romy Dya)_(Instrumental).wav)");
+
+    atom::ScreenManager::GetInstance().LoadScreen("Music", std::make_unique<MusicScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen("Music");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine -Music Playback Example", atom::Vec2{720, 720});
+    window.Initialize("Atom Engine - Music Playback Example", atom::Vec2{720, 720});
 
-    SFXDebugger debugger {};
+    MusicDebugger debugger{music, music_fade};
     debugger.Attach(window);
 
     window.Run();

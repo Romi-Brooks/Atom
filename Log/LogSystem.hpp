@@ -18,10 +18,10 @@
 
 namespace atom {
 	enum class LogLevel {
-		ATOM_INFO,
-		ATOM_WARNING,
-		ATOM_ERROR,
-		ATOM_DEBUG
+		ATOM_DEBUG,     // 0
+		ATOM_INFO,      // 1
+		ATOM_WARNING,   // 2
+		ATOM_ERROR      // 3
 	};
 
 	class LogChannel {
@@ -75,7 +75,7 @@ namespace atom {
 		~Log() = default;
 
 
-		LogLevel view_log_level_ = LogLevel::ATOM_INFO;
+		LogLevel view_log_level_ = LogLevel::ATOM_DEBUG;
 		std::mutex log_mutex_;
 
 	public:

@@ -15,27 +15,24 @@
 
 // Engine Headers
 #include <Log/LogSystem.hpp>
-#include <Media/Audio/Manager/SFXManager.hpp>
+#include <Media/Audio/SFX/Manager/SFXManager.hpp>
+#include <Media/Audio/Manager/VolumeManager.hpp>
 
 // Self Dependency
 #include "SFX.hpp"
 
 
 namespace atom {
-	SFX& SFX::GetInstance() {
-		static SFX instance;
-		return instance;
-	}
-
 	auto SFX::Load(const std::string& id, const std::string& filePath) -> bool {
-		// First, load the buffer through SFXManager
-		if (!SFXManager::GetManager().LoadSFXFiles(id, filePath)) {
+		// Load the buffer through the global SFXManager
+		auto& sfx_manager = SFXManager::GetManager();
+		if (!sfx_manager.LoadSFXFiles(id, filePath)) {
 			LOG_ERROR(atom::LogChannel::ATOM_AUDIO_SFX, "Error when loading SFX: " + id);
 			return false;
 		}
 
 		// Get the buffer from SFXManager
-		const auto buffer = SFXManager::GetManager().GetSFXBuffer(id);
+		const auto buffer = sfx_manager.GetSFXBuffer(id);
 		if (!buffer) {
 			LOG_ERROR(atom::LogChannel::ATOM_AUDIO_SFX, "Error getting buffer for SFX: " + id);
 			return false;
@@ -53,9 +50,8 @@ namespace atom {
 	auto SFX::Play(const std::string& id) -> void {
 		const auto it = sounds_.find(id);
 		if (it != sounds_.end() && it->second) {
-			// we use Volume Manager class to make sure that audio plays well
-			it->second->setVolume(sfx_volume_);
-
+			// Read global volume from VolumeManager
+			it->second->setVolume(VolumeManager::GetInstance().GetEffectiveSfxVolume());
 			it->second->play();
 			LOG_INFO(atom::LogChannel::ATOM_AUDIO_SFX, "Playing: " + id);
 		} else {
@@ -89,20 +85,11 @@ namespace atom {
 		const auto it = sounds_.find(id);
 		if (it != sounds_.end() && it->second) {
 			it->second->setVolume(volume);
-
 			it->second->play();
 			LOG_INFO(atom::LogChannel::ATOM_AUDIO_SFX, "Playing: " + id);
 		} else {
 			LOG_WARNING(atom::LogChannel::ATOM_AUDIO_SFX, "SFX not found or not loaded: " + id);
 		}
-	}
-
-	auto SFX::SetSfxVolume(const float volume) -> void {
-		sfx_volume_ = volume;
-	}
-
-	auto SFX::GetSfxVolume() -> float {
-		return sfx_volume_;
 	}
 
 	auto SFX::IsLoaded(const std::string& id) const -> bool {
@@ -119,6 +106,4 @@ namespace atom {
 		StopAll();
 		sounds_.clear();
 	}
-
-	auto SFX::Update() -> void {}
 }

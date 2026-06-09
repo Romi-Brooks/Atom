@@ -7,31 +7,44 @@
   Copyright (c) 2025 Romi Brooks, All rights reserved.
 **/
 
-// Engine Headers
-#include <Media/Audio/Music.hpp>
-#include <Media/Audio/SFX.hpp>
-
 // Self Dependency
 #include "VolumeManager.hpp"
 
-float atom::SFX::sfx_volume_ = 100.0f;
-float atom::Music::music_volume_ = 100.0f;
-
 namespace atom {
-	auto VolumeManager::SetSfxVolume(const float volume) -> void {
-		SFX::SetSfxVolume(volume);
+	VolumeManager& VolumeManager::GetInstance() {
+		static VolumeManager instance;
+		return instance;
 	}
 
-	auto VolumeManager::GetSfxVolume() -> float {
-		return SFX::GetSfxVolume();
+	auto VolumeManager::SetMasterVolume(const float volume) -> void {
+		master_volume_ = volume;
+	}
+
+	auto VolumeManager::GetMasterVolume() const -> float {
+		return master_volume_;
+	}
+
+	auto VolumeManager::SetSfxVolume(const float volume) -> void {
+		sfx_volume_ = volume;
+	}
+
+	auto VolumeManager::GetSfxVolume() const -> float {
+		return sfx_volume_;
 	}
 
 	auto VolumeManager::SetMusicVolume(const float volume) -> void {
-		Music::GetInstance().SetMusicVolume(volume);
+		music_volume_ = volume;
 	}
 
-	auto VolumeManager::GetMusicVolume() -> float {
-		return Music::GetInstance().GetMusicVolume();
+	auto VolumeManager::GetMusicVolume() const -> float {
+		return music_volume_;
 	}
 
+	auto VolumeManager::GetEffectiveSfxVolume() const -> float {
+		return master_volume_ * sfx_volume_ / 100.0f;
+	}
+
+	auto VolumeManager::GetEffectiveMusicVolume() const -> float {
+		return master_volume_ * music_volume_ / 100.0f;
+	}
 }

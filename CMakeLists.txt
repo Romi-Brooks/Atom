@@ -142,12 +142,12 @@ add_library(engine_log STATIC
 target_include_directories(engine_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Dependency Libraries: None
 
-# 2. Math
-add_library(engine_math STATIC
-        Math/Vector/Vec2.cpp
-        Math/Vector/Vec2.hpp
+# 2. Algorithm
+add_library(engine_algorithm STATIC
+        Algorithm/Vector/Vec2.cpp
+        Algorithm/Vector/Vec2.hpp
 )
-target_include_directories(engine_math PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(engine_algorithm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Dependency Libraries: None
 
 # 3. Entities
@@ -164,16 +164,16 @@ target_include_directories(engine_entities PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # 4. Media
 add_library(engine_media STATIC
-        Media/Audio/Manager/SFXManager.cpp
-        Media/Audio/Manager/SFXManager.hpp
+        Media/Audio/SFX/Manager/SFXManager.cpp
+        Media/Audio/SFX/Manager/SFXManager.hpp
         Media/Audio/Manager/VolumeManager.cpp
         Media/Audio/Manager/VolumeManager.hpp
-        Media/Audio/Plug/MusicFade.cpp
-        Media/Audio/Plug/MusicFade.hpp
-        Media/Audio/Music.cpp
-        Media/Audio/Music.hpp
-        Media/Audio/SFX.cpp
-        Media/Audio/SFX.hpp
+        Media/Audio/Plugs/MusicFade.cpp
+        Media/Audio/Plugs/MusicFade.hpp
+        Media/Audio/Music/Music.cpp
+        Media/Audio/Music/Music.hpp
+        Media/Audio/SFX/SFX.cpp
+        Media/Audio/SFX/SFX.hpp
         Media/Decoder/WavRiff/WavDecoder.cpp
         Media/Decoder/WavRiff/WavDecoder.hpp
         Media/Video/Video.cpp
@@ -212,7 +212,7 @@ add_library(engine_windows STATIC
         Window/Manager/ScreenManager.hpp
 )
 # Dependency Libraries: SFML, Engine.Log, Engine.Math
-target_link_libraries(engine_windows PUBLIC sfml_all engine_log engine_math)
+target_link_libraries(engine_windows PUBLIC sfml_all engine_log engine_algorithm)
 
 # 8. Debugger
 add_library(engine_debugger STATIC
@@ -235,8 +235,9 @@ target_link_libraries(engine_config PUBLIC engine_entities engine_log)
 
 # 10. Engine Core
 add_library(engine_core INTERFACE)
+target_include_directories(engine_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(engine_core INTERFACE
-        engine_math
+        engine_algorithm
         engine_entities
         engine_media
         engine_packager
@@ -253,6 +254,7 @@ add_library(engine_lua STATIC
         Lua/LuaBinding/LuaMusic.cpp
         Lua/LuaBinding/LuaSFX.cpp
         Lua/LuaBinding/LuaEntity.cpp
+        Lua/LuaBinding/LuaVolume.cpp
 )
 target_include_directories(engine_lua PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Dependency Libraries: Engine.All

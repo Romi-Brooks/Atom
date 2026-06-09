@@ -13,7 +13,14 @@
 // Standard Library
 #include <thread>
 #include <atomic>
-// #include <functional>
+#include <mutex>
+#include <functional>
+#include <string>
+
+// Forward declarations
+namespace atom {
+    class Music;
+}
 
 namespace atom::audio {
 	enum class FadeState {
@@ -41,13 +48,13 @@ namespace atom::audio {
 
 			std::function<void(FadeState, const std::string&, const std::string&)> callback_;
 
+			Music& music_;
+
 			auto FadeProcess() -> void;
 
 		public:
-			[[nodiscard]] static auto GetInstance() -> MusicFade& {
-				static MusicFade instance;
-				return instance;
-			}
+			explicit MusicFade(Music& music)
+				: music_(music) {}
 
 			~MusicFade();
 
