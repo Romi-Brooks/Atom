@@ -24,20 +24,20 @@ elseif(APPLE)
 endif()
 
 # ============================================================================
-# 3rd Libraries
+# 3rd Libraries Paths
 # ============================================================================
-set(SFML_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/SFML-3.0.0")
+set(SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/SDL3/x86_64-w64-mingw32/lib/cmake/SDL3")
 set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/ImGUI")
-set(IMGUI_SFML_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/ImGUI-SFML")
 set(LUA_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/Lua")
 set(TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/taglib")
 set(UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/utfcpp")
 set(FFMPEG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/FFmpeg")
+set(SDL3_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/SDL3/x86_64-w64-mingw32")
 
 # ============================================================================
 # 3rd Libraries Path Check
 # ============================================================================
-foreach(DIR IN ITEMS ${SFML_DIR} ${IMGUI_DIR} ${IMGUI_SFML_DIR} ${LUA_SRC_DIR}
+foreach(DIR IN ITEMS ${SDL3_ROOT} ${IMGUI_DIR} ${LUA_SRC_DIR}
         ${TAGLIB_DIR} ${UTFCPP_DIR} ${FFMPEG_DIR})
     if(NOT EXISTS ${DIR})
         message(FATAL_ERROR "Required directory not found: ${DIR}")
@@ -49,33 +49,25 @@ endforeach()
 # ============================================================================
 # Includes
 include_directories(
-        ${SFML_DIR}/include
+        ${SDL3_ROOT}/include
         ${IMGUI_DIR}
-        ${IMGUI_SFML_DIR}
         ${TAGLIB_DIR}/include
         ${UTFCPP_DIR}
         ${FFMPEG_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/AtomWavDecoder
 )
 
 # Link
 link_directories(
-        "${SFML_DIR}/lib"
+        "${SDL3_ROOT}/lib"
         "${TAGLIB_DIR}/lib"
         "${FFMPEG_DIR}/lib"
 )
 
-# 1. SFML
-    find_package(SFML 3.0 REQUIRED COMPONENTS Graphics Window System Audio
-            PATHS "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/SFML-3.0.0"
-            NO_DEFAULT_PATH)
-
-    add_library(sfml_all INTERFACE)
-    target_link_libraries(sfml_all INTERFACE
-            sfml-graphics
-            sfml-window
-            sfml-system
-            sfml-audio
-    )
+# 1. SDL3
+    find_package(SDL3 REQUIRED CONFIG
+        PATHS "${SDL3_DIR}"
+        NO_DEFAULT_PATH)
 
 # 2. Lua
     file(GLOB LUA_SOURCES
@@ -87,7 +79,7 @@ link_directories(
     add_library(lua_lib STATIC ${LUA_SOURCES})
     target_include_directories(lua_lib PUBLIC ${LUA_SRC_DIR})
 
-# 3. ImGui
+# 3. ImGui (core)
     add_library(imgui_lib STATIC
             "${IMGUI_DIR}/imgui.cpp"
             "${IMGUI_DIR}/imgui_draw.cpp"
@@ -96,12 +88,13 @@ link_directories(
     )
     target_include_directories(imgui_lib PUBLIC ${IMGUI_DIR})
 
-# 4. ImGui-SFML
-    add_library(imgui_sfml_lib STATIC
-            "${IMGUI_SFML_DIR}/imgui-SFML.cpp"
+# 4. ImGui SDL3 backends
+    add_library(imgui_sdl3_lib STATIC
+            "${IMGUI_DIR}/imgui_impl_sdl3.cpp"
+            "${IMGUI_DIR}/imgui_impl_sdlrenderer3.cpp"
     )
-    target_include_directories(imgui_sfml_lib PUBLIC ${IMGUI_SFML_DIR})
-    target_link_libraries(imgui_sfml_lib PUBLIC imgui_lib sfml_all)
+    target_include_directories(imgui_sdl3_lib PUBLIC ${IMGUI_DIR})
+    target_link_libraries(imgui_sdl3_lib PUBLIC imgui_lib SDL3::SDL3)
 
 # 5. TagLib
     set(TAGLIB_INCLUDE_DIR "${TAGLIB_DIR}/include")
@@ -134,134 +127,173 @@ link_directories(
 # ============================================================================
 # Engine Libraries
 # ============================================================================
+# 0. Interfaces (header-only, no SFML/SDL3 dependency)
+    add_library(engine_interfaces INTERFACE)
+    target_include_directories(engine_interfaces INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
 # 1. Log
-add_library(engine_log STATIC
-        Log/LogSystem.cpp
-        Log/LogSystem.hpp
-)
-target_include_directories(engine_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# Dependency Libraries: None
+    add_library(engine_log STATIC
+            Log/LogSystem.cpp
+            Log/LogSystem.hpp
+    )
+    target_include_directories(engine_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_log PUBLIC engine_interfaces)
 
 # 2. Algorithm
-add_library(engine_algorithm STATIC
-        Algorithm/Vector/Vec2.cpp
-        Algorithm/Vector/Vec2.hpp
-)
-target_include_directories(engine_algorithm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# Dependency Libraries: None
+    add_library(engine_algorithm STATIC
+            Algorithm/Vector/Vec2.cpp
+            Algorithm/Vector/Vec2.hpp
+    )
+    target_include_directories(engine_algorithm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_algorithm PUBLIC engine_interfaces)
 
-# 3. Entities
-add_library(engine_entities STATIC
-        Components/Entities/Entity.cpp
-        Components/Entities/Entity.hpp
-        Components/Entities/NPC.cpp
-        Components/Entities/NPC.hpp
-        Components/Entities/Player.cpp
-        Components/Entities/Player.hpp
-)
-target_include_directories(engine_entities PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# Dependency Libraries: None
+# 3. SDL3 Render Backend
+    add_library(engine_render_sdl3 STATIC
+        Engine/Render/SDLCore.cpp
+        Engine/Render/SDLCore.hpp
+        Engine/Render/SDL3RenderWindow.cpp
+        Engine/Render/SDL3RenderWindow.hpp
+        Engine/Render/SDL3Texture.cpp
+        Engine/Render/SDL3Texture.hpp
+    )
+    target_include_directories(engine_render_sdl3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_render_sdl3 PUBLIC engine_interfaces SDL3::SDL3)
 
-# 4. Media
-add_library(engine_media STATIC
-        Media/Audio/SFX/Manager/SFXManager.cpp
-        Media/Audio/SFX/Manager/SFXManager.hpp
-        Media/Audio/Manager/VolumeManager.cpp
-        Media/Audio/Manager/VolumeManager.hpp
-        Media/Audio/Plugs/MusicFade.cpp
-        Media/Audio/Plugs/MusicFade.hpp
-        Media/Audio/Music/Music.cpp
-        Media/Audio/Music/Music.hpp
-        Media/Audio/SFX/SFX.cpp
-        Media/Audio/SFX/SFX.hpp
-        Media/Decoder/WavRiff/WavDecoder.cpp
-        Media/Decoder/WavRiff/WavDecoder.hpp
-        Media/Video/Video.cpp
-        Media/Video/Video.hpp
-)
-target_include_directories(engine_media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# Dependency Libraries: SFML, Engine.Log
-target_link_libraries(engine_media PUBLIC sfml_all engine_log)
+# 4. Atom Wav Decoder (ThirdParty, self-contained C++ WAV parser)
+    add_library(atom_wav_decoder STATIC
+        ThirdParty/Lib/AtomWavDecoder/WavDecoder.cpp
+        ThirdParty/Lib/AtomWavDecoder/WavDecoder.hpp
+    )
+    target_include_directories(atom_wav_decoder PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/AtomWavDecoder)
 
-## 5. FileSystem
-#add_library(engine_filesystem STATIC
-#
-#)
-#target_include_directories(engine_filesystem PUBLIC)
-## Dependency Libraries:
-#target_link_libraries(engine_filesystem PUBLIC)
+# 5. Audio Decoder Backends (IAudioDecoder implementations)
+    add_library(engine_audio_decoder STATIC
+        Engine/Interfaces/IAudioDecoder.hpp
+        Media/Audio/Decoder/AtomWavDecoderBackend.cpp
+        Media/Audio/Decoder/AtomWavDecoderBackend.hpp
+    )
+    target_include_directories(engine_audio_decoder PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_audio_decoder PUBLIC engine_interfaces atom_wav_decoder)
 
-# 6. Packager
-add_library(engine_packager STATIC
-        Utilities/Packager/Unpackager.cpp
-        Utilities/Packager/Unpackager.hpp
-        Utilities/Packager/Packager.cpp
-        Utilities/Packager/Packager.hpp
-)
-target_include_directories(engine_packager PUBLIC Utilities/Packager)
-# Dependency Libraries: UtfCpp, Engine.Log
-target_link_libraries(engine_packager PUBLIC utfcpp engine_log)
+# 6. SDL3 Audio Backend
+    add_library(engine_audio_sdl3 STATIC
+        Media/Audio/Backend/SDL3AudioBuffer.cpp
+        Media/Audio/Backend/SDL3AudioBuffer.hpp
+        Media/Audio/Backend/SDL3SFXSource.cpp
+        Media/Audio/Backend/SDL3SFXSource.hpp
+        Media/Audio/Backend/SDL3MusicSource.cpp
+        Media/Audio/Backend/SDL3MusicSource.hpp
+    )
+    target_include_directories(engine_audio_sdl3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_audio_sdl3 PUBLIC engine_interfaces SDL3::SDL3)
 
-# 7. Windows
-add_library(engine_windows STATIC
-        Window/RenderWindow.cpp
-        Window/RenderWindow.hpp
-        Window/Screen.cpp
-        Window/Screen.hpp
-        Window/Manager/ScreenManager.cpp
-        Window/Manager/ScreenManager.hpp
-)
-# Dependency Libraries: SFML, Engine.Log, Engine.Math
-target_link_libraries(engine_windows PUBLIC sfml_all engine_log engine_algorithm)
+# 7. Entities
+    add_library(engine_entities STATIC
+            Components/Entities/Entity.hpp
+            Components/Entities/Entity.cpp
+            Components/Entities/NPC.hpp
+            Components/Entities/NPC.cpp
+            Components/Entities/Player.hpp
+            Components/Entities/Player.cpp
+    )
+    target_include_directories(engine_entities PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_entities PUBLIC engine_interfaces engine_algorithm)
 
-# 8. Debugger
-add_library(engine_debugger STATIC
-        Window/Debugger.hpp
-        Window/Debugger.cpp
-)
-target_include_directories(engine_debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(engine_debugger PUBLIC engine_windows imgui_sfml_lib)
-if(WIN32)
-    target_link_libraries(engine_debugger PUBLIC opengl32 gdi32)
-endif()
+# 8. Media
+    add_library(engine_media STATIC
+            Media/Audio/SFX/Manager/SFXManager.cpp
+            Media/Audio/SFX/Manager/SFXManager.hpp
+            Media/Audio/Manager/VolumeManager.cpp
+            Media/Audio/Manager/VolumeManager.hpp
+            Media/Audio/Plugs/MusicFade.cpp
+            Media/Audio/Plugs/MusicFade.hpp
+            Media/Audio/Music/Music.cpp
+            Media/Audio/Music/Music.hpp
+            Media/Audio/SFX/SFX.cpp
+            Media/Audio/SFX/SFX.hpp
+            Media/Decoder/WavRiff/WavDecoder.cpp
+            Media/Decoder/WavRiff/WavDecoder.hpp
+            Media/Video/Video.cpp
+            Media/Video/Video.hpp
+    )
+    target_include_directories(engine_media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_media PUBLIC engine_interfaces engine_log engine_audio_sdl3 engine_audio_decoder)
 
-# 9. Config
-add_library(engine_config STATIC
-        Config/Components/Entities/NPC.hpp
-        Config/Movement/MoveEvent.hpp
-)
-# Dependency Libraries: Engine.Entity, Engine.Log
-target_link_libraries(engine_config PUBLIC engine_entities engine_log)
+# 9. Packager
+    add_library(engine_packager STATIC
+            Utilities/Packager/Unpackager.cpp
+            Utilities/Packager/Unpackager.hpp
+            Utilities/Packager/Packager.cpp
+            Utilities/Packager/Packager.hpp
+    )
+    target_include_directories(engine_packager PUBLIC Utilities/Packager)
+    target_link_libraries(engine_packager PUBLIC utfcpp engine_log)
 
-# 10. Engine Core
-add_library(engine_core INTERFACE)
-target_include_directories(engine_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(engine_core INTERFACE
-        engine_algorithm
-        engine_entities
-        engine_media
-        engine_packager
-        engine_windows
+# 10. Windows
+    add_library(engine_windows STATIC
+            Window/RenderWindow.hpp
+            Window/RenderWindow.cpp
+            Window/Screen.cpp
+            Window/Screen.hpp
+            Window/Manager/ScreenManager.cpp
+            Window/Manager/ScreenManager.hpp
+    )
+    target_include_directories(engine_windows PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_windows PUBLIC
+        engine_interfaces
+        engine_render_sdl3
         engine_log
-        engine_lua
-        engine_config
-)
+        engine_algorithm)
 
-# 11. Lua Binding
-add_library(engine_lua STATIC
-        Lua/LuaLoader.hpp
-        Lua/LuaLoader.cpp
-        Lua/LuaBinding/LuaMusic.cpp
-        Lua/LuaBinding/LuaSFX.cpp
-        Lua/LuaBinding/LuaEntity.cpp
-        Lua/LuaBinding/LuaVolume.cpp
-)
-target_include_directories(engine_lua PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# Dependency Libraries: Engine.All
-target_link_libraries(engine_lua PUBLIC
-        lua_lib
-        engine_log
-        engine_config)
+# 11. Debugger
+    add_library(engine_debugger STATIC
+            Window/Debugger.hpp
+            Window/Debugger.cpp
+    )
+    target_include_directories(engine_debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_debugger PUBLIC engine_windows imgui_sdl3_lib)
+    if(WIN32)
+        target_link_libraries(engine_debugger PUBLIC opengl32 gdi32)
+    endif()
+
+# 12. Config
+    add_library(engine_config STATIC
+            Config/Components/Entities/NPC.hpp
+            Config/Movement/MoveEvent.hpp
+    )
+    target_link_libraries(engine_config PUBLIC engine_entities engine_log)
+
+# 13. Engine Core
+    add_library(engine_core INTERFACE)
+    target_include_directories(engine_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_core INTERFACE
+            engine_algorithm
+            engine_entities
+            engine_media
+            engine_packager
+            engine_windows
+            engine_log
+            engine_lua
+            engine_config
+    )
+
+# 14. Lua Binding
+    add_library(engine_lua STATIC
+            Lua/LuaLoader.hpp
+            Lua/LuaLoader.cpp
+            Lua/LuaBinding/LuaMusic.cpp
+            Lua/LuaBinding/LuaSFX.cpp
+            Lua/LuaBinding/LuaEntity.cpp
+            Lua/LuaBinding/LuaVolume.cpp
+    )
+    target_include_directories(engine_lua PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(engine_lua PUBLIC
+            lua_lib
+            engine_log
+            engine_config)
 
 # ============================================================================
 # Executable
@@ -272,7 +304,6 @@ add_executable(Atom Atom.cpp)
 target_link_libraries(Atom PRIVATE
         engine_core
         taglib
-        sfml_all
         ffmpeg
 )
 
@@ -284,13 +315,13 @@ if(WIN32)
 endif()
 
 add_executable(example_audio_playback Example/MusicPlayback.cpp)
-target_link_libraries(example_audio_playback PRIVATE engine_media engine_windows sfml_all engine_debugger)
+target_link_libraries(example_audio_playback PRIVATE engine_media engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_audio_playback PRIVATE)
 endif()
 
 add_executable(example_sfx_playback Example/SFXPlayback.cpp)
-target_link_libraries(example_sfx_playback PRIVATE engine_media engine_windows sfml_all engine_debugger)
+target_link_libraries(example_sfx_playback PRIVATE engine_media engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_sfx_playback PRIVATE)
 endif()
@@ -302,13 +333,13 @@ if(WIN32)
 endif()
 
 add_executable(example_simple_window Example/SimpleWindow.cpp)
-target_link_libraries(example_simple_window PRIVATE engine_windows sfml_all)
+target_link_libraries(example_simple_window PRIVATE engine_windows)
 if(WIN32)
     target_link_libraries(example_simple_window PRIVATE)
 endif()
 
 add_executable(example_simple_window_debug Example/SimpleWindowWithDebugger.cpp)
-target_link_libraries(example_simple_window_debug PRIVATE engine_windows sfml_all engine_debugger)
+target_link_libraries(example_simple_window_debug PRIVATE engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_simple_window_debug PRIVATE)
 endif()
@@ -319,13 +350,11 @@ endif()
 add_executable(packager_tool
         Utilities/Packager/Package_main.cpp
 )
-# Dependency Libraries: Engine.Packager
 target_link_libraries(packager_tool PRIVATE engine_packager)
 
 # ============================================================================
 # Platforms Config
 # ============================================================================
-# For MINGW
 if(MINGW)
     target_link_options(Atom PRIVATE -lstdc++exp -lws2_32)
 endif()
@@ -336,26 +365,26 @@ endif()
 # ============================================================================
 # Post Build Config
 # ============================================================================
-# For
-if(WIN32)
-    set(SFML_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/SFML-3.0.0")
-    set(SFML_BIN_DIR "${SFML_ROOT_DIR}/bin")
+# Copy SDL3 DLL to output directories
+set(SDL3_BIN_DIR "${SDL3_ROOT}/bin")
 
-    if(EXISTS ${SFML_BIN_DIR})
-        file(GLOB SFML_DLLS "${SFML_BIN_DIR}/*.dll")
-        if(SFML_DLLS)
-            add_custom_command(TARGET Atom POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Atom>"
-                    COMMAND ${CMAKE_COMMAND} -E copy ${SFML_DLLS} "$<TARGET_FILE_DIR:Atom>"
-                    COMMENT "Copying SFML DLLs to output directory"
+if(EXISTS ${SDL3_BIN_DIR})
+    file(GLOB SDL3_DLLS "${SDL3_BIN_DIR}/*.dll")
+    if(SDL3_DLLS)
+        foreach(TGT Atom example_simple_window example_simple_window_debug
+                    example_audio_playback example_sfx_playback example_ffmepg_playback)
+            add_custom_command(TARGET ${TGT} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${TGT}>"
+                    COMMAND ${CMAKE_COMMAND} -E copy ${SDL3_DLLS} "$<TARGET_FILE_DIR:${TGT}>"
+                    COMMENT "Copying SDL3 DLLs to ${TGT} output directory"
             )
-            message(STATUS "SFML DLLs found: ${SFML_DLLS}")
-        else()
-            message(WARNING "No DLLs found in ${SFML_BIN_DIR}")
-        endif()
+        endforeach()
+        message(STATUS "SDL3 DLLs found: ${SDL3_DLLS}")
     else()
-        message(WARNING "SFML bin directory not found: ${SFML_BIN_DIR}")
+        message(WARNING "No SDL3 DLLs found in ${SDL3_BIN_DIR}")
     endif()
+else()
+    message(WARNING "SDL3 bin directory not found: ${SDL3_BIN_DIR}")
 endif()
 
 # FFmpeg
@@ -374,4 +403,3 @@ if(EXISTS ${FFMPEG_BIN_DIR})
 else()
     message(WARNING "FFmpeg bin directory not found: ${FFMPEG_BIN_DIR}")
 endif()
-

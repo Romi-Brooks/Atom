@@ -10,56 +10,42 @@
 // Standard Library
 #include <string>
 
-// Third Party Library
 #include "lua.hpp"
 
-// Engine Headers
 #include <Components/Entities/Entity.hpp>
 #include <Log/LogSystem.hpp>
 
 using Entity = atom::Entity;
 
-// Check if the userdata on the Lua stack is of Entity type
-// 检查Lua栈中的userdata是否为Entity类型
 #define CHECK_ENTITY(L) \
     Entity* entity = *static_cast<Entity**>(luaL_checkudata(L, 1, "EntityMetaTable")); \
     if (!entity) { \
         return luaL_error(L, "invalid Entity object"); \
     }
 
-// Lua binding: Get HP
-// Lua绑定：获取血量
 static int lua_Entity_GetHP(lua_State* L) {
     CHECK_ENTITY(L);
     lua_pushinteger(L, entity->GetHP());
-    return 1; // Return 1 value (HP)
+    return 1;
 }
 
-// Lua binding: Set HP (hotfix may require dynamic HP adjustment)
-// Lua绑定：设置血量（热修复可能需要动态调整血量）
 static int lua_Entity_SetHP(lua_State* L) {
     CHECK_ENTITY(L);
-    unsigned int hp = luaL_checkinteger(L, 2); // Second parameter is the new HP
+    unsigned int hp = luaL_checkinteger(L, 2);
     entity->SetBloody(hp);
-    return 0; // No return value
+    return 0;
 }
 
-// Lua binding: Take damage
-// Lua绑定：受到伤害
 static int lua_Entity_Damage(lua_State* L) {
     CHECK_ENTITY(L);
     unsigned int damage = luaL_checkinteger(L, 2);
     bool result = entity->Damage(damage);
-    lua_pushboolean(L, result); // Return whether damage was successfully dealt
+    lua_pushboolean(L, result);
     return 1;
 }
 
-// Lua binding: Attack another entity
-// Lua绑定：攻击其他实体
 static int lua_Entity_Attack(lua_State* L) {
     CHECK_ENTITY(L);
-    // Second parameter must be another Entity object
-    // 第二个参数必须是另一个Entity对象
     Entity* target = *static_cast<Entity**>(luaL_checkudata(L, 2, "EntityMetaTable"));
     if (!target) {
         return luaL_error(L, "invalid target Entity");
@@ -69,8 +55,6 @@ static int lua_Entity_Attack(lua_State* L) {
     return 1;
 }
 
-// Lua binding: Set position
-// Lua绑定：设置位置
 static int lua_Entity_SetPosition(lua_State* L) {
     CHECK_ENTITY(L);
     float x = luaL_checknumber(L, 2);
@@ -79,17 +63,15 @@ static int lua_Entity_SetPosition(lua_State* L) {
     return 0;
 }
 
-// Lua binding: Get position (returns Lua table {x=..., y=...})
-// Lua绑定：获取位置（返回Lua表 {x=..., y=...}）
 static int lua_Entity_GetPosition(lua_State* L) {
     CHECK_ENTITY(L);
-    sf::Vector2f pos = entity->GetPosition();
-    lua_newtable(L); // Create a table
-    lua_pushnumber(L, pos.x);
-    lua_setfield(L, -2, "x"); // table.x = pos.x
-    lua_pushnumber(L, pos.y);
-    lua_setfield(L, -2, "y"); // table.y = pos.y
-    return 1; // Return the position table
+    atom::Vec2 pos = entity->GetPosition();
+    lua_newtable(L);
+    lua_pushnumber(L, pos.GetX());
+    lua_setfield(L, -2, "x");
+    lua_pushnumber(L, pos.GetY());
+    lua_setfield(L, -2, "y");
+    return 1;
 }
 
 // Lua binding: Move (based on Movement signal)

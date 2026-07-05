@@ -1,8 +1,9 @@
-#include <SFML/Graphics.hpp>
 #include <iostream>
 #include <string>
 #include <chrono>
 #include <thread>
+
+#include <SDL3/SDL.h>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -31,8 +32,6 @@ int main() {
     for (unsigned int i = 0; i < formatContext->nb_streams; i++) {
         if (formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             videoStreamIndex = i;
-            // Get the video native frame rate
-            // 获取视频原生帧率
             videoFrameRate = formatContext->streams[i]->r_frame_rate;
             break;
         }
@@ -43,10 +42,8 @@ int main() {
         return -1;
     }
 
-    // Calculate the display time per frame
-    // 计算每帧的显示时间
     double frameDelayMs = 1000.0 / av_q2d(videoFrameRate);
-    if (frameDelayMs <= 0) {  // Fallback if frame rate acquisition fails, default to 30fps
+    if (frameDelayMs <= 0) {
         frameDelayMs = 1000.0 / 30.0;
         std::cout << "Could not get video frame rate, use default 30fps" << std::endl;
     }
@@ -69,8 +66,8 @@ int main() {
     AVFrame* frame = av_frame_alloc();
     AVFrame* rgbFrame = av_frame_alloc();
 
-	unsigned width = codecContext->width;
-	unsigned height = codecContext->height;
+    unsigned width = codecContext->width;
+    unsigned height = codecContext->height;
 
     int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, width, height, 1);
     uint8_t* buffer = static_cast<uint8_t*>(av_malloc(numBytes * sizeof(uint8_t)));
@@ -80,78 +77,82 @@ int main() {
                                                width, height, AV_PIX_FMT_RGBA,
                                                SWS_BILINEAR, nullptr, nullptr, nullptr);
 
-    sf::RenderWindow window(sf::VideoMode({width, height}), "SFML + FFmpeg Video Test");
-    sf::Texture texture({width, height});
-    sf::Sprite sprite(texture);
+    // SDL3 setup
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Window* window = SDL_CreateWindow("SDL3 + FFmpeg Video Test",
+                                          static_cast<int>(width),
+                                          static_cast<int>(height),
+                                          SDL_WINDOW_RESIZABLE);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
+
+    SDL_Texture* texture = SDL_CreateTexture(renderer,
+                                             SDL_PIXELFORMAT_RGBA8888,
+                                             SDL_TEXTUREACCESS_STREAMING,
+                                             static_cast<int>(width),
+                                             static_cast<int>(height));
 
     AVPacket* packet = av_packet_alloc();
 
-    // Record the display start time of the previous frame
-    // 记录上一帧的显示开始时间
     auto lastFrameTime = std::chrono::high_resolution_clock::now();
+    bool running = true;
 
-	while (window.isOpen())
-	{
-		while (const std::optional event = window.pollEvent())
-		{
-			if (event->is<sf::Event::Closed>())
-			{
-				window.close();
-			}
-			else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
-			{
-				if (keyPressed->scancode == sf::Keyboard::Scancode::Escape)
-					window.close();
-			}
-		}
+    while (running) {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
+            if (ev.type == SDL_EVENT_QUIT) {
+                running = false;
+            } else if (ev.type == SDL_EVENT_KEY_DOWN) {
+                if (ev.key.scancode == SDL_SCANCODE_ESCAPE) {
+                    running = false;
+                }
+            }
+        }
+        if (!running) break;
 
-		bool hasNewFrame = false;
-		if (av_read_frame(formatContext, packet) >= 0) {
-			if (packet->stream_index == videoStreamIndex) {
-				int sendRet = avcodec_send_packet(codecContext, packet);
-				if (sendRet >= 0) {
-					int recvRet = avcodec_receive_frame(codecContext, frame);
-					if (recvRet == 0) {  // Successfully decoded a frame
-						sws_scale(swsContext, frame->data, frame->linesize, 0, height,
-								  rgbFrame->data, rgbFrame->linesize);
-						texture.update(rgbFrame->data[0]);
-						hasNewFrame = true;
-					} else if (recvRet != AVERROR(EAGAIN) && recvRet != AVERROR_EOF) {
-						std::cerr << "Error receiving frame: " << recvRet << std::endl;
-					}
-				} else {
-					std::cerr << "Error sending packet: " << sendRet << std::endl;
-				}
-			}
-			av_packet_unref(packet);
-		} else {
-			break;  // Video playback finished
-		}
+        bool hasNewFrame = false;
+        if (av_read_frame(formatContext, packet) >= 0) {
+            if (packet->stream_index == videoStreamIndex) {
+                int sendRet = avcodec_send_packet(codecContext, packet);
+                if (sendRet >= 0) {
+                    int recvRet = avcodec_receive_frame(codecContext, frame);
+                    if (recvRet == 0) {
+                        sws_scale(swsContext, frame->data, frame->linesize, 0, height,
+                                  rgbFrame->data, rgbFrame->linesize);
+                        SDL_UpdateTexture(texture, nullptr, rgbFrame->data[0],
+                                          static_cast<int>(width * 4));
+                        hasNewFrame = true;
+                    } else if (recvRet != AVERROR(EAGAIN) && recvRet != AVERROR_EOF) {
+                        std::cerr << "Error receiving frame: " << recvRet << std::endl;
+                    }
+                } else {
+                    std::cerr << "Error sending packet: " << sendRet << std::endl;
+                }
+            }
+            av_packet_unref(packet);
+        } else {
+            break;
+        }
 
-		// Time synchronization control — only control display time when a new frame is decoded
-		// 时间同步控制——只有解码出新帧，才控制显示时间
-		if (hasNewFrame) {
-			// Calculate the time difference from the previous frame to now
-			// 计算从上一帧到现在的时间差
-			auto currentTime = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<double, std::milli> elapsed = currentTime - lastFrameTime;
-			double elapsedMs = elapsed.count();
+        if (hasNewFrame) {
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> elapsed = currentTime - lastFrameTime;
+            double elapsedMs = elapsed.count();
 
-			// If the time difference is less than the frame interval, sleep to compensate
-			// 如果时间差小于帧间隔，休眠补足
-			if (elapsedMs < frameDelayMs) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(frameDelayMs - elapsedMs)));
-			}
+            if (elapsedMs < frameDelayMs) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(frameDelayMs - elapsedMs)));
+            }
 
-			// Update the previous frame time
-			// 更新上一帧时间
-			lastFrameTime = std::chrono::high_resolution_clock::now();
-		}
+            lastFrameTime = std::chrono::high_resolution_clock::now();
+        }
 
-		window.clear();
-		window.draw(sprite);
-		window.display();
-	}
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+
+        SDL_FRect dst = {0, 0, static_cast<float>(width), static_cast<float>(height)};
+        SDL_RenderTexture(renderer, texture, nullptr, &dst);
+
+        SDL_RenderPresent(renderer);
+    }
 
     av_free(buffer);
     av_frame_free(&rgbFrame);
@@ -160,6 +161,11 @@ int main() {
     sws_freeContext(swsContext);
     avcodec_free_context(&codecContext);
     avformat_close_input(&formatContext);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return 0;
 }

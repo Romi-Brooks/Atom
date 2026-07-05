@@ -1,161 +1,141 @@
 /**
   * @file           : Entity.hpp
   * @author         : Romi Brooks
-  * @brief          :
+  * @brief          : Entity base class using engine interfaces
   * @attention      :
   * @date           : 2025/9/20
   Copyright (c) 2025 Romi Brooks, All rights reserved.
 **/
 
-
 #ifndef ATOM_ENTITY_HPP
 #define ATOM_ENTITY_HPP
 
-// Standard Library
 #include <memory>
 
-// Third party Library
-#include <SFML/Graphics.hpp>
-
-// Engine Headers
+#include <Algorithm/Vector/Vec2.hpp>
 #include <Config/Movement/MoveEvent.hpp>
+#include <Engine/Interfaces/IRenderTarget.hpp>
+#include <Engine/Interfaces/ITexture.hpp>
 
 namespace atom {
-	class Entity {
-		private:
+    class Entity {
+        protected:
+            std::unique_ptr<ITexture> texture_;
+            float radius_ = 0;
+            Color color_{Color::White()};
+            mutable Vec2 position_; // mutable so const Move() can update it
 
-		protected:
-			std::unique_ptr<sf::Texture> texture_;
-			std::unique_ptr<sf::CircleShape> shape_;
+            float hp_;
+            float attack_;
+            float move_speed_ {};
+            float move_acceleration_ {};
 
-			float hp_;
-			float attack_;
-			float move_speed_ {};
-			float move_acceleration_ {};
+        public:
+            Entity(float hp, float attack, float moveSpeed, float moveAcceleration)
+            : hp_(hp), attack_(attack), move_speed_(moveSpeed), move_acceleration_(moveAcceleration) {}
 
-		public:
-			Entity(const float hp, const float attack, const float moveSpeed, const float moveAcceleration)
-			: hp_(hp), attack_(attack), move_speed_(moveSpeed), move_acceleration_(moveAcceleration) {};
+            virtual ~Entity() = default;
 
-			virtual ~Entity() = default;
+            Entity(Entity&& other) noexcept
+            : texture_(std::move(other.texture_)),
+              radius_(other.radius_), color_(other.color_), position_(other.position_),
+              hp_(other.hp_), attack_(other.attack_),
+              move_speed_(other.move_speed_), move_acceleration_(other.move_acceleration_) {}
 
-			Entity(Entity&& other) noexcept
-			: shape_(std::move(other.shape_)), hp_(other.hp_), attack_(other.attack_),
-			move_speed_(other.move_speed_), move_acceleration_(other.move_acceleration_) {}
+            Entity& operator=(Entity&& other) noexcept {
+                if (this != &other) {
+                    texture_ = std::move(other.texture_);
+                    radius_ = other.radius_;
+                    color_ = other.color_;
+                    position_ = other.position_;
+                    hp_ = other.hp_;
+                    attack_ = other.attack_;
+                    move_speed_ = other.move_speed_;
+                    move_acceleration_ = other.move_acceleration_;
+                }
+                return *this;
+            }
 
-			// Move assignment operator
-			// 移动赋值运算符
-			Entity& operator=(Entity&& other) noexcept {
-				if (this != &other) {
-					shape_ = std::move(other.shape_);
-				}
-				return *this;
-			}
+            auto CreateCircleWithColor(float radius, const Color& color) -> void {
+                radius_ = radius;
+                color_ = color;
+            }
 
-			auto CreateCircleWithColor(float radius, const sf::Color& color) -> sf::Shape* {
-					shape_ = std::make_unique<sf::CircleShape>(radius);
-					shape_->setFillColor(color);
-					return shape_.get();
-				}
+            auto CreateCircle(float radius) -> void {
+                radius_ = radius;
+                color_ = Color::White();
+            }
 
-			auto CreateCircle(float radius) -> sf::Shape* {
-					shape_ = std::make_unique<sf::CircleShape>(radius);
-					return shape_.get();
-				}
+            [[nodiscard]] auto LoadTexture(const std::string& path) -> bool {
+                if (!texture_) return false;
+                return texture_->LoadFromFile(path);
+            }
 
-			[[nodiscard]] auto LoadTexture(const std::string& path) const -> bool {
-				if (this->texture_->loadFromFile(path) == false) {
-					return false;
-				}
+            virtual auto Move(const Movement Signal) const -> void {}
 
-				if (!this->shape_) {
-					return false;
-				}
+            auto Attack(Entity& target) const -> bool {
+                if (!IsAlive()) return false;
+                target.Damage(attack_);
+                return true;
+            }
 
-				this->shape_->setTexture(this->texture_.get());
-				this->shape_->setTextureRect(sf::IntRect());
-				return true;
-			}
+            auto Damage(float damage) -> bool {
+                if (!IsAlive()) return false;
+                hp_ -= damage;
+                return true;
+            }
 
-			virtual auto Move(const Movement Signal) const -> void {
-					// should give to subclass
-			}
+            [[nodiscard]] auto IsAlive() const -> bool {
+                return hp_ > 0;
+            }
 
-			auto Attack(Entity& target) const -> bool {
-				if (!this->IsAlive()) {
-					return false;
-				}
-				target.Damage(this->attack_);
-				return true;
-			}
+            auto SetPosition(float x, float y) -> void {
+                position_ = {x, y};
+            }
 
-			auto Damage(const float damage) -> bool {
-				if (!this->IsAlive()) {
-					return false;
-				}
-				this->hp_= this->hp_ - damage;
-				return true;
-			}
+            auto SetBloody(float bloody) -> void {
+                hp_ = bloody;
+            }
 
-			[[nodiscard]] auto IsAlive() const -> bool {
-					return this->hp_ > 0;
-				}
+            auto SetAttack(float attack) -> void {
+                attack_ = attack;
+            }
 
-			auto SetPosition(float x, float y) const -> void {
-				shape_->setPosition({x, y});
-			}
+            auto SetMoveSpeed(float moveSpeed) -> void {
+                move_speed_ = moveSpeed;
+            }
 
-			auto SetBloody(const float bloody) -> void {
-				this->hp_ = bloody;
-			}
+            auto SetMoveAcceleration(float moveAcceleration) -> void {
+                move_acceleration_ = moveAcceleration;
+            }
 
-			auto SetAttack(const float attack) -> void {
-				this->attack_ = attack;
-			}
+            [[nodiscard]] auto GetRadius() const -> float {
+                return radius_;
+            }
 
-			auto SetMoveSpeed(const float moveSpeed) -> void {
-				this->move_speed_ = moveSpeed;
-			}
+            [[nodiscard]] auto GetHP() const -> float {
+                return hp_;
+            }
 
-			auto SetMoveAcceleration(const float moveAcceleration) -> void {
-				this->move_acceleration_ = moveAcceleration;
-			}
+            [[nodiscard]] auto GetAttack() const -> float {
+                return attack_;
+            }
 
-			[[nodiscard]] auto GetShape() const -> sf::Shape* {
-				return shape_.get();
-			}
+            [[nodiscard]] auto GetPosition() const -> Vec2 {
+                return position_;
+            }
 
-			[[nodiscard]] auto GetRadius() const -> float {
-				return shape_->getRadius();
-			}
+            virtual auto Draw(IRenderTarget& target) const -> void {
+                if (texture_) {
+                    target.DrawTexture(*texture_, position_.GetX(), position_.GetY());
+                } else if (radius_ > 0) {
+                    target.DrawCircle(position_.GetX(), position_.GetY(), radius_, color_);
+                }
+            }
 
-			[[nodiscard]] auto GetHP() const -> float {
-				return this->hp_;
-			}
-
-			[[nodiscard]] auto GetAttack() const -> float {
-				return this->attack_;
-			}
-
-			[[nodiscard]] auto GetPosition() const -> sf::Vector2f {
-				return	this->shape_->getPosition();
-			}
-
-			virtual auto Draw(sf::RenderWindow& window) const -> void {
-				// Obviously, if the NPC or Player has its own rendering logic (e.g., effects rendering),
-				// it should be designed as a virtual function for subclasses to override the rendering method.
-				if (shape_) {
-					window.draw(*shape_);
-				}
-			}
-
-
-			// Can not copy a unique ptr
-			Entity(const Entity&) = delete;
-			Entity& operator=(const Entity&) = delete;
-};
+            Entity(const Entity&) = delete;
+            Entity& operator=(const Entity&) = delete;
+    };
 }
-
-
 
 #endif // ATOM_ENTITY_HPP

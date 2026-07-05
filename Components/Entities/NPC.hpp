@@ -10,85 +10,67 @@
 #ifndef ATOM_NPC_HPP
 #define ATOM_NPC_HPP
 
-// Standard Library
 #include <memory>
 #include <string>
 
-// Third Party Library
-#include <SFML/Graphics.hpp>
-
-// Project Headers
 #include <Config/Components/Entities/NPC.hpp>
 #include <Config/Movement/MoveEvent.hpp>
 #include <Log/LogSystem.hpp>
 
-// Self Dependency
 #include "Entity.hpp"
 
 enum class NPCName;
 
-class NPC : public atom::Entity{
-	private:
+class NPC : public atom::Entity {
+    protected:
+        NPCName name_;
+        atom::NPCType npc_type_ {};
+        atom::NPCKillable npc_killable_ {};
 
-	protected:
-		// NPC Properties
-		NPCName name_;
+    public:
+        NPC(NPCName name, atom::NPCType type, atom::NPCKillable killable,
+            float hp, float attack, float moveSpeed, float moveAcceleration)
+        : Entity(hp, attack, moveSpeed, moveAcceleration) {
+            name_ = name;
+            npc_type_ = type;
+            npc_killable_ = killable;
+            CreateCircleWithColor(15, atom::Color::Red());
+        }
 
-		// NPC Types
-		atom::NPCType npc_type_ {};
-		atom::NPCKillable npc_killable_ {};
+        auto Move(const atom::Movement Signal) const -> void override {
+            float x = position_.GetX();
+            float y = position_.GetY();
 
-	public:
-		NPC(const NPCName name, const atom::NPCType type, const atom::NPCKillable killable, const float hp, const float attack, const float moveSpeed, const float moveAcceleration)
-		: Entity(hp, attack, moveSpeed, moveAcceleration) {
-			name_ = name;
-			npc_type_ = type;
-			npc_killable_ = killable;
-			// Give a test Shape
-			// For Test Only
-			this->CreateCircleWithColor(15, sf::Color::Red);
-		};
+            switch (Signal) {
+            case atom::Movement::Entity_MoveLeft:
+                position_.SetX(x - (move_speed_ + move_acceleration_));
+                break;
+            case atom::Movement::Entity_MoveRight:
+                position_.SetX(x + (move_speed_ + move_acceleration_));
+                break;
+            case atom::Movement::Entity_MoveUp:
+                position_.SetY(y - (move_speed_ + move_acceleration_));
+                break;
+            case atom::Movement::Entity_MoveDown:
+                position_.SetY(y + (move_speed_ + move_acceleration_));
+                break;
+            default:
+                LOG_ERROR(atom::LogChannel::ATOM_CONFIG_MOVEMENT, "Error Movement sign!");
+                break;
+            }
+        }
 
-		auto Move(const atom::Movement Signal) const -> void override {
-			auto x = this->shape_->getPosition().x;
-			auto y = this->shape_->getPosition().y;
+        [[nodiscard]] virtual auto GetNPCName() const -> std::string {
+            return "";
+        }
 
-			switch (Signal) {
-				case atom::Movement::Entity_MoveLeft: {
-					this->shape_->setPosition({x - (this->move_speed_ + this->move_acceleration_), y});
-					break;
-				}
-				case atom::Movement::Entity_MoveRight: {
-					this->shape_->setPosition({x + (this->move_speed_ + this->move_acceleration_), y});
-					break;
-				}
-				case atom::Movement::Entity_MoveUp: {
-					this->shape_->setPosition({x, y - (this->move_speed_ + this->move_acceleration_)});
-					break;
-				}
-				case atom::Movement::Entity_MoveDown: {
-					this->shape_->setPosition({x, y + (this->move_speed_ + this->move_acceleration_)});
-					break;
-				}
-				default: {
-					LOG_ERROR(atom::LogChannel::ATOM_CONFIG_MOVEMENT,"Error Movement sign!");
-					break;
-				}
-			}
-		}
+        [[nodiscard]] auto GetNPCType() const -> atom::NPCType {
+            return npc_type_;
+        }
 
-		[[nodiscard]] virtual auto GetNPCName() const -> std::string {
-			// for subclass
-			return "";
-		}
-		[[nodiscard]] auto GetNPCType() const -> atom::NPCType {
-				return this->npc_type_;
-		}
-
-		[[nodiscard]] auto GetNPCKillable() const -> atom::NPCKillable {
-				return this->npc_killable_;
-		}
+        [[nodiscard]] auto GetNPCKillable() const -> atom::NPCKillable {
+            return npc_killable_;
+        }
 };
-
 
 #endif // ATOM_NPC_HPP

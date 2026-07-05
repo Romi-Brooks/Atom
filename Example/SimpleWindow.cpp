@@ -7,43 +7,44 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-// Third Party Library
-#include <SFML/Graphics.hpp>
-
-// Engine Headers
 #include <Window/RenderWindow.hpp>
 #include <Window/Manager/ScreenManager.hpp>
 #include <Window/Screen.hpp>
 
 class ExampleScreen final : public atom::Screen {
-	public:
-		auto Render(sf::RenderWindow& window) -> void override {
-			window.clear(sf::Color(30, 30, 60));
-		}
+    public:
+        auto Render(atom::IRenderTarget& target) -> void override {
+            target.Clear(atom::Color{30, 30, 60});
+        }
 
-		auto HandleEvent(const sf::Event& event) -> bool override {
-			if (event.is<sf::Event::KeyPressed>()) {
-				const auto& key = event.getIf<sf::Event::KeyPressed>();
-				if (key->code == sf::Keyboard::Key::Escape) {
-					atom::RenderWindow::GetInstance().Shutdown();
-					return true;
-				}
-			}
-			return false;
-		}
+        auto HandleEvent(const atom::IEvent& event) -> bool override {
+            if (event.type == atom::EventType::KeyPressed) {
+                const auto& key = std::get<atom::KeyEvent>(event.data);
+                if (key.scancode == 41) { // SDL_SCANCODE_ESCAPE
+                    atom::RenderWindow::GetInstance().Shutdown();
+                    return true;
+                }
+            }
+            return false;
+        }
 
-		auto Update(float) -> void override {
-		}
+        auto Update(float) -> void override {
+        }
 };
 
 auto main() -> int {
-	atom::ScreenManager::GetInstance().LoadScreen("Example", std::make_unique<ExampleScreen>());
-	atom::ScreenManager::GetInstance().SwitchScreen("Example");
+    atom::ScreenManager::GetInstance().LoadScreen("Example", std::make_unique<ExampleScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen("Example");
 
-	auto& window = atom::RenderWindow::GetInstance();
-	window.Initialize("Atom Engine - Simple Window Example", atom::Vec2{1280, 720});
+    auto& window = atom::RenderWindow::GetInstance();
+    window.Initialize("Atom Engine - Simple Window Example", atom::Vec2{1280, 720});
 
-	window.Run();
+    // It is recommended to limit the FPS when creating the window,
+    // or define a custom FPS limit; otherwise it will significantly
+    // consume GPU/CPU resources.
+    window.SetFPS(60);
 
-	return 0;
+    window.Run();
+
+    return 0;
 }
