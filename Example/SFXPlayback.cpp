@@ -1,16 +1,14 @@
 /**
   * @file           : SFXPlayback.cpp
   * @author         : Romi Brooks
-  * @brief          : 
-  * @attention      : 
+  * @brief          :
+  * @attention      :
   * @date           : 2026/6/6
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
-// Third Party Library
-#include <SFML/Graphics.hpp>
+
 #include <imgui.h>
 
-// Engine Headers
 #include <Media/Audio/SFX/SFX.hpp>
 #include <Window/Screen.hpp>
 #include <Window/RenderWindow.hpp>
@@ -47,28 +45,26 @@ class SFXDebugger final : public atom::Debugger {
         atom::SFX& sfx_;
 };
 
-
 class SFXScreen final : public atom::Screen {
-public:
-    auto Render(sf::RenderWindow& window) -> void override {
-        window.clear(sf::Color(30, 30, 60));
-    }
-
-    auto HandleEvent(const sf::Event& event) -> bool override {
-        if (event.is<sf::Event::KeyPressed>()) {
-            const auto& key = event.getIf<sf::Event::KeyPressed>();
-            if (key->code == sf::Keyboard::Key::Escape) {
-                atom::RenderWindow::GetInstance().Shutdown();
-                return true;
-            }
+    public:
+        auto Render(atom::IRenderTarget& target) -> void override {
+            target.Clear(atom::Color{30, 30, 60});
         }
-        return false;
-    }
 
-    auto Update(float) -> void override {
-    }
+        auto HandleEvent(const atom::IEvent& event) -> bool override {
+            if (event.type == atom::EventType::KeyPressed) {
+                const auto& key = std::get<atom::KeyEvent>(event.data);
+                if (key.scancode == 41) { // SDL_SCANCODE_ESCAPE
+                    atom::RenderWindow::GetInstance().Shutdown();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        auto Update(float) -> void override {
+        }
 };
-
 
 auto main() -> int {
     atom::SFX sfx;
@@ -81,6 +77,11 @@ auto main() -> int {
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom Engine - SFX Playback Example", atom::Vec2{720, 720});
+
+    // It is recommended to limit the FPS when creating the window,
+    // or define a custom FPS limit; otherwise it will significantly
+    // consume GPU/CPU resources.
+    window.SetFPS(60);
 
     SFXDebugger debugger{sfx};
     debugger.Attach(window);
