@@ -82,12 +82,18 @@ See the full standards:
 
 ---
 
+## Branch Strategy
+
+- **`master`** — Stable beta releases. Updated only by merging from `dev`.
+- **`dev`** — Active development. Feature branches fork from here.
+- **`feature/*`** — New features, fork from `dev`, merge back to `dev`.
+
 ## Pull Request Process
 
-1. **Fork** the repository and create a new branch from `master`:
+1. **Fork** the repository and create a new branch from `dev`:
 
    ```bash
-   git checkout -b <branch-name>
+   git checkout -b feature/<feature-name> dev
    ```
 
 2. **Make your changes**, following the [coding standards](#coding-standards).
@@ -96,14 +102,14 @@ See the full standards:
 
 4. **Write clear commit messages** (see [Commit Messages](#commit-messages)).
 
-5. **Rebase** onto the latest `master` before submitting:
+5. **Rebase** onto the latest `dev` before submitting:
 
    ```bash
    git fetch origin
-   git rebase origin/master
+   git rebase origin/dev
    ```
 
-6. **Open a pull request** with:
+6. **Open a pull request** targeting `dev` with:
    - A clear title describing the change
    - A description explaining what was changed and why
    - Reference to any related issues (e.g., `Closes #123`)
