@@ -13,6 +13,11 @@
 #include <Window/Manager/ScreenManager.hpp>
 #include <Window/Screen.hpp>
 #include <Window/Debugger.hpp>
+#include <Log/LogSystem.hpp>
+
+#ifdef _WIN32
+#include "windows.h"
+#endif // _WIN32
 
 class ExampleDebugger final : public atom::Debugger {
     protected:
@@ -47,6 +52,13 @@ class ExampleScreen final : public atom::Screen {
 };
 
 auto main() -> int {
+    #ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    #endif // _WIN32
+
+    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
+
+
     atom::ScreenManager::GetInstance().LoadScreen("Example", std::make_unique<ExampleScreen>());
     atom::ScreenManager::GetInstance().SwitchScreen("Example");
 

@@ -57,7 +57,8 @@ static auto TranslateEvent(const SDL_Event& ev) -> IEvent {
 
     case SDL_EVENT_WINDOW_RESIZED:
         result.type = EventType::Resized;
-        result.data = ResizeEvent{ev.window.data1, ev.window.data2};
+        result.data = ResizeEvent{static_cast<uint32_t>(ev.window.data1),
+                                   static_cast<uint32_t>(ev.window.data2)};
         break;
 
     default:

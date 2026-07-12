@@ -1,11 +1,12 @@
 #ifndef ATOM_SDL3_SFX_SOURCE_HPP
 #define ATOM_SDL3_SFX_SOURCE_HPP
 
-#include <SDL3/SDL.h>
-#include <Engine/Interfaces/IAudioSource.hpp>
-
 #include <cstdint>
 #include <vector>
+
+#include <SDL3/SDL.h>
+
+#include <Engine/Interfaces/IAudioSource.hpp>
 
 namespace atom {
 
@@ -41,6 +42,8 @@ private:
     AudioSourceState state_ = AudioSourceState::Stopped;
 
     auto EnsureStream() -> bool;
+
+    [[nodiscard]] auto IsFinished() const -> bool override;
 };
 
 } // namespace atom

@@ -15,6 +15,7 @@ public:
 
     [[nodiscard]] virtual auto GetSampleRate() const -> uint32_t = 0;
     [[nodiscard]] virtual auto GetChannelCount() const -> uint8_t = 0;
+    [[nodiscard]] virtual auto GetFormat() const -> uint32_t = 0;
     [[nodiscard]] virtual auto GetDuration() const -> float = 0;
     [[nodiscard]] virtual auto GetSamples() const -> const int16_t* = 0;
     [[nodiscard]] virtual auto GetSampleCount() const -> uint64_t = 0;

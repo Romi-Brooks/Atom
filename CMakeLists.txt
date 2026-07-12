@@ -54,7 +54,6 @@ include_directories(
         ${TAGLIB_DIR}/include
         ${UTFCPP_DIR}
         ${FFMPEG_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/AtomWavDecoder
 )
 
 # Link
@@ -161,24 +160,20 @@ link_directories(
     target_include_directories(engine_render_sdl3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_render_sdl3 PUBLIC engine_interfaces SDL3::SDL3)
 
-# 4. Atom Wav Decoder (ThirdParty, self-contained C++ WAV parser)
-    add_library(atom_wav_decoder STATIC
-        ThirdParty/Lib/AtomWavDecoder/WavDecoder.cpp
-        ThirdParty/Lib/AtomWavDecoder/WavDecoder.hpp
-    )
-    target_include_directories(atom_wav_decoder PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/AtomWavDecoder)
-
-# 5. Audio Decoder Backends (IAudioDecoder implementations)
+# 4. Audio Decoder Backends (builtin WAV RIFF decoder + IAudioDecoder implementations)
     add_library(engine_audio_decoder STATIC
         Engine/Interfaces/IAudioDecoder.hpp
+        Engine/Audio/DecoderRegistry.hpp
+        Engine/Audio/DecoderRegistry.cpp
+        Media/Audio/Decoder/WavRiff/WavDecoder.cpp
+        Media/Audio/Decoder/WavRiff/WavDecoder.hpp
         Media/Audio/Decoder/AtomWavDecoderBackend.cpp
         Media/Audio/Decoder/AtomWavDecoderBackend.hpp
     )
     target_include_directories(engine_audio_decoder PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_audio_decoder PUBLIC engine_interfaces atom_wav_decoder)
+    target_link_libraries(engine_audio_decoder PUBLIC engine_interfaces engine_log)
 
-# 6. SDL3 Audio Backend
+# 5. SDL3 Audio Backend
     add_library(engine_audio_sdl3 STATIC
         Media/Audio/Backend/SDL3AudioBuffer.cpp
         Media/Audio/Backend/SDL3AudioBuffer.hpp
@@ -188,9 +183,9 @@ link_directories(
         Media/Audio/Backend/SDL3MusicSource.hpp
     )
     target_include_directories(engine_audio_sdl3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_audio_sdl3 PUBLIC engine_interfaces SDL3::SDL3)
+    target_link_libraries(engine_audio_sdl3 PUBLIC engine_interfaces engine_log SDL3::SDL3)
 
-# 7. Entities
+# 6. Entities
     add_library(engine_entities STATIC
             Components/Entities/Entity.hpp
             Components/Entities/Entity.cpp
@@ -202,7 +197,7 @@ link_directories(
     target_include_directories(engine_entities PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_entities PUBLIC engine_interfaces engine_algorithm)
 
-# 8. Media
+# 7. Media
     add_library(engine_media STATIC
             Media/Audio/SFX/Manager/SFXManager.cpp
             Media/Audio/SFX/Manager/SFXManager.hpp
@@ -214,15 +209,13 @@ link_directories(
             Media/Audio/Music/Music.hpp
             Media/Audio/SFX/SFX.cpp
             Media/Audio/SFX/SFX.hpp
-            Media/Decoder/WavRiff/WavDecoder.cpp
-            Media/Decoder/WavRiff/WavDecoder.hpp
             Media/Video/Video.cpp
             Media/Video/Video.hpp
     )
     target_include_directories(engine_media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_media PUBLIC engine_interfaces engine_log engine_audio_sdl3 engine_audio_decoder)
 
-# 9. Packager
+# 8. Packager
     add_library(engine_packager STATIC
             Utilities/Packager/Unpackager.cpp
             Utilities/Packager/Unpackager.hpp
@@ -232,7 +225,7 @@ link_directories(
     target_include_directories(engine_packager PUBLIC Utilities/Packager)
     target_link_libraries(engine_packager PUBLIC utfcpp engine_log)
 
-# 10. Windows
+# 9. Windows
     add_library(engine_windows STATIC
             Window/RenderWindow.hpp
             Window/RenderWindow.cpp
@@ -248,7 +241,7 @@ link_directories(
         engine_log
         engine_algorithm)
 
-# 11. Debugger
+# 10. Debugger
     add_library(engine_debugger STATIC
             Window/Debugger.hpp
             Window/Debugger.cpp
@@ -259,14 +252,14 @@ link_directories(
         target_link_libraries(engine_debugger PUBLIC opengl32 gdi32)
     endif()
 
-# 12. Config
+# 11. Config
     add_library(engine_config STATIC
             Config/Components/Entities/NPC.hpp
             Config/Movement/MoveEvent.hpp
     )
     target_link_libraries(engine_config PUBLIC engine_entities engine_log)
 
-# 13. Engine Core
+# 12. Engine Core
     add_library(engine_core INTERFACE)
     target_include_directories(engine_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_core INTERFACE
@@ -280,7 +273,7 @@ link_directories(
             engine_config
     )
 
-# 14. Lua Binding
+# 13. Lua Binding
     add_library(engine_lua STATIC
             Lua/LuaLoader.hpp
             Lua/LuaLoader.cpp

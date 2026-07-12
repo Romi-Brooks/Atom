@@ -106,6 +106,20 @@ ModuleName/            # 模块名，PascalCase，单数
 | **局部变量**        | `camelCase`          | `it`、`result`、`music`                  |
 | **宏**           | `UPPER_SNAKE_CASE`   | `LOG_INFO`、`LOG_ERROR`                 |
 
+### 3.1.1 日志频道命名
+
+日志频道常量遵循 `CATEGORY_SUBCATEGORY` 格式，显示名使用 `Category.Subcategory`：
+
+| 常量名 | 显示字符串 | 说明 |
+|--------|----------|------|
+| `ATOM_AUDIO_MUSIC` | `Atom.Audio.Music ->` | 引擎音频-音乐域 |
+| `SDL_BACKEND_AUDIO` | `SDL.Backend.Audio ->` | SDL 音频后端 |
+| `ATOM_AUDIO_PLUG_MUSICFADE` | `Atom.Audio.Plug.MusicFade ->` | 插件子模块 |
+
+- 顶层命名空间常量以 `ATOM_` 或 `SDL_` 开头
+- 子模块间用 `_` 分隔，全部大写
+- 显示字符串使用 `.` 分隔，每个单词 PascalCase
+
 ### 3.2 详细规则
 
 #### 命名空间

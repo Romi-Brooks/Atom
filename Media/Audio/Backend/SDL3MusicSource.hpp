@@ -1,15 +1,16 @@
 #ifndef ATOM_SDL3_MUSIC_SOURCE_HPP
 #define ATOM_SDL3_MUSIC_SOURCE_HPP
 
-#include <SDL3/SDL.h>
-#include <Engine/Interfaces/IAudioSource.hpp>
-
 #include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <SDL3/SDL.h>
+
+#include <Engine/Interfaces/IAudioSource.hpp>
 
 namespace atom {
 
