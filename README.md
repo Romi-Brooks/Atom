@@ -15,7 +15,7 @@ Designed to provide a modern, clean, and lightweight development experience.
 
 - CMake >= 3.20
 - C++23 compatible compiler
-- Third-party dependencies are **bundled** in `ThirdParty/Lib/`.
+- Third-party dependencies are **bundled** in `ThirdParty/`.
 
 ### Building
 
@@ -60,22 +60,22 @@ Atom provides a resource packaging tool for packing/unpacking game assets into t
 
 ## Engine Dependencies
 
-Atom uses **SDL3** as its multimedia abstraction layer. SDL3 is **bundled** in the repository at `ThirdParty/Lib/SDL3/`.
+Atom uses **SDL3** as its multimedia abstraction layer. SDL3 is **bundled** in the repository at `ThirdParty/SDL3/`.
 
 ### Bundled Dependencies
 
 | Library | Version | Path | Purpose |
 |---------|---------|------|---------|
-| [SDL3](https://github.com/libsdl-org/SDL) | 3.x | `ThirdParty/Lib/SDL3/` | Windowing, rendering, audio, input |
-| [ImGui](https://github.com/ocornut/imgui) | 1.x | `ThirdParty/Lib/ImGUI/` | Debug overlay UI |
-| [Lua](https://www.lua.org/) | 5.x | `ThirdParty/Lib/Lua/` | Scripting engine |
-| [TagLib](https://taglib.org/) | 2.x | `ThirdParty/Lib/taglib/` | Audio metadata reading |
-| [utfcpp](https://github.com/nemtrif/utfcpp) | 4.x | `ThirdParty/Lib/utfcpp/` | UTF-8 validation and conversion |
-| [FFmpeg](https://ffmpeg.org/) | 7.x | `ThirdParty/Lib/FFmpeg/` | Video/audio decoding |
+| [SDL3](https://github.com/libsdl-org/SDL) | 3.x | `ThirdParty/SDL3/` | Windowing, rendering, audio, input |
+| [ImGui](https://github.com/ocornut/imgui) | 1.x | `ThirdParty/ImGUI/` | Debug overlay UI |
+| [Lua](https://www.lua.org/) | 5.x | `ThirdParty/Lua/` | Scripting engine |
+| [TagLib](https://taglib.org/) | 2.x | `ThirdParty/taglib/` | Audio metadata reading |
+| [utfcpp](https://github.com/nemtrif/utfcpp) | 4.x | `ThirdParty/utfcpp/` | UTF-8 validation and conversion |
+| [FFmpeg](https://ffmpeg.org/) | 7.x | `ThirdParty/FFmpeg/` | Video/audio decoding |
 
 ### SDL3 Deployment
 
-SDL3 is pre-built and located at `ThirdParty/Lib/SDL3/x86_64-w64-mingw32/`.
+SDL3 is pre-built and located at `ThirdParty/SDL3/x86_64-w64-mingw32/`.
 The CMake configuration finds it via `find_package(SDL3 REQUIRED CONFIG)`.
 
 SDL3 is compatible with any modern MinGW-w64 distribution (GCC 13+, UCRT).
