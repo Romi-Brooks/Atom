@@ -1,4 +1,7 @@
-
+> [!WARNING]
+> This branch was forked from the original Atom Engine. Its window renderer uses SFML3
+> The new version has been migrated to SDL3 and resides on the master branch.  
+> Note that this branch may be deprecated in subsequent releases!
 
 # Atom Engine
 [English](README.md) | [中文](Docs/README-CN.md)
