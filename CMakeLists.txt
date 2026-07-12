@@ -31,14 +31,13 @@ set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ImGUI")
 set(LUA_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lua")
 set(TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/taglib")
 set(UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/utfcpp")
-set(FFMPEG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/FFmpeg")
 set(SDL3_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/SDL3/x86_64-w64-mingw32")
 
 # ============================================================================
 # 3rd Libraries Path Check
 # ============================================================================
 foreach(DIR IN ITEMS ${SDL3_ROOT} ${IMGUI_DIR} ${LUA_SRC_DIR}
-        ${TAGLIB_DIR} ${UTFCPP_DIR} ${FFMPEG_DIR})
+        ${TAGLIB_DIR} ${UTFCPP_DIR})
     if(NOT EXISTS ${DIR})
         message(FATAL_ERROR "Required directory not found: ${DIR}")
     endif()
@@ -53,14 +52,12 @@ include_directories(
         ${IMGUI_DIR}
         ${TAGLIB_DIR}/include
         ${UTFCPP_DIR}
-        ${FFMPEG_DIR}/include
 )
 
 # Link
 link_directories(
         "${SDL3_ROOT}/lib"
         "${TAGLIB_DIR}/lib"
-        "${FFMPEG_DIR}/lib"
 )
 
 # 1. SDL3
@@ -112,16 +109,6 @@ link_directories(
             ${UTFCPP_DIR}
     )
 
-# 7. FFmpeg
-    add_library(ffmpeg INTERFACE)
-    target_link_libraries(ffmpeg INTERFACE
-            avcodec
-            avformat
-            avutil
-            swscale
-            swresample
-            avfilter
-    )
 
 # ============================================================================
 # Engine Libraries
@@ -297,7 +284,6 @@ add_executable(Atom Atom.cpp)
 target_link_libraries(Atom PRIVATE
         engine_core
         taglib
-        ffmpeg
 )
 
 # Examples
@@ -317,12 +303,6 @@ add_executable(example_sfx_playback Example/SFXPlayback.cpp)
 target_link_libraries(example_sfx_playback PRIVATE engine_media engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_sfx_playback PRIVATE)
-endif()
-
-add_executable(example_ffmepg_playback Example/FFmpegPlayback.cpp)
-target_link_libraries(example_ffmepg_playback PRIVATE ffmpeg engine_media)
-if(WIN32)
-    target_link_libraries(example_ffmepg_playback PRIVATE)
 endif()
 
 add_executable(example_simple_window Example/SimpleWindow.cpp)
@@ -365,7 +345,7 @@ if(EXISTS ${SDL3_BIN_DIR})
     file(GLOB SDL3_DLLS "${SDL3_BIN_DIR}/*.dll")
     if(SDL3_DLLS)
         foreach(TGT Atom example_simple_window example_simple_window_debug
-                    example_audio_playback example_sfx_playback example_ffmepg_playback)
+                    example_audio_playback example_sfx_playback)
             add_custom_command(TARGET ${TGT} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${TGT}>"
                     COMMAND ${CMAKE_COMMAND} -E copy ${SDL3_DLLS} "$<TARGET_FILE_DIR:${TGT}>"
@@ -380,19 +360,4 @@ else()
     message(WARNING "SDL3 bin directory not found: ${SDL3_BIN_DIR}")
 endif()
 
-# FFmpeg
-set(FFMPEG_BIN_DIR "${FFMPEG_DIR}/bin")
-if(EXISTS ${FFMPEG_BIN_DIR})
-    file(GLOB FFMPEG_DLLS "${FFMPEG_BIN_DIR}/*.dll")
-    if(FFMPEG_DLLS)
-        add_custom_command(TARGET Atom POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy ${FFMPEG_DLLS} "$<TARGET_FILE_DIR:Atom>"
-                COMMENT "Copying FFmpeg DLLs to output directory"
-        )
-        message(STATUS "FFmpeg DLLs found: ${FFMPEG_DLLS}")
-    else()
-        message(WARNING "No FFmpeg DLLs found in ${FFMPEG_BIN_DIR}")
-    endif()
-else()
-    message(WARNING "FFmpeg bin directory not found: ${FFMPEG_BIN_DIR}")
-endif()
+
