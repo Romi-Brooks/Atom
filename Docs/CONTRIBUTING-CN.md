@@ -93,26 +93,39 @@
 
 ## Pull Request 流程
 
-1. **Fork** 本仓库，从 `dev` 创建一个新分支：
+所有人通过 Fork 方式贡献：
 
-   ```bash
-   git checkout -b feature/<feature-name> dev
-   ```
+```bash
+# 1. 在 GitHub 上 Fork 本仓库
 
-2. **进行修改**，遵循[编码规范](#编码规范)。
+# 2. 克隆你的 fork 并切换到 dev 分支
+git clone https://github.com/<你的用户名>/Atom.git
+cd Atom
+git checkout dev
 
-3. **保持提交聚焦**。每个提交应代表一个单一的逻辑变更。
+# 3. 从 dev 创建功能分支
+git checkout -b feature/<功能名称>
 
-4. **编写清晰的提交信息**（参见[提交信息规范](#提交信息规范)）。
+# 4. 进行修改，遵循编码规范
 
-5. **Rebase** 到最新的 `dev`：
+# 5. 提交并推送到你的 fork
+git add -A
+git commit -m "feat: 简短的修改说明"
+git push origin feature/<功能名称>
 
-   ```bash
-   git fetch origin
-   git rebase origin/dev
-   ```
+# 6. 在 GitHub 上打开 Pull Request
+#    从你的 fork 的 feature/<功能名称> → 本仓库的 dev
+```
 
-6. **提交 Pull Request** 到 `dev` 分支，包含：
+### 提交前注意
+
+- 保持提交聚焦，每个提交代表一个单一逻辑变更
+- 推 PR 前 rebase 到最新 dev：
+  ```bash
+  git fetch origin
+  git rebase origin/dev
+  ```
+- PR 需包含：清晰标题、修改说明、关联 issue（如 `Closes #123`）
    - 清晰的变更标题
    - 解释变更内容和原因
    - 关联相关 issue（如 `Closes #123`）
