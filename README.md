@@ -5,7 +5,9 @@
 **Atom** is a modular **2D game engine** written in **C++23**, powered by **SDL3**.
 Designed to provide a modern, clean, and lightweight development experience.
 
-> **Active Development** — Atom is still in early development. APIs and architecture are subject to change. Feedback and contributions are welcome.
+> **Stable (master)** — This branch tracks the latest beta release.  
+> **Active development happens on the [`dev`](https://github.com/Romi-Brooks/Atom/tree/dev) branch.**  
+> APIs and architecture are subject to change. Feedback and contributions are welcome.
 
 ---
 
