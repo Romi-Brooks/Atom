@@ -14,6 +14,11 @@
 #include <Window/Screen.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Debugger.hpp>
+#include <Log/LogSystem.hpp>
+
+#ifdef _WIN32
+#include "windows.h"
+#endif // _WIN32
 
 class MusicDebugger final : public atom::Debugger {
     public:
@@ -90,6 +95,12 @@ class MusicScreen final : public atom::Screen {
 };
 
 auto main() -> int {
+    #ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    #endif // _WIN32
+
+    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
+
     atom::Music music;
     atom::audio::MusicFade music_fade{music};
 

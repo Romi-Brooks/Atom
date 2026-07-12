@@ -13,6 +13,12 @@
 #include <Window/Screen.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Debugger.hpp>
+#include <Log/LogSystem.hpp>
+
+#ifdef _WIN32
+#include "windows.h"
+#endif // _WIN32
+
 
 class SFXDebugger final : public atom::Debugger {
     public:
@@ -67,6 +73,11 @@ class SFXScreen final : public atom::Screen {
 };
 
 auto main() -> int {
+    #ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    #endif // _WIN32
+
+    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
     atom::SFX sfx;
 
     sfx.Load("registerId_1", R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 1 - C.wav)");

@@ -52,6 +52,11 @@ const LogChannel LogChannel::ATOM_AUDIO_PLUG_MUSICFADE("Atom.Audio.Plug.MusicFad
 
 const LogChannel LogChannel::ATOM_VIDEO("Atom.Video", "Atom.Video -> ");
 
+const LogChannel LogChannel::SDL_BACKEND_AUDIO("SDL.Backend.Audio", "SDL.Backend.Audio -> ");
+const LogChannel LogChannel::SDL_BACKEND_VIDEO("SDL.Backend.Video", "SDL.Backend.Video -> ");
+const LogChannel LogChannel::SDL_BACKEND_RENDER("SDL.Backend.Render", "SDL.Backend.Render -> ");
+const LogChannel LogChannel::SDL_BACKEND_WINDOW("SDL.Backend.Window", "SDL.Backend.Window -> ");
+
 const LogChannel LogChannel::ATOM_WINDOW("Atom.Window", "Atom.Window -> ");
 const LogChannel LogChannel::ATOM_SCREEN("Atom.Screen", "Atom.Screen -> ");
 const LogChannel LogChannel::ATOM_SCREEN_MANAGER("Atom.Screen.Manager", "Atom.Screen.Manager -> ");

@@ -21,6 +21,7 @@ struct DecoderInfo {
     uint16_t channels = 0;
     uint16_t bits_per_sample = 0;
     uint64_t total_pcm_frames = 0; // 0 = unknown (streaming)
+    bool is_float = false;         // true when data is IEEE float (e.g. F32LE)
 };
 
 class IAudioDecoder {

@@ -31,6 +31,10 @@ public:
 
     // Bind raw PCM data (used by SFX sources — optional, default no-op)
     virtual auto SetBuffer(const uint8_t* data, uint32_t length) -> void {}
+
+    // Check if playback has finished naturally (stream dry).
+    // Used by voice pools to determine voice reuse eligibility.
+    [[nodiscard]] virtual auto IsFinished() const -> bool { return true; }
 };
 
 } // namespace atom

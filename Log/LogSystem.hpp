@@ -55,6 +55,11 @@ namespace atom {
 
 		static const LogChannel ATOM_UTILITIES_PACKAGER;
 
+		static const LogChannel SDL_BACKEND_AUDIO;
+		static const LogChannel SDL_BACKEND_VIDEO;
+		static const LogChannel SDL_BACKEND_RENDER;
+		static const LogChannel SDL_BACKEND_WINDOW;
+
 		static const LogChannel ATOM_WINDOW;
 		static const LogChannel ATOM_SCREEN;
 		static const LogChannel ATOM_SCREEN_MANAGER;
@@ -75,7 +80,7 @@ namespace atom {
 		~Log() = default;
 
 
-		LogLevel view_log_level_ = LogLevel::ATOM_DEBUG;
+		LogLevel view_log_level_ = LogLevel::ATOM_INFO;
 		std::mutex log_mutex_;
 
 	public:

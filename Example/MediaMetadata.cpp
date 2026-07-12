@@ -1,19 +1,16 @@
 #include <iostream>
 #include <string>
-// TagLib core header files
-// TagLib 核心头文件
+
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
 
-// Dedicated header files for different audio formats
-// 不同音频格式的专用头文件
+
 #include <taglib/mpegfile.h>
 #include <taglib/flacfile.h>
 #include <taglib/vorbisfile.h>
 #include <taglib/wavfile.h>
 
-// Utility function to print audio file metadata
-// 打印音频文件元数据的工具函数
+
 void printAudioMetadata(const std::string& filePath) {
     std::cout << "========================================" << std::endl;
     std::cout << "Reading metadata for: " << filePath << std::endl;
@@ -26,7 +23,6 @@ void printAudioMetadata(const std::string& filePath) {
             TagLib::Tag* tag = file.tag();
 
             // Basic metadata
-            // 基础元数据
             std::cout << "Title:    " << tag->title().to8Bit(true) << std::endl;
             std::cout << "Artist:   " << tag->artist().to8Bit(true) << std::endl;
             std::cout << "Album:    " << tag->album().to8Bit(true) << std::endl;
@@ -36,7 +32,6 @@ void printAudioMetadata(const std::string& filePath) {
             std::cout << "Track:    " << tag->track() << std::endl;
 
             // Audio properties
-            // 音频属性
             if (file.audioProperties()) {
                 TagLib::AudioProperties* props = file.audioProperties();
                 std::cout << "----------------------------------------" << std::endl;
