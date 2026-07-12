@@ -40,7 +40,6 @@ cmake --build build
 | `example_audio_playback` | 音乐播放 + 淡入淡出切换 |
 | `example_sfx_playback` | 音效播放（Voice Pool 重叠播放） |
 | `example_media_metadata` | 通过 TagLib 读取音频元数据 |
-| `example_ffmepg_playback` | 基于 FFmpeg 的视频播放 |
 
 ***
 
@@ -74,7 +73,6 @@ Atom 使用 **SDL3** 作为其多媒体抽象层。SDL3 **随仓库分发**，�
 | [Lua](https://www.lua.org/) | 5.x | `ThirdParty/Lua/` | 脚本引擎 |
 | [TagLib](https://taglib.org/) | 2.x | `ThirdParty/taglib/` | 音频元数据读取 |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.x | `ThirdParty/utfcpp/` | UTF-8 验证和编码转换 |
-| [FFmpeg](https://ffmpeg.org/) | 7.x | `ThirdParty/FFmpeg/` | 视频/音频解码 |
 
 ### SDL3 部署
 
@@ -126,7 +124,6 @@ Atom 引擎使用了以下开源库，衷心感谢这些项目的开发者：
 - [Lua](https://www.lua.org/) — 脚本引擎
 - [TagLib](https://taglib.org/) — 音频元数据读取
 - [utfcpp](https://github.com/nemtrif/utfcpp) — UTF-8 验证和编码转换
-- [FFmpeg](https://ffmpeg.org/) — 视频/音频解码
 
 ***
 

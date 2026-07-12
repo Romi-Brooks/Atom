@@ -39,7 +39,6 @@ Ready-to-run examples are located in [`Example/`](Example/).
 | `example_audio_playback` | Music playback with fade switching |
 | `example_sfx_playback` | SFX playback with voice pool (overlapping) |
 | `example_media_metadata` | Read audio file metadata via TagLib |
-| `example_ffmepg_playback` | FFmpeg-based video playback |
 
 ---
 
@@ -71,7 +70,6 @@ Atom uses **SDL3** as its multimedia abstraction layer. SDL3 is **bundled** in t
 | [Lua](https://www.lua.org/) | 5.x | `ThirdParty/Lua/` | Scripting engine |
 | [TagLib](https://taglib.org/) | 2.x | `ThirdParty/taglib/` | Audio metadata reading |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.x | `ThirdParty/utfcpp/` | UTF-8 validation and conversion |
-| [FFmpeg](https://ffmpeg.org/) | 7.x | `ThirdParty/FFmpeg/` | Video/audio decoding |
 
 ### SDL3 Deployment
 
@@ -125,7 +123,6 @@ Atom Engine uses the following open-source libraries. We extend our sincere grat
 - [Lua](https://www.lua.org/) — Scripting engine
 - [TagLib](https://taglib.org/) — Audio metadata reading
 - [utfcpp](https://github.com/nemtrif/utfcpp) — UTF-8 validation and conversion
-- [FFmpeg](https://ffmpeg.org/) — Video and audio decoding
 
 ---
 
