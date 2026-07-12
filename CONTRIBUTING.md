@@ -90,26 +90,40 @@ See the full standards:
 
 ## Pull Request Process
 
-1. **Fork** the repository and create a new branch from `dev`:
+All contributors use the fork workflow:
 
-   ```bash
-   git checkout -b feature/<feature-name> dev
-   ```
+```bash
+# 1. Fork the repository on GitHub
 
-2. **Make your changes**, following the [coding standards](#coding-standards).
+# 2. Clone your fork and switch to dev
+git clone https://github.com/<your-username>/Atom.git
+cd Atom
+git checkout dev
 
-3. **Keep commits focused**. Each commit should represent a single logical change.
+# 3. Create a feature branch from dev
+git checkout -b feature/<feature-name>
 
-4. **Write clear commit messages** (see [Commit Messages](#commit-messages)).
+# 4. Make changes, follow the coding standard
 
-5. **Rebase** onto the latest `dev` before submitting:
+# 5. Commit and push to your fork
+git add -A
+git commit -m "feat: brief description"
+git push origin feature/<feature-name>
 
-   ```bash
-   git fetch origin
-   git rebase origin/dev
-   ```
+# 6. Open a Pull Request on GitHub
+#    From: your fork's feature/<feature-name>
+#    To:   upstream repository's dev branch
+```
 
-6. **Open a pull request** targeting `dev` with:
+### Before Submitting
+
+- Keep commits focused — each commit should represent a single logical change
+- Rebase onto the latest `dev` before submitting:
+  ```bash
+  git fetch origin
+  git rebase origin/dev
+  ```
+- PR must include: clear title, description of changes, and any related issue (e.g. `Closes #123`)
    - A clear title describing the change
    - A description explaining what was changed and why
    - Reference to any related issues (e.g., `Closes #123`)
