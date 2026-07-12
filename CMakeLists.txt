@@ -26,13 +26,13 @@ endif()
 # ============================================================================
 # 3rd Libraries Paths
 # ============================================================================
-set(SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/SDL3/x86_64-w64-mingw32/lib/cmake/SDL3")
-set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/ImGUI")
-set(LUA_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/Lua")
-set(TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/taglib")
-set(UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/utfcpp")
-set(FFMPEG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/FFmpeg")
-set(SDL3_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lib/SDL3/x86_64-w64-mingw32")
+set(SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/SDL3/x86_64-w64-mingw32/lib/cmake/SDL3")
+set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ImGUI")
+set(LUA_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lua")
+set(TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/taglib")
+set(UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/utfcpp")
+set(FFMPEG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/FFmpeg")
+set(SDL3_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/SDL3/x86_64-w64-mingw32")
 
 # ============================================================================
 # 3rd Libraries Path Check
