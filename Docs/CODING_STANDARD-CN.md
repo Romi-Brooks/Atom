@@ -69,7 +69,7 @@ ModuleName/            # 模块名，PascalCase，单数
 #include <unordered_map>
 
 // Third Party Library
-#include <SFML/Audio/Music.hpp>
+#include <SDL3/SDL.h>
 
 // Engine Headers
 #include <Media/Audio/Music.hpp>

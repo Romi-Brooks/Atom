@@ -84,7 +84,7 @@ See the full standards:
 
 ## Pull Request Process
 
-1. **Fork** the repository and create a new branch from `main`:
+1. **Fork** the repository and create a new branch from `master`:
 
    ```bash
    git checkout -b <branch-name>
@@ -96,11 +96,11 @@ See the full standards:
 
 4. **Write clear commit messages** (see [Commit Messages](#commit-messages)).
 
-5. **Rebase** onto the latest `main` before submitting:
+5. **Rebase** onto the latest `master` before submitting:
 
    ```bash
    git fetch origin
-   git rebase origin/main
+   git rebase origin/master
    ```
 
 6. **Open a pull request** with:

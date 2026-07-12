@@ -87,7 +87,7 @@
 
 ## Pull Request 流程
 
-1. **Fork** 本仓库，从 `main` 创建一个新分支：
+1. **Fork** 本仓库，从 `master` 创建一个新分支：
 
    ```bash
    git checkout -b <branch-name>
@@ -99,11 +99,11 @@
 
 4. **编写清晰的提交信息**（参见[提交信息规范](#提交信息规范)）。
 
-5. **Rebase** 到最新的 `main`：
+5. **Rebase** 到最新的 `master`：
 
    ```bash
    git fetch origin
-   git rebase origin/main
+   git rebase origin/master
    ```
 
 6. **提交 Pull Request**，包含：
