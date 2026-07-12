@@ -85,12 +85,18 @@
 
 ---
 
+## 分支策略
+
+- **`master`** — 稳定 Beta 版本。只从 `dev` 合并更新。
+- **`dev`** — 日常开发分支。功能分支从这分出。
+- **`feature/*`** — 新功能，从 `dev` 分出，完成后合并回 `dev`。
+
 ## Pull Request 流程
 
-1. **Fork** 本仓库，从 `master` 创建一个新分支：
+1. **Fork** 本仓库，从 `dev` 创建一个新分支：
 
    ```bash
-   git checkout -b <branch-name>
+   git checkout -b feature/<feature-name> dev
    ```
 
 2. **进行修改**，遵循[编码规范](#编码规范)。
@@ -99,14 +105,14 @@
 
 4. **编写清晰的提交信息**（参见[提交信息规范](#提交信息规范)）。
 
-5. **Rebase** 到最新的 `master`：
+5. **Rebase** 到最新的 `dev`：
 
    ```bash
    git fetch origin
-   git rebase origin/master
+   git rebase origin/dev
    ```
 
-6. **提交 Pull Request**，包含：
+6. **提交 Pull Request** 到 `dev` 分支，包含：
    - 清晰的变更标题
    - 解释变更内容和原因
    - 关联相关 issue（如 `Closes #123`）
