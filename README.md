@@ -73,9 +73,6 @@ Atom uses **SDL3** as its multimedia abstraction layer. SDL3 is **bundled** in t
 
 ### SDL3 Deployment
 
-SDL3 is pre-built and located at `ThirdParty/SDL3/x86_64-w64-mingw32/`.
-The CMake configuration finds it via `find_package(SDL3 REQUIRED CONFIG)`.
-
 SDL3 is compatible with any modern MinGW-w64 distribution (GCC 13+, UCRT).
 Compilers bundled with JetBrains IDEs, WinLibs, or MSYS2 packages all work without version lock-in.
 
