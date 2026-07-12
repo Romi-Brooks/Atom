@@ -53,7 +53,7 @@ See the full coding standard:
 
 Atom provides a resource packaging tool for packing/unpacking game assets into the HPKG archive format.
 
-- [Packager Documentation](Utilities/Packager/Doc/README.md) — CLI usage, API reference, and examples
+- [Packager Documentation](Utilities/Packager/Doc/Packager.md) — CLI usage, API reference, and examples
 
 ---
 
