@@ -16,7 +16,7 @@
 
 - CMake >= 3.20
 - 支持 C++23 的编译器
-- 第三方依赖**随仓库分发**，位于 `ThirdParty/Lib/`
+- 第三方依赖**随仓库分发**，位于 `ThirdParty/`
 
 ### 构建
 
@@ -63,22 +63,22 @@ Atom 提供了资源打包工具，用于将游戏资源打包/解包为 HPKG �
 
 ## 引擎依赖
 
-Atom 使用 **SDL3** 作为其多媒体抽象层。SDL3 **随仓库分发**，位于 `ThirdParty/Lib/SDL3/`。
+Atom 使用 **SDL3** 作为其多媒体抽象层。SDL3 **随仓库分发**，位于 `ThirdParty/SDL3/`。
 
 ### 随仓库分发的依赖
 
 | 库 | 版本 | 路径 | 用途 |
 |----|------|------|------|
-| [SDL3](https://github.com/libsdl-org/SDL) | 3.x | `ThirdParty/Lib/SDL3/` | 窗口管理、渲染、音频、输入 |
-| [ImGui](https://github.com/ocornut/imgui) | 1.x | `ThirdParty/Lib/ImGUI/` | 调试覆盖层 UI |
-| [Lua](https://www.lua.org/) | 5.x | `ThirdParty/Lib/Lua/` | 脚本引擎 |
-| [TagLib](https://taglib.org/) | 2.x | `ThirdParty/Lib/taglib/` | 音频元数据读取 |
-| [utfcpp](https://github.com/nemtrif/utfcpp) | 4.x | `ThirdParty/Lib/utfcpp/` | UTF-8 验证和编码转换 |
-| [FFmpeg](https://ffmpeg.org/) | 7.x | `ThirdParty/Lib/FFmpeg/` | 视频/音频解码 |
+| [SDL3](https://github.com/libsdl-org/SDL) | 3.x | `ThirdParty/SDL3/` | 窗口管理、渲染、音频、输入 |
+| [ImGui](https://github.com/ocornut/imgui) | 1.x | `ThirdParty/ImGUI/` | 调试覆盖层 UI |
+| [Lua](https://www.lua.org/) | 5.x | `ThirdParty/Lua/` | 脚本引擎 |
+| [TagLib](https://taglib.org/) | 2.x | `ThirdParty/taglib/` | 音频元数据读取 |
+| [utfcpp](https://github.com/nemtrif/utfcpp) | 4.x | `ThirdParty/utfcpp/` | UTF-8 验证和编码转换 |
+| [FFmpeg](https://ffmpeg.org/) | 7.x | `ThirdParty/FFmpeg/` | 视频/音频解码 |
 
 ### SDL3 部署
 
-SDL3 预编译库位于 `ThirdParty/Lib/SDL3/x86_64-w64-mingw32/`，CMake 通过 `find_package(SDL3 REQUIRED CONFIG)` 自动查找。
+SDL3 预编译库位于 `ThirdParty/SDL3/x86_64-w64-mingw32/`，CMake 通过 `find_package(SDL3 REQUIRED CONFIG)` 自动查找。
 
 SDL3 无编译器版本锁定——任何现代的 MinGW-w64 发行版（GCC 13+, UCRT）均可使用。JetBrains IDE 捆绑的 MinGW、WinLibs、MSYS2 等均可正常编译。
 
