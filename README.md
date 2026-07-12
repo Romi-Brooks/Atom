@@ -107,10 +107,10 @@ Atom/
 
 ## Roadmap
 
-- ✅ **Backend Migration** — Migrated from **SFML** to **SDL3**
-- 🔄 **Renderer Plugin System** — Users will be able to choose or write their own rendering backend.
-- 🔄 **ECS Framework** — Replace the current simple entity system with a proper Entity-Component-System architecture.
-- 🔄 **Tooling** — Editor, asset pipeline, and profiling tools.
+- [x]  **Backend Migration** — Migrated from **SFML** to **SDL3**
+- [ ] **Renderer Plugin System** — Users will be able to choose or write their own rendering backend.
+- [ ] **ECS Framework** — Replace the current simple entity system with a proper Entity-Component-System architecture.
+- [ ] **Tooling** — Editor, asset pipeline, and profiling tools.
 
 ---
 
