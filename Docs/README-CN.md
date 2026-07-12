@@ -80,11 +80,7 @@ Atom 使用 **SDL3** 作为其多媒体抽象层。SDL3 **随仓库分发**，�
 
 SDL3 预编译库位于 `ThirdParty/Lib/SDL3/x86_64-w64-mingw32/`，CMake 通过 `find_package(SDL3 REQUIRED CONFIG)` 自动查找。
 
-**重要提示：** 构建 Atom 所用的 MinGW 编译器版本必须与 SDL3 一致：
-
-| 平台 | 编译器 |
-|------|--------|
-| 64-bit | GCC 14.2.0 MinGW (SEH) (UCRT) — WinLibs |
+SDL3 无编译器版本锁定——任何现代的 MinGW-w64 发行版（GCC 13+, UCRT）均可使用。JetBrains IDE 捆绑的 MinGW、WinLibs、MSYS2 等均可正常编译。
 
 ***
 
