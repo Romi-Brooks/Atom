@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 
+#include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Registry/AudioDecoderRegistry.hpp>
 
 namespace atom {
@@ -57,6 +58,23 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
     if (info.bits_per_sample == 24) pcm = Expand24To32(pcm);
     return DecodedAudio{
         .pcm = std::move(pcm),
+        .spec = AudioSpec{*format, info.sample_rate, info.channels},
+    };
+}
+
+auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optional<StreamingResult> {
+    auto decoder = decoders_.CreateForFile(path);
+    if (!decoder || !decoder->Open(path)) return std::nullopt;
+
+    const auto& info = decoder->GetInfo();
+    const auto format = ToSampleFormat(info);
+    if (!format || info.sample_rate == 0 || info.channels == 0) {
+        decoder->Close();
+        return std::nullopt;
+    }
+
+    return StreamingResult{
+        .decoder = std::move(decoder),
         .spec = AudioSpec{*format, info.sample_rate, info.channels},
     };
 }

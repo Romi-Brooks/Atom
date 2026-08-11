@@ -1,10 +1,8 @@
 /**
   * @file           : SDL3WavDecoder.hpp
   * @author         : Romi Brooks
-  * @brief          : IAudioDecoder implementation wrapping SDL_LoadWAV
-  * @attention      : Uses SDL_LoadWAV internally for correct UTF-8 path
-  *                   handling on Windows. The RiffWaveReader (dependency-free)
-  *                   is available for non-SDL contexts.
+  * @brief          : Streaming WAV decoder backed by SDL_IOStream
+  * @attention      : Keeps the file open and reads PCM in bounded chunks.
   * @date           : 2026/7/8
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
@@ -14,6 +12,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <SDL3/SDL_iostream.h>
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 
@@ -37,8 +36,12 @@ public:
 
 private:
     atom::DecoderInfo info_{};
-    std::vector<uint8_t> pcm_data_;
-    uint64_t read_cursor_ = 0;
+    SDL_IOStream* io_ = nullptr;
+    Sint64 data_offset_ = 0;
+    uint64_t data_size_ = 0;
+    uint64_t bytes_read_ = 0;
+    uint16_t source_bits_per_sample_ = 0;
+    std::vector<uint8_t> decode_scratch_;
 };
 
 } // namespace atom

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <Backend/Contracts/Audio/AudioTypes.hpp>
+#include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Contracts/Audio/IAudioSource.hpp>
 
 namespace atom {
@@ -17,6 +18,12 @@ public:
         std::vector<uint8_t> pcm, const AudioSpec& spec) -> std::unique_ptr<IAudioSource> = 0;
     [[nodiscard]] virtual auto CreateSFXSource(
         const std::vector<uint8_t>& pcm, const AudioSpec& spec) -> std::unique_ptr<IAudioSource> = 0;
+
+    // Create a streaming music source that owns an opened decoder and
+    // decodes on-the-fly during playback. The caller must pass a valid,
+    // opened decoder; ownership transfers to the returned source.
+    [[nodiscard]] virtual auto CreateStreamingMusicSource(
+        std::unique_ptr<IAudioDecoder> decoder, const AudioSpec& spec) -> std::unique_ptr<IAudioSource> = 0;
 };
 
 } // namespace atom

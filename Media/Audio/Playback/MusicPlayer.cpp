@@ -31,16 +31,16 @@ auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     if (tracks_.contains(id)) return true;
 
     AudioClipLoader loader{*decoders_};
-    auto decoded = loader.Load(file);
-    if (!decoded) {
+    auto streaming = loader.OpenStreaming(file);
+    if (!streaming) {
         LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC, "Failed to decode music: " + file);
         return false;
     }
-    auto clip = std::make_shared<const DecodedAudio>(std::move(*decoded));
     auto& backend = runtime_ ? runtime_->Audio() : *backend_;
-    auto source = backend.CreateMusicSource(clip->pcm, clip->spec);
+    auto source = backend.CreateStreamingMusicSource(
+        std::move(streaming->decoder), streaming->spec);
     if (!source) return false;
-    tracks_.emplace(id, Track{std::move(clip), std::move(source)});
+    tracks_.emplace(id, Track{std::move(source)});
     return true;
 }
 
