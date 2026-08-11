@@ -9,7 +9,10 @@
 
 #include <imgui.h>
 
-#include <Media/Audio/SFX/SFX.hpp>
+#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Media/Audio/Mixing/AudioMixer.hpp>
+#include <Media/Audio/Playback/SFXPlayer.hpp>
+#include <Media/Audio/Resources/AudioClipCache.hpp>
 #include <Window/Screen.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Debugger.hpp>
@@ -19,10 +22,14 @@
 #include "windows.h"
 #endif // _WIN32
 
+namespace {
+constexpr auto kSFX1Path = R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 1 - C.wav)";
+constexpr auto kSFX2Path = R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 2 - C.wav)";
+}
 
 class SFXDebugger final : public atom::Debugger {
     public:
-        explicit SFXDebugger(atom::SFX& sfx) : sfx_(sfx) {}
+        explicit SFXDebugger(atom::SFXPlayer& sfx) : sfx_(sfx) {}
 
     protected:
         auto OnDrawOverlay() -> void override {
@@ -43,12 +50,37 @@ class SFXDebugger final : public atom::Debugger {
             }
             ImGui::Separator();
 
+            ImGui::Text("Decoder Backend: %s",
+                atom::BackendRuntime::GetInstance().GetAudioDecoderBackendId().c_str());
+
+            // Atom 不推荐在大量 ID 已注册时（例如游戏状态进行中）切换后端；
+            // 建议只在“设置”页面等仅注册极少数 ID 的场景中执行切换。
+            ImGui::TextWrapped(
+                "Switch backends only in settings/menu pages with very few "
+                "registered audio IDs, not during active gameplay.");
+
+            if (ImGui::Button("Use SDL3 Decoder Backend")) {
+                if (atom::BackendRuntime::GetInstance().SetAudioDecoderBackend("sdl3")) {
+                    sfx_.Load("registerId_1", kSFX1Path);
+                    sfx_.Load("registerId_2", kSFX2Path);
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Use Builtin Decoder Backend")) {
+                if (atom::BackendRuntime::GetInstance().SetAudioDecoderBackend("builtin")) {
+                    sfx_.Load("registerId_1", kSFX1Path);
+                    sfx_.Load("registerId_2", kSFX2Path);
+                }
+            }
+            ImGui::TextDisabled("Playback Backend: SDL3 (only registered playback backend)");
+            ImGui::Separator();
+
             ImGui::Text("Press ESC to exit");
             ImGui::End();
         }
 
     private:
-        atom::SFX& sfx_;
+        atom::SFXPlayer& sfx_;
 };
 
 class SFXScreen final : public atom::Screen {
@@ -78,10 +110,12 @@ auto main() -> int {
     #endif // _WIN32
 
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
-    atom::SFX sfx;
+    atom::AudioMixer mixer;
+    atom::AudioClipCache clips;
+    atom::SFXPlayer sfx{clips, mixer};
 
-    sfx.Load("registerId_1", R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 1 - C.wav)");
-    sfx.Load("registerId_2", R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 2 - C.wav)");
+    sfx.Load("registerId_1", kSFX1Path);
+    sfx.Load("registerId_2", kSFX2Path);
 
     atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
     atom::ScreenManager::GetInstance().SwitchScreen("SFX");

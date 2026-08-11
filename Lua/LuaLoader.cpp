@@ -43,8 +43,8 @@ auto LuaLoader::Initialize() -> bool {
 	luaL_openlibs(L_); // Load Lua standard libraries
 	RegisterEntityToLua(L_); // Register Entity bindings
 	RegisterMusicToLua(L_);  // Register Music bindings
-	RegisterSFXToLua(L_);     // Register SFX and SFXManager
-	RegisterVolumeToLua(L_);  // Register VolumeManager
+	RegisterSFXToLua(L_);     // Register SFXPlayer bindings
+	RegisterVolumeToLua(L_);  // Register AudioMixer bindings
 
     return true;
 }

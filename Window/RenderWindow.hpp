@@ -14,8 +14,8 @@
 #include <memory>
 #include <string>
 
-#include <Engine/Interfaces/IRenderWindow.hpp>
-#include <Engine/Render/SDL3RenderWindow.hpp>
+#include <Backend/Contracts/Render/IRenderWindow.hpp>
+#include <Backend/SDL3/Window/SDL3RenderWindow.hpp>
 #include <Window/Manager/ScreenManager.hpp>
 
 namespace atom {

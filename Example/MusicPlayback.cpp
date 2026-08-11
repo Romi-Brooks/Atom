@@ -9,8 +9,10 @@
 
 #include <imgui.h>
 
-#include <Media/Audio/Music/Music.hpp>
-#include <Media/Audio/Plugs/MusicFade.hpp>
+#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Media/Audio/Mixing/AudioMixer.hpp>
+#include <Media/Audio/Playback/MusicPlayer.hpp>
+#include <Media/Audio/Transitions/MusicCrossfade.hpp>
 #include <Window/Screen.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Debugger.hpp>
@@ -20,9 +22,14 @@
 #include "windows.h"
 #endif // _WIN32
 
+namespace {
+constexpr auto kMusic1Path = R"(E:\Music\永恒 - 幼稚园杀手.wav)";
+constexpr auto kMusic2Path = R"(E:\Music\1_So Far Away (feat. Jamie Scott & Romy Dya)_(Instrumental).wav)";
+}
+
 class MusicDebugger final : public atom::Debugger {
     public:
-        MusicDebugger(atom::Music& music, atom::audio::MusicFade& fade)
+        MusicDebugger(atom::MusicPlayer& music, atom::audio::MusicCrossfade& fade)
             : music_(music), fade_(fade) {}
 
     protected:
@@ -53,6 +60,37 @@ class MusicDebugger final : public atom::Debugger {
             ImGui::Text("If one of them is playing, switch it to the aim song");
             ImGui::Separator();
 
+            ImGui::Text("Decoder Backend: %s",
+                atom::BackendRuntime::GetInstance().GetAudioDecoderBackendId().c_str());
+
+            // Atom 不推荐在大量 ID 已注册时（例如游戏状态进行中）切换后端；
+            // 建议只在“设置”页面等仅注册极少数 ID 的场景中执行切换。
+            ImGui::TextWrapped(
+                "Switch backends only in settings/menu pages with very few "
+                "registered audio IDs, not during active gameplay.");
+
+            if (ImGui::Button("Use SDL3 Decoder Backend")) {
+                if (atom::BackendRuntime::GetInstance().SetAudioDecoderBackend("sdl3")) {
+                    fade_.Reset();
+                    music_.Load("registerId_1", kMusic1Path);
+                    music_.Load("registerId_2", kMusic2Path);
+                    music_.Play("registerId_1");
+                    now_key_playing = "registerId_1";
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Use Builtin Decoder Backend")) {
+                if (atom::BackendRuntime::GetInstance().SetAudioDecoderBackend("builtin")) {
+                    fade_.Reset();
+                    music_.Load("registerId_1", kMusic1Path);
+                    music_.Load("registerId_2", kMusic2Path);
+                    music_.Play("registerId_1");
+                    now_key_playing = "registerId_1";
+                }
+            }
+            ImGui::TextDisabled("Playback Backend: SDL3 (only registered playback backend)");
+            ImGui::Separator();
+
             ImGui::Text("this btm allows you play those file at the same time");
             if (ImGui::Button("Play")) {
                 music_.Stop("registerId_1");
@@ -68,13 +106,16 @@ class MusicDebugger final : public atom::Debugger {
         }
 
     private:
-        atom::Music& music_;
-        atom::audio::MusicFade& fade_;
+        atom::MusicPlayer& music_;
+        atom::audio::MusicCrossfade& fade_;
     };
 
 
 class MusicScreen final : public atom::Screen {
     public:
+        explicit MusicScreen(atom::audio::MusicCrossfade& transition)
+            : transition_(transition) {}
+
         auto Render(atom::IRenderTarget& target) -> void override {
             target.Clear(atom::Color{30, 30, 60});
         }
@@ -90,8 +131,12 @@ class MusicScreen final : public atom::Screen {
             return false;
         }
 
-        auto Update(float) -> void override {
+        auto Update(const float delta_time) -> void override {
+            transition_.Update(delta_time);
         }
+
+    private:
+        atom::audio::MusicCrossfade& transition_;
 };
 
 auto main() -> int {
@@ -101,13 +146,14 @@ auto main() -> int {
 
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
-    atom::Music music;
-    atom::audio::MusicFade music_fade{music};
+    atom::AudioMixer mixer;
+    atom::MusicPlayer music{mixer};
+    atom::audio::MusicCrossfade music_fade{music};
 
-    music.Load("registerId_1", R"(E:\Music\永恒 - 幼稚园杀手.wav)");
-    music.Load("registerId_2", R"(E:\Music\1_So Far Away (feat. Jamie Scott & Romy Dya)_(Instrumental).wav)");
+    music.Load("registerId_1", kMusic1Path);
+    music.Load("registerId_2", kMusic2Path);
 
-    atom::ScreenManager::GetInstance().LoadScreen("Music", std::make_unique<MusicScreen>());
+    atom::ScreenManager::GetInstance().LoadScreen("Music", std::make_unique<MusicScreen>(music_fade));
     atom::ScreenManager::GetInstance().SwitchScreen("Music");
 
     auto& window = atom::RenderWindow::GetInstance();

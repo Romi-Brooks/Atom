@@ -84,18 +84,18 @@ Compilers bundled with JetBrains IDEs, WinLibs, or MSYS2 packages all work witho
 
 ```
 Atom/
-├── Engine/
-│   ├── Audio/          # DecoderRegistry
-│   ├── Interfaces/     # Abstract interfaces (IAudioDecoder, IAudioBuffer…)
-│   └── Render/         # SDL3 window/renderer wrappers
+├── Backend/
+│   ├── Contracts/      # Render/Audio/Video backend contracts
+│   ├── Registry/       # Backend-independent decoder registry
+│   ├── Runtime/        # Global backend selection, defaults and hot switching
+│   ├── Builtin/        # Atom-owned experimental implementations
+│   └── SDL3/           # SDL3 render, window and audio implementations
 ├── Media/
 │   ├── Audio/
-│   │   ├── Backend/    # SDL3 audio stream sources (Music, SFX, Buffer)
-│   │   ├── Decoder/    # WAV decoder + AtomWavDecoderBackend
-│   │   ├── Manager/    # VolumeManager, SFXManager
-│   │   ├── Music/      # Music playback (domain)
-│   │   ├── Plugs/      # MusicFade plugin
-│   │   └── SFX/        # SFX playback with voice pool
+│   │   ├── Mixing/     # AudioMixer and category volumes
+│   │   ├── Resources/  # AudioClipLoader and AudioClipCache
+│   │   ├── Playback/   # MusicPlayer, SFXPlayer and VoicePool
+│   │   └── Transitions/# Frame-driven music transitions
 │   └── Video/          # Video (stub)
 ├── Log/                # Logging system
 ├── Window/             # Screen system, Debugger
