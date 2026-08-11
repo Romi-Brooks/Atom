@@ -51,6 +51,8 @@ namespace atom {
 		static const LogChannel ATOM_AUDIO_SFX;
 		static const LogChannel ATOM_AUDIO_PLUG_MUSICFADE;
 
+		static const LogChannel ATOM_BACKEND_RUNTIME;
+
 		static const LogChannel ATOM_VIDEO;
 
 		static const LogChannel ATOM_UTILITIES_PACKAGER;

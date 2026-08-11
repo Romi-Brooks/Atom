@@ -41,7 +41,6 @@ public:
 
 private:
     struct Track {
-        std::shared_ptr<const DecodedAudio> clip;
         std::unique_ptr<IAudioSource> source;
     };
 
