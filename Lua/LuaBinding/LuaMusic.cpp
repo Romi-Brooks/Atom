@@ -11,17 +11,23 @@
 #include "lua.hpp"
 
 // Engine Headers
-#include <Media/Audio/Music/Music.hpp>
+#include <Media/Audio/Playback/MusicPlayer.hpp>
+#include <Media/Audio/Transitions/MusicCrossfade.hpp>
 #include <Log/LogSystem.hpp>
 
 // Global bridge pointer — set by the application after constructing Music
 // 全局桥接指针 — 由应用在构造 Music 后设置
 namespace {
-    atom::Music* g_music = nullptr;
+    atom::MusicPlayer* g_music = nullptr;
+    atom::audio::MusicCrossfade* g_transition = nullptr;
 }
 
-auto SetLuaMusicInstance(atom::Music& music) -> void {
+auto SetLuaMusicInstance(atom::MusicPlayer& music) -> void {
     g_music = &music;
+}
+
+auto SetLuaMusicCrossfadeInstance(atom::audio::MusicCrossfade& transition) -> void {
+    g_transition = &transition;
 }
 
 // Lua binding: Load music
@@ -71,6 +77,23 @@ static int lua_Music_IsLoaded(lua_State* L) {
 	return 1;
 }
 
+static int lua_Music_Crossfade(lua_State* L) {
+    if (!g_transition) return luaL_error(L, "MusicCrossfade is not attached");
+    const char* target = luaL_checkstring(L, 1);
+    const float duration = static_cast<float>(luaL_optnumber(L, 2, 2.0));
+    lua_pushboolean(L, g_transition->Switch(target, duration));
+    return 1;
+}
+static int lua_Music_CancelTransition(lua_State* L) {
+    if (!g_transition) return luaL_error(L, "MusicCrossfade is not attached");
+    g_transition->Cancel();
+    return 0;
+}
+static int lua_Music_GetTransitionProgress(lua_State* L) {
+    if (!g_transition) return luaL_error(L, "MusicCrossfade is not attached");
+    lua_pushnumber(L, g_transition->GetProgress());
+    return 1;
+}
 // Register Music-related functions to Lua environment
 // 注册Music相关函数到Lua环境
 auto RegisterMusicToLua(lua_State* L) -> void {
@@ -82,6 +105,9 @@ auto RegisterMusicToLua(lua_State* L) -> void {
 		{"Stop", lua_Music_Stop},
 		{"SetVolume", lua_Music_SetVolume},
 		{"IsLoaded", lua_Music_IsLoaded},
+        {"Crossfade", lua_Music_Crossfade},
+        {"CancelTransition", lua_Music_CancelTransition},
+        {"GetTransitionProgress", lua_Music_GetTransitionProgress},
 		{nullptr, nullptr}
 	};
 	luaL_setfuncs(L, musicFunctions, 0);

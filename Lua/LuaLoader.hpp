@@ -30,11 +30,15 @@ auto PushEntityToLua(lua_State* L, atom::Entity* entity, const std::string& luaV
 // Set Lua bridge instances
 // 设置 Lua 桥接实例
 namespace atom {
-    class Music;
-    class SFX;
+    class MusicPlayer;
+    class SFXPlayer;
+    class AudioMixer;
+    namespace audio { class MusicCrossfade; }
 }
-auto SetLuaMusicInstance(atom::Music& music) -> void;
-auto SetLuaSFXInstance(atom::SFX& sfx) -> void;
+auto SetLuaMusicInstance(atom::MusicPlayer& music) -> void;
+auto SetLuaMusicCrossfadeInstance(atom::audio::MusicCrossfade& transition) -> void;
+auto SetLuaSFXInstance(atom::SFXPlayer& sfx) -> void;
+auto SetLuaAudioMixerInstance(atom::AudioMixer& mixer) -> void;
 
 class LuaLoader {
 private:
