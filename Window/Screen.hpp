@@ -10,8 +10,8 @@
 #ifndef ATOM_SCREEN_HPP
 #define ATOM_SCREEN_HPP
 
-#include <Engine/Interfaces/IRenderTarget.hpp>
-#include <Engine/Interfaces/IRenderWindow.hpp>
+#include <Backend/Contracts/Render/IRenderTarget.hpp>
+#include <Backend/Contracts/Render/IRenderWindow.hpp>
 
 namespace atom {
     class Screen {

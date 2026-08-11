@@ -114,8 +114,8 @@ link_directories(
 # Engine Libraries
 # ============================================================================
 # 0. Interfaces (header-only, no SFML/SDL3 dependency)
-    add_library(engine_interfaces INTERFACE)
-    target_include_directories(engine_interfaces INTERFACE
+    add_library(atom_backend_contracts INTERFACE)
+    target_include_directories(atom_backend_contracts INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
@@ -125,7 +125,7 @@ link_directories(
             Log/LogSystem.hpp
     )
     target_include_directories(engine_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_log PUBLIC engine_interfaces)
+    target_link_libraries(engine_log PUBLIC atom_backend_contracts)
 
 # 2. Algorithm
     add_library(engine_algorithm STATIC
@@ -133,44 +133,74 @@ link_directories(
             Algorithm/Vector/Vec2.hpp
     )
     target_include_directories(engine_algorithm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_algorithm PUBLIC engine_interfaces)
+    target_link_libraries(engine_algorithm PUBLIC atom_backend_contracts)
+
+# 3. SDL3 Core
+    add_library(atom_backend_sdl3_core STATIC
+        Backend/SDL3/Core/SDLRuntime.cpp
+        Backend/SDL3/Core/SDLRuntime.hpp
+    )
+    target_include_directories(atom_backend_sdl3_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(atom_backend_sdl3_core PUBLIC SDL3::SDL3)
 
 # 3. SDL3 Render Backend
-    add_library(engine_render_sdl3 STATIC
-        Engine/Render/SDLCore.cpp
-        Engine/Render/SDLCore.hpp
-        Engine/Render/SDL3RenderWindow.cpp
-        Engine/Render/SDL3RenderWindow.hpp
-        Engine/Render/SDL3Texture.cpp
-        Engine/Render/SDL3Texture.hpp
+    add_library(atom_backend_sdl3_render STATIC
+        Backend/SDL3/Window/SDL3RenderWindow.cpp
+        Backend/SDL3/Window/SDL3RenderWindow.hpp
+        Backend/SDL3/Render/SDL3Texture.cpp
+        Backend/SDL3/Render/SDL3Texture.hpp
     )
-    target_include_directories(engine_render_sdl3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_render_sdl3 PUBLIC engine_interfaces SDL3::SDL3)
+    target_include_directories(atom_backend_sdl3_render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(atom_backend_sdl3_render PUBLIC atom_backend_contracts atom_backend_sdl3_core)
 
-# 4. Audio Decoder Backends (builtin WAV RIFF decoder + IAudioDecoder implementations)
-    add_library(engine_audio_decoder STATIC
-        Engine/Interfaces/IAudioDecoder.hpp
-        Engine/Audio/DecoderRegistry.hpp
-        Engine/Audio/DecoderRegistry.cpp
-        Media/Audio/Decoder/WavRiff/WavDecoder.cpp
-        Media/Audio/Decoder/WavRiff/WavDecoder.hpp
-        Media/Audio/Decoder/AtomWavDecoderBackend.cpp
-        Media/Audio/Decoder/AtomWavDecoderBackend.hpp
+# 4. Backend registry and builtin audio decoders
+    add_library(atom_backend_registry STATIC
+        Backend/Registry/AudioDecoderRegistry.hpp
+        Backend/Registry/AudioDecoderRegistry.cpp
+        Backend/Registry/BackendRegistry.hpp
+        Backend/Registry/BackendRegistry.cpp
     )
-    target_include_directories(engine_audio_decoder PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_audio_decoder PUBLIC engine_interfaces engine_log)
+    target_include_directories(atom_backend_registry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts)
+
+    add_library(atom_backend_builtin_audio STATIC
+        Backend/Builtin/Audio/RegisterBuiltinAudio.hpp
+        Backend/Builtin/Audio/RegisterBuiltinAudio.cpp
+        Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.hpp
+        Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.cpp
+        Backend/Builtin/Audio/Decoder/WavRiff/BuiltinWavDecoder.hpp
+        Backend/Builtin/Audio/Decoder/WavRiff/BuiltinWavDecoder.cpp
+    )
+    target_include_directories(atom_backend_builtin_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(atom_backend_builtin_audio PUBLIC atom_backend_contracts atom_backend_registry)
 
 # 5. SDL3 Audio Backend
-    add_library(engine_audio_sdl3 STATIC
-        Media/Audio/Backend/SDL3AudioBuffer.cpp
-        Media/Audio/Backend/SDL3AudioBuffer.hpp
-        Media/Audio/Backend/SDL3SFXSource.cpp
-        Media/Audio/Backend/SDL3SFXSource.hpp
-        Media/Audio/Backend/SDL3MusicSource.cpp
-        Media/Audio/Backend/SDL3MusicSource.hpp
+    add_library(atom_backend_sdl3_audio STATIC
+        Backend/SDL3/Audio/SDL3AudioBackend.cpp
+        Backend/SDL3/Audio/SDL3AudioBackend.hpp
+        Backend/SDL3/Audio/RegisterSDL3Audio.cpp
+        Backend/SDL3/Audio/RegisterSDL3Audio.hpp
+        Backend/SDL3/Audio/Decoder/SDL3WavDecoder.cpp
+        Backend/SDL3/Audio/Decoder/SDL3WavDecoder.hpp
+        Backend/SDL3/Audio/SDL3SFXSource.cpp
+        Backend/SDL3/Audio/SDL3SFXSource.hpp
+        Backend/SDL3/Audio/SDL3MusicSource.cpp
+        Backend/SDL3/Audio/SDL3MusicSource.hpp
     )
-    target_include_directories(engine_audio_sdl3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_audio_sdl3 PUBLIC engine_interfaces engine_log SDL3::SDL3)
+    target_include_directories(atom_backend_sdl3_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(atom_backend_sdl3_audio PUBLIC atom_backend_contracts atom_backend_registry atom_backend_sdl3_core engine_log)
+
+    add_library(atom_backend_runtime STATIC
+        Backend/Runtime/BackendRuntime.hpp
+        Backend/Runtime/BackendRuntime.cpp
+        Backend/Runtime/IAudioBackendChangeListener.hpp
+    )
+    target_include_directories(atom_backend_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(atom_backend_runtime PUBLIC
+        atom_backend_contracts
+        atom_backend_registry
+        atom_backend_builtin_audio
+        atom_backend_sdl3_audio)
 
 # 6. Entities
     add_library(engine_entities STATIC
@@ -182,25 +212,29 @@ link_directories(
             Components/Entities/Player.cpp
     )
     target_include_directories(engine_entities PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_entities PUBLIC engine_interfaces engine_algorithm)
+    target_link_libraries(engine_entities PUBLIC atom_backend_contracts engine_algorithm)
 
 # 7. Media
     add_library(engine_media STATIC
-            Media/Audio/SFX/Manager/SFXManager.cpp
-            Media/Audio/SFX/Manager/SFXManager.hpp
-            Media/Audio/Manager/VolumeManager.cpp
-            Media/Audio/Manager/VolumeManager.hpp
-            Media/Audio/Plugs/MusicFade.cpp
-            Media/Audio/Plugs/MusicFade.hpp
-            Media/Audio/Music/Music.cpp
-            Media/Audio/Music/Music.hpp
-            Media/Audio/SFX/SFX.cpp
-            Media/Audio/SFX/SFX.hpp
-            Media/Video/Video.cpp
-            Media/Video/Video.hpp
+        Media/Audio/Mixing/AudioMixer.cpp
+        Media/Audio/Mixing/AudioMixer.hpp
+        Media/Audio/Resources/AudioClipLoader.cpp
+        Media/Audio/Resources/AudioClipLoader.hpp
+        Media/Audio/Resources/AudioClipCache.cpp
+        Media/Audio/Resources/AudioClipCache.hpp
+        Media/Audio/Playback/MusicPlayer.cpp
+        Media/Audio/Playback/MusicPlayer.hpp
+        Media/Audio/Playback/SFXPlayer.cpp
+        Media/Audio/Playback/SFXPlayer.hpp
+        Media/Audio/Playback/VoicePool.cpp
+        Media/Audio/Playback/VoicePool.hpp
+        Media/Audio/Transitions/MusicCrossfade.cpp
+        Media/Audio/Transitions/MusicCrossfade.hpp
+        Media/Video/Video.cpp
+        Media/Video/Video.hpp
     )
     target_include_directories(engine_media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_media PUBLIC engine_interfaces engine_log engine_audio_sdl3 engine_audio_decoder)
+    target_link_libraries(engine_media PUBLIC atom_backend_contracts atom_backend_registry atom_backend_runtime engine_log)
 
 # 8. Packager
     add_library(engine_packager STATIC
@@ -223,8 +257,8 @@ link_directories(
     )
     target_include_directories(engine_windows PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_windows PUBLIC
-        engine_interfaces
-        engine_render_sdl3
+        atom_backend_contracts
+        atom_backend_sdl3_render
         engine_log
         engine_algorithm)
 
@@ -273,7 +307,8 @@ link_directories(
     target_link_libraries(engine_lua PUBLIC
             lua_lib
             engine_log
-            engine_config)
+            engine_config
+            engine_media)
 
 # ============================================================================
 # Executable
@@ -294,13 +329,15 @@ if(WIN32)
 endif()
 
 add_executable(example_audio_playback Example/MusicPlayback.cpp)
-target_link_libraries(example_audio_playback PRIVATE engine_media engine_windows engine_debugger)
+target_link_libraries(example_audio_playback PRIVATE
+        engine_media engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_audio_playback PRIVATE)
 endif()
 
 add_executable(example_sfx_playback Example/SFXPlayback.cpp)
-target_link_libraries(example_sfx_playback PRIVATE engine_media engine_windows engine_debugger)
+target_link_libraries(example_sfx_playback PRIVATE
+        engine_media engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_sfx_playback PRIVATE)
 endif()

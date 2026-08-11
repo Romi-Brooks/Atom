@@ -14,8 +14,8 @@
 
 #include <Algorithm/Vector/Vec2.hpp>
 #include <Config/Movement/MoveEvent.hpp>
-#include <Engine/Interfaces/IRenderTarget.hpp>
-#include <Engine/Interfaces/ITexture.hpp>
+#include <Backend/Contracts/Render/IRenderTarget.hpp>
+#include <Backend/Contracts/Render/ITexture.hpp>
 
 namespace atom {
     class Entity {

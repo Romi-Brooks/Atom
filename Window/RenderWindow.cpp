@@ -77,6 +77,10 @@ auto RenderWindow::Run() -> void {
         const float deltaTime = std::chrono::duration<float>(frameStart - lastTime).count();
         lastTime = frameStart;
 
+        // Update game logic before frame extensions and rendering so that
+        // state changes are visible in the same frame.
+        screenManager.Update(deltaTime);
+
         if (window_->on_update_) {
             window_->on_update_(deltaTime);
         }

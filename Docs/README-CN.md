@@ -86,18 +86,18 @@ SDL3 无编译器版本锁定——任何现代的 MinGW-w64 发行版（GCC 13+
 
 ```
 Atom/
-├── Engine/
-│   ├── Audio/          # DecoderRegistry（解码器注册表）
-│   ├── Interfaces/     # 抽象接口（IAudioDecoder, IAudioBuffer…）
-│   └── Render/         # SDL3 窗口/渲染器封装
+├── Backend/
+│   ├── Contracts/      # Render/Audio/Video 后端契约
+│   ├── Registry/       # 后端无关的解码器注册中心
+│   ├── Runtime/        # 全局后端选择、默认装配与热切换
+│   ├── Builtin/        # Atom 自研实验实现
+│   └── SDL3/           # SDL3 渲染、窗口与音频实现
 ├── Media/
 │   ├── Audio/
-│   │   ├── Backend/    # SDL3 音频流源（Music, SFX, Buffer）
-│   │   ├── Decoder/    # WAV 解码器 + AtomWavDecoderBackend
-│   │   ├── Manager/    # VolumeManager, SFXManager
-│   │   ├── Music/      # 音乐播放（领域层）
-│   │   ├── Plugs/      # MusicFade 淡入淡出插件
-│   │   └── SFX/        # 音效播放（Voice Pool 重叠支持）
+│   │   ├── Mixing/     # AudioMixer 与分类音量
+│   │   ├── Resources/  # AudioClipLoader 与 AudioClipCache
+│   │   ├── Playback/   # MusicPlayer、SFXPlayer 与 VoicePool
+│   │   └── Transitions/# 帧驱动音乐过渡
 │   └── Video/          # 视频（空壳）
 ├── Log/                # 日志系统
 ├── Window/             # 屏幕系统、Debugger
@@ -108,7 +108,8 @@ Atom/
 
 ## 未来规划
 
-- [x] **后端迁移** — 从 **SFML** 迁移到 **SDL3**（已完成）
+- [未完成工作统一清单](Remaining-Issues.md)
+
 - [ ] **渲染器插件系统** — 用户可以选择或编写自己的渲染后端
 - [ ] **ECS 框架** — 将当前简单的实体系统替换为正式的 Entity-Component-System 架构
 - [ ] **工具链** — 编辑器、资源管线和分析工具

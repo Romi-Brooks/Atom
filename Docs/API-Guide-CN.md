@@ -1,260 +1,182 @@
 # Atom Engine API 使用指南
 
----
-
 ## 设计原则
 
-引擎组件分为两类：
+- SDL3 等具体实现由 Atom 内部注册，普通用户不包含 `Backend/SDL3/*`。
+- 音频播放后端和 Decoder 后端分别全局选择，默认均为 `sdl3`。
+- `MusicPlayer`、`SFXPlayer`、`AudioMixer` 和 `MusicCrossfade` 仍是可自由组合的实例，不强制使用统一 `AudioSystem`。
+- Backend 热切换会停止声音并清空 Player 中已注册的音频 ID；页面或后续场景需要重新 `Load/Play`。
 
-**管理器（全局唯一，引擎内置）** — 直接通过静态方法访问：
-- `Log` — 日志系统
-- `RenderWindow` — 渲染窗口
-- `ScreenManager` — 屏幕管理器
-- `SFXManager` — 音频缓冲管理器
-- `VolumeManager` — 全局音量管理
-- `DecoderRegistry` — 解码器注册表（音频加载用）
-
-**播放器/服务（用户按需创建）** — 直接构造实例：
-- `SFX` — 音效播放（支持同一音效多实例重叠）
-- `Music` — 音乐播放
-- `MusicFade` — 音乐淡入淡出
-
----
-
-## 日志系统
+## 日志
 
 ```cpp
 #include <Log/LogSystem.hpp>
 
-// 直接使用宏
 LOG_INFO(atom::LogChannel::ATOM_MAIN, "Engine started");
 LOG_WARNING(atom::LogChannel::ATOM_FILESYSTEM, "File not found");
 LOG_ERROR(atom::LogChannel::ATOM_LUA, "Script error");
-LOG_DEBUG(atom::LogChannel::SDL_BACKEND_AUDIO, "Stream opened: fmt=...");
 
-// 设置日志显示级别（默认 INFO，不显示 DEBUG）
-atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);  // 显示所有
-atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING); // 仅 WARNING+ERROR
-
-// 自定义日志通道
-const atom::LogChannel GAME_NPC("Game.NPC");
-LOG_INFO(GAME_NPC, "NPC spawned");
-
-// 预定义频道：
-// Atom.Audio.Music       — 音乐领域逻辑
-// Atom.Audio.SFX         — 音效领域逻辑
-// Atom.Audio.Plug.MusicFade — 淡入淡出插件
-// SDL.Backend.Audio      — SDL 音频底层操作
-// SDL.Backend.Video      — SDL 视频底层
-// SDL.Backend.Render     — SDL 渲染底层
-// SDL.Backend.Window     — SDL 窗口底层
+atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 ```
 
----
-
-## 窗口 + 屏幕管理
+## 窗口与 Screen
 
 ```cpp
 #include <Window/RenderWindow.hpp>
 #include <Window/Manager/ScreenManager.hpp>
 #include <Window/Screen.hpp>
 
-class MenuScreen : public atom::Screen {
-    auto Render(atom::IRenderTarget& target) -> void override { /* ... */ }
-    auto HandleEvent(const atom::IEvent& event) -> bool override { /* ... */ }
-    auto Update(float deltaTime) -> void override { /* ... */ }
+class MenuScreen final : public atom::Screen {
+public:
+    auto Render(atom::IRenderTarget& target) -> void override {
+        target.Clear(atom::Color{30, 30, 60});
+    }
+
+    auto HandleEvent(const atom::IEvent&) -> bool override { return false; }
+    auto Update(float delta_time) -> void override { /* game logic */ }
 };
 
-// ScreenManager 是全局单例
-atom::ScreenManager::GetInstance().LoadScreen("menu", std::make_unique<MenuScreen>());
+atom::ScreenManager::GetInstance().LoadScreen(
+    "menu", std::make_unique<MenuScreen>());
 atom::ScreenManager::GetInstance().SwitchScreen("menu");
 
-// RenderWindow 也是全局单例
 auto& window = atom::RenderWindow::GetInstance();
 window.Initialize("My Game", atom::Vec2{1280, 720});
+window.SetFPS(60);
 window.Run();
 ```
 
----
+## 音乐
 
-## 音效（Voice Pool）
+普通用户不需要创建 Decoder Registry 或 SDL3 Backend：
 
 ```cpp
-#include <Media/Audio/SFX/SFX.hpp>
+#include <Media/Audio/Mixing/AudioMixer.hpp>
+#include <Media/Audio/Playback/MusicPlayer.hpp>
+#include <Media/Audio/Transitions/MusicCrossfade.hpp>
 
-// SFX 是普通实例，可创建多个
-atom::SFX sfx;
+atom::AudioMixer mixer;
+atom::MusicPlayer music{mixer};
+atom::audio::MusicCrossfade crossfade{music};
+
+music.Load("menu", "assets/menu.wav");
+music.Load("game", "assets/game.wav");
+music.Play("menu");
+
+// 在 Screen::Update(delta_time) 中调用。
+crossfade.Switch("game", 2.0f);
+crossfade.Update(delta_time);
+```
+
+## 音效
+
+```cpp
+#include <Media/Audio/Mixing/AudioMixer.hpp>
+#include <Media/Audio/Playback/SFXPlayer.hpp>
+#include <Media/Audio/Resources/AudioClipCache.hpp>
+
+atom::AudioMixer mixer;
+atom::AudioClipCache clips;
+atom::SFXPlayer sfx{clips, mixer};
+
 sfx.Load("explosion", "assets/explosion.wav");
-
-// 同一音效可重叠播放（每个 Play 分配一个 voice，最多 8 个同时）
-sfx.Play("explosion");   // voice 1
-sfx.Play("explosion");   // voice 2 — 重叠播放，上一个不被切断
-sfx.Play("explosion");   // voice 3
-// 超出 8 个时自动覆盖最旧的 voice
-
-// 播放时自动读取 VolumeManager 的有效音量
+sfx.Play("explosion");
+sfx.Play("explosion"); // VoicePool 允许重叠播放
 ```
 
----
-
-## 音乐 + 回调流式播放
+## 音量
 
 ```cpp
-#include <Media/Audio/Music/Music.hpp>
-#include <Media/Audio/Plugs/MusicFade.hpp>
-
-atom::Music music;
-music.Load("bgm", "assets/bgm.wav");
-music.Play("bgm");       // 后台线程推送 PCM 到 SDL 音频流
-
-// 音乐播放完成后自动停止；支持循环
-auto* source = music.GetSound("bgm");
-if (source) source->SetLooping(true);
-
-// MusicFade 淡入淡出（需要 Music 实例引用）
-atom::audio::MusicFade fade{music};
-fade.Switch("bgm2", 2.0f);  // 2 秒内淡出→切换→淡入
+atom::AudioMixer mixer;
+mixer.SetMasterVolume(80.0f);
+mixer.SetMusicVolume(70.0f);
+mixer.SetSFXVolume(100.0f);
 ```
 
----
+当前 `AudioMixer` 是轻量分类音量配置。完整 Bus 增益传播仍属于后续事项。
 
-## 解码器框架（IAudioDecoder + DecoderRegistry）
+## 全局 Backend 设置
 
-```cpp
-#include <Engine/Audio/DecoderRegistry.hpp>
+默认设置：
 
-// 解码器自动按扩展名选择（.wav → AtomWavDecoderBackend）
-auto decoder = DecoderRegistry::Create("music.wav");
-decoder->Open("music.wav");
-
-const auto& info = decoder->GetInfo();
-// info.sample_rate, info.channels, info.bits_per_sample, info.is_float
-
-// 读取 PCM 数据
-std::vector<uint8_t> pcm(info.total_pcm_frames * info.channels * (info.bits_per_sample / 8));
-decoder->DecodeChunk(pcm.data(), static_cast<uint32_t>(pcm.size()));
-decoder->Close();
+```text
+audio backend         = sdl3
+audio decoder backend = sdl3
 ```
 
----
-
-## 全局音量管理
+游戏设置页面可以这样切换：
 
 ```cpp
-// VolumeManager 是全局单例
-auto& vol = atom::VolumeManager::GetInstance();
+#include <Backend/Runtime/BackendRuntime.hpp>
 
-vol.SetMasterVolume(80);       // 总音量（影响所有音频）
-vol.SetSfxVolume(100);         // SFX 独立音量
-vol.SetMusicVolume(80);        // Music 独立音量
+auto& backends = atom::BackendRuntime::GetInstance();
 
-// 实际播放音量 = 总音量 × 分类音量 / 100
-// master=80, sfx=100  → 实际 80
-// master=80, music=80 → 实际 64
+if (!backends.SetAudioBackend("sdl3")) {
+    // 后端不存在、初始化失败，或旧后端恢复失败。
+}
 
-// SFX 和 Music 播放时自动读取有效音量
-```
-
----
-
-## 调试覆盖层
-
-```cpp
-#include <Window/Debugger.hpp>
-
-class MyDebugger : public atom::Debugger {
-protected:
-    auto OnDrawOverlay() -> void override {
-        ImGui::Begin("Debug");
-        ImGui::Text("FPS: %.1f", GetFPS());
-        ImGui::End();
-    }
-};
-
-MyDebugger debugger;
-debugger.Attach(window);    // 绑定到 RenderWindow
-```
-
----
-
-## Lua 脚本
-
-```cpp
-#include <Lua/LuaLoader.hpp>
-
-atom::Music music;
-atom::SFX sfx;
-
-SetLuaMusicInstance(music);
-SetLuaSFXInstance(sfx);
-
-LuaLoader lua;
-lua.Initialize();
-
-// Lua 中调用：
-// Music:Load("bgm", "bgm.wav")
-// Music:Play("bgm")
-// SFX:Load("exp", "exp.wav")
-// SFX:Play("exp")
-// VolumeManager.SetMasterVolume(80)
-```
-
----
-
-## 完整示例
-
-```cpp
-#include <Window/RenderWindow.hpp>
-#include <Window/Manager/ScreenManager.hpp>
-#include <Media/Audio/Music/Music.hpp>
-#include <Media/Audio/Plugs/MusicFade.hpp>
-
-auto main() -> int {
-    // 实例：用户按需创建
-    atom::Music music;
-    atom::audio::MusicFade fade{music};
-
-    // 初始化音乐
-    music.Load("bgm", "bgm.wav");
-    music.Play("bgm");
-
-    // 单例：直接使用
-    atom::ScreenManager::GetInstance().LoadScreen("game", std::make_unique<GameScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen("game");
-
-    auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("My Game", atom::Vec2{1280, 720});
-    window.Run();
+if (!backends.SetAudioDecoderBackend("builtin")) {
+    // Decoder 后端不存在或注册失败。
 }
 ```
 
----
+切换规则：
+
+1. 通知所有接入全局 Runtime 的 Music/SFX Player。
+2. Player 停止声音并清空所有已注册 ID、Source、VoicePool 和缓存。
+3. 销毁旧播放后端并创建新后端；Decoder 切换则替换全局 Decoder Registry 内容。
+4. 当前页面或后续场景重新执行 `Load/Play`。
+
+Beta 阶段建议只在主菜单或设置页面切换。游戏运行状态检测与禁止策略将在后续实现。
+
+## 自定义 Backend（高级用法）
+
+普通项目不需要操作 Registry。自定义后端开发者可以注册工厂：
+
+```cpp
+auto& runtime = atom::BackendRuntime::GetInstance();
+
+runtime.Registry().RegisterAudioBackend("custom", [] {
+    return std::make_unique<MyAudioBackend>();
+});
+
+runtime.Registry().RegisterAudioDecoderBackend(
+    "custom-codecs",
+    [](atom::AudioDecoderRegistry& registry) {
+        return RegisterMyDecoders(registry);
+    });
+```
+
+测试或特殊工具仍可使用显式注入构造，不受全局切换影响：
+
+```cpp
+atom::MusicPlayer music{fake_backend, test_decoders, mixer};
+atom::SFXPlayer sfx{fake_backend, clips, mixer};
+```
+
+## Lua
+
+Lua 继续操作注入的 Player：
+
+```cpp
+SetLuaMusicInstance(music);
+SetLuaSFXInstance(sfx);
+SetLuaAudioMixerInstance(mixer);
+SetLuaMusicCrossfadeInstance(crossfade);
+```
+
+Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`，再继续播放。
 
 ## 快速参考
 
-| 类 | 访问方式 | 说明 |
-|-----|---------|------|
-| `Log` | `Log::GetLogInstance()` | 全局日志系统，默认 INFO 级别 |
-| `RenderWindow` | `RenderWindow::GetInstance()` | 唯一的渲染窗口（SDL3） |
-| `ScreenManager` | `ScreenManager::GetInstance()` | 全局屏幕管理，`Run()` 内部自动引用 |
-| `SFXManager` | `SFXManager::GetManager()` | 全局音频缓冲缓存 |
-| `VolumeManager` | `VolumeManager::GetInstance()` | 全局音量（总音量 + 分类音量） |
-| `DecoderRegistry` | `DecoderRegistry::Create(path)` | 按扩展名创建解码器 |
-| `SFX` | `SFX()` 构造实例 | 音效播放器，支持 8 个 voice 重叠 |
-| `Music` | `Music()` 构造实例 | 音乐播放器，后台线程推送流式播放 |
-| `MusicFade` | `MusicFade(Music&)` | 淡入淡出，需要 Music 引用 |
-| `Debugger` | `Debugger()` + `Attach(window)` | 调试覆盖层（ImGui SDL3） |
-
----
-
-## 日志频道参考
-
-| 频道常量 | 显示名称 | 用途 |
-|---------|---------|------|
-| `ATOM_AUDIO_MUSIC` | `Atom.Audio.Music ->` | Music 加载/播放/停止 |
-| `ATOM_AUDIO_SFX` | `Atom.Audio.SFX ->` | SFX 加载/播放/voice 池管理 |
-| `ATOM_AUDIO_PLUG_MUSICFADE` | `Atom.Audio.Plug.MusicFade ->` | 淡入淡出过程 |
-| `SDL_BACKEND_AUDIO` | `SDL.Backend.Audio ->` | SDL AudioStream 操作、解码器底层 |
-| `SDL_BACKEND_VIDEO` | `SDL.Backend.Video ->` | SDL 视频操作 |
-| `SDL_BACKEND_RENDER` | `SDL.Backend.Render ->` | SDL 渲染操作 |
-| `SDL_BACKEND_WINDOW` | `SDL.Backend.Window ->` | SDL 窗口操作 |
+| 类型 | 默认使用方式 | 说明 |
+|---|---|---|
+| `BackendRuntime` | `GetInstance()` | 全局 Backend 选择与热切换 |
+| `RenderWindow` | `GetInstance()` | 窗口和主循环门面 |
+| `ScreenManager` | `GetInstance()` | Screen 注册、切换与调度 |
+| `AudioMixer` | 普通实例 | Master/Music/SFX 分类音量 |
+| `MusicPlayer` | `MusicPlayer(mixer)` | 默认使用全局音频与 Decoder 后端 |
+| `AudioClipCache` | 默认构造 | 默认使用全局 Decoder 后端 |
+| `SFXPlayer` | `SFXPlayer(clips, mixer)` | 默认使用全局音频后端 |
+| `MusicCrossfade` | `MusicCrossfade(music)` | 帧驱动音乐过渡 |
+| `Debugger` | 普通实例 + `Attach` | ImGui 调试覆盖层 |
