@@ -17,7 +17,9 @@ Designed to provide a modern, clean, and lightweight development experience.
 
 - CMake >= 3.20
 - C++23 compatible compiler
-- Third-party dependencies are **bundled** in `ThirdParty/`.
+- Windows: third-party dependencies are bundled in `ThirdParty/`.
+- Linux/macOS: install native SDL3 and TagLib 2 development packages so their
+  CMake config packages (`SDL3Config.cmake` and `taglib-config.cmake`) are available.
 
 ### Building
 
@@ -27,6 +29,20 @@ cd Atom
 cmake -B build -G "MinGW Makefiles"
 cmake --build build
 ```
+
+On Linux/macOS (Ninja):
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+If SDL3 or TagLib is installed to a custom prefix, add
+`-DCMAKE_PREFIX_PATH=/path/to/prefix` to the configure command. Do not reuse the
+bundled MinGW `.a`/`.dll` files on Linux; they use the Windows ABI.
+
+For dependency setup and troubleshooting, see the
+[Chinese Linux build guide](Docs/Linux-Build-CN.md).
 
 ---
 
@@ -61,7 +77,9 @@ Atom provides a resource packaging tool for packing/unpacking game assets into t
 
 ## Engine Dependencies
 
-Atom uses **SDL3** as its multimedia abstraction layer. SDL3 is **bundled** in the repository at `ThirdParty/SDL3/`.
+Atom uses **SDL3** as its multimedia abstraction layer. Windows binaries are
+bundled in the repository; Linux and macOS builds use native SDL3 and TagLib
+packages discovered by CMake.
 
 ### Bundled Dependencies
 

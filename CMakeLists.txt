@@ -9,61 +9,45 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
-if(WIN32)
-    set(PLATFORM_SUFFIX "win64")
-    set(DLL_EXT "dll")
-    set(LIB_EXT "lib")
-elseif(UNIX)
-    set(PLATFORM_SUFFIX "linux")
-    set(DLL_EXT "so")
-    set(LIB_EXT "so")
-elseif(APPLE)
-    set(PLATFORM_SUFFIX "osx")
-    set(DLL_EXT "dylib")
-    set(LIB_EXT "dylib")
-endif()
 
 # ============================================================================
 # 3rd Libraries Paths
 # ============================================================================
-set(SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/SDL3/x86_64-w64-mingw32/lib/cmake/SDL3")
 set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ImGUI")
 set(LUA_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Lua")
 set(TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/taglib")
 set(UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/utfcpp")
-set(SDL3_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/SDL3/x86_64-w64-mingw32")
+
+# The repository contains MinGW binaries for developer convenience.  They
+# cannot be linked into ELF or Mach-O programs, so Unix platforms use their
+# native CMake packages instead.
+if(WIN32)
+    set(SDL3_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/SDL3/x86_64-w64-mingw32")
+    set(SDL3_DIR "${SDL3_ROOT}/lib/cmake/SDL3")
+    set(TagLib_DIR "${TAGLIB_DIR}/lib/cmake/taglib")
+endif()
 
 # ============================================================================
 # 3rd Libraries Path Check
 # ============================================================================
-foreach(DIR IN ITEMS ${SDL3_ROOT} ${IMGUI_DIR} ${LUA_SRC_DIR}
-        ${TAGLIB_DIR} ${UTFCPP_DIR})
-    if(NOT EXISTS ${DIR})
+foreach(DIR IN ITEMS "${IMGUI_DIR}" "${LUA_SRC_DIR}" "${UTFCPP_DIR}")
+    if(NOT EXISTS "${DIR}")
         message(FATAL_ERROR "Required directory not found: ${DIR}")
     endif()
 endforeach()
+if(WIN32 AND NOT EXISTS "${SDL3_ROOT}")
+    message(FATAL_ERROR "Bundled SDL3 directory not found: ${SDL3_ROOT}")
+endif()
 
 # ============================================================================
 # 3rd Libraries Config
 # ============================================================================
-# Includes
-include_directories(
-        ${SDL3_ROOT}/include
-        ${IMGUI_DIR}
-        ${TAGLIB_DIR}/include
-        ${UTFCPP_DIR}
-)
-
-# Link
-link_directories(
-        "${SDL3_ROOT}/lib"
-        "${TAGLIB_DIR}/lib"
-)
-
 # 1. SDL3
-    find_package(SDL3 REQUIRED CONFIG
-        PATHS "${SDL3_DIR}"
-        NO_DEFAULT_PATH)
+    if(WIN32)
+        find_package(SDL3 REQUIRED CONFIG PATHS "${SDL3_DIR}" NO_DEFAULT_PATH)
+    else()
+        find_package(SDL3 3 REQUIRED CONFIG)
+    endif()
 
 # 2. Lua
     file(GLOB LUA_SOURCES
@@ -93,15 +77,11 @@ link_directories(
     target_link_libraries(imgui_sdl3_lib PUBLIC imgui_lib SDL3::SDL3)
 
 # 5. TagLib
-    set(TAGLIB_INCLUDE_DIR "${TAGLIB_DIR}/include")
-    set(TAGLIB_LIB_FILE "${TAGLIB_DIR}/lib/libtag.a")
-
-    add_library(taglib STATIC IMPORTED GLOBAL)
-    set_target_properties(taglib PROPERTIES
-            IMPORTED_LOCATION "${TAGLIB_LIB_FILE}"
-            INTERFACE_INCLUDE_DIRECTORIES "${TAGLIB_INCLUDE_DIR}"
-            INTERFACE_COMPILE_DEFINITIONS "TAGLIB_STATIC"
-    )
+    if(WIN32)
+        find_package(TagLib 2 REQUIRED CONFIG PATHS "${TagLib_DIR}" NO_DEFAULT_PATH)
+    else()
+        find_package(TagLib 2 REQUIRED CONFIG)
+    endif()
 
 # 6. utfcpp
     add_library(utfcpp INTERFACE)
@@ -318,12 +298,12 @@ add_executable(Atom Atom.cpp)
 
 target_link_libraries(Atom PRIVATE
         engine_core
-        taglib
+        TagLib::TagLib
 )
 
 # Examples
 add_executable(example_media_metadata Example/MediaMetadata.cpp)
-target_link_libraries(example_media_metadata PRIVATE taglib)
+target_link_libraries(example_media_metadata PRIVATE TagLib::TagLib)
 if(WIN32)
     target_link_libraries(example_media_metadata PRIVATE ws2_32 winmm)
 endif()
@@ -376,25 +356,26 @@ endif()
 # Post Build Config
 # ============================================================================
 # Copy SDL3 DLL to output directories
-set(SDL3_BIN_DIR "${SDL3_ROOT}/bin")
-
-if(EXISTS ${SDL3_BIN_DIR})
-    file(GLOB SDL3_DLLS "${SDL3_BIN_DIR}/*.dll")
-    if(SDL3_DLLS)
-        foreach(TGT Atom example_simple_window example_simple_window_debug
-                    example_audio_playback example_sfx_playback)
-            add_custom_command(TARGET ${TGT} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${TGT}>"
-                    COMMAND ${CMAKE_COMMAND} -E copy ${SDL3_DLLS} "$<TARGET_FILE_DIR:${TGT}>"
-                    COMMENT "Copying SDL3 DLLs to ${TGT} output directory"
-            )
-        endforeach()
-        message(STATUS "SDL3 DLLs found: ${SDL3_DLLS}")
+if(WIN32)
+    set(SDL3_BIN_DIR "${SDL3_ROOT}/bin")
+    if(EXISTS "${SDL3_BIN_DIR}")
+        file(GLOB SDL3_DLLS "${SDL3_BIN_DIR}/*.dll")
+        if(SDL3_DLLS)
+            foreach(TGT Atom example_simple_window example_simple_window_debug
+                        example_audio_playback example_sfx_playback)
+                add_custom_command(TARGET ${TGT} POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${TGT}>"
+                        COMMAND ${CMAKE_COMMAND} -E copy ${SDL3_DLLS} "$<TARGET_FILE_DIR:${TGT}>"
+                        COMMENT "Copying SDL3 DLLs to ${TGT} output directory"
+                )
+            endforeach()
+            message(STATUS "SDL3 DLLs found: ${SDL3_DLLS}")
+        else()
+            message(WARNING "No SDL3 DLLs found in ${SDL3_BIN_DIR}")
+        endif()
     else()
-        message(WARNING "No SDL3 DLLs found in ${SDL3_BIN_DIR}")
+        message(WARNING "SDL3 bin directory not found: ${SDL3_BIN_DIR}")
     endif()
-else()
-    message(WARNING "SDL3 bin directory not found: ${SDL3_BIN_DIR}")
 endif()
 
 
