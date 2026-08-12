@@ -179,12 +179,6 @@ namespace atom::tools {
 			uint64_t file_size = static_cast<uint64_t>(input.tellg());
 			input.seekg(0, std::ios::beg);
 
-			if (file_size == 0) {
-				LOG_WARNING(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Skipping empty files: " + SafePathToString(filePath));
-				input.close();
-				continue;
-			}
-
 			// Create file entry
 			// 创建文件条目
 			FileEntry entry;
@@ -250,6 +244,9 @@ namespace atom::tools {
 			// Write filename
 			// 写入文件名
 			std::string safe_filename = ToUTF8(entry.filename);
+			if (safe_filename.size() > UINT16_MAX) {
+				return Result::ERROR_INVALID_PATH;
+			}
 			auto name_length = static_cast<uint16_t>(safe_filename.length());
 			output.write(reinterpret_cast<const char*>(&name_length), sizeof(name_length));
 			output.write(safe_filename.c_str(), name_length);
@@ -264,6 +261,9 @@ namespace atom::tools {
 			// Write file type
 			// 写入文件类型
 			std::string safe_type = ToUTF8(entry.type);
+			if (safe_type.size() > UINT8_MAX) {
+				return Result::ERROR_INVALID_PATH;
+			}
 			auto type_length = static_cast<uint8_t>(safe_type.length());
 			output.write(reinterpret_cast<const char*>(&type_length), sizeof(type_length));
 			output.write(safe_type.c_str(), type_length);
@@ -289,7 +289,7 @@ namespace atom::tools {
 			char magic[4];
 			verify.read(magic, 4);
 			std::string magic_str(magic, 4);
-			LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Verification magic number: " + magic_str + " " + (magic_str == "HPKG" ? "True" : "False"));
+			LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Verification magic number: " + magic_str + " " + (magic_str == std::string(MAGIC, 4) ? "True" : "False"));
 
 			uint16_t version;
 			verify.read(reinterpret_cast<char*>(&version), sizeof(version));
@@ -312,7 +312,7 @@ namespace atom::tools {
 
 		LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Packing completed: " + outputFile);
 		LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Includes " + std::to_string(file_count) + " files");
-		LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Package size: " + std::to_string(table_end) + std::to_string(sizeof(uint64_t)) + " bytes");
+		LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Package size: " + std::to_string(table_end + sizeof(uint64_t)) + " bytes");
 
 		return Result::SUCCESS;
 	}

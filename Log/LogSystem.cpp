@@ -50,6 +50,8 @@ const LogChannel LogChannel::ATOM_AUDIO_MUSIC("Atom.Audio.Music", "Atom.Audio.Mu
 const LogChannel LogChannel::ATOM_AUDIO_SFX("Atom.Audio.SFX", "Atom.Audio.SFX -> ");
 const LogChannel LogChannel::ATOM_AUDIO_PLUG_MUSICFADE("Atom.Audio.Plug.MusicFade", "Atom.Audio.Plug.MusicFade -> ");
 
+const LogChannel LogChannel::ATOM_BACKEND_RUNTIME("Atom.Backend.Runtime", "Atom.Backend.Runtime -> ");
+
 const LogChannel LogChannel::ATOM_VIDEO("Atom.Video", "Atom.Video -> ");
 
 const LogChannel LogChannel::SDL_BACKEND_AUDIO("SDL.Backend.Audio", "SDL.Backend.Audio -> ");

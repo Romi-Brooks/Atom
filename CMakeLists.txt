@@ -166,6 +166,8 @@ endif()
         Backend/SDL3/Audio/SDL3SFXSource.hpp
         Backend/SDL3/Audio/SDL3MusicSource.cpp
         Backend/SDL3/Audio/SDL3MusicSource.hpp
+        Backend/SDL3/Audio/SDL3StreamingMusicSource.cpp
+        Backend/SDL3/Audio/SDL3StreamingMusicSource.hpp
     )
     target_include_directories(atom_backend_sdl3_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(atom_backend_sdl3_audio PUBLIC atom_backend_contracts atom_backend_registry atom_backend_sdl3_core engine_log)

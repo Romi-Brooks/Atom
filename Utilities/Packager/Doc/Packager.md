@@ -4,7 +4,7 @@
 
 # Atom Resource Packager
 
-A command-line tool for packing and unpacking game resource files into a custom archive format (HPKG). Located under [`Utilities/Packager/`](../../Utilities/Packager/).
+A command-line tool for packing and unpacking game resource files into a custom archive format (APKG). Located under [`Utilities/Packager/`](../../Utilities/Packager/).
 
 ***
 
@@ -12,11 +12,11 @@ A command-line tool for packing and unpacking game resource files into a custom 
 
 | Field        | Value                       |
 | ------------ | --------------------------- |
-| Magic Number | `HPKG`                      |
+| Magic Number | `APKG`                      |
 | Version      | `1`                         |
 | Extension    | `.dat` (or any custom name) |
 
-The HPKG format stores files sequentially with a file table appended at the end of the archive for fast lookup.
+The APKG format stores files sequentially with a file table appended at the end of the archive for fast lookup.
 
 ***
 
