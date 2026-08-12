@@ -54,7 +54,7 @@ namespace atom::tools {
 			std::vector<FileEntry> file_table_;
 			std::unordered_map<std::string, size_t> file_index_;
 
-			static constexpr char MAGIC[4] = {'H', 'P', 'K', 'G'};
+			static constexpr char MAGIC[4] = {'A', 'P', 'K', 'G'};
 			static constexpr uint16_t VERSION = 1;
 
 			auto NormalizePath(const std::string& path) -> std::string;

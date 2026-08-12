@@ -87,6 +87,7 @@ namespace atom::tools {
 	        }
 	    }
 
+	    package_stream_.clear();
 	    package_stream_.seekg(static_cast<std::streamoff>(entry.offset));
 	    if (!package_stream_) {
 	        return Result::ERROR_READ_DATA;
@@ -141,8 +142,8 @@ namespace atom::tools {
 	    std::string magic_str(magic, 4);
 	    if (verbose) std::cout << "文件魔数: " << magic_str << std::endl;
 
-	    if (magic_str != "HPKG") {
-	        if (verbose) std::cout << "错误: 无效的文件魔数，期望 'HPKG'" << std::endl;
+	    if (!std::equal(std::begin(MAGIC), std::end(MAGIC), magic)) {
+	        if (verbose) std::cout << "错误: 无效的文件魔数，期望 'APKG'" << std::endl;
 	        input.close();
 	        return Result::ERROR_INVALID_FORMAT;
 	    }
@@ -224,9 +225,9 @@ namespace atom::tools {
 	        FileEntry entry;
 	        uint16_t name_length;
 	        input.read(reinterpret_cast<char*>(&name_length), sizeof(name_length));
-	        if (!input || name_length > 4096) {
+	        if (!input || name_length == 0 || name_length > 4096) {
 	            if (verbose) std::cout << "错误: 无效的文件名长度: " << name_length << std::endl;
-	            continue;
+	            return Result::ERROR_CORRUPTED_PACKAGE;
 	        }
 
 	        if (name_length > 0) {
@@ -238,8 +239,14 @@ namespace atom::tools {
 	                    entry.filename = "file_" + std::to_string(i);
 	                }
 	            }
-	        } else {
-	            entry.filename = "unnamed_file_" + std::to_string(i);
+	        }
+
+	        const fs::path internal_path(entry.filename);
+	        if (internal_path.is_absolute() || internal_path.has_root_name()) {
+	            return Result::ERROR_CORRUPTED_PACKAGE;
+	        }
+	        for (const auto& part : internal_path) {
+	            if (part == "..") return Result::ERROR_CORRUPTED_PACKAGE;
 	        }
 
 	        // Read offset and size
@@ -247,14 +254,14 @@ namespace atom::tools {
 	        uint64_t offset, size;
 	        input.read(reinterpret_cast<char*>(&offset), sizeof(offset));
 	        input.read(reinterpret_cast<char*>(&size), sizeof(size));
-	        if (!input) continue;
+	        if (!input) return Result::ERROR_CORRUPTED_PACKAGE;
 
-	        if (offset >= package_size || size > package_size || offset + size > package_size) {
+	        if (offset < 10 || offset > table_offset || size > table_offset - offset) {
 	            if (verbose) {
 	                std::cout << "警告: 跳过无效的文件条目: " << entry.filename
 	                          << " (offset=" << offset << ", size=" << size << ")" << std::endl;
 	            }
-	            continue;
+	            return Result::ERROR_CORRUPTED_PACKAGE;
 	        }
 
 	        entry.offset = offset;
@@ -264,9 +271,9 @@ namespace atom::tools {
 	        // 读取文件类型
 	        uint8_t type_length;
 	        input.read(reinterpret_cast<char*>(&type_length), sizeof(type_length));
-	        if (!input) continue;
+	        if (!input) return Result::ERROR_CORRUPTED_PACKAGE;
 
-	        if (type_length > 0 && type_length < static_cast<unsigned char>(256)) {
+	        if (type_length > 0) {
 	            std::vector<char> type_buffer(type_length);
 	            input.read(type_buffer.data(), type_length);
 	            if (input) {
@@ -275,7 +282,10 @@ namespace atom::tools {
 	                    entry.type = ".dat";
 	                }
 	            }
+	            else return Result::ERROR_CORRUPTED_PACKAGE;
 	        }
+
+	        if (file_index_.contains(entry.filename)) return Result::ERROR_CORRUPTED_PACKAGE;
 
 	        file_table_.push_back(entry);
 	        file_index_[entry.filename] = file_table_.size() - 1;
@@ -359,20 +369,22 @@ namespace atom::tools {
 	}
 
 	auto Unpackager::GetFileData(const std::string& filename, const char** data, size_t* size) -> Result {
+	    if (data == nullptr || size == nullptr) {
+	        return Result::ERROR_READ_DATA;
+	    }
 		const auto it = file_index_.find(filename);
 	    if (it == file_index_.end()) {
 	        return Result::ERROR_FILES_NOT_FOUND;
 	    }
 
 	    const FileEntry& entry = file_table_[it->second];
-	    std::vector<char> buffer;
-		const Result result = ReadFileData(entry, buffer);
+		const Result result = ReadFileData(entry, last_read_buffer_);
 	    if (result != Result::SUCCESS) {
 	        return result;
 	    }
 
-	    *data = buffer.data();
-	    *size = buffer.size();
+	    *data = last_read_buffer_.data();
+	    *size = last_read_buffer_.size();
 
 	    return Result::SUCCESS;
 	}
