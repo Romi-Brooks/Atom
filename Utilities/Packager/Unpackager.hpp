@@ -82,10 +82,12 @@ namespace atom::tools {
 		    std::unordered_map<std::string, size_t> file_index_;
 		    std::string package_path_;
 		    std::ifstream package_stream_;
+		    // Storage backing GetFileData(); valid until the next GetFileData() call.
+		    std::vector<char> last_read_buffer_;
 
 		    // Magic number and version
 		    // 魔数和版本号
-		    static constexpr char MAGIC[4] = {'H', 'P', 'K', 'G'};
+		    static constexpr char MAGIC[4] = {'A', 'P', 'K', 'G'};
 		    static constexpr uint16_t VERSION = 1;
 
 		    // Utility functions

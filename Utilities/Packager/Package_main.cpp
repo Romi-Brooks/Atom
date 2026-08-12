@@ -128,10 +128,13 @@ auto UnpackAllToFolder(const std::string& packName) -> bool {
         unpackConfig.verbose = true;
         unpackConfig.outputDir = "extract/";
         unpackConfig.preserveStructure = true;
-        unpacker.UnpackAll(unpackConfig);
-
-    	LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking successful!");
-    	return true;
+		const auto result = unpacker.UnpackAll(unpackConfig);
+		if (result == Unpackager::Result::SUCCESS) {
+			LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking successful!");
+			return true;
+		}
+		LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking failed while extracting files!");
+		return false;
     } else {
     	LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking failed!");
     	return false;
