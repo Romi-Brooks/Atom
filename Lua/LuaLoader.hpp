@@ -30,11 +30,13 @@ auto PushEntityToLua(lua_State* L, atom::Entity* entity, const std::string& luaV
 // Set Lua bridge instances
 // 设置 Lua 桥接实例
 namespace atom {
-    class MusicPlayer;
-    class SFXPlayer;
-    class AudioMixer;
-    namespace audio { class MusicCrossfade; }
+class MusicPlayer;
+class SFXPlayer;
+class AudioMixer;
+namespace audio {
+class MusicCrossfade;
 }
+} // namespace atom
 auto SetLuaMusicInstance(atom::MusicPlayer& music) -> void;
 auto SetLuaMusicCrossfadeInstance(atom::audio::MusicCrossfade& transition) -> void;
 auto SetLuaSFXInstance(atom::SFXPlayer& sfx) -> void;
@@ -42,49 +44,51 @@ auto SetLuaAudioMixerInstance(atom::AudioMixer& mixer) -> void;
 
 class LuaLoader {
 private:
-	// Lua state machine
-	// Lua状态机
-	lua_State* L_;
-	// Records loaded scripts for hot-reload
-	// 记录已加载的脚本，用于热重载
-	std::unordered_map<std::string, std::string> loaded_scripts_;
+    // Lua state machine
+    // Lua状态机
+    lua_State* L_;
+    // Records loaded scripts for hot-reload
+    // 记录已加载的脚本，用于热重载
+    std::unordered_map<std::string, std::string> loaded_scripts_;
 
-	// Error handling
-	// 错误处理
-	auto HandleError(int result) const -> void;
+    // Error handling
+    // 错误处理
+    auto HandleError(int result) const -> void;
 
 public:
-	LuaLoader();
-	~LuaLoader();
+    LuaLoader();
+    ~LuaLoader();
 
-	// Disallow copy to prevent duplicate Lua state machine release
-	// 禁止拷贝，避免Lua状态机重复释放
-	LuaLoader(const LuaLoader&) = delete;
-	LuaLoader& operator=(const LuaLoader&) = delete;
+    // Disallow copy to prevent duplicate Lua state machine release
+    // 禁止拷贝，避免Lua状态机重复释放
+    LuaLoader(const LuaLoader&) = delete;
+    LuaLoader& operator=(const LuaLoader&) = delete;
 
-	// Initialize Lua environment
-	// 初始化Lua环境
-	auto Initialize() -> bool;
+    // Initialize Lua environment
+    // 初始化Lua环境
+    auto Initialize() -> bool;
 
-	// Load and execute a Lua script
-	// 加载并执行Lua脚本
-	auto LoadScript(const std::string& scriptPath) -> bool;
+    // Load and execute a Lua script
+    // 加载并执行Lua脚本
+    auto LoadScript(const std::string& scriptPath) -> bool;
 
-	// Reload script (for hotfix)
-	// 重新加载脚本（用于热修复）
-	auto ReloadScript(const std::string& scriptPath) -> bool;
+    // Reload script (for hotfix)
+    // 重新加载脚本（用于热修复）
+    auto ReloadScript(const std::string& scriptPath) -> bool;
 
-	// Call a global Lua function
-	// 调用Lua中的全局函数
-	auto CallLuaFunction(const std::string& funcName) const -> bool;
+    // Call a global Lua function
+    // 调用Lua中的全局函数
+    auto CallLuaFunction(const std::string& funcName) const -> bool;
 
-	// Register an Entity to the Lua environment
-	// 注册Entity到Lua环境
-	auto RegisterEntity(atom::Entity* entity, const std::string& luaVarName) const -> void;
+    // Register an Entity to the Lua environment
+    // 注册Entity到Lua环境
+    auto RegisterEntity(atom::Entity* entity, const std::string& luaVarName) const -> void;
 
-	// Get the Lua state machine (use with caution; prefer encapsulated interfaces)
-	// 获取Lua状态机（谨慎使用，尽量通过封装接口操作）
-	[[nodiscard]] auto GetLuaState() const -> lua_State* { return L_; }
+    // Get the Lua state machine (use with caution; prefer encapsulated interfaces)
+    // 获取Lua状态机（谨慎使用，尽量通过封装接口操作）
+    [[nodiscard]] auto GetLuaState() const -> lua_State* {
+        return L_;
+    }
 };
 
 #endif // ATOM_LUALOADER_HPP

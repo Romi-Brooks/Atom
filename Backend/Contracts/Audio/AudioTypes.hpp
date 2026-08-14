@@ -26,10 +26,13 @@ struct DecodedAudio {
 
 [[nodiscard]] constexpr auto BytesPerSample(const AudioSampleFormat format) -> uint32_t {
     switch (format) {
-        case AudioSampleFormat::Unsigned8: return 1;
-        case AudioSampleFormat::Signed16: return 2;
-        case AudioSampleFormat::Signed32:
-        case AudioSampleFormat::Float32: return 4;
+    case AudioSampleFormat::Unsigned8:
+        return 1;
+    case AudioSampleFormat::Signed16:
+        return 2;
+    case AudioSampleFormat::Signed32:
+    case AudioSampleFormat::Float32:
+        return 4;
     }
     return 0;
 }

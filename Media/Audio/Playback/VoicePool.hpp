@@ -13,6 +13,7 @@ public:
     auto StopAll() -> void;
     auto SetVolume(float volume) -> void;
     [[nodiscard]] auto FirstActive() -> IAudioSource*;
+
 private:
     auto ReapFinished() -> void;
     IAudioBackend& backend_;
@@ -20,5 +21,5 @@ private:
     std::size_t maximum_;
     std::vector<std::unique_ptr<IAudioSource>> voices_;
 };
-}
+} // namespace atom
 #endif

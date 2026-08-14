@@ -4,12 +4,10 @@
 #include <tag.h>
 #include <fileref.h>
 
-
 #include <mpegfile.h>
 #include <flacfile.h>
 #include <vorbisfile.h>
 #include <wavfile.h>
-
 
 void printAudioMetadata(const std::string& filePath) {
     std::cout << "========================================" << std::endl;
@@ -37,7 +35,9 @@ void printAudioMetadata(const std::string& filePath) {
                 std::cout << "----------------------------------------" << std::endl;
                 std::cout << "Audio Properties:" << std::endl;
                 std::cout << "Duration: " << props->lengthInSeconds() << " seconds ("
-                          << static_cast<short>(props->lengthInSeconds()) / 60 << ":" << props->lengthInSeconds() - static_cast<short>(props->lengthInSeconds() / 60) * 60 << ")" << std::endl;
+                          << static_cast<short>(props->lengthInSeconds()) / 60 << ":"
+                          << props->lengthInSeconds() - static_cast<short>(props->lengthInSeconds() / 60) * 60 << ")"
+                          << std::endl;
                 std::cout << "Bitrate:  " << props->bitrate() << " kbps" << std::endl;
                 std::cout << "Sample Rate: " << props->sampleRate() << " Hz" << std::endl;
                 std::cout << "Channels: " << props->channels() << std::endl;
@@ -58,7 +58,6 @@ int main(int argc, char* argv[]) {
     const std::string testFiles[] = {
         "Your audio media's file path",
     };
-
 
     if (argc > 1) {
         printAudioMetadata(argv[1]);

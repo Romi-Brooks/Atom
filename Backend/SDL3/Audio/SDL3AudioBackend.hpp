@@ -8,15 +8,16 @@ namespace atom {
 
 class SDL3AudioBackend final : public IAudioBackend {
 public:
-    [[nodiscard]] auto CreateMusicSource(
-        std::vector<uint8_t> pcm, const AudioSpec& spec) -> std::unique_ptr<IAudioSource> override;
+    [[nodiscard]] auto CreateMusicSource(std::vector<uint8_t> pcm, const AudioSpec& spec)
+        -> std::unique_ptr<IAudioSource> override;
     // Create a streaming music source backed by an opened IAudioDecoder.
     // The decoder is consumed (moved) — it will be closed by the source on destruction.
-    [[nodiscard]] auto CreateStreamingMusicSource(
-        std::unique_ptr<IAudioDecoder> decoder, const AudioSpec& spec) -> std::unique_ptr<IAudioSource> override;
-    [[nodiscard]] auto CreateSFXSource(
-        const std::vector<uint8_t>& pcm, const AudioSpec& spec) -> std::unique_ptr<IAudioSource> override;
+    [[nodiscard]] auto CreateStreamingMusicSource(std::unique_ptr<IAudioDecoder> decoder, const AudioSpec& spec)
+        -> std::unique_ptr<IAudioSource> override;
+    [[nodiscard]] auto CreateSFXSource(const std::vector<uint8_t>& pcm, const AudioSpec& spec)
+        -> std::unique_ptr<IAudioSource> override;
     [[nodiscard]] auto IsReady() const -> bool;
+
 private:
     SDLSubsystemLease audio_runtime_{SDLSubsystem::Audio};
 };

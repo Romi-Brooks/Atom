@@ -48,28 +48,28 @@ public:
     std::function<void(const SDL_Event&)> on_pre_process_sdl_event_;
     // Called with the translated IEvent after pre-processing (for game-level hooks).
     std::function<void(IEvent&)> on_process_event_;
-    std::function<void(float)>   on_update_;
-    std::function<void()>        on_render_overlay_;
-    std::function<void()>        on_shutdown_;
+    std::function<void(float)> on_update_;
+    std::function<void()> on_render_overlay_;
+    std::function<void()> on_shutdown_;
 
 private:
-    SDL_Window*   window_   = nullptr;
+    SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
-    uint32_t      fps_limit_ = 60;
-    bool          open_ = false;
+    uint32_t fps_limit_ = 60;
+    bool open_ = false;
     SDLSubsystemLease video_runtime_;
     SDLSubsystemLease events_runtime_;
 
     // Circle texture cache — avoids regenerating identical circles.
-    struct CircleKey { float radius; Color color; };
+    struct CircleKey {
+        float radius;
+        Color color;
+    };
     struct CircleHash {
         auto operator()(const CircleKey& k) const -> std::size_t;
     };
     friend auto operator==(const CircleKey& a, const CircleKey& b) -> bool {
-        return a.radius == b.radius &&
-               a.color.r == b.color.r &&
-               a.color.g == b.color.g &&
-               a.color.b == b.color.b &&
+        return a.radius == b.radius && a.color.r == b.color.r && a.color.g == b.color.g && a.color.b == b.color.b &&
                a.color.a == b.color.a;
     }
     std::unordered_map<CircleKey, SDL_Texture*, CircleHash> circle_cache_;
