@@ -1,5 +1,2 @@
 # ide build
 /cmake-build-*/
-
-# 3rd lib
-/ThirdParty/

@@ -17,29 +17,30 @@ Designed to provide a modern, clean, and lightweight development experience.
 
 - CMake >= 3.20
 - C++23 compatible compiler
-- Windows: third-party dependencies are bundled in `ThirdParty/`.
-- Linux/macOS: install native SDL3 and TagLib 2 development packages so their
-  CMake config packages (`SDL3Config.cmake` and `taglib-config.cmake`) are available.
+- Git, for initializing the pinned source dependencies in `ThirdParty/`
+- A C and C++ compiler; dependencies and Atom are built with the same toolchain
 
 ### Building
 
 ```bash
 git clone https://github.com/Romi-Brooks/Atom.git
 cd Atom
+git submodule update --init
 cmake -B build -G "MinGW Makefiles"
-cmake --build build
+cmake --build build --parallel
 ```
 
 On Linux/macOS (Ninja):
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --build build --parallel
 ```
 
-If SDL3 or TagLib is installed to a custom prefix, add
-`-DCMAKE_PREFIX_PATH=/path/to/prefix` to the configure command. Do not reuse the
-bundled MinGW `.a`/`.dll` files on Linux; they use the Windows ABI.
+SDL3, TagLib, Dear ImGui, Lua and utfcpp are pinned Git submodules. CMake builds
+them from source with the same compiler and ABI as Atom. If the repository was
+cloned without the dependencies, run `git submodule update --init` before
+configuring CMake.
 
 For dependency setup and troubleshooting, see the
 [Chinese Linux build guide](Docs/Linux-Build-CN.md).
@@ -77,24 +78,25 @@ Atom provides a resource packaging tool for packing/unpacking game assets into t
 
 ## Engine Dependencies
 
-Atom uses **SDL3** as its multimedia abstraction layer. Windows binaries are
-bundled in the repository; Linux and macOS builds use native SDL3 and TagLib
-packages discovered by CMake.
+Atom uses **SDL3** as its multimedia abstraction layer. All third-party
+dependencies are pinned source submodules and are built by
+`ThirdParty/CMakeLists.txt` before the engine targets that use them.
 
-### Bundled Dependencies
+### Source Dependencies
 
 | Library | Version | Path | Purpose |
 |---------|---------|------|---------|
-| [SDL3](https://github.com/libsdl-org/SDL) | 3.x | `ThirdParty/SDL3/` | Windowing, rendering, audio, input |
-| [ImGui](https://github.com/ocornut/imgui) | 1.x | `ThirdParty/ImGUI/` | Debug overlay UI |
-| [Lua](https://www.lua.org/) | 5.x | `ThirdParty/Lua/` | Scripting engine |
-| [TagLib](https://taglib.org/) | 2.x | `ThirdParty/taglib/` | Audio metadata reading |
-| [utfcpp](https://github.com/nemtrif/utfcpp) | 4.x | `ThirdParty/utfcpp/` | UTF-8 validation and conversion |
+| [SDL3](https://github.com/libsdl-org/SDL) | 3.4.12 | `ThirdParty/SDL3/` | Windowing, rendering, audio, input |
+| [ImGui](https://github.com/ocornut/imgui) | 1.92.9 | `ThirdParty/ImGUI/` | Debug overlay UI |
+| [Lua](https://www.lua.org/) | 5.4.7 | `ThirdParty/Lua/` | Scripting engine |
+| [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | Audio metadata reading |
+| [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 validation and conversion |
 
-### SDL3 Deployment
+### Dependency Builds
 
-SDL3 is compatible with any modern MinGW-w64 distribution (GCC 13+, UCRT).
-Compilers bundled with JetBrains IDEs, WinLibs, or MSYS2 packages all work without version lock-in.
+Dependencies are built as static libraries by default. The first clean build is
+therefore longer, while later builds reuse CMake and compiler outputs. No
+precompiled Windows libraries are reused on Linux or with another compiler.
 
 ---
 
@@ -117,7 +119,8 @@ Atom/
 │   └── Video/          # Video (stub)
 ├── Log/                # Logging system
 ├── Window/             # Screen system, Debugger
-└── Lua/                # Lua binding
+├── Lua/                # Lua binding
+└── ThirdParty/         # Pinned source submodules and dependency CMake entry
 ```
 
 ---

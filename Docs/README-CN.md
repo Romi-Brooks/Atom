@@ -18,16 +18,22 @@
 
 - CMake >= 3.20
 - 支持 C++23 的编译器
-- 第三方依赖**随仓库分发**，位于 `ThirdParty/`
+- Git，用于初始化 `ThirdParty/` 中锁定版本的源码依赖
+- C 与 C++ 编译器；第三方依赖和 Atom 使用同一套工具链编译
 
 ### 构建
 
 ```bash
 git clone https://github.com/Romi-Brooks/Atom.git
 cd Atom
+git submodule update --init
 cmake -B build -G "MinGW Makefiles"
-cmake --build build
+cmake --build build --parallel
 ```
+
+SDL3、TagLib、Dear ImGui、Lua 和 utfcpp 都是固定 commit 的 Git
+submodule。如果 clone 时没有取得依赖，请在配置 CMake 前执行
+`git submodule update --init`。
 
 ***
 
@@ -64,21 +70,23 @@ Atom 提供了资源打包工具，用于将游戏资源打包/解包为 HPKG �
 
 ## 引擎依赖
 
-Atom 使用 **SDL3** 作为其多媒体抽象层。SDL3 **随仓库分发**，位于 `ThirdParty/SDL3/`。
+Atom 使用 **SDL3** 作为其多媒体抽象层。所有第三方依赖都以源码
+submodule 的形式锁定，并由 `ThirdParty/CMakeLists.txt` 在 Atom 相关目标之前编译。
 
-### 随仓库分发的依赖
+### 源码依赖
 
 | 库 | 版本 | 路径 | 用途 |
 |----|------|------|------|
-| [SDL3](https://github.com/libsdl-org/SDL) | 3.x | `ThirdParty/SDL3/` | 窗口管理、渲染、音频、输入 |
-| [ImGui](https://github.com/ocornut/imgui) | 1.x | `ThirdParty/ImGUI/` | 调试覆盖层 UI |
-| [Lua](https://www.lua.org/) | 5.x | `ThirdParty/Lua/` | 脚本引擎 |
-| [TagLib](https://taglib.org/) | 2.x | `ThirdParty/taglib/` | 音频元数据读取 |
-| [utfcpp](https://github.com/nemtrif/utfcpp) | 4.x | `ThirdParty/utfcpp/` | UTF-8 验证和编码转换 |
+| [SDL3](https://github.com/libsdl-org/SDL) | 3.4.12 | `ThirdParty/SDL3/` | 窗口管理、渲染、音频、输入 |
+| [ImGui](https://github.com/ocornut/imgui) | 1.92.9 | `ThirdParty/ImGUI/` | 调试覆盖层 UI |
+| [Lua](https://www.lua.org/) | 5.4.7 | `ThirdParty/Lua/` | 脚本引擎 |
+| [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | 音频元数据读取 |
+| [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 验证和编码转换 |
 
-### SDL3 部署
+### 依赖编译
 
-SDL3 无编译器版本锁定——任何现代的 MinGW-w64 发行版（GCC 13+, UCRT）均可使用。JetBrains IDE 捆绑的 MinGW、WinLibs、MSYS2 等均可正常编译。
+第三方依赖默认构建为静态库。首次干净构建耗时较长，后续构建会复用
+CMake 和编译器产物。项目不再跨平台或跨编译器复用预编译库。
 
 ***
 
@@ -101,7 +109,8 @@ Atom/
 │   └── Video/          # 视频（空壳）
 ├── Log/                # 日志系统
 ├── Window/             # 屏幕系统、Debugger
-└── Lua/                # Lua 绑定
+├── Lua/                # Lua 绑定
+└── ThirdParty/         # 固定版本源码 submodule 与依赖 CMake 入口
 ```
 
 ***
