@@ -1,14 +1,14 @@
 #include <iostream>
 #include <string>
 
-#include <taglib/tag.h>
-#include <taglib/fileref.h>
+#include <tag.h>
+#include <fileref.h>
 
 
-#include <taglib/mpegfile.h>
-#include <taglib/flacfile.h>
-#include <taglib/vorbisfile.h>
-#include <taglib/wavfile.h>
+#include <mpegfile.h>
+#include <flacfile.h>
+#include <vorbisfile.h>
+#include <wavfile.h>
 
 
 void printAudioMetadata(const std::string& filePath) {

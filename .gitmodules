@@ -1,0 +1,15 @@
+[submodule "ThirdParty/SDL3"]
+	path = ThirdParty/SDL3
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "ThirdParty/taglib"]
+	path = ThirdParty/taglib
+	url = https://github.com/taglib/taglib.git
+[submodule "ThirdParty/ImGUI"]
+	path = ThirdParty/ImGUI
+	url = https://github.com/ocornut/imgui.git
+[submodule "ThirdParty/Lua"]
+	path = ThirdParty/Lua
+	url = https://github.com/lua/lua.git
+[submodule "ThirdParty/utfcpp"]
+	path = ThirdParty/utfcpp
+	url = https://github.com/nemtrif/utfcpp.git
