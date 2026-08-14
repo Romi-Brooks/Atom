@@ -111,6 +111,8 @@ endif()
     add_library(engine_algorithm STATIC
             Algorithm/Vector/Vec2.cpp
             Algorithm/Vector/Vec2.hpp
+            Algorithm/Vector/Vec3.cpp
+            Algorithm/Vector/Vec3.hpp
     )
     target_include_directories(engine_algorithm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_algorithm PUBLIC atom_backend_contracts)
