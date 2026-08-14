@@ -34,7 +34,9 @@ public:
 
     // Check if playback has finished naturally (stream dry).
     // Used by voice pools to determine voice reuse eligibility.
-    [[nodiscard]] virtual auto IsFinished() const -> bool { return true; }
+    [[nodiscard]] virtual auto IsFinished() const -> bool {
+        return true;
+    }
 };
 
 } // namespace atom

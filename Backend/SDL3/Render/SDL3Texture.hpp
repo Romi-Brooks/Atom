@@ -19,7 +19,9 @@ public:
     auto Update(const uint8_t* pixels, uint32_t width, uint32_t height) -> bool override;
     [[nodiscard]] auto GetSize() const -> Vec2 override;
 
-    [[nodiscard]] auto GetNativeTexture() const -> SDL_Texture* { return texture_; }
+    [[nodiscard]] auto GetNativeTexture() const -> SDL_Texture* {
+        return texture_;
+    }
 
 private:
     SDL_Texture* texture_ = nullptr;

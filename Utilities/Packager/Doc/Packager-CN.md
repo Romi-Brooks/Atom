@@ -1,10 +1,10 @@
-[English](README.md) | [中文](README-CN.md)
+[English](Packager.md) | [中文](Packager-CN.md)
 
 ***
 
 # Atom 资源打包工具
 
-一个命令行工具，用于将游戏资源文件打包/解包为自定义存档格式（APKG）。位于 [`Utilities/Packager/`](../../Utilities/Packager/) 目录。
+一个命令行工具，用于将游戏资源文件打包/解包为自定义存档格式（APKG）。位于 [`Utilities/Packager/`](../) 目录。
 
 ***
 
@@ -63,6 +63,7 @@ Input options (0-2):
 namespace atom::tools {
 
 class Packager {
+public:
     struct Config {
         bool compress;           // （预留）启用压缩
         bool verbose;            // 打印详细日志
@@ -89,6 +90,14 @@ class Packager {
 namespace atom::tools {
 
 class Unpackager {
+public:
+    struct FileEntry {
+        std::string filename;
+        uint64_t offset;
+        uint64_t size;
+        std::string type;
+    };
+
     struct Config {
         bool verbose;
         bool preserveStructure;
@@ -115,11 +124,16 @@ class Unpackager {
 
     // 解包到内存
     auto ExtractFileToMemory(const std::string& filename) -> std::unique_ptr<MemoryFile>;
+    auto ExtractFileToMemory(const std::string& filename, MemoryFile& memoryFile) -> Result;
+    auto ExtractFilesToMemory(const std::vector<std::string>& filenames,
+                              std::vector<MemoryFile>& memoryFiles) -> Result;
     auto ExtractAllToMemory(std::vector<MemoryFile>& memoryFiles) -> Result;
+    auto GetFileData(const std::string& filename, const char** data, size_t* size) -> Result;
 
     // 查询
     [[nodiscard]] auto GetFileList() const -> std::vector<std::string>;
     [[nodiscard]] auto Contains(const std::string& filename) const -> bool;
+    [[nodiscard]] auto GetFileInfo(const std::string& filename) const -> const FileEntry*;
     auto PrintPackageInfo() const -> void;
 };
 
@@ -129,7 +143,7 @@ class Unpackager {
 ### 示例：编程方式打包
 
 ```cpp
-#include <Packager/Packager.hpp>
+#include <Packager.hpp>
 
 auto main() -> int {
     atom::tools::Packager packer;
@@ -150,7 +164,7 @@ auto main() -> int {
 ### 示例：编程方式解包
 
 ```cpp
-#include <Packager/Unpackager.hpp>
+#include <Unpackager.hpp>
 
 auto main() -> int {
     atom::tools::Unpackager unpacker;

@@ -18,7 +18,6 @@
 #include "Packager.hpp"
 #include "Unpackager.hpp"
 
-
 namespace fs = std::filesystem;
 using atom::tools::Packager;
 using atom::tools::Unpackager;
@@ -26,7 +25,7 @@ using atom::tools::Unpackager;
 // Clear input buffer
 // 清空输入缓冲区
 auto ClearInputBuffer() -> void {
-    std::cin.clear();  // Clear error state
+    std::cin.clear(); // Clear error state
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
 
@@ -52,7 +51,8 @@ auto TraverseSingleDirectory(const std::string& dir_path) -> std::vector<std::st
             }
         }
     } catch (const fs::filesystem_error& e) {
-        LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Directory traversal failed:" + dir_path + " -> " + e.what());
+        LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER,
+                  "Directory traversal failed:" + dir_path + " -> " + e.what());
     }
     return file_paths;
 }
@@ -82,12 +82,9 @@ auto ParseMultiDirectories(const std::string& input) -> std::vector<std::string>
     while (std::getline(ss, dir, ',')) {
         // Remove leading/trailing spaces from directory names: res1/, res2/
         // 去除目录名前后的空格：res1/, res2/
-        dir.erase(dir.begin(), std::ranges::find_if(dir, [](const unsigned char c) {
-            return !std::isspace(c);
-        }));
-        dir.erase(std::find_if(dir.rbegin(), dir.rend(), [](const unsigned char c) {
-            return !std::isspace(c);
-        }).base(), dir.end());
+        dir.erase(dir.begin(), std::ranges::find_if(dir, [](const unsigned char c) { return !std::isspace(c); }));
+        dir.erase(std::find_if(dir.rbegin(), dir.rend(), [](const unsigned char c) { return !std::isspace(c); }).base(),
+                  dir.end());
 
         if (!dir.empty()) {
             dir_paths.push_back(dir);
@@ -103,7 +100,8 @@ auto PackFiles(const std::string& packName, const std::vector<std::string>& reso
     Packager::Config config;
     config.verbose = true;
 
-    LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Commencing packing... Total number of files awaiting packing:" + std::to_string(resourcePath.size()));
+    LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER,
+             "Commencing packing... Total number of files awaiting packing:" + std::to_string(resourcePath.size()));
     const auto result = packer.Pack(resourcePath, packName, config);
 
     if (result == Packager::Result::SUCCESS) {
@@ -128,23 +126,23 @@ auto UnpackAllToFolder(const std::string& packName) -> bool {
         unpackConfig.verbose = true;
         unpackConfig.outputDir = "extract/";
         unpackConfig.preserveStructure = true;
-		const auto result = unpacker.UnpackAll(unpackConfig);
-		if (result == Unpackager::Result::SUCCESS) {
-			LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking successful!");
-			return true;
-		}
-		LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking failed while extracting files!");
-		return false;
+        const auto result = unpacker.UnpackAll(unpackConfig);
+        if (result == Unpackager::Result::SUCCESS) {
+            LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking successful!");
+            return true;
+        }
+        LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking failed while extracting files!");
+        return false;
     } else {
-    	LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking failed!");
-    	return false;
+        LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Unpacking failed!");
+        return false;
     }
 }
 
 auto main() -> int {
-	#ifdef _WIN32
-		SetConsoleOutputCP(CP_UTF8);
-	#endif // _WIN32
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif // _WIN32
 
     std::cout << "================================================" << std::endl;
     std::cout << "Atom Resource Package / Unpackage Tools v1.0  " << std::endl;
@@ -167,55 +165,60 @@ auto main() -> int {
             LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Please enter a valid number (0-2)!");
             continue;
         }
-        ClearInputBuffer();  // Clear buffer to avoid affecting subsequent string input
+        ClearInputBuffer(); // Clear buffer to avoid affecting subsequent string input
 
         // Execute function based on selection
         // 根据选择执行功能
         switch (choice) {
-            case 1: {
-                std::string dir_input, pack_name;
-                std::cout << "\nTips: Enter multiple directories separated by commas (e.g.:resources/,audio/,textures/):" << std::endl;
-                std::cout << "Please enter the directory paths to be packed:";
-                std::getline(std::cin, dir_input);
-                std::cout << "Please enter the output package name (e.g. media_res.dat):";
-                std::getline(std::cin, pack_name);
+        case 1: {
+            std::string dir_input, pack_name;
+            std::cout << "\nTips: Enter multiple directories separated by commas (e.g.:resources/,audio/,textures/):"
+                      << std::endl;
+            std::cout << "Please enter the directory paths to be packed:";
+            std::getline(std::cin, dir_input);
+            std::cout << "Please enter the output package name (e.g. media_res.dat):";
+            std::getline(std::cin, pack_name);
 
-                // 1. Parse user input for multiple directories
-                // 1. 解析用户输入的多目录
-                std::vector<std::string> dir_paths = ParseMultiDirectories(dir_input);
-                if (dir_paths.empty()) {
-                    LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Error: No valid directories entered!");
-                    break;
-                }
-                LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Successfully parsed " + std::to_string(dir_paths.size()) + " directories to pack.");
-
-                // 2. Traverse multiple directories, collecting all file paths
-                // 2. 遍历多目录，收集所有文件路径
-                std::vector<std::string> all_files = TraverseMultipleDirectories(dir_paths);
-                if (all_files.empty()) {
-                    LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Error: No files found in the entered directories!");
-                    break;
-                }
-
-                // 3. Call the packing function
-                // 3. 调用打包函数
-                PackFiles(pack_name, all_files);
+            // 1. Parse user input for multiple directories
+            // 1. 解析用户输入的多目录
+            std::vector<std::string> dir_paths = ParseMultiDirectories(dir_input);
+            if (dir_paths.empty()) {
+                LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Error: No valid directories entered!");
                 break;
             }
-            case 2: {
-                std::string pack_name;
-                LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "\nPlease enter the name of the package file to be unpacked (e.g., media_res.dat):");
-                std::getline(std::cin, pack_name);
-                UnpackAllToFolder(pack_name);
+            LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER,
+                     "Successfully parsed " + std::to_string(dir_paths.size()) + " directories to pack.");
+
+            // 2. Traverse multiple directories, collecting all file paths
+            // 2. 遍历多目录，收集所有文件路径
+            std::vector<std::string> all_files = TraverseMultipleDirectories(dir_paths);
+            if (all_files.empty()) {
+                LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER,
+                          "Error: No files found in the entered directories!");
                 break;
             }
-            case 0: {
-                LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "\nExited. Goodbye!");
-                return 0;
-            }
-            default:
-                LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Invalid option, please enter a number between 0 and 2!");
-                break;
+
+            // 3. Call the packing function
+            // 3. 调用打包函数
+            PackFiles(pack_name, all_files);
+            break;
+        }
+        case 2: {
+            std::string pack_name;
+            LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER,
+                     "\nPlease enter the name of the package file to be unpacked (e.g., media_res.dat):");
+            std::getline(std::cin, pack_name);
+            UnpackAllToFolder(pack_name);
+            break;
+        }
+        case 0: {
+            LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "\nExited. Goodbye!");
+            return 0;
+        }
+        default:
+            LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER,
+                      "Invalid option, please enter a number between 0 and 2!");
+            break;
         }
 
         std::cout << "\n-------------------------------------" << std::endl;

@@ -18,12 +18,12 @@
 namespace atom {
 
 struct WavHeader {
-    char     chunk_id[4]{};       // "RIFF"
-    uint32_t chunk_size = 0;      // file size - 8
-    char     format[4]{};         // "WAVE"
-    char     subchunk_id[4]{};    // "fmt "
-    uint32_t subchunk_size = 0;   // fmt chunk size (16 for PCM)
-    uint16_t audio_format = 0;    // 1 = PCM
+    char chunk_id[4]{};         // "RIFF"
+    uint32_t chunk_size = 0;    // file size - 8
+    char format[4]{};           // "WAVE"
+    char subchunk_id[4]{};      // "fmt "
+    uint32_t subchunk_size = 0; // fmt chunk size (16 for PCM)
+    uint16_t audio_format = 0;  // 1 = PCM
     uint16_t num_channels = 0;
     uint32_t sample_rate = 0;
     uint32_t byte_rate = 0;
@@ -52,11 +52,21 @@ public:
     auto Rewind() -> bool;
 
     // Queries
-    [[nodiscard]] auto IsOpen() const -> bool { return fp_ != nullptr; }
-    [[nodiscard]] auto GetChannels() const -> uint16_t { return channels_; }
-    [[nodiscard]] auto GetSampleRate() const -> uint32_t { return sample_rate_; }
-    [[nodiscard]] auto GetBitsPerSample() const -> uint16_t { return bits_per_sample_; }
-    [[nodiscard]] auto GetTotalPCMBytes() const -> size_t { return data_bytes_; }
+    [[nodiscard]] auto IsOpen() const -> bool {
+        return fp_ != nullptr;
+    }
+    [[nodiscard]] auto GetChannels() const -> uint16_t {
+        return channels_;
+    }
+    [[nodiscard]] auto GetSampleRate() const -> uint32_t {
+        return sample_rate_;
+    }
+    [[nodiscard]] auto GetBitsPerSample() const -> uint16_t {
+        return bits_per_sample_;
+    }
+    [[nodiscard]] auto GetTotalPCMBytes() const -> size_t {
+        return data_bytes_;
+    }
 
 private:
     FILE* fp_ = nullptr;

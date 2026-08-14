@@ -1,7 +1,7 @@
 # Atom 未完成工作统一清单
 
 > 状态：唯一有效的架构整改与后续规划文档
-> 更新日期：2026-08-11
+> 更新日期：2026-08-14
 > 原则：只记录尚未完成的事项；已经完成的迁移和修复不在本文保留实施历史。
 
 ## 1. 使用规则
@@ -41,14 +41,6 @@
 - [ ] 后续根据统一初始化、失败回滚、停止请求、headless 测试和服务生命周期的实际需求，评估可选 `ApplicationRunner/EngineRuntime`。
 - 约束：不得破坏用户独立组合 Music、SFX、Mixer 和 Transition 的能力。
 
-### ARCH-103：音乐真正流式解码
-
-- [x] 让 Music Source 持有分块解码器，而不是在 Load 时保存完整 PCM。
-- [x] 引入固定容量 ring buffer、预读水位、EOF 与解码错误状态。
-- [x] 限制 SDL 输入队列的预排数据，避免将整首音乐转移到 SDL 内部缓存。
-- [x] SFX 继续使用全量 PCM，不与流式音乐强行统一。
-- 验收：长音乐内存占用基本不随时长增长，支持未知总帧数。
-
 ### ARCH-105：ScreenManager 生命周期安全
 
 - [ ] 将 current/stack 的裸指针改为 ScreenId、generation handle 或其他可验证句柄。
@@ -66,7 +58,7 @@
 ### ARCH-107：统一资源系统与 VFS
 
 - [ ] 设计 Resource ID、`ResourceHandle<T>`、Loader Registry 和统一缓存。
-- [ ] 支持目录与 HPKG 的透明挂载。
+- [ ] 支持目录与 APKG 的透明挂载。
 - [ ] 后续增加异步加载、热重载、依赖图和内存预算。
 - 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源。
 
@@ -199,6 +191,12 @@
 - [ ] Video 等空壳模块在实现前标为 Experimental，或不进入稳定公共 API。
 - [ ] 每个公开模块至少具备最小能力、错误返回和示例。
 
+### CORE-007：源码许可证标头统一
+
+- [ ] 按照 [`Source-Header-Migration-CN.md`](Source-Header-Migration-CN.md) 为 Atom 自有源码统一 MIT SPDX 标识。
+- [ ] 删除旧的 `All rights reserved`，不修改 `ThirdParty/` 中的上游标头。
+- [ ] 将标头迁移作为独立机械提交，避免与功能改动混合。
+
 ## 7. 测试与产品化
 
 ### QUALITY-001：自动化测试与性能基线
@@ -209,7 +207,8 @@
 
 ### QUALITY-002：多平台 CI 与质量门禁
 
-- [ ] Windows MinGW/MSVC 与 Linux GCC/Clang 构建。
+- 已有基础门禁：目标为 `master` 的 PR 会执行 Windows MSVC 与 Linux GCC 构建。
+- [ ] 增加 Windows MinGW 与 Linux Clang 构建。
 - [ ] clang-format、clang-tidy 或等效静态分析。
 - [ ] AddressSanitizer、UndefinedBehaviorSanitizer；可用平台增加 ThreadSanitizer。
 - [ ] 输出测试覆盖率报告。
@@ -217,7 +216,7 @@
 ### PRODUCT-001：SDK 与版本策略
 
 - [ ] 公共 API/ABI 兼容策略。
-- [ ] HPKG 格式版本与兼容策略。
+- [ ] APKG 格式版本与兼容策略。
 - [ ] CMake 安装、导出和消费者示例。
 
 ### PRODUCT-002：资产与开发工具
@@ -231,7 +230,7 @@
 1. P0 事件、Lua 错误和参数校验。
 2. 最小测试 target，优先覆盖 MusicCrossfade 与 Screen/Event。
 3. Screen 生命周期、回调 Registry、Lua handle 和日志并发。
-4. 资源系统、流式音乐、固定时间步和 InputSystem。
+4. 资源系统、固定时间步和 InputSystem。
 5. Renderer2D 抽象稳定后再实现 Vulkan。
 6. Mixer/Bus、Effects/Plugins 按实际 Beta 需求启用。
 7. 最后推进 CI、SDK、资产管线和编辑器能力。

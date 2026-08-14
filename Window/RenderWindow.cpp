@@ -28,7 +28,8 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
 
         screenManager.HandleEvent(*event);
 
-        if (!window_->IsOpen()) break;
+        if (!window_->IsOpen())
+            break;
 
         if (event->type == EventType::Closed) {
             window_->Shutdown();
@@ -42,19 +43,24 @@ auto RenderWindow::Initialize(const std::string& title, Vec2 resolution) -> void
     window_->Initialize(title, resolution);
 
     window_->on_pre_process_sdl_event_ = [this](const SDL_Event& ev) {
-        if (on_pre_process_sdl_event_) on_pre_process_sdl_event_(ev);
+        if (on_pre_process_sdl_event_)
+            on_pre_process_sdl_event_(ev);
     };
     window_->on_process_event_ = [this](IEvent& event) {
-        if (on_process_event_) on_process_event_(event);
+        if (on_process_event_)
+            on_process_event_(event);
     };
     window_->on_update_ = [this](float dt) {
-        if (on_update_) on_update_(dt);
+        if (on_update_)
+            on_update_(dt);
     };
     window_->on_render_overlay_ = [this]() {
-        if (on_render_overlay_) on_render_overlay_();
+        if (on_render_overlay_)
+            on_render_overlay_();
     };
     window_->on_shutdown_ = [this]() {
-        if (on_shutdown_) on_shutdown_();
+        if (on_shutdown_)
+            on_shutdown_();
     };
 }
 
@@ -72,7 +78,8 @@ auto RenderWindow::Run() -> void {
 
         ProcessEvents(screenManager);
 
-        if (!window_->IsOpen()) break;
+        if (!window_->IsOpen())
+            break;
 
         const float deltaTime = std::chrono::duration<float>(frameStart - lastTime).count();
         lastTime = frameStart;
@@ -105,7 +112,8 @@ auto RenderWindow::Run() -> void {
 
 auto RenderWindow::SetFPS(const unsigned int fps) -> void {
     fps_ = fps;
-    if (window_) window_->SetFPS(fps);
+    if (window_)
+        window_->SetFPS(fps);
 }
 
 auto RenderWindow::GetIRenderWindow() -> IRenderWindow* {

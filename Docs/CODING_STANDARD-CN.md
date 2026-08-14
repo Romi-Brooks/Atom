@@ -7,6 +7,9 @@
 ---
 > 这是 Atom 引擎在开发时所遵循的项目架构与代码风格的快速指引文档，当你想要为 Atom 引擎贡献代码时，请务必遵循此指引文档
 
+仓库根目录的 `.clang-format` 是格式化规则的唯一来源。提交前应对修改过的 C/C++
+文件执行 `clang-format -i <files>`。
+
 ***
 
 ## 1. 目录与文件命名
@@ -60,9 +63,13 @@ ModuleName/            # 模块名，PascalCase，单数
 
 ### 2.2 Include 顺序
 
-按以下分组顺序排列，每组空一行：
+实现文件首先包含对应的自身头文件，以便尽早发现头文件不能独立包含的问题。其余
+include 按以下分组顺序排列，每组空一行：
 
 ```cpp
+// Self Dependency
+#include "VolumeManager.hpp"
+
 // Standard Library
 #include <memory>
 #include <string>
@@ -74,16 +81,14 @@ ModuleName/            # 模块名，PascalCase，单数
 // Engine Headers
 #include <Media/Audio/Music.hpp>
 #include <Log/LogSystem.hpp>
-
-// Self Dependency
-#include "VolumeManager.hpp"
 ```
 
 **规则：**
 
-- **标准库** → **第三方库** → **项目头文件（`<>`）** → **自身头文件（`""`）**
+- `.cpp` 文件：**自身头文件（`""`）** → **标准库** → **第三方库** → **项目头文件（`<>`）**
+- 头文件没有自身依赖，从标准库 include 开始
 - 项目内头文件使用 `#include <ModuleName/FileName.hpp>` 语法（以项目根为基准）
-- 自身头文件（对应的 `.hpp`）使用 `#include "FileName.hpp"`，置于最末尾
+- 自身头文件（对应的 `.hpp`）使用 `#include "FileName.hpp"`，置于最前
 - 禁止使用 `../../` 相对路径
 
 ***
@@ -102,8 +107,9 @@ ModuleName/            # 模块名，PascalCase，单数
 | **静态成员函数**      | `PascalCase`         | `GetInstance()`、`SetSfxVolume()`       |
 | **成员变量**        | `snake_case_` + 尾下划线 | `music_volume_`、`current_playing_id_`  |
 | **静态成员变量**      | `snake_case_` + 尾下划线 | `static float music_volume_`           |
-| **函数参数**        | `camelCase`          | `id`、`filePath`、`target`               |
-| **局部变量**        | `camelCase`          | `it`、`result`、`music`                  |
+| **公开聚合/配置字段**   | `snake_case`          | `sample_rate`、`output_dir`             |
+| **函数参数**        | `snake_case`         | `id`、`file_path`、`target`              |
+| **局部变量**        | `snake_case`         | `it`、`load_result`、`music`             |
 | **宏**           | `UPPER_SNAKE_CASE`   | `LOG_INFO`、`LOG_ERROR`                 |
 
 ### 3.1.1 日志频道命名
@@ -136,7 +142,8 @@ ModuleName/            # 模块名，PascalCase，单数
 
 #### 函数
 
-- **所有非平凡函数**使用**后置返回类型**：`auto FuncName() -> ReturnType`
+- 引擎 C++ 函数使用**后置返回类型**：`auto FuncName() -> ReturnType`
+- 构造函数、析构函数、`main` 和签名必须匹配 C API 的回调函数除外
 - PascalCase，动词开头：`GetInstance()`、`Load()`、`SetVolume()`
 - getter 以 `Get` 开头，setter 以 `Set` 开头
 - 布尔查询以 `Is` / `Has` 开头：`IsLoaded()`、`HasSFX()`
@@ -156,11 +163,12 @@ void Play(const std::string& id);
 
 - `snake_case_`，**尾下划线**是必须的
 - 不要使用 `m_` 前缀或首下划线
+- 简单聚合或配置结构体中的公开字段使用 `snake_case`
 
 ```cpp
 class Music {
     private:
-        std::unordered_map<std::string, std::unique_ptr<sf::Music>> musics_;
+        std::unordered_map<std::string, std::unique_ptr<IAudioSource>> tracks_;
         std::string current_playing_id_;
         static float music_volume_;
 };
@@ -168,9 +176,9 @@ class Music {
 
 #### 参数与局部变量
 
-- `camelCase`，首字母小写
+- `snake_case`，首字母小写
 - 单字母变量仅限于循环计数（`i`）或迭代器（`it`）
-- 布尔参数使用动词或形容词：`isEnabled`、`shouldLoop`
+- 布尔参数使用动词或形容词：`is_enabled`、`should_loop`
 
 #### 类内私有类型
 
@@ -188,8 +196,8 @@ class Music {
           };
 
           struct FadeContext {             // 类内私有
-              std::string fromId;
-              std::string toId;
+              std::string from_id;
+              std::string to_id;
               float duration{0.0f};
               FadeState state{FadeState::Idle};
           } context_;
@@ -206,21 +214,20 @@ class Music {
 
 ### 4.1 缩进与花括号
 
-- **缩进：** Tab（1 Tab = 4 字符宽度）
-- **花括号风格：** Allman（花括号独占一行）
+- **缩进：** 4 个空格，不使用 Tab 缩进
+- **花括号风格：** K&R（左花括号与声明或控制语句同行）
 
 ```cpp
 namespace atom {
-    class Entity {
-        private:
-            float hp_;
+class Entity {
+public:
+    auto GetHP() const -> float {
+        return hp_;
+    }
 
-        public:
-            auto GetHP() const -> float
-            {
-                return hp_;
-            }
-    };
+private:
+    float hp_;
+};
 }
 ```
 
@@ -228,35 +235,28 @@ namespace atom {
 
 ```cpp
 class ClassName {
-    private:
-        // 成员变量优先
-        int member_;
+public:
+    ClassName() = default;
+    ~ClassName() = default;
 
-    public:
-        // 构造/析构
-        ClassName() = default;
-        ~ClassName() = default;
+    ClassName(const ClassName&) = delete;
+    auto operator=(const ClassName&) -> ClassName& = delete;
 
-        // 删除拷贝
-        ClassName(const ClassName&) = delete;
-        auto operator=(const ClassName&) -> ClassName& = delete;
+    static auto GetInstance() -> ClassName&;
+    auto DoSomething() -> void;
 
-        // 静态方法
-        static ClassName& GetInstance();
+private:
+    auto Helper() -> void;
 
-        // 公有方法
-        auto DoSomething() -> void;
-
-    private:
-        // 私有方法
-        auto Helper() -> void;
+    int member_;
 };
 ```
 
 **规则：**
 
-- `private:` → `public:` 顺序（成员变量在前，函数在后）
-- 每个访问说明符缩进一级，其内容再缩进一级
+- 优先使用 `public:` → `protected:` → `private:`，先展示公共 API
+- 访问说明符与类体对齐，声明缩进一级
+- 移动成员声明时必须考虑初始化顺序；纯风格修改不得改变行为
 
 ### 4.3 成员初始化
 
@@ -295,7 +295,7 @@ auto GetValue()const -> float;        // 缺少空格
 
 | 特性                  | 用法                                   |
 | ------------------- | ------------------------------------ |
-| **后置返回类型**          | `auto Func() -> Type`（非构造/析构函数必须使用）  |
+| **后置返回类型**          | 引擎 C++ 函数使用 `auto Func() -> Type`；C 回调和 `main` 除外 |
 | **`auto`** **占位符**  | `auto it = map.find(id);`            |
 | **`[[nodiscard]]`** | 所有 getter、查询函数、不应忽略返回值的函数            |
 | **`enum class`**    | 所有枚举必须使用 `enum class`，禁止裸 `enum`     |
@@ -319,15 +319,20 @@ auto GetValue()const -> float;        // 缺少空格
 ### 6.1 Doxygen 文件头
 
 ```cpp
+// Copyright (c) YYYY Author
+// SPDX-License-Identifier: MIT
+
 /**
-  * @file           : FileName.hpp
-  * @author         : Author
-  * @brief          : One-line description
-  * @attention      : Any caveats or notes
-  * @date           : YYYY/MM/DD
-  Copyright (c) 2025 Author,  All rights reserved.
-**/
+ * @file FileName.hpp
+ * @brief 一句话说明文件职责。
+ * @author Author
+ * @date YYYY/MM/DD
+ * @attention 可选的注意事项。
+ */
 ```
+
+模板中不再写 `All rights reserved`。Copyright 行用于记录著作权归属，SPDX
+标识明确指向仓库的 MIT 许可证及其授权范围，两者可以同时保留。
 
 ### 6.2 行内注释
 

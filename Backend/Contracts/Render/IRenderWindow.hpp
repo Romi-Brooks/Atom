@@ -12,13 +12,27 @@
 namespace atom {
 
 enum class EventType {
-    None = 0, Closed, KeyPressed, KeyReleased,
-    MouseMoved, MouseButtonPressed, MouseButtonReleased, Resized,
+    None = 0,
+    Closed,
+    KeyPressed,
+    KeyReleased,
+    MouseMoved,
+    MouseButtonPressed,
+    MouseButtonReleased,
+    Resized,
 };
 
-struct KeyEvent     { int32_t scancode = 0, keycode = 0; bool alt = false, ctrl = false, shift = false; };
-struct MouseEvent   { float x = 0, y = 0; int32_t button = 0; };
-struct ResizeEvent  { uint32_t width = 0, height = 0; };
+struct KeyEvent {
+    int32_t scancode = 0, keycode = 0;
+    bool alt = false, ctrl = false, shift = false;
+};
+struct MouseEvent {
+    float x = 0, y = 0;
+    int32_t button = 0;
+};
+struct ResizeEvent {
+    uint32_t width = 0, height = 0;
+};
 
 struct IEvent {
     EventType type;

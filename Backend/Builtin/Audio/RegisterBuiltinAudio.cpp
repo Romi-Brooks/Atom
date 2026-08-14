@@ -8,9 +8,7 @@
 namespace atom {
 
 auto RegisterBuiltinAudioDecoders(AudioDecoderRegistry& registry) -> bool {
-    return registry.Register(".wav", [] {
-        return std::make_unique<BuiltinWavDecoder>();
-    });
+    return registry.Register(".wav", [] { return std::make_unique<BuiltinWavDecoder>(); });
 }
 
 } // namespace atom

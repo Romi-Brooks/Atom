@@ -4,7 +4,7 @@
 
 # Atom Resource Packager
 
-A command-line tool for packing and unpacking game resource files into a custom archive format (APKG). Located under [`Utilities/Packager/`](../../Utilities/Packager/).
+A command-line tool for packing and unpacking game resource files into a custom archive format (APKG). Located under [`Utilities/Packager/`](../).
 
 ***
 
@@ -63,6 +63,7 @@ Input options (0-2):
 namespace atom::tools {
 
 class Packager {
+public:
     struct Config {
         bool compress;           // (reserved) enable compression
         bool verbose;            // print detailed logs
@@ -89,6 +90,14 @@ class Packager {
 namespace atom::tools {
 
 class Unpackager {
+public:
+    struct FileEntry {
+        std::string filename;
+        uint64_t offset;
+        uint64_t size;
+        std::string type;
+    };
+
     struct Config {
         bool verbose;
         bool preserveStructure;
@@ -115,11 +124,16 @@ class Unpackager {
 
     // Extract to memory
     auto ExtractFileToMemory(const std::string& filename) -> std::unique_ptr<MemoryFile>;
+    auto ExtractFileToMemory(const std::string& filename, MemoryFile& memoryFile) -> Result;
+    auto ExtractFilesToMemory(const std::vector<std::string>& filenames,
+                              std::vector<MemoryFile>& memoryFiles) -> Result;
     auto ExtractAllToMemory(std::vector<MemoryFile>& memoryFiles) -> Result;
+    auto GetFileData(const std::string& filename, const char** data, size_t* size) -> Result;
 
     // Query
     [[nodiscard]] auto GetFileList() const -> std::vector<std::string>;
     [[nodiscard]] auto Contains(const std::string& filename) const -> bool;
+    [[nodiscard]] auto GetFileInfo(const std::string& filename) const -> const FileEntry*;
     auto PrintPackageInfo() const -> void;
 };
 
@@ -129,7 +143,7 @@ class Unpackager {
 ### Example: Packing Programmatically
 
 ```cpp
-#include <Packager/Packager.hpp>
+#include <Packager.hpp>
 
 auto main() -> int {
     atom::tools::Packager packer;
@@ -150,7 +164,7 @@ auto main() -> int {
 ### Example: Unpacking Programmatically
 
 ```cpp
-#include <Packager/Unpackager.hpp>
+#include <Unpackager.hpp>
 
 auto main() -> int {
     atom::tools::Unpackager unpacker;

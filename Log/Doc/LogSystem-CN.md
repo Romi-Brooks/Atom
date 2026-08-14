@@ -40,7 +40,12 @@ LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Pack failed");
 | `ATOM_AUDIO_MUSIC` | Atom.Audio.Music |
 | `ATOM_AUDIO_SFX` | Atom.Audio.SFX |
 | `ATOM_AUDIO_PLUG_MUSICFADE` | Atom.Audio.Plug.MusicFade |
+| `ATOM_BACKEND_RUNTIME` | Atom.Backend.Runtime |
 | `ATOM_VIDEO` | Atom.Video |
+| `SDL_BACKEND_AUDIO` | SDL.Backend.Audio |
+| `SDL_BACKEND_VIDEO` | SDL.Backend.Video |
+| `SDL_BACKEND_RENDER` | SDL.Backend.Render |
+| `SDL_BACKEND_WINDOW` | SDL.Backend.Window |
 | `ATOM_WINDOW` | Atom.Window |
 | `ATOM_SCREEN` | Atom.Screen |
 | `ATOM_SCREEN_MANAGER` | Atom.Screen.Manager |
@@ -133,6 +138,6 @@ atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING);
 ## 注意事项
 
 1. `LogChannel` 构造时接受 `std::string`，建议使用简短且有意义的名称
-2. 通道名称仅用于显示标识，不区分大小写但建议统一风格
+2. 通道名称是显示字符串，Atom 不会统一其大小写，因此应保持一致风格
 3. 自定义通道不需要注册或提前声明，随用随建
-4. `LogOut` 和宏都是线程安全的（内部有 mutex 保护）
+4. 日志输出由内部 mutex 串行化；并发修改显示等级目前尚不保证线程安全

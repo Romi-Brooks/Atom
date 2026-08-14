@@ -28,6 +28,6 @@ public:
 private:
     AudioDecoderRegistry& decoders_;
 };
-}
+} // namespace atom
 
 #endif // ATOM_AUDIO_CLIP_LOADER_HPP

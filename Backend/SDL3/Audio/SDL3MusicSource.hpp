@@ -16,8 +16,7 @@ namespace atom {
 
 class SDL3MusicSource : public IAudioSource {
 public:
-    explicit SDL3MusicSource(std::vector<uint8_t> pcmData,
-                             const SDL_AudioSpec& spec);
+    explicit SDL3MusicSource(std::vector<uint8_t> pcmData, const SDL_AudioSpec& spec);
     ~SDL3MusicSource() override;
 
     SDL3MusicSource(const SDL3MusicSource&) = delete;
