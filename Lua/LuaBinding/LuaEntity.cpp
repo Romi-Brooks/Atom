@@ -17,10 +17,10 @@
 
 using Entity = atom::Entity;
 
-#define CHECK_ENTITY(L) \
-    Entity* entity = *static_cast<Entity**>(luaL_checkudata(L, 1, "EntityMetaTable")); \
-    if (!entity) { \
-        return luaL_error(L, "invalid Entity object"); \
+#define CHECK_ENTITY(L)                                                                                                \
+    Entity* entity = *static_cast<Entity**>(luaL_checkudata(L, 1, "EntityMetaTable"));                                 \
+    if (!entity) {                                                                                                     \
+        return luaL_error(L, "invalid Entity object");                                                                 \
     }
 
 static int lua_Entity_GetHP(lua_State* L) {
@@ -110,7 +110,7 @@ auto RegisterEntityToLua(lua_State* L) -> void {
         {nullptr, nullptr} // End marker
     };
     luaL_setfuncs(L, entityMethods, 0);
-	LOG_INFO(atom::LogChannel::ATOM_LUA, "Engine.Entity registered successfully.");
+    LOG_INFO(atom::LogChannel::ATOM_LUA, "Engine.Entity registered successfully.");
     // Pop metatable (clean up stack)
     // 弹出元表（清理栈）
     lua_pop(L, 1);
@@ -119,21 +119,22 @@ auto RegisterEntityToLua(lua_State* L) -> void {
 // Push a C++ Entity object into the Lua environment (as a global variable)
 // 将C++的Entity对象推入Lua环境（作为全局变量）
 auto PushEntityToLua(lua_State* L, Entity* entity, const std::string& luaVarName) -> void {
-	if (!L || !entity) return;
+    if (!L || !entity)
+        return;
 
-	// 1. Create userdata to store the Entity pointer
-	// 1. 创建userdata存储Entity指针
-	// Allocate enough memory to store Entity*
-	// 分配足够的内存存储Entity*
-	Entity**udata = static_cast<Entity**>(lua_newuserdata(L, sizeof(Entity*)));
-	*udata = entity; // Store the pointer
+    // 1. Create userdata to store the Entity pointer
+    // 1. 创建userdata存储Entity指针
+    // Allocate enough memory to store Entity*
+    // 分配足够的内存存储Entity*
+    Entity** udata = static_cast<Entity**>(lua_newuserdata(L, sizeof(Entity*)));
+    *udata = entity; // Store the pointer
 
-	// 2. Bind metatable (ensure Lua knows this is an Entity type)
-	// 2. 绑定元表（确保Lua知道这是Entity类型）
-	luaL_getmetatable(L, "EntityMetaTable");
-	lua_setmetatable(L, -2);
+    // 2. Bind metatable (ensure Lua knows this is an Entity type)
+    // 2. 绑定元表（确保Lua知道这是Entity类型）
+    luaL_getmetatable(L, "EntityMetaTable");
+    lua_setmetatable(L, -2);
 
-	// 3. Set userdata as a Lua global variable
-	// 3. 将userdata设置为Lua全局变量
-	lua_setglobal(L, luaVarName.c_str());
+    // 3. Set userdata as a Lua global variable
+    // 3. 将userdata设置为Lua全局变量
+    lua_setglobal(L, luaVarName.c_str());
 }

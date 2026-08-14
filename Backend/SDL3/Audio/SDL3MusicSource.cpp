@@ -1,3 +1,5 @@
+#include "SDL3MusicSource.hpp"
+
 #include <algorithm>
 #include <chrono>
 
@@ -5,44 +7,34 @@
 
 #include <Log/LogSystem.hpp>
 
-#include "SDL3MusicSource.hpp"
-
 namespace atom {
 
 // Target ~100 ms of audio per push — large enough to amortise resampler
 // boundary artifacts but small enough to keep latency reasonable.
 constexpr double kStreamDuration = 0.1; // seconds
 
-SDL3MusicSource::SDL3MusicSource(std::vector<uint8_t> pcmData,
-                                 const SDL_AudioSpec& spec)
-    : pcm_data_(std::move(pcmData))
-    , spec_(spec)
-{
-}
+SDL3MusicSource::SDL3MusicSource(std::vector<uint8_t> pcmData, const SDL_AudioSpec& spec)
+    : pcm_data_(std::move(pcmData)), spec_(spec) {}
 
 auto SDL3MusicSource::EnsureStream() -> bool {
-    if (stream_) return true;
+    if (stream_)
+        return true;
     if (pcm_data_.empty()) {
-        LOG_WARNING(atom::LogChannel::ATOM_AUDIO_MUSIC,
-                    "EnsureStream: no PCM data loaded");
+        LOG_WARNING(atom::LogChannel::ATOM_AUDIO_MUSIC, "EnsureStream: no PCM data loaded");
         return false;
     }
 
     LOG_DEBUG(atom::LogChannel::SDL_BACKEND_AUDIO,
-              "Opening stream: fmt=" + std::to_string(spec_.format) +
-              " freq=" + std::to_string(spec_.freq) +
-              " ch=" + std::to_string(spec_.channels) +
-              " data_bytes=" + std::to_string(pcm_data_.size()));
+              "Opening stream: fmt=" + std::to_string(spec_.format) + " freq=" + std::to_string(spec_.freq) +
+                  " ch=" + std::to_string(spec_.channels) + " data_bytes=" + std::to_string(pcm_data_.size()));
 
     // Open stream bound to the default playback device, passing the source
     // format directly.  The decode thread pushes data in ~100 ms chunks so
     // that resampler boundary artifacts (the root cause of the 48000 Hz
     // crackling) are minimised.
-    stream_ = SDL_OpenAudioDeviceStream(
-        SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, nullptr, nullptr);
+    stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, nullptr, nullptr);
     if (!stream_) {
-        LOG_ERROR(atom::LogChannel::SDL_BACKEND_AUDIO,
-                  "Failed to open audio stream: " + std::string(SDL_GetError()));
+        LOG_ERROR(atom::LogChannel::SDL_BACKEND_AUDIO, "Failed to open audio stream: " + std::string(SDL_GetError()));
         return false;
     }
 
@@ -138,20 +130,20 @@ auto SDL3MusicSource::IsLooping() const -> bool {
 }
 
 auto SDL3MusicSource::SetPlayingOffset(float seconds) -> void {
-    if (spec_.freq == 0) return;
-    const auto totalFrames = pcm_data_.size() /
-        (SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels);
+    if (spec_.freq == 0)
+        return;
+    const auto totalFrames = pcm_data_.size() / (SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels);
     const auto targetFrame = static_cast<uint64_t>(seconds * spec_.freq);
-    play_cursor_ = (std::min)(targetFrame, totalFrames) *
-        SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
+    play_cursor_ = (std::min)(targetFrame, totalFrames) * SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
 }
 
 auto SDL3MusicSource::GetPlayingOffset() const -> float {
-    if (spec_.freq == 0) return 0.0f;
+    if (spec_.freq == 0)
+        return 0.0f;
     const auto bytesPerFrame = SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
-    if (bytesPerFrame == 0) return 0.0f;
-    return static_cast<float>(play_cursor_.load()) /
-           (static_cast<float>(spec_.freq) * bytesPerFrame);
+    if (bytesPerFrame == 0)
+        return 0.0f;
+    return static_cast<float>(play_cursor_.load()) / (static_cast<float>(spec_.freq) * bytesPerFrame);
 }
 
 auto SDL3MusicSource::DecodeLoop() -> void {
@@ -162,18 +154,16 @@ auto SDL3MusicSource::DecodeLoop() -> void {
     // boundary artifacts are minimised.  Clamp to [4096, 1 MiB].
     const auto bytes_per_frame = SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
     const auto chunk_frames = static_cast<std::size_t>(spec_.freq * kStreamDuration);
-    const std::size_t kStreamChunk = std::clamp(
-        chunk_frames * bytes_per_frame, std::size_t{4096}, std::size_t{1048576});
+    const std::size_t kStreamChunk =
+        std::clamp(chunk_frames * bytes_per_frame, std::size_t{4096}, std::size_t{1048576});
 
-    LOG_DEBUG(atom::LogChannel::SDL_BACKEND_AUDIO,
-              "DecodeLoop started: chunk=" + std::to_string(kStreamChunk) +
-              " total=" + std::to_string(pcm_data_.size()) +
-              " loop=" + std::to_string(loop_.load()));
+    LOG_DEBUG(atom::LogChannel::SDL_BACKEND_AUDIO, "DecodeLoop started: chunk=" + std::to_string(kStreamChunk) +
+                                                       " total=" + std::to_string(pcm_data_.size()) +
+                                                       " loop=" + std::to_string(loop_.load()));
 
     auto last_debug_log = std::chrono::steady_clock::now();
 
-    while (thread_running_.load() &&
-           state_.load() == AudioSourceState::Playing) {
+    while (thread_running_.load() && state_.load() == AudioSourceState::Playing) {
 
         auto cursor = play_cursor_.load();
         if (cursor < pcm_data_.size()) {
@@ -190,10 +180,9 @@ auto SDL3MusicSource::DecodeLoop() -> void {
             // Throttled debug: log push progress every 3 seconds
             const auto now = std::chrono::steady_clock::now();
             if (now - last_debug_log >= std::chrono::seconds(3)) {
-                LOG_DEBUG(atom::LogChannel::SDL_BACKEND_AUDIO,
-                          "Pushed " + std::to_string(toPush) +
-                          " bytes, cursor=" + std::to_string(cursor + toPush) +
-                          "/" + std::to_string(pcm_data_.size()));
+                LOG_DEBUG(atom::LogChannel::SDL_BACKEND_AUDIO, "Pushed " + std::to_string(toPush) +
+                                                                   " bytes, cursor=" + std::to_string(cursor + toPush) +
+                                                                   "/" + std::to_string(pcm_data_.size()));
                 last_debug_log = now;
             }
         } else {

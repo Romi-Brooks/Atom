@@ -19,24 +19,18 @@ static auto TranslateEvent(const SDL_Event& ev) -> IEvent {
 
     case SDL_EVENT_KEY_DOWN:
         result.type = EventType::KeyPressed;
-        result.data = KeyEvent{
-            static_cast<int32_t>(ev.key.scancode),
-            static_cast<int32_t>(ev.key.key),
-            static_cast<bool>(ev.key.mod & SDL_KMOD_ALT),
-            static_cast<bool>(ev.key.mod & SDL_KMOD_CTRL),
-            static_cast<bool>(ev.key.mod & SDL_KMOD_SHIFT)
-        };
+        result.data =
+            KeyEvent{static_cast<int32_t>(ev.key.scancode), static_cast<int32_t>(ev.key.key),
+                     static_cast<bool>(ev.key.mod & SDL_KMOD_ALT), static_cast<bool>(ev.key.mod & SDL_KMOD_CTRL),
+                     static_cast<bool>(ev.key.mod & SDL_KMOD_SHIFT)};
         break;
 
     case SDL_EVENT_KEY_UP:
         result.type = EventType::KeyReleased;
-        result.data = KeyEvent{
-            static_cast<int32_t>(ev.key.scancode),
-            static_cast<int32_t>(ev.key.key),
-            static_cast<bool>(ev.key.mod & SDL_KMOD_ALT),
-            static_cast<bool>(ev.key.mod & SDL_KMOD_CTRL),
-            static_cast<bool>(ev.key.mod & SDL_KMOD_SHIFT)
-        };
+        result.data =
+            KeyEvent{static_cast<int32_t>(ev.key.scancode), static_cast<int32_t>(ev.key.key),
+                     static_cast<bool>(ev.key.mod & SDL_KMOD_ALT), static_cast<bool>(ev.key.mod & SDL_KMOD_CTRL),
+                     static_cast<bool>(ev.key.mod & SDL_KMOD_SHIFT)};
         break;
 
     case SDL_EVENT_MOUSE_MOTION:
@@ -46,20 +40,17 @@ static auto TranslateEvent(const SDL_Event& ev) -> IEvent {
 
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
         result.type = EventType::MouseButtonPressed;
-        result.data = MouseEvent{ev.button.x, ev.button.y,
-            static_cast<int32_t>(ev.button.button)};
+        result.data = MouseEvent{ev.button.x, ev.button.y, static_cast<int32_t>(ev.button.button)};
         break;
 
     case SDL_EVENT_MOUSE_BUTTON_UP:
         result.type = EventType::MouseButtonReleased;
-        result.data = MouseEvent{ev.button.x, ev.button.y,
-            static_cast<int32_t>(ev.button.button)};
+        result.data = MouseEvent{ev.button.x, ev.button.y, static_cast<int32_t>(ev.button.button)};
         break;
 
     case SDL_EVENT_WINDOW_RESIZED:
         result.type = EventType::Resized;
-        result.data = ResizeEvent{static_cast<uint32_t>(ev.window.data1),
-                                   static_cast<uint32_t>(ev.window.data2)};
+        result.data = ResizeEvent{static_cast<uint32_t>(ev.window.data1), static_cast<uint32_t>(ev.window.data2)};
         break;
 
     default:
@@ -73,10 +64,8 @@ static auto TranslateEvent(const SDL_Event& ev) -> IEvent {
 // ── CircleKey hash ──────────────────────────────────────────────────
 auto SDL3RenderWindow::CircleHash::operator()(const CircleKey& k) const -> std::size_t {
     auto h1 = std::hash<float>{}(k.radius);
-    auto h2 = (static_cast<std::size_t>(k.color.r) << 24) |
-              (static_cast<std::size_t>(k.color.g) << 16) |
-              (static_cast<std::size_t>(k.color.b) << 8)  |
-              static_cast<std::size_t>(k.color.a);
+    auto h2 = (static_cast<std::size_t>(k.color.r) << 24) | (static_cast<std::size_t>(k.color.g) << 16) |
+              (static_cast<std::size_t>(k.color.b) << 8) | static_cast<std::size_t>(k.color.a);
     return h1 ^ (h2 << 1);
 }
 
@@ -92,12 +81,8 @@ auto SDL3RenderWindow::Initialize(const std::string& title, Vec2 resolution) -> 
         return;
     }
 
-    window_ = SDL_CreateWindow(
-        title.c_str(),
-        static_cast<int>(resolution.GetX()),
-        static_cast<int>(resolution.GetY()),
-        SDL_WINDOW_RESIZABLE
-    );
+    window_ = SDL_CreateWindow(title.c_str(), static_cast<int>(resolution.GetX()), static_cast<int>(resolution.GetY()),
+                               SDL_WINDOW_RESIZABLE);
 
     if (!window_) {
         return;
@@ -116,7 +101,8 @@ auto SDL3RenderWindow::Initialize(const std::string& title, Vec2 resolution) -> 
 }
 
 auto SDL3RenderWindow::Shutdown() -> void {
-    if (!window_ && !renderer_ && !video_runtime_.IsValid() && !events_runtime_.IsValid()) return;
+    if (!window_ && !renderer_ && !video_runtime_.IsValid() && !events_runtime_.IsValid())
+        return;
 
     if (on_shutdown_) {
         on_shutdown_();
@@ -127,8 +113,10 @@ auto SDL3RenderWindow::Shutdown() -> void {
     }
     circle_cache_.clear();
 
-    if (renderer_) SDL_DestroyRenderer(renderer_);
-    if (window_) SDL_DestroyWindow(window_);
+    if (renderer_)
+        SDL_DestroyRenderer(renderer_);
+    if (window_)
+        SDL_DestroyWindow(window_);
     renderer_ = nullptr;
     window_ = nullptr;
     open_ = false;
@@ -169,15 +157,15 @@ auto SDL3RenderWindow::SetViewport(const Rect& viewport) -> void {
 auto SDL3RenderWindow::GetViewport() const -> Rect {
     SDL_Rect r;
     SDL_GetRenderViewport(renderer_, &r);
-    return {static_cast<float>(r.x), static_cast<float>(r.y),
-            static_cast<float>(r.w), static_cast<float>(r.h)};
+    return {static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.w), static_cast<float>(r.h)};
 }
 
 // ── Drawing ─────────────────────────────────────────────────────────
 auto SDL3RenderWindow::DrawTexture(ITexture& texture, float x, float y) -> void {
     auto& sdlTex = dynamic_cast<SDL3Texture&>(texture);
     SDL_Texture* native = sdlTex.GetNativeTexture();
-    if (!native) return;
+    if (!native)
+        return;
 
     const auto size = sdlTex.GetSize();
     SDL_FRect dst = {x, y, size.GetX(), size.GetY()};
@@ -186,7 +174,8 @@ auto SDL3RenderWindow::DrawTexture(ITexture& texture, float x, float y) -> void 
 
 auto SDL3RenderWindow::DrawCircle(float cx, float cy, float radius, const Color& color) -> void {
     SDL_Texture* tex = GetOrCreateCircleTexture(radius, color);
-    if (!tex) return;
+    if (!tex)
+        return;
 
     float tw, th;
     SDL_GetTextureSize(tex, &tw, &th);
@@ -231,12 +220,8 @@ auto SDL3RenderWindow::GetOrCreateCircleTexture(float radius, const Color& color
         }
     }
 
-    SDL_Texture* tex = SDL_CreateTexture(
-        renderer_,
-        SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_STATIC,
-        diameter, diameter
-    );
+    SDL_Texture* tex =
+        SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, diameter, diameter);
 
     if (tex) {
         const int pitch = diameter * 4;
@@ -254,7 +239,8 @@ auto SDL3RenderWindow::GetOrCreateCircleTexture(float radius, const Color& color
 // ── Events ──────────────────────────────────────────────────────────
 auto SDL3RenderWindow::PollEvent() -> std::optional<IEvent> {
     SDL_Event ev;
-    if (!SDL_PollEvent(&ev)) return std::nullopt;
+    if (!SDL_PollEvent(&ev))
+        return std::nullopt;
 
     // Pre-process raw event (ImGui hook) before translation.
     if (on_pre_process_sdl_event_) {

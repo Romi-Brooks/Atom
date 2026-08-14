@@ -7,6 +7,9 @@
   Copyright (c) 2025 Romi Brooks, All rights reserved.
 **/
 
+// Self Dependency
+#include "LogSystem.hpp"
+
 // Standard Library
 #include <string>
 #include <iostream>
@@ -15,22 +18,23 @@
 #include <sstream>
 #include <iomanip>
 
-// Self Dependencies
-#include "LogSystem.hpp"
-
 using atom::Log;
-using atom::LogLevel;
 using atom::LogChannel;
+using atom::LogLevel;
 
 // Forward Function
 auto GetLogLevel(const LogLevel& logLevel) -> std::string {
     switch (logLevel) {
-        case LogLevel::ATOM_DEBUG: return "DEBUG";
-        case LogLevel::ATOM_INFO: return "INFO";
-        case LogLevel::ATOM_WARNING: return "WARNING";
-        case LogLevel::ATOM_ERROR: return "ERROR";
+    case LogLevel::ATOM_DEBUG:
+        return "DEBUG";
+    case LogLevel::ATOM_INFO:
+        return "INFO";
+    case LogLevel::ATOM_WARNING:
+        return "WARNING";
+    case LogLevel::ATOM_ERROR:
+        return "ERROR";
     }
-	return "Error log level";
+    return "Error log level";
 }
 
 // Pre-defined engine channel constants
@@ -66,11 +70,11 @@ const LogChannel LogChannel::ATOM_SCREEN_MANAGER("Atom.Screen.Manager", "Atom.Sc
 const LogChannel LogChannel::ATOM_UTILITIES_PACKAGER("Atom.Utilities.Packager", "Atom.Utilities.Packager -> ");
 
 auto GetLogChannel(const LogChannel& channel) -> std::string {
-	return channel.GetDisplayString();
+    return channel.GetDisplayString();
 }
 auto GetCurrentTime() -> std::stringstream {
     const auto Time = std::chrono::system_clock::now();
-	const auto TimeT = std::chrono::system_clock::to_time_t(Time);
+    const auto TimeT = std::chrono::system_clock::to_time_t(Time);
     std::stringstream TimeString;
     TimeString << std::put_time(std::localtime(&TimeT), "%Y-%m-%d %X");
     return TimeString;
@@ -91,7 +95,8 @@ auto Log::LogOut(const LogChannel channel, const LogLevel level, const std::stri
 
     std::lock_guard<std::mutex> lock(instance.log_mutex_);
 
-	const std::string FullLogMessage = "[" + GetCurrentTime().str() + "] [" + GetLogLevel(level) + "] " + GetLogChannel(channel) + logMessage;
+    const std::string FullLogMessage =
+        "[" + GetCurrentTime().str() + "] [" + GetLogLevel(level) + "] " + GetLogChannel(channel) + logMessage;
     std::cout << FullLogMessage << std::endl;
 }
 

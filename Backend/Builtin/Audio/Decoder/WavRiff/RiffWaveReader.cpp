@@ -19,9 +19,11 @@
 // std::fopen uses the ANSI code page, which corrupts UTF-8 paths
 // with non-ASCII characters (e.g. Chinese).
 static auto Utf8ToWide(const std::string& str) -> std::wstring {
-    if (str.empty()) return {};
+    if (str.empty())
+        return {};
     const int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
-    if (len <= 0) return {};
+    if (len <= 0)
+        return {};
     std::wstring wstr(static_cast<std::size_t>(len) - 1, L'\0');
     MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wstr[0], len);
     return wstr;
@@ -35,7 +37,8 @@ RiffWaveReader::~RiffWaveReader() {
 }
 
 auto RiffWaveReader::Open(const std::string& path) -> bool {
-    if (fp_) Close();
+    if (fp_)
+        Close();
 
 #ifdef _WIN32
     // Use _wfopen to support UTF-8 paths with non-ASCII characters
@@ -44,7 +47,8 @@ auto RiffWaveReader::Open(const std::string& path) -> bool {
 #else
     fp_ = std::fopen(path.c_str(), "rb");
 #endif
-    if (!fp_) return false;
+    if (!fp_)
+        return false;
 
     WavHeader header;
     if (std::fread(&header, 1, sizeof(WavHeader), fp_) != sizeof(WavHeader)) {
@@ -54,10 +58,8 @@ auto RiffWaveReader::Open(const std::string& path) -> bool {
     }
 
     // Validate RIFF/WAVE/fmt signatures
-    if (std::memcmp(header.chunk_id, "RIFF", 4) != 0 ||
-        std::memcmp(header.format, "WAVE", 4) != 0 ||
-        std::memcmp(header.subchunk_id, "fmt ", 4) != 0)
-    {
+    if (std::memcmp(header.chunk_id, "RIFF", 4) != 0 || std::memcmp(header.format, "WAVE", 4) != 0 ||
+        std::memcmp(header.subchunk_id, "fmt ", 4) != 0) {
         std::fclose(fp_);
         fp_ = nullptr;
         return false;
@@ -97,7 +99,8 @@ auto RiffWaveReader::Open(const std::string& path) -> bool {
         }
         offset += 8;
 
-        if (std::memcmp(chunk_id, "data", 4) == 0) break;
+        if (std::memcmp(chunk_id, "data", 4) == 0)
+            break;
 
         // Skip other chunks (e.g., "LIST", "fact")
         std::fseek(fp_, static_cast<long>(chunk_size), SEEK_CUR);
@@ -120,20 +123,23 @@ auto RiffWaveReader::Close() -> void {
 }
 
 auto RiffWaveReader::ReadChunk(uint8_t* buffer, size_t max_bytes) -> size_t {
-    if (!fp_) return 0;
+    if (!fp_)
+        return 0;
 
     const long current_pos = std::ftell(fp_);
     const size_t bytes_read_so_far = static_cast<size_t>(current_pos) - data_start_;
     const size_t remaining = data_bytes_ - bytes_read_so_far;
 
-    if (remaining == 0) return 0;
+    if (remaining == 0)
+        return 0;
 
     const size_t to_read = (max_bytes < remaining) ? max_bytes : remaining;
     return std::fread(buffer, 1, to_read, fp_);
 }
 
 auto RiffWaveReader::Rewind() -> bool {
-    if (!fp_) return false;
+    if (!fp_)
+        return false;
     std::fseek(fp_, static_cast<long>(data_start_), SEEK_SET);
     return true;
 }

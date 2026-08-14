@@ -11,20 +11,20 @@
 #include "Vec2.hpp"
 
 namespace atom {
-    auto Vec2::GetX() const -> float {
-        return x_;
-    }
+auto Vec2::GetX() const -> float {
+    return x_;
+}
 
-    auto Vec2::GetY() const -> float {
-        return y_;
-    }
+auto Vec2::GetY() const -> float {
+    return y_;
+}
 
-    auto Vec2::SetX(const float x) -> void {
-        x_ = x;
-    }
+auto Vec2::SetX(const float x) -> void {
+    x_ = x;
+}
 
-    auto Vec2::SetY(const float y) -> void {
-        y_ = y;
-    }
+auto Vec2::SetY(const float y) -> void {
+    y_ = y;
+}
 
 } // namespace atom

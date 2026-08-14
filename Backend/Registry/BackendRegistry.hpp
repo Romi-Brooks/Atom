@@ -22,10 +22,8 @@ public:
     auto RegisterAudioBackend(std::string id, AudioBackendFactory factory) -> bool;
     auto RegisterAudioDecoderBackend(std::string id, AudioDecoderInstaller installer) -> bool;
 
-    [[nodiscard]] auto CreateAudioBackend(std::string_view id) const
-        -> std::unique_ptr<IAudioBackend>;
-    [[nodiscard]] auto InstallAudioDecoderBackend(
-        std::string_view id, AudioDecoderRegistry& registry) const -> bool;
+    [[nodiscard]] auto CreateAudioBackend(std::string_view id) const -> std::unique_ptr<IAudioBackend>;
+    [[nodiscard]] auto InstallAudioDecoderBackend(std::string_view id, AudioDecoderRegistry& registry) const -> bool;
     [[nodiscard]] auto ContainsAudioBackend(std::string_view id) const -> bool;
     [[nodiscard]] auto ContainsAudioDecoderBackend(std::string_view id) const -> bool;
 

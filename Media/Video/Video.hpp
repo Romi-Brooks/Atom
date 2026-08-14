@@ -11,12 +11,9 @@
 #define ATOM_VIDEO_HPP
 
 namespace engine::video {
-	class Video {
-		private:
-
-	};
-}
-
-
+class Video {
+private:
+};
+} // namespace engine::video
 
 #endif // ATOM_VIDEO_HPP

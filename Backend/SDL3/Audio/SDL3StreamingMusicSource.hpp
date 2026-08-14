@@ -26,8 +26,7 @@ class IAudioDecoder;
 /// path drains it into the SDL audio stream.
 class SDL3StreamingMusicSource final : public IAudioSource {
 public:
-    SDL3StreamingMusicSource(std::unique_ptr<IAudioDecoder> decoder,
-                             const SDL_AudioSpec& spec);
+    SDL3StreamingMusicSource(std::unique_ptr<IAudioDecoder> decoder, const SDL_AudioSpec& spec);
     ~SDL3StreamingMusicSource() override;
 
     SDL3StreamingMusicSource(const SDL3StreamingMusicSource&) = delete;

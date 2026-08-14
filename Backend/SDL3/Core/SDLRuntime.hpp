@@ -17,6 +17,7 @@ public:
     auto Acquire(SDLSubsystem subsystem) -> bool;
     auto Reset() -> void;
     [[nodiscard]] auto IsValid() const -> bool;
+
 private:
     SDLSubsystem subsystem_ = SDLSubsystem::Events;
     bool valid_ = false;

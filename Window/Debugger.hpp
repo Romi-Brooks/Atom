@@ -20,42 +20,42 @@ class RenderWindow;
 // Abstract base class for debug overlays.
 // Manages the ImGui SDL3 lifecycle; override OnDrawOverlay() to supply content.
 class Debugger {
-    private:
-        bool attached_ = false;
-        RenderWindow* target_window_ = nullptr;
-        bool imgui_shutdown_ = false;
+private:
+    bool attached_ = false;
+    RenderWindow* target_window_ = nullptr;
+    bool imgui_shutdown_ = false;
 
-        // FPS tracking
-        std::size_t frame_count_ = 0;
-        float fps_accumulator_ = 0.0f;
-        float fps_display_ = 0.0f;
+    // FPS tracking
+    std::size_t frame_count_ = 0;
+    float fps_accumulator_ = 0.0f;
+    float fps_display_ = 0.0f;
 
-    public:
-        Debugger() = default;
-        virtual ~Debugger();
+public:
+    Debugger() = default;
+    virtual ~Debugger();
 
-        Debugger(const Debugger&) = delete;
-        auto operator=(const Debugger&) -> Debugger& = delete;
+    Debugger(const Debugger&) = delete;
+    auto operator=(const Debugger&) -> Debugger& = delete;
 
-        // Attach to a RenderWindow (initializes backend, hooks callbacks)
-        auto Attach(RenderWindow& window) -> void;
+    // Attach to a RenderWindow (initializes backend, hooks callbacks)
+    auto Attach(RenderWindow& window) -> void;
 
-        // Detach from its RenderWindow (clears callbacks, shuts down backend)
-        auto Detach() -> void;
+    // Detach from its RenderWindow (clears callbacks, shuts down backend)
+    auto Detach() -> void;
 
-        [[nodiscard]] auto IsAttached() const -> bool {
-            return attached_;
-        }
+    [[nodiscard]] auto IsAttached() const -> bool {
+        return attached_;
+    }
 
-        [[nodiscard]] auto GetFPS() const -> float {
-            return fps_display_;
-        }
+    [[nodiscard]] auto GetFPS() const -> float {
+        return fps_display_;
+    }
 
-    protected:
-        // Override this to draw your debug overlay content.
-        // Called every frame inside the overlay. Use ImGui::Begin/End here.
-        // 重写此方法以绘制调试叠加层内容。每帧调用。
-        virtual auto OnDrawOverlay() -> void {}
+protected:
+    // Override this to draw your debug overlay content.
+    // Called every frame inside the overlay. Use ImGui::Begin/End here.
+    // 重写此方法以绘制调试叠加层内容。每帧调用。
+    virtual auto OnDrawOverlay() -> void {}
 };
 
 } // namespace atom

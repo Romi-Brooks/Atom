@@ -4,17 +4,15 @@ namespace atom {
 
 auto BuiltinWavDecoder::Open(const std::string& path) -> bool {
     Close();
-    if (!reader_.Open(path)) return false;
+    if (!reader_.Open(path))
+        return false;
 
     info_.sample_rate = reader_.GetSampleRate();
     info_.channels = reader_.GetChannels();
     info_.bits_per_sample = reader_.GetBitsPerSample();
     info_.is_float = false;
-    const auto bytes_per_frame = static_cast<uint64_t>(info_.channels) *
-                                 (info_.bits_per_sample / 8u);
-    info_.total_pcm_frames = bytes_per_frame == 0
-        ? 0
-        : reader_.GetTotalPCMBytes() / bytes_per_frame;
+    const auto bytes_per_frame = static_cast<uint64_t>(info_.channels) * (info_.bits_per_sample / 8u);
+    info_.total_pcm_frames = bytes_per_frame == 0 ? 0 : reader_.GetTotalPCMBytes() / bytes_per_frame;
     return info_.total_pcm_frames > 0;
 }
 
