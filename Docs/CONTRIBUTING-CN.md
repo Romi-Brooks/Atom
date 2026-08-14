@@ -11,12 +11,11 @@
 
 - [行为准则](#行为准则)
 - [如何贡献](#如何贡献)
-- [开发环境配置](#开发环境配置)
 - [编码规范](#编码规范)
+- [分支策略](#分支策略)
 - [Pull Request 流程](#pull-request-流程)
 - [提交信息规范](#提交信息规范)
 - [报告问题](#报告问题)
-- [许可证选择说明](#许可证选择说明)
 
 ---
 
@@ -35,7 +34,7 @@
 
 ### 报告 Bug
 
-1. 先检查 [issue 追踪器](https://github.com/RomiBrooks/Atom/issues) 避免重复
+1. 先检查 [issue 追踪器](https://github.com/Romi-Brooks/Atom/issues) 避免重复
 2. 提供清晰、描述性的标题
 3. 包含以下详细信息：
    - 操作系统和编译器版本
@@ -61,11 +60,11 @@
 所有代码**必须**符合项目的编码规范。要点如下：
 
 - **后置返回类型**：`auto Func() -> ReturnType`（强制）
-- **命名**：类/函数使用 PascalCase，成员变量使用 `snake_case_`，局部变量/参数使用 `camelCase`
-- **缩进**：Tab，Allman 花括号风格
+- **命名**：类/函数使用 PascalCase，成员变量使用 `snake_case_`，局部变量/参数使用 `snake_case`
+- **缩进**：4 个空格，K&R 花括号风格
 - **命名空间**：`snake_case`，顶层为 `atom`
 - **Include Guard**：`#ifndef ATOM_<NAME>_HPP`
-- **Include 顺序**：标准库 → 第三方 → 项目头文件（`<>`） → 自身头文件（`""`）
+- **Include 顺序**：自身头文件（`""`）→ 标准库 → 第三方 → 项目头文件（`<>`）
 
 参见完整规范：
 - [English](../CODING_STANDARD.md)
@@ -74,12 +73,13 @@
 ### 提交前自查清单
 
 - [ ] 代码编译无警告
-- [ ] 使用后置返回类型
+- [ ] 使用后置返回类型（构造、析构、`main` 和必须匹配的 C 回调除外）
 - [ ] 成员变量使用 `snake_case_` 尾下划线
 - [ ] 没有 `m_` 前缀或首下划线
+- [ ] 局部变量和参数使用 `snake_case`
 - [ ] Include Guard 使用 `ATOM_<NAME>_HPP` 格式
 - [ ] Include 顺序正确
-- [ ] 使用 Allman 花括号风格 + Tab 缩进
+- [ ] 使用 K&R 花括号风格 + 4 空格缩进
 - [ ] `[[nodiscard]]` 用于适当的函数
 - [ ] `#include` 中没有绝对路径
 
@@ -98,9 +98,10 @@
 ```bash
 # 1. 在 GitHub 上 Fork 本仓库
 
-# 2. 克隆你的 fork 并切换到 dev 分支
-git clone https://github.com/<你的用户名>/Atom.git
+# 2. 连同依赖一起克隆 fork，并配置上游仓库
+git clone --recurse-submodules https://github.com/<你的用户名>/Atom.git
 cd Atom
+git remote add upstream https://github.com/Romi-Brooks/Atom.git
 git checkout dev
 
 # 3. 从 dev 创建功能分支
@@ -122,15 +123,15 @@ git push origin feature/<功能名称>
 - 保持提交聚焦，每个提交代表一个单一逻辑变更
 - 推 PR 前 rebase 到最新 dev：
   ```bash
-  git fetch origin
-  git rebase origin/dev
+  git fetch upstream
+  git rebase upstream/dev
   ```
-- PR 需包含：清晰标题、修改说明、关联 issue（如 `Closes #123`）
-   - 清晰的变更标题
-   - 解释变更内容和原因
-   - 关联相关 issue（如 `Closes #123`）
-
-7. **处理审查反馈**。维护者可能要求修改。
+- 切换分支后执行
+  `git submodule sync --recursive && git submodule update --init`，更新到仓库锁定的依赖版本。
+- 推送前在本地构建受影响的目标。当前仓库 CI 只在目标为 `master` 的 PR 上运行；
+  目标为 `dev` 的功能 PR 暂时不会自动构建。
+- PR 应包含清晰标题、变更内容与原因，以及 `Closes #123` 之类的关联 issue。
+- 合并前处理维护者提出的审查意见。
 
 ---
 

@@ -5,11 +5,14 @@
 ## Layout
 
 - `Contracts/` contains backend-independent contracts and shared data types required by Atom.
-- `SDL3/` contains the SDL3 implementation, separated into runtime, window, render, and audio responsibilities.
-- Future implementations should use sibling directories such as `SFML/`, `FFmpeg/`, or `Null/`.
+- `Registry/` stores backend and audio decoder factories.
+- `Runtime/` owns global backend selection, default registration, and audio backend switching.
+- `Builtin/` contains Atom-owned implementations such as the experimental WAV RIFF decoder.
+- `SDL3/` contains SDL lifecycle, window, render, audio playback, and SDL decoder implementations.
+- Future platform backends should use sibling directories such as `Null/` or `OpenAL/`. Codec integrations belong under an appropriate decoder implementation rather than being treated as a complete platform backend.
 
 ## Dependency rule
 
-Atom domain modules may depend on `Backend/Contracts`, but they should not depend directly on a concrete backend. Concrete backends implement the contracts and are selected by the application composition layer.
+Atom domain modules may depend on `Backend/Contracts`, `Backend/Registry`, and the composition API in `Backend/Runtime`, but they should not depend directly on a concrete backend. Concrete backends implement the contracts and are selected by the runtime composition layer.
 
-The current codebase still has several direct SDL3 constructions in domain modules. These are tracked by `ARCH-003` and will be removed through backend factories and dependency injection.
+Audio players and decoders already use registry/runtime composition. The window facade still owns an `SDL3RenderWindow` directly; further separation of window management and rendering is tracked by `RENDER-001` in [`Docs/Remaining-Issues.md`](../Docs/Remaining-Issues.md).

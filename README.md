@@ -23,19 +23,42 @@ Designed to provide a modern, clean, and lightweight development experience.
 ### Building
 
 ```bash
-git clone https://github.com/Romi-Brooks/Atom.git
+git clone --recurse-submodules https://github.com/Romi-Brooks/Atom.git
 cd Atom
-git submodule update --init
 cmake -B build -G "MinGW Makefiles"
 cmake --build build --parallel
 ```
 
-On Linux/macOS (Ninja):
+The project uses standard CMake workflows on every platform. Choose a generator
+and compiler that belong to the same toolchain as all dependency builds.
 
-```bash
+Windows with Ninja and MSVC (from a Visual Studio developer shell):
+
+```powershell
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
+
+Windows with MinGW:
+
+```powershell
+cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+Linux with GCC and Ninja:
+
+```bash
+cmake -S . -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=gcc \
+  -DCMAKE_CXX_COMPILER=g++
+cmake --build build --parallel
+```
+
+macOS with Apple Clang and Ninja uses the same commands without the explicit
+GCC compiler options. IDEs with CMake integration can configure the repository
+directly; no IDE-specific project files are required.
 
 SDL3, TagLib, Dear ImGui, Lua and utfcpp are pinned Git submodules. CMake builds
 them from source with the same compiler and ABI as Atom. If the repository was
@@ -70,7 +93,7 @@ See the full coding standard:
 
 ## Packager Tool
 
-Atom provides a resource packaging tool for packing/unpacking game assets into the HPKG archive format.
+Atom provides a resource packaging tool for packing/unpacking game assets into the APKG archive format.
 
 - [Packager Documentation](Utilities/Packager/Doc/Packager.md) — CLI usage, API reference, and examples
 
@@ -81,6 +104,8 @@ Atom provides a resource packaging tool for packing/unpacking game assets into t
 Atom uses **SDL3** as its multimedia abstraction layer. All third-party
 dependencies are pinned source submodules and are built by
 `ThirdParty/CMakeLists.txt` before the engine targets that use them.
+The exact upstream URLs and locked commits are recorded in
+[`ThirdParty/README.md`](ThirdParty/README.md).
 
 ### Source Dependencies
 

@@ -11,7 +11,7 @@ This document lists the algorithms, theorems, and data structures that the Atom 
 | # | Name | Description | Status |
 |---|------|-------------|--------|
 | 1.1.1 | **Vec2** | 2D vector (x, y). Addition, subtraction, dot product, cross product (scalar), normalization, length, length squared, lerp, reflection, rotation by angle. | ✅ Done |
-| 1.1.2 | **Vec3** | 3D vector (x, y, z) — needed for 3D math used in 2D (e.g., transformation matrices, shader uniforms). | ❌ TODO |
+| 1.1.2 | **Vec3** | Basic 3D vector storage with construction and component getters/setters. Arithmetic, normalization and other vector operations are still pending. | 🟡 Basic type done |
 | 1.1.3 | **Vec4** | 4D vector (x, y, z, w) — for homogeneous coordinates and color (RGBA) operations. | ❌ TODO |
 
 ### 1.2 Matrices
