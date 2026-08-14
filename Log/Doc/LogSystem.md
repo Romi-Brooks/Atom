@@ -1,6 +1,6 @@
 # LogSystem - Logging System Usage Guide
 
-[English](Log/Doc/LogSystem.md) | [中文](Log/Doc/LogSystem-CN.md)
+[English](LogSystem.md) | [中文](LogSystem-CN.md)
 
 ***
 
@@ -40,7 +40,12 @@ Complete list of built-in channels:
 | `ATOM_AUDIO_MUSIC` | Atom.Audio.Music |
 | `ATOM_AUDIO_SFX` | Atom.Audio.SFX |
 | `ATOM_AUDIO_PLUG_MUSICFADE` | Atom.Audio.Plug.MusicFade |
+| `ATOM_BACKEND_RUNTIME` | Atom.Backend.Runtime |
 | `ATOM_VIDEO` | Atom.Video |
+| `SDL_BACKEND_AUDIO` | SDL.Backend.Audio |
+| `SDL_BACKEND_VIDEO` | SDL.Backend.Video |
+| `SDL_BACKEND_RENDER` | SDL.Backend.Render |
+| `SDL_BACKEND_WINDOW` | SDL.Backend.Window |
 | `ATOM_WINDOW` | Atom.Window |
 | `ATOM_SCREEN` | Atom.Screen |
 | `ATOM_SCREEN_MANAGER` | Atom.Screen.Manager |
@@ -132,6 +137,6 @@ Priority order: `DEBUG < INFO < WARNING < ERROR`
 ## Notes
 
 1. `LogChannel` constructor takes a `std::string`. Use short, meaningful names.
-2. Channel names are for display purposes only. Case-insensitive, but a consistent style is recommended.
+2. Channel names are display strings. Atom does not normalize their case, so use a consistent style.
 3. Custom channels do not require registration or prior declaration — create and use them on the fly.
-4. `LogOut` and the macros are thread-safe (protected by an internal mutex).
+4. Log output is serialized by an internal mutex. Changing the view level concurrently with logging is not yet guaranteed to be thread-safe.

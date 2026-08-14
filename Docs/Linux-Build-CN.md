@@ -24,7 +24,7 @@ sudo apt update
 sudo apt install \
   build-essential git cmake ninja-build pkg-config \
   libasound2-dev libpulse-dev libx11-dev libxext-dev \
-  libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
+  libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxtst-dev \
   libxss-dev libxkbcommon-dev libdrm-dev libgbm-dev \
   libgl1-mesa-dev libegl1-mesa-dev libdbus-1-dev \
   libudev-dev libusb-1.0-0-dev libwayland-dev \

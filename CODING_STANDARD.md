@@ -4,6 +4,9 @@
 ---
 > This is a quick-reference guide to the project architecture and code style followed during Atom Engine development. Please adhere to this guide when contributing code to Atom Engine.
 
+The repository `.clang-format` file is the formatting source of truth. Run
+`clang-format -i <files>` on modified C/C++ files before submitting changes.
+
 ---
 
 ## 1. Directory and File Naming
@@ -57,9 +60,14 @@ ModuleName/            # PascalCase, singular
 
 ### 2.2 Include Order
 
-Group headers in the following order, separated by blank lines:
+In an implementation file, include its corresponding header first so that
+missing self-contained dependencies are detected immediately. Group all other
+headers in the following order, separated by blank lines:
 
 ```cpp
+// Self Dependency
+#include "VolumeManager.hpp"
+
 // Standard Library
 #include <memory>
 #include <string>
@@ -71,16 +79,14 @@ Group headers in the following order, separated by blank lines:
 // Engine Headers
 #include <Media/Audio/Music.hpp>
 #include <Log/LogSystem.hpp>
-
-// Self Dependency
-#include "VolumeManager.hpp"
 ```
 
 **Rules:**
 
-- **Standard Library** → **Third Party** → **Project Headers (`<>`)** → **Self Dependency (`""`)**
+- In `.cpp` files: **Self Dependency (`""`)** → **Standard Library** → **Third Party** → **Project Headers (`<>`)**
+- Header files omit the self dependency and start with standard-library includes
 - Project headers use `#include <ModuleName/FileName.hpp>` syntax (relative to the project root)
-- Self (corresponding `.hpp`) uses `#include "FileName.hpp"`, placed at the very end
+- Self (corresponding `.hpp`) uses `#include "FileName.hpp"`, placed first
 - Relative paths like `../../` are prohibited
 
 ---
@@ -99,9 +105,25 @@ Group headers in the following order, separated by blank lines:
 | **Static member functions** | `PascalCase` | `GetInstance()`, `SetSfxVolume()` |
 | **Member variables** | `snake_case_` + trailing underscore | `music_volume_`, `current_playing_id_` |
 | **Static member variables** | `snake_case_` + trailing underscore | `static float music_volume_` |
-| **Function parameters** | `camelCase` | `id`, `filePath`, `target` |
-| **Local variables** | `camelCase` | `it`, `result`, `music` |
+| **Public aggregate/config fields** | `snake_case` | `sample_rate`, `output_dir` |
+| **Function parameters** | `snake_case` | `id`, `file_path`, `target` |
+| **Local variables** | `snake_case` | `it`, `load_result`, `music` |
 | **Macros** | `UPPER_SNAKE_CASE` | `LOG_INFO`, `LOG_ERROR` |
+
+### 3.1.1 Log Channel Naming
+
+Log channel constants use `CATEGORY_SUBCATEGORY`; display names use dotted
+PascalCase components:
+
+| Constant | Display string | Purpose |
+|---|---|---|
+| `ATOM_AUDIO_MUSIC` | `Atom.Audio.Music ->` | Engine music domain |
+| `SDL_BACKEND_AUDIO` | `SDL.Backend.Audio ->` | SDL audio backend |
+| `ATOM_AUDIO_PLUG_MUSICFADE` | `Atom.Audio.Plug.MusicFade ->` | Extension module |
+
+- Engine channel constants begin with `ATOM_` or a backend prefix such as `SDL_`.
+- Constant components are uppercase and separated by `_`.
+- Display components are PascalCase and separated by `.`.
 
 ### 3.2 Detailed Rules
 
@@ -119,7 +141,8 @@ Group headers in the following order, separated by blank lines:
 
 #### Functions
 
-- **All non-trivial functions** use **trailing return type**: `auto FuncName() -> ReturnType`
+- Engine C++ functions use **trailing return types**: `auto FuncName() -> ReturnType`
+- Constructors, destructors, `main`, and callbacks whose signatures must match a C API are exempt
 - PascalCase, starting with a verb: `GetInstance()`, `Load()`, `SetVolume()`
 - Getters start with `Get`, setters start with `Set`
 - Boolean queries start with `Is` / `Has`: `IsLoaded()`, `HasSFX()`
@@ -139,11 +162,12 @@ void Play(const std::string& id);
 
 - `snake_case_` — **trailing underscore is required**
 - Do not use `m_` prefix or leading underscore
+- Public fields in simple aggregate/configuration structs use `snake_case`
 
 ```cpp
 class Music {
     private:
-        std::unordered_map<std::string, std::unique_ptr<sf::Music>> musics_;
+        std::unordered_map<std::string, std::unique_ptr<IAudioSource>> tracks_;
         std::string current_playing_id_;
         static float music_volume_;
 };
@@ -151,9 +175,9 @@ class Music {
 
 #### Parameters and Local Variables
 
-- `camelCase`, starting with a lowercase letter
+- `snake_case`, starting with a lowercase letter
 - Single-letter variables are limited to loop counters (`i`) or iterators (`it`)
-- Boolean parameters use verbs or adjectives: `isEnabled`, `shouldLoop`
+- Boolean parameters use verbs or adjectives: `is_enabled`, `should_loop`
 
 #### Private Types Inside Classes
 
@@ -172,8 +196,8 @@ class MusicFade {
         };
 
         struct FadeContext {
-            std::string fromId;
-            std::string toId;
+            std::string from_id;
+            std::string to_id;
             float duration{0.0f};
             FadeState state{FadeState::Idle};
         } context_;
@@ -190,21 +214,20 @@ class MusicFade {
 
 ### 4.1 Indentation and Braces
 
-- **Indentation:** Tab (1 Tab = 4 character width)
-- **Brace style:** Allman (braces on their own line)
+- **Indentation:** 4 spaces; tabs are not used for indentation
+- **Brace style:** K&R (opening brace on the declaration or control-statement line)
 
 ```cpp
 namespace atom {
-    class Entity {
-        private:
-            float hp_;
+class Entity {
+public:
+    auto GetHP() const -> float {
+        return hp_;
+    }
 
-        public:
-            auto GetHP() const -> float
-            {
-                return hp_;
-            }
-    };
+private:
+    float hp_;
+};
 }
 ```
 
@@ -212,35 +235,28 @@ namespace atom {
 
 ```cpp
 class ClassName {
-    private:
-        // Member variables first
-        int member_;
+public:
+    ClassName() = default;
+    ~ClassName() = default;
 
-    public:
-        // Constructor / Destructor
-        ClassName() = default;
-        ~ClassName() = default;
+    ClassName(const ClassName&) = delete;
+    auto operator=(const ClassName&) -> ClassName& = delete;
 
-        // Delete copy
-        ClassName(const ClassName&) = delete;
-        auto operator=(const ClassName&) -> ClassName& = delete;
+    static auto GetInstance() -> ClassName&;
+    auto DoSomething() -> void;
 
-        // Static methods
-        static ClassName& GetInstance();
+private:
+    auto Helper() -> void;
 
-        // Public methods
-        auto DoSomething() -> void;
-
-    private:
-        // Private methods
-        auto Helper() -> void;
+    int member_;
 };
 ```
 
 **Rules:**
 
-- `private:` → `public:` order (member variables first, then functions)
-- Each access specifier is indented one level; its contents are indented one more level
+- Prefer `public:` → `protected:` → `private:` so the public API is visible first
+- Access specifiers align with the class body; declarations are indented one level
+- Keep member initialization order in mind when moving declarations; style-only changes must not alter behavior
 
 ### 4.3 Member Initialization
 
@@ -279,7 +295,7 @@ auto GetValue()const -> float;        // missing space
 
 | Feature | Usage |
 |---|---|
-| **Trailing return types** | `auto Func() -> Type` (required for all non-constructor/destructor functions) |
+| **Trailing return types** | `auto Func() -> Type` for engine C++ functions; C callbacks and `main` are exempt |
 | **`auto` placeholder** | `auto it = map.find(id);` |
 | **`[[nodiscard]]`** | All getters, query functions, and functions whose return value should not be ignored |
 | **`enum class`** | All enums must use `enum class`; bare `enum` is forbidden |
@@ -303,15 +319,21 @@ auto GetValue()const -> float;        // missing space
 ### 6.1 Doxygen File Header
 
 ```cpp
+// Copyright (c) YYYY Author
+// SPDX-License-Identifier: MIT
+
 /**
-  * @file           : FileName.hpp
-  * @author         : Author
-  * @brief          : One-line description
-  * @attention      : Any caveats or notes
-  * @date           : YYYY/MM/DD
-  Copyright (c) 2025 Author,  All rights reserved.
-**/
+ * @file FileName.hpp
+ * @brief One-line description.
+ * @author Author
+ * @date YYYY/MM/DD
+ * @attention Optional caveats or notes.
+ */
 ```
+
+Do not add `All rights reserved` to the template. The copyright notice records
+authorship, while the SPDX identifier points to the repository's MIT license and
+makes the granted permissions explicit.
 
 ### 6.2 Inline Comments
 

@@ -24,12 +24,39 @@
 ### 构建
 
 ```bash
-git clone https://github.com/Romi-Brooks/Atom.git
+git clone --recurse-submodules https://github.com/Romi-Brooks/Atom.git
 cd Atom
-git submodule update --init
 cmake -B build -G "MinGW Makefiles"
 cmake --build build --parallel
 ```
+
+项目在各平台统一使用标准 CMake 工作流。Windows 使用 MSVC + Ninja 时，请在
+Visual Studio Developer Shell 中执行：
+
+```powershell
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+Windows 使用 MinGW：
+
+```powershell
+cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+Linux 使用 GCC + Ninja：
+
+```bash
+cmake -S . -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=gcc \
+  -DCMAKE_CXX_COMPILER=g++
+cmake --build build --parallel
+```
+
+macOS 使用 Apple Clang 时可使用同样的 Ninja 命令，但无需指定 GCC。支持 CMake
+的 IDE 可以直接配置仓库，无需维护 IDE 专用工程文件。
 
 SDL3、TagLib、Dear ImGui、Lua 和 utfcpp 都是固定 commit 的 Git
 submodule。如果 clone 时没有取得依赖，请在配置 CMake 前执行
@@ -62,9 +89,9 @@ submodule。如果 clone 时没有取得依赖，请在配置 CMake 前执行
 
 ## 资源打包工具
 
-Atom 提供了资源打包工具，用于将游戏资源打包/解包为 HPKG 存档格式。
+Atom 提供了资源打包工具，用于将游戏资源打包/解包为 APKG 存档格式。
 
-- [打包工具文档](../Utilities/Packager/Doc/README-CN.md) — CLI 使用、API 参考和代码示例
+- [打包工具文档](../Utilities/Packager/Doc/Packager-CN.md) — CLI 使用、API 参考和代码示例
 
 ***
 
@@ -72,6 +99,8 @@ Atom 提供了资源打包工具，用于将游戏资源打包/解包为 HPKG �
 
 Atom 使用 **SDL3** 作为其多媒体抽象层。所有第三方依赖都以源码
 submodule 的形式锁定，并由 `ThirdParty/CMakeLists.txt` 在 Atom 相关目标之前编译。
+各依赖的用途、上游 Git URL 和锁定 commit 记录在
+[`ThirdParty/README.md`](../ThirdParty/README.md)。
 
 ### 源码依赖
 

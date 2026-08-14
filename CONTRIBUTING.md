@@ -12,6 +12,7 @@ First off, thank you for considering contributing to Atom Engine! We welcome con
 - [Code of Conduct](#code-of-conduct)
 - [How to Contribute](#how-to-contribute)
 - [Coding Standards](#coding-standards)
+- [Branch Strategy](#branch-strategy)
 - [Pull Request Process](#pull-request-process)
 - [Commit Messages](#commit-messages)
 - [Reporting Issues](#reporting-issues)
@@ -33,7 +34,7 @@ This project is committed to providing a welcoming and inclusive environment for
 
 ### Reporting Bugs
 
-1. Check the [issue tracker](https://github.com/RomiBrooks/Atom/issues) to avoid duplicates
+1. Check the [issue tracker](https://github.com/Romi-Brooks/Atom/issues) to avoid duplicates
 2. Provide a clear, descriptive title
 3. Include the following details:
    - OS and compiler version
@@ -59,11 +60,11 @@ Documentation improvements are always welcome — typos, unclear sections, missi
 All code **must** conform to the project's coding standard. Key points:
 
 - **Trailing return types**: `auto Func() -> ReturnType` (mandatory)
-- **Naming**: PascalCase for classes/functions, `snake_case_` for members, `camelCase` for locals/params
-- **Indentation**: Tabs, Allman brace style
+- **Naming**: PascalCase for classes/functions, `snake_case_` for members, `snake_case` for locals/parameters
+- **Indentation**: 4 spaces, K&R brace style
 - **Namespaces**: `snake_case`, top-level `atom`
 - **Include guard**: `#ifndef ATOM_<NAME>_HPP`
-- **Include order**: Standard → Third Party → Project (`<>`) → Self (`""`)
+- **Include order**: Self (`""`) → Standard → Third Party → Project (`<>`)
 
 See the full standards:
 - [English](CODING_STANDARD.md)
@@ -72,12 +73,13 @@ See the full standards:
 ### Pre-commit Checklist
 
 - [ ] Code compiles with no warnings
-- [ ] Follows trailing return type convention
+- [ ] Follows the trailing return type convention (except constructors, destructors, `main`, and required C callbacks)
 - [ ] Member variables use `snake_case_` trailing underscore
 - [ ] No `m_` prefix or leading underscore
+- [ ] Local variables and parameters use `snake_case`
 - [ ] Include guards use `ATOM_<NAME>_HPP` format
 - [ ] Includes are in the correct order
-- [ ] Uses Allman brace style with tab indentation
+- [ ] Uses K&R brace style with 4-space indentation
 - [ ] No absolute paths in `#include` directives
 
 ---
@@ -95,9 +97,10 @@ All contributors use the fork workflow:
 ```bash
 # 1. Fork the repository on GitHub
 
-# 2. Clone your fork and switch to dev
-git clone https://github.com/<your-username>/Atom.git
+# 2. Clone your fork with dependencies and configure the upstream repository
+git clone --recurse-submodules https://github.com/<your-username>/Atom.git
 cd Atom
+git remote add upstream https://github.com/Romi-Brooks/Atom.git
 git checkout dev
 
 # 3. Create a feature branch from dev
@@ -120,15 +123,17 @@ git push origin feature/<feature-name>
 - Keep commits focused — each commit should represent a single logical change
 - Rebase onto the latest `dev` before submitting:
   ```bash
-  git fetch origin
-  git rebase origin/dev
+  git fetch upstream
+  git rebase upstream/dev
   ```
-- PR must include: clear title, description of changes, and any related issue (e.g. `Closes #123`)
-   - A clear title describing the change
-   - A description explaining what was changed and why
-   - Reference to any related issues (e.g., `Closes #123`)
-
-7. **Address review feedback**. Maintainers may request changes before merging.
+- Update pinned dependencies after switching branches with
+  `git submodule sync --recursive && git submodule update --init`.
+- Build the affected targets locally before pushing. Repository CI runs for
+  pull requests targeting `master`; feature pull requests targeting `dev` do
+  not currently receive an automatic build.
+- Include a clear title, an explanation of what changed and why, and references
+  to related issues such as `Closes #123`.
+- Address review feedback before the pull request is merged.
 
 ---
 
