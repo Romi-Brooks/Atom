@@ -96,6 +96,20 @@ Audio Playback Backend:
 Audio Decoder Backend:
 - sdl3（默认）
 - builtin（实验性 WAV RIFF Decoder）
+
+Fallback Decoder（与 Decoder 后端无关）:
+- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Builtin/Audio/Decoder/Minimp3Decoder）
 ```
 
 只有一个播放后端时，重复设置 `sdl3` 不触发清理或重建。新增第二个播放后端后，同一套全局切换协议无需修改 Player。
+
+## 回退解码器（Fallback Decoder）
+
+`AudioDecoderRegistry` 支持 `RegisterFallback(extension, factory)`：当当前
+Decoder 后端没有注册该扩展名的解码器时，`CreateForFile` 会回退到
+fallback 表（并输出 DEBUG 日志说明发生了回退）。
+
+Atom 默认将 `.mp3` 注册为 fallback，因此 **MP3 的默认解码器始终是
+Minimp3**，与当前激活的是 `sdl3` 还是 `builtin` 无关——SDL3 后端自身不
+提供 MP3 解码器，`.mp3` 查询会自动降级到 minimp3。切换 Decoder 后端时，
+fallback 会随新 Registry 一并重新注册。

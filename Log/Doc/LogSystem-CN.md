@@ -35,6 +35,7 @@ LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Pack failed");
 | `ATOM_ENTITY_PLAYER` | Atom.Entity.Player |
 | `ATOM_CONFIG_MOVEMENT` | Atom.Movement |
 | `ATOM_FILESYSTEM` | Atom.Filesystem |
+| `ATOM_LOGGER` | Atom.Logger |
 | `ATOM_MAIN` | Atom.Main |
 | `ATOM_LUA` | Atom.Lua |
 | `ATOM_AUDIO_MUSIC` | Atom.Audio.Music |
@@ -130,6 +131,9 @@ LOG_DEBUG(atom::LogChannel::ATOM_ENTITY, "Entity id: " + std::to_string(id));
 // 只显示 WARNING 及以上级别的日志
 atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING);
 ```
+
+每次调用都会通过 `ATOM_LOGGER` 通道输出一条确认日志（例如
+`Set log level to WARNING`），因此控制台中始终可以看到当前生效的日志级别。
 
 级别优先级：`DEBUG < INFO < WARNING < ERROR`
 

@@ -7,9 +7,12 @@
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Registry/AudioDecoderRegistry.hpp>
+#include <Log/LogSystem.hpp>
 
 namespace atom {
 namespace {
+
+const auto& kClipLoaderLogChannel = LogChannel::ATOM_AUDIO_MUSIC;
 
 auto ToSampleFormat(const DecoderInfo& info) -> std::optional<AudioSampleFormat> {
     if (info.is_float && info.bits_per_sample == 32)
@@ -45,14 +48,40 @@ auto Expand24To32(const std::vector<uint8_t>& packed) -> std::vector<uint8_t> {
 } // namespace
 
 auto AudioClipLoader::Load(const std::string& path) const -> std::optional<DecodedAudio> {
-    auto decoder = decoders_.CreateForFile(path);
-    if (!decoder || !decoder->Open(path))
+    const auto dot = path.find_last_of('.');
+    if (dot == std::string::npos) {
+        LOG_DEBUG(kClipLoaderLogChannel, "Load: no file extension, cannot select a decoder: " + path);
         return std::nullopt;
+    }
+    const auto extension = path.substr(dot);
+    if (!decoders_.Contains(extension)) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "Load: no decoder registered for extension '" + extension + "': " + path);
+        return std::nullopt;
+    }
+
+    auto decoder = decoders_.CreateForFile(path);
+    if (!decoder) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "Load: decoder factory returned null for extension '" + extension + "': " + path);
+        return std::nullopt;
+    }
+    if (!decoder->Open(path)) {
+        LOG_DEBUG(kClipLoaderLogChannel, "Load: decoder failed to open file: " + path);
+        return std::nullopt;
+    }
 
     const auto info = decoder->GetInfo();
     const auto format = ToSampleFormat(info);
-    if (!format || info.sample_rate == 0 || info.channels == 0)
+    if (!format || info.sample_rate == 0 || info.channels == 0) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "Load: unsupported or invalid audio format (bits_per_sample=" +
+                      std::to_string(info.bits_per_sample) + ", is_float=" + (info.is_float ? "true" : "false") +
+                      ", sample_rate=" + std::to_string(info.sample_rate) +
+                      ", channels=" + std::to_string(info.channels) + "): " + path);
+        decoder->Close();
         return std::nullopt;
+    }
 
     std::vector<uint8_t> pcm;
     std::array<uint8_t, 64 * 1024> chunk{};
@@ -60,11 +89,18 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
         pcm.insert(pcm.end(), chunk.begin(), chunk.begin() + decoded);
     }
     decoder->Close();
-    if (pcm.empty())
+    if (pcm.empty()) {
+        LOG_DEBUG(kClipLoaderLogChannel, "Load: decoder produced no PCM data: " + path);
         return std::nullopt;
+    }
 
     if (info.bits_per_sample == 24)
         pcm = Expand24To32(pcm);
+
+    LOG_INFO(kClipLoaderLogChannel,
+             "Load: decoded audio successfully: " + path + " (pcm_bytes=" + std::to_string(pcm.size()) +
+                 ", sample_rate=" + std::to_string(info.sample_rate) + ", channels=" + std::to_string(info.channels) +
+                 ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
     return DecodedAudio{
         .pcm = std::move(pcm),
         .spec = AudioSpec{*format, info.sample_rate, info.channels},
@@ -72,17 +108,45 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
 }
 
 auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optional<StreamingResult> {
-    auto decoder = decoders_.CreateForFile(path);
-    if (!decoder || !decoder->Open(path))
+    const auto dot = path.find_last_of('.');
+    if (dot == std::string::npos) {
+        LOG_DEBUG(kClipLoaderLogChannel, "OpenStreaming: no file extension, cannot select a decoder: " + path);
         return std::nullopt;
+    }
+    const auto extension = path.substr(dot);
+    if (!decoders_.Contains(extension)) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "OpenStreaming: no decoder registered for extension '" + extension + "': " + path);
+        return std::nullopt;
+    }
+
+    auto decoder = decoders_.CreateForFile(path);
+    if (!decoder) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "OpenStreaming: decoder factory returned null for extension '" + extension + "': " + path);
+        return std::nullopt;
+    }
+    if (!decoder->Open(path)) {
+        LOG_DEBUG(kClipLoaderLogChannel, "OpenStreaming: decoder failed to open file: " + path);
+        return std::nullopt;
+    }
 
     const auto& info = decoder->GetInfo();
     const auto format = ToSampleFormat(info);
     if (!format || info.sample_rate == 0 || info.channels == 0) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "OpenStreaming: unsupported or invalid audio format (bits_per_sample=" +
+                      std::to_string(info.bits_per_sample) + ", is_float=" + (info.is_float ? "true" : "false") +
+                      ", sample_rate=" + std::to_string(info.sample_rate) +
+                      ", channels=" + std::to_string(info.channels) + "): " + path);
         decoder->Close();
         return std::nullopt;
     }
 
+    LOG_INFO(kClipLoaderLogChannel,
+             "OpenStreaming: opened streaming decoder: " + path + " (sample_rate=" + std::to_string(info.sample_rate) +
+                 ", channels=" + std::to_string(info.channels) + ", bits_per_sample=" + std::to_string(info.bits_per_sample) +
+                 ")");
     return StreamingResult{
         .decoder = std::move(decoder),
         .spec = AudioSpec{*format, info.sample_rate, info.channels},

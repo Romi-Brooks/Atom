@@ -60,10 +60,10 @@ macOS with Apple Clang and Ninja uses the same commands without the explicit
 GCC compiler options. IDEs with CMake integration can configure the repository
 directly; no IDE-specific project files are required.
 
-SDL3, TagLib, Dear ImGui, Lua and utfcpp are pinned Git submodules. CMake builds
-them from source with the same compiler and ABI as Atom. If the repository was
-cloned without the dependencies, run `git submodule update --init` before
-configuring CMake.
+SDL3, TagLib, Dear ImGui, Lua, utfcpp and minimp3 are pinned Git submodules.
+CMake builds them from source with the same compiler and ABI as Atom. If the
+repository was cloned without the dependencies, run `git submodule update --init`
+before configuring CMake.
 
 For dependency setup and troubleshooting, see the
 [Chinese Linux build guide](Docs/Linux-Build-CN.md).
@@ -116,37 +116,13 @@ The exact upstream URLs and locked commits are recorded in
 | [Lua](https://www.lua.org/) | 5.4.7 | `ThirdParty/Lua/` | Scripting engine |
 | [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | Audio metadata reading |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 validation and conversion |
+| [minimp3](https://github.com/lieff/minimp3) | master `ea99364` | `ThirdParty/minimp3/` | MP3 decoding (header-only) |
 
 ### Dependency Builds
 
 Dependencies are built as static libraries by default. The first clean build is
 therefore longer, while later builds reuse CMake and compiler outputs. No
 precompiled Windows libraries are reused on Linux or with another compiler.
-
----
-
-## Architecture
-
-```
-Atom/
-├── Backend/
-│   ├── Contracts/      # Render/Audio/Video backend contracts
-│   ├── Registry/       # Backend-independent decoder registry
-│   ├── Runtime/        # Global backend selection, defaults and hot switching
-│   ├── Builtin/        # Atom-owned experimental implementations
-│   └── SDL3/           # SDL3 render, window and audio implementations
-├── Media/
-│   ├── Audio/
-│   │   ├── Mixing/     # AudioMixer and category volumes
-│   │   ├── Resources/  # AudioClipLoader and AudioClipCache
-│   │   ├── Playback/   # MusicPlayer, SFXPlayer and VoicePool
-│   │   └── Transitions/# Frame-driven music transitions
-│   └── Video/          # Video (stub)
-├── Log/                # Logging system
-├── Window/             # Screen system, Debugger
-├── Lua/                # Lua binding
-└── ThirdParty/         # Pinned source submodules and dependency CMake entry
-```
 
 ---
 
@@ -168,6 +144,7 @@ Atom Engine uses the following open-source libraries. We extend our sincere grat
 - [Lua](https://www.lua.org/) — Scripting engine
 - [TagLib](https://taglib.org/) — Audio metadata reading
 - [utfcpp](https://github.com/nemtrif/utfcpp) — UTF-8 validation and conversion
+- [minimp3](https://github.com/lieff/minimp3) — MP3 decoding
 
 ---
 

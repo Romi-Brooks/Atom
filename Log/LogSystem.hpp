@@ -46,6 +46,8 @@ public:
 
     static const LogChannel ATOM_FILESYSTEM;
 
+    static const LogChannel ATOM_LOGGER;
+
     static const LogChannel ATOM_MAIN;
 
     static const LogChannel ATOM_LUA;
@@ -89,7 +91,7 @@ private:
 public:
     [[nodiscard]] static auto GetLogInstance() -> Log&;
 
-    static auto LogOut(LogChannel channel, LogLevel level, const std::string& logMessage) -> void;
+    static auto LogOut(const LogChannel& channel, LogLevel level, const std::string& logMessage) -> void;
     static auto SetViewLogLevel(LogLevel viewLogLevel) -> void;
 
     Log(const Log&) = delete;

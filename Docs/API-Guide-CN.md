@@ -60,7 +60,7 @@ atom::MusicPlayer music{mixer};
 atom::audio::MusicCrossfade crossfade{music};
 
 music.Load("menu", "assets/menu.wav");
-music.Load("game", "assets/game.wav");
+music.Load("game", "assets/game.mp3"); // .mp3 默认由 minimp3 解码，与 Decoder 后端无关
 music.Play("menu");
 
 // 在 Screen::Update(delta_time) 中调用。

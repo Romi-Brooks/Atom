@@ -58,7 +58,7 @@ cmake --build build --parallel
 macOS 使用 Apple Clang 时可使用同样的 Ninja 命令，但无需指定 GCC。支持 CMake
 的 IDE 可以直接配置仓库，无需维护 IDE 专用工程文件。
 
-SDL3、TagLib、Dear ImGui、Lua 和 utfcpp 都是固定 commit 的 Git
+SDL3、TagLib、Dear ImGui、Lua、utfcpp 和 minimp3 都是固定 commit 的 Git
 submodule。如果 clone 时没有取得依赖，请在配置 CMake 前执行
 `git submodule update --init`。
 
@@ -111,36 +111,12 @@ submodule 的形式锁定，并由 `ThirdParty/CMakeLists.txt` 在 Atom 相关�
 | [Lua](https://www.lua.org/) | 5.4.7 | `ThirdParty/Lua/` | 脚本引擎 |
 | [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | 音频元数据读取 |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 验证和编码转换 |
+| [minimp3](https://github.com/lieff/minimp3) | master `ea99364` | `ThirdParty/minimp3/` | MP3 解码（header-only） |
 
 ### 依赖编译
 
 第三方依赖默认构建为静态库。首次干净构建耗时较长，后续构建会复用
 CMake 和编译器产物。项目不再跨平台或跨编译器复用预编译库。
-
-***
-
-## 架构
-
-```
-Atom/
-├── Backend/
-│   ├── Contracts/      # Render/Audio/Video 后端契约
-│   ├── Registry/       # 后端无关的解码器注册中心
-│   ├── Runtime/        # 全局后端选择、默认装配与热切换
-│   ├── Builtin/        # Atom 自研实验实现
-│   └── SDL3/           # SDL3 渲染、窗口与音频实现
-├── Media/
-│   ├── Audio/
-│   │   ├── Mixing/     # AudioMixer 与分类音量
-│   │   ├── Resources/  # AudioClipLoader 与 AudioClipCache
-│   │   ├── Playback/   # MusicPlayer、SFXPlayer 与 VoicePool
-│   │   └── Transitions/# 帧驱动音乐过渡
-│   └── Video/          # 视频（空壳）
-├── Log/                # 日志系统
-├── Window/             # 屏幕系统、Debugger
-├── Lua/                # Lua 绑定
-└── ThirdParty/         # 固定版本源码 submodule 与依赖 CMake 入口
-```
 
 ***
 
@@ -163,6 +139,7 @@ Atom 引擎使用了以下开源库，衷心感谢这些项目的开发者：
 - [Lua](https://www.lua.org/) — 脚本引擎
 - [TagLib](https://taglib.org/) — 音频元数据读取
 - [utfcpp](https://github.com/nemtrif/utfcpp) — UTF-8 验证和编码转换
+- [minimp3](https://github.com/lieff/minimp3) — MP3 解码
 
 ***
 

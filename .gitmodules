@@ -13,3 +13,6 @@
 [submodule "ThirdParty/utfcpp"]
 	path = ThirdParty/utfcpp
 	url = https://github.com/nemtrif/utfcpp.git
+[submodule "ThirdParty/minimp3"]
+	path = ThirdParty/minimp3
+	url = https://github.com/lieff/minimp3.git
