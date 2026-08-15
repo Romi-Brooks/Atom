@@ -69,17 +69,15 @@ add_subdirectory(ThirdParty)
         Backend/Registry/BackendRegistry.cpp
     )
     target_include_directories(atom_backend_registry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts engine_log)
+    target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts)
 
     add_library(atom_backend_builtin_audio STATIC
-        Backend/Builtin/Audio/RegisterBuiltinAudio.hpp
-        Backend/Builtin/Audio/RegisterBuiltinAudio.cpp
-        Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.hpp
-        Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.cpp
-        Backend/Builtin/Audio/Decoder/WavRiff/BuiltinWavDecoder.hpp
-        Backend/Builtin/Audio/Decoder/WavRiff/BuiltinWavDecoder.cpp
-        Backend/Builtin/Audio/Decoder/Minimp3Decoder.hpp
-        Backend/Builtin/Audio/Decoder/Minimp3Decoder.cpp
+        Backend/Builtin/Audio/Decoder/WavProf/RiffWaveReader.hpp
+        Backend/Builtin/Audio/Decoder/WavProf/RiffWaveReader.cpp
+        Backend/Builtin/Audio/Decoder/WavProf/WavProfDecoder.hpp
+        Backend/Builtin/Audio/Decoder/WavProf/WavProfDecoder.cpp
+        Backend/Builtin/Audio/Decoder/minimp3/Minimp3Decoder.hpp
+        Backend/Builtin/Audio/Decoder/minimp3/Minimp3Decoder.cpp
     )
     target_include_directories(atom_backend_builtin_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(atom_backend_builtin_audio PUBLIC atom_backend_contracts atom_backend_registry atom::minimp3 engine_utf8)
@@ -88,10 +86,6 @@ add_subdirectory(ThirdParty)
     add_library(atom_backend_sdl3_audio STATIC
         Backend/SDL3/Audio/SDL3AudioBackend.cpp
         Backend/SDL3/Audio/SDL3AudioBackend.hpp
-        Backend/SDL3/Audio/RegisterSDL3Audio.cpp
-        Backend/SDL3/Audio/RegisterSDL3Audio.hpp
-        Backend/SDL3/Audio/Decoder/SDL3WavDecoder.cpp
-        Backend/SDL3/Audio/Decoder/SDL3WavDecoder.hpp
         Backend/SDL3/Audio/SDL3SFXSource.cpp
         Backend/SDL3/Audio/SDL3SFXSource.hpp
         Backend/SDL3/Audio/SDL3MusicSource.cpp
@@ -291,7 +285,31 @@ target_link_libraries(packager_tool PRIVATE engine_packager)
 # Platforms Config
 # ============================================================================
 if(MINGW)
+    # Statically link libgcc and libstdc++ so executables do not require
+    # libgcc_s_seh-1.dll / libstdc++-6.dll at runtime. Plain "-static" is
+    # avoided: this toolchain's static winpthread archive is built for UCRT and
+    # references __intrinsic_setjmpex, which the MSVCRT runtime sequence does
+    # not provide (undefined reference at link time).
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
     target_link_options(Atom PRIVATE -lstdc++exp -lws2_32)
+
+    # The thread runtime stays dynamic; copy libwinpthread-1.dll next to every
+    # executable so they run without manual DLL setup.
+    get_filename_component(ATOM_MINGW_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    set(ATOM_MINGW_RUNTIME_DLL "${ATOM_MINGW_BIN_DIR}/libwinpthread-1.dll")
+    function(atom_copy_mingw_runtime_dll target)
+        if(EXISTS "${ATOM_MINGW_RUNTIME_DLL}")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ATOM_MINGW_RUNTIME_DLL}" "$<TARGET_FILE_DIR:${target}>"
+                COMMENT "Copying libwinpthread-1.dll next to ${target}")
+        endif()
+    endfunction()
+    foreach(atom_exe IN ITEMS Atom example_media_metadata example_audio_playback
+                           example_sfx_playback example_simple_window
+                           example_simple_window_debug packager_tool)
+        atom_copy_mingw_runtime_dll(${atom_exe})
+    endforeach()
 endif()
 if(WIN32)
     target_link_libraries(Atom PRIVATE opengl32 gdi32)

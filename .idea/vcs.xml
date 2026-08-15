@@ -5,6 +5,7 @@
     <mapping directory="$PROJECT_DIR$/ThirdParty/ImGUI" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/Lua" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/SDL3" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ThirdParty/minimp3" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/taglib" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/utfcpp" vcs="Git" />
   </component>

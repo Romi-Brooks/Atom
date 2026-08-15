@@ -39,7 +39,8 @@ public:
     RiffWaveReader(const RiffWaveReader&) = delete;
     auto operator=(const RiffWaveReader&) -> RiffWaveReader& = delete;
 
-    // Open a WAV file. Returns false if the file is invalid or not PCM WAV.
+    // Open a WAV file. Returns false if the file is invalid or not
+    // uncompressed PCM / IEEE float WAV.
     auto Open(const std::string& path) -> bool;
 
     // Close the file.
@@ -64,6 +65,10 @@ public:
     [[nodiscard]] auto GetBitsPerSample() const -> uint16_t {
         return bits_per_sample_;
     }
+    // 1 = uncompressed PCM, 3 = IEEE float (32-bit only).
+    [[nodiscard]] auto GetAudioFormat() const -> uint16_t {
+        return audio_format_;
+    }
     [[nodiscard]] auto GetTotalPCMBytes() const -> size_t {
         return data_bytes_;
     }
@@ -75,6 +80,7 @@ private:
     uint16_t channels_ = 0;
     uint32_t sample_rate_ = 0;
     uint16_t bits_per_sample_ = 0;
+    uint16_t audio_format_ = 0;
 };
 
 } // namespace atom

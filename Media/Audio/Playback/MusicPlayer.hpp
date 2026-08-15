@@ -37,7 +37,6 @@ public:
     auto ClearNowPlaying() -> void;
 
     auto OnAudioBackendChanging() -> void override;
-    auto OnAudioDecoderBackendChanging() -> void override;
 
 private:
     struct Track {

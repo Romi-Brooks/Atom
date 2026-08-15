@@ -17,14 +17,13 @@
 #include <Window/RenderWindow.hpp>
 #include <Window/Debugger.hpp>
 #include <Log/LogSystem.hpp>
-
 #ifdef _WIN32
 #include "windows.h"
 #endif // _WIN32
 
 namespace {
 constexpr auto kMusic1Path = R"(E:\Music\我的歌声里 - 曲婉婷.mp3)";
-constexpr auto kMusic2Path = R"(E:\Music\1_So Far Away (feat. Jamie Scott & Romy Dya)_(Instrumental).wav)";
+constexpr auto kMusic2Path = R"(E:\Music\滴滴 - 覆予.mp3)";
 } // namespace
 
 class MusicDebugger final : public atom::Debugger {
@@ -57,32 +56,6 @@ protected:
         ImGui::Text("If one of them is playing, switch it to the aim song");
         ImGui::Separator();
 
-        ImGui::Text("Decoder Backend: %s", atom::BackendRuntime::GetInstance().GetAudioDecoderBackendId().c_str());
-
-        // Atom 不推荐在大量 ID 已注册时（例如游戏状态进行中）切换后端；
-        // 建议只在“设置”页面等仅注册极少数 ID 的场景中执行切换。
-        ImGui::TextWrapped("Switch backends only in settings/menu pages with very few "
-                           "registered audio IDs, not during active gameplay.");
-
-        if (ImGui::Button("Use SDL3 Decoder Backend")) {
-            if (atom::BackendRuntime::GetInstance().SetAudioDecoderBackend("sdl3")) {
-                fade_.Reset();
-                music_.Load("registerId_1", kMusic1Path);
-                music_.Load("registerId_2", kMusic2Path);
-                music_.Play("registerId_1");
-                now_key_playing = "registerId_1";
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Use Builtin Decoder Backend")) {
-            if (atom::BackendRuntime::GetInstance().SetAudioDecoderBackend("builtin")) {
-                fade_.Reset();
-                music_.Load("registerId_1", kMusic1Path);
-                music_.Load("registerId_2", kMusic2Path);
-                music_.Play("registerId_1");
-                now_key_playing = "registerId_1";
-            }
-        }
         ImGui::TextDisabled("Playback Backend: SDL3 (only registered playback backend)");
         ImGui::Separator();
 

@@ -41,6 +41,8 @@ Complete list of built-in channels:
 | `ATOM_AUDIO_MUSIC` | Atom.Audio.Music |
 | `ATOM_AUDIO_SFX` | Atom.Audio.SFX |
 | `ATOM_AUDIO_PLUG_MUSICFADE` | Atom.Audio.Plug.MusicFade |
+| `ATOM_AUDIO_MINIMP3` | Atom.Audio.Minimp3 |
+| `ATOM_AUDIO_WAVPROF` | Atom.Audio.WavProf |
 | `ATOM_BACKEND_RUNTIME` | Atom.Backend.Runtime |
 | `ATOM_VIDEO` | Atom.Video |
 | `SDL_BACKEND_AUDIO` | SDL.Backend.Audio |

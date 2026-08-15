@@ -26,12 +26,16 @@ public:
     [[nodiscard]] auto AudioDecoders() -> AudioDecoderRegistry&;
     [[nodiscard]] auto Registry() -> BackendRegistry&;
 
-    // Global switch: attached players stop and unregister their IDs first.
-    // Prefer settings/menu screens with very few registered IDs. See README-CN.md.
+    // Global switch for the playback backend: attached players stop and
+    // unregister their IDs first. Prefer settings/menu screens with very few
+    // registered IDs. See README-CN.md.
     auto SetAudioBackend(std::string_view id) -> bool;
-    auto SetAudioDecoderBackend(std::string_view id) -> bool;
     [[nodiscard]] auto GetAudioBackendId() const -> const std::string&;
-    [[nodiscard]] auto GetAudioDecoderBackendId() const -> const std::string&;
+
+    // Register the engine's built-in format decoders (.wav, .mp3, ...) into an
+    // AudioDecoderRegistry. Used by the global runtime; also callable for
+    // explicitly injected registries (tests / standalone tools).
+    static auto RegisterDefaultAudioDecoders(AudioDecoderRegistry& decoders) -> void;
 
     auto AddAudioListener(IAudioBackendChangeListener& listener) -> void;
     auto RemoveAudioListener(IAudioBackendChangeListener& listener) -> void;
@@ -40,15 +44,12 @@ private:
     BackendRuntime();
 
     auto RegisterAvailableBackends() -> void;
-    auto InstallAudioDecoderFallbacks(AudioDecoderRegistry& decoders) -> void;
     auto NotifyAudioBackendChanging() -> void;
-    auto NotifyAudioDecoderBackendChanging() -> void;
 
     BackendRegistry registry_;
     AudioDecoderRegistry audio_decoders_;
     std::unique_ptr<IAudioBackend> audio_backend_;
     std::string audio_backend_id_;
-    std::string audio_decoder_backend_id_;
     std::vector<IAudioBackendChangeListener*> audio_listeners_;
 };
 

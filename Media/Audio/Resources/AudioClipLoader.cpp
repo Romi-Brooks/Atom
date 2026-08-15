@@ -54,16 +54,13 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
         return std::nullopt;
     }
     const auto extension = path.substr(dot);
-    if (!decoders_.Contains(extension)) {
-        LOG_DEBUG(kClipLoaderLogChannel,
-                  "Load: no decoder registered for extension '" + extension + "': " + path);
-        return std::nullopt;
-    }
 
+    // The registry is the single resolution authority: extension lookup,
+    // normalization and factory selection all happen inside CreateForFile.
     auto decoder = decoders_.CreateForFile(path);
     if (!decoder) {
         LOG_DEBUG(kClipLoaderLogChannel,
-                  "Load: decoder factory returned null for extension '" + extension + "': " + path);
+                  "Load: no decoder available for extension '" + extension + "': " + path);
         return std::nullopt;
     }
     if (!decoder->Open(path)) {
@@ -114,16 +111,13 @@ auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optio
         return std::nullopt;
     }
     const auto extension = path.substr(dot);
-    if (!decoders_.Contains(extension)) {
-        LOG_DEBUG(kClipLoaderLogChannel,
-                  "OpenStreaming: no decoder registered for extension '" + extension + "': " + path);
-        return std::nullopt;
-    }
 
+    // The registry is the single resolution authority: extension lookup,
+    // normalization and factory selection all happen inside CreateForFile.
     auto decoder = decoders_.CreateForFile(path);
     if (!decoder) {
         LOG_DEBUG(kClipLoaderLogChannel,
-                  "OpenStreaming: decoder factory returned null for extension '" + extension + "': " + path);
+                  "OpenStreaming: no decoder available for extension '" + extension + "': " + path);
         return std::nullopt;
     }
     if (!decoder->Open(path)) {

@@ -55,6 +55,8 @@ public:
     static const LogChannel ATOM_AUDIO_MUSIC;
     static const LogChannel ATOM_AUDIO_SFX;
     static const LogChannel ATOM_AUDIO_PLUG_MUSICFADE;
+    static const LogChannel ATOM_AUDIO_MINIMP3;
+    static const LogChannel ATOM_AUDIO_WAVPROF;
 
     static const LogChannel ATOM_BACKEND_RUNTIME;
 

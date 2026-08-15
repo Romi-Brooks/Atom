@@ -107,7 +107,7 @@
 
 ### AUDIO-006：Backend 热切换场景策略与测试
 
-- [ ] 在游戏处于正式 Gameplay 场景时禁止切换播放与 Decoder 后端。
+- [ ] 在游戏处于正式 Gameplay 场景时禁止切换播放后端。
 - [ ] 主菜单/设置页面切换后，由页面或下一场景重新注册并播放所需 ID。
 - [ ] 增加切换成功、未知后端、初始化失败、旧后端恢复失败和多个 Player 同时注销的测试。
 - [ ] 后续为 Lua 提供受控的 Backend 设置接口；脚本不得直接访问具体 SDL3/SFML 类型。
@@ -119,7 +119,7 @@
 
 ### AUDIO-004：音频格式覆盖
 
-- [!] 后续版本实现 OGG、FLAC 等格式（MP3 已通过 minimp3 支持，见 `Backend/Builtin/Audio/Decoder/Minimp3Decoder`）。
+- [!] 后续版本实现 OGG、FLAC 等格式（MP3 已通过 minimp3 支持，见 `Backend/Builtin/Audio/Decoder/minimp3/Minimp3Decoder`）。
 - [ ] 每种格式实现独立 `IAudioDecoder` 并显式注册到 `AudioDecoderRegistry`。
 - [ ] 选择依赖时记录许可证、错误模型和流式解码能力。
 
