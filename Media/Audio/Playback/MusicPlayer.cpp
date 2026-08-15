@@ -128,8 +128,4 @@ auto MusicPlayer::OnAudioBackendChanging() -> void {
     Reset();
 }
 
-auto MusicPlayer::OnAudioDecoderBackendChanging() -> void {
-    Reset();
-}
-
 } // namespace atom

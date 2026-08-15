@@ -72,12 +72,10 @@ add_subdirectory(ThirdParty)
     target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts)
 
     add_library(atom_backend_builtin_audio STATIC
-        Backend/Builtin/Audio/RegisterBuiltinAudio.hpp
-        Backend/Builtin/Audio/RegisterBuiltinAudio.cpp
         Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.hpp
         Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.cpp
-        Backend/Builtin/Audio/Decoder/WavRiff/BuiltinWavDecoder.hpp
-        Backend/Builtin/Audio/Decoder/WavRiff/BuiltinWavDecoder.cpp
+        Backend/Builtin/Audio/Decoder/WavRiff/WavRiffDecoder.hpp
+        Backend/Builtin/Audio/Decoder/WavRiff/WavRiffDecoder.cpp
         Backend/Builtin/Audio/Decoder/Minimp3Decoder.hpp
         Backend/Builtin/Audio/Decoder/Minimp3Decoder.cpp
     )
@@ -88,10 +86,6 @@ add_subdirectory(ThirdParty)
     add_library(atom_backend_sdl3_audio STATIC
         Backend/SDL3/Audio/SDL3AudioBackend.cpp
         Backend/SDL3/Audio/SDL3AudioBackend.hpp
-        Backend/SDL3/Audio/RegisterSDL3Audio.cpp
-        Backend/SDL3/Audio/RegisterSDL3Audio.hpp
-        Backend/SDL3/Audio/Decoder/SDL3WavDecoder.cpp
-        Backend/SDL3/Audio/Decoder/SDL3WavDecoder.hpp
         Backend/SDL3/Audio/SDL3SFXSource.cpp
         Backend/SDL3/Audio/SDL3SFXSource.hpp
         Backend/SDL3/Audio/SDL3MusicSource.cpp

@@ -7,7 +7,6 @@ class IAudioBackendChangeListener {
 public:
     virtual ~IAudioBackendChangeListener() = default;
     virtual auto OnAudioBackendChanging() -> void = 0;
-    virtual auto OnAudioDecoderBackendChanging() -> void = 0;
 };
 
 } // namespace atom

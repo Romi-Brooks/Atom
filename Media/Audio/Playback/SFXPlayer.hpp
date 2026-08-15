@@ -33,7 +33,6 @@ public:
     [[nodiscard]] auto GetLoadedCount() const -> std::size_t;
 
     auto OnAudioBackendChanging() -> void override;
-    auto OnAudioDecoderBackendChanging() -> void override;
 
 private:
     auto GetOrCreatePool(const std::string& id) -> VoicePool*;

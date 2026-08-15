@@ -5,10 +5,9 @@
 #include <stdexcept>
 
 #include <Backend/Builtin/Audio/Decoder/Minimp3Decoder.hpp>
-#include <Backend/Builtin/Audio/RegisterBuiltinAudio.hpp>
+#include <Backend/Builtin/Audio/Decoder/WavRiff/WavRiffDecoder.hpp>
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Backend/Runtime/IAudioBackendChangeListener.hpp>
-#include <Backend/SDL3/Audio/RegisterSDL3Audio.hpp>
 #include <Backend/SDL3/Audio/SDL3AudioBackend.hpp>
 
 #include <Log/LogSystem.hpp>
@@ -34,11 +33,7 @@ BackendRuntime::BackendRuntime() {
     if (!audio_backend_)
         throw std::runtime_error("Failed to initialize default SDL3 audio backend");
     audio_backend_id_ = "sdl3";
-    if (!registry_.InstallAudioDecoderBackend("sdl3", audio_decoders_)) {
-        throw std::runtime_error("Failed to initialize default SDL3 audio decoder backend");
-    }
-    InstallEngineDefaultDecoders(audio_decoders_);
-    audio_decoder_backend_id_ = "sdl3";
+    RegisterDefaultAudioDecoders(audio_decoders_);
 }
 
 BackendRuntime::~BackendRuntime() = default;
@@ -50,20 +45,13 @@ auto BackendRuntime::RegisterAvailableBackends() -> void {
             return nullptr;
         return backend;
     });
-    registry_.RegisterAudioDecoderBackend(
-        "sdl3", [](AudioDecoderRegistry& decoders) { return RegisterSDL3AudioDecoders(decoders); });
-    registry_.RegisterAudioDecoderBackend(
-        "builtin", [](AudioDecoderRegistry& decoders) { return RegisterBuiltinAudioDecoders(decoders); });
 }
 
-auto BackendRuntime::InstallEngineDefaultDecoders(AudioDecoderRegistry& decoders) -> void {
-    // SDL3 itself provides no audio codecs, so the minimp3-based decoder is the
-    // default for the ".mp3" extension no matter which decoder backend is
-    // active. If a decoder backend registers its own ".mp3" decoder, that one
-    // wins (Register keeps the first registration).
-    if (decoders.Register(".mp3", [] { return std::make_unique<Minimp3Decoder>(); })) {
-        LOG_DEBUG(atom::LogChannel::ATOM_BACKEND_RUNTIME, "Registered default '.mp3' decoder (minimp3)");
-    }
+auto BackendRuntime::RegisterDefaultAudioDecoders(AudioDecoderRegistry& decoders) -> void {
+    // SDL3 itself provides no audio codecs; the engine ships one decoder per
+    // format. Add new formats here as they are implemented.
+    decoders.Register(".wav", [] { return std::make_unique<WavRiffDecoder>(); });
+    decoders.Register(".mp3", [] { return std::make_unique<Minimp3Decoder>(); });
 }
 
 auto BackendRuntime::Audio() -> IAudioBackend& {
@@ -111,42 +99,8 @@ auto BackendRuntime::SetAudioBackend(const std::string_view id) -> bool {
     return true;
 }
 
-auto BackendRuntime::SetAudioDecoderBackend(const std::string_view id) -> bool {
-    const auto normalized_id = NormalizeBackendId(id);
-    if (normalized_id == audio_decoder_backend_id_) {
-        LOG_DEBUG(atom::LogChannel::ATOM_BACKEND_RUNTIME,
-                  "Audio decoder backend '" + normalized_id + "' is already active, no switch needed");
-        return true;
-    }
-    if (!registry_.ContainsAudioDecoderBackend(normalized_id)) {
-        LOG_ERROR(atom::LogChannel::ATOM_BACKEND_RUNTIME,
-                  "Audio decoder backend '" + normalized_id + "' is not registered");
-        return false;
-    }
-
-    const auto previous_id = audio_decoder_backend_id_;
-    LOG_INFO(atom::LogChannel::ATOM_BACKEND_RUNTIME,
-             "Switching audio decoder backend from '" + previous_id + "' to '" + normalized_id + "'");
-    AudioDecoderRegistry replacement;
-    if (!registry_.InstallAudioDecoderBackend(normalized_id, replacement)) {
-        LOG_ERROR(atom::LogChannel::ATOM_BACKEND_RUNTIME, "Failed to install audio decoder backend '" + normalized_id +
-                                                              "', keeping previous backend '" + previous_id + "'");
-        return false;
-    }
-    NotifyAudioDecoderBackendChanging();
-    audio_decoders_ = std::move(replacement);
-    InstallAudioDecoderFallbacks(audio_decoders_);
-    audio_decoder_backend_id_ = normalized_id;
-    LOG_INFO(atom::LogChannel::ATOM_BACKEND_RUNTIME, "Audio decoder backend switched to '" + normalized_id + "'");
-    return true;
-}
-
 auto BackendRuntime::GetAudioBackendId() const -> const std::string& {
     return audio_backend_id_;
-}
-
-auto BackendRuntime::GetAudioDecoderBackendId() const -> const std::string& {
-    return audio_decoder_backend_id_;
 }
 
 auto BackendRuntime::AddAudioListener(IAudioBackendChangeListener& listener) -> void {
@@ -164,13 +118,6 @@ auto BackendRuntime::NotifyAudioBackendChanging() -> void {
     for (auto* listener : listeners)
         if (listener)
             listener->OnAudioBackendChanging();
-}
-
-auto BackendRuntime::NotifyAudioDecoderBackendChanging() -> void {
-    const auto listeners = audio_listeners_;
-    for (auto* listener : listeners)
-        if (listener)
-            listener->OnAudioDecoderBackendChanging();
 }
 
 } // namespace atom

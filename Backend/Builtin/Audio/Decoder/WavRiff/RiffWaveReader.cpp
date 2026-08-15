@@ -49,8 +49,8 @@ auto RiffWaveReader::Open(const std::string& path) -> bool {
         return false;
     }
 
-    // Only uncompressed PCM is supported
-    if (header.audio_format != 1) {
+    // Only uncompressed PCM (1) and IEEE float (3, 32-bit) are supported
+    if (header.audio_format != 1 && !(header.audio_format == 3 && header.bits_per_sample == 32)) {
         std::fclose(fp_);
         fp_ = nullptr;
         return false;
@@ -59,6 +59,7 @@ auto RiffWaveReader::Open(const std::string& path) -> bool {
     channels_ = header.num_channels;
     sample_rate_ = header.sample_rate;
     bits_per_sample_ = header.bits_per_sample;
+    audio_format_ = header.audio_format;
 
     // Skip any extra format bytes beyond the standard 16-byte fmt chunk
     long offset = sizeof(WavHeader);

@@ -52,26 +52,6 @@ protected:
         }
         ImGui::Separator();
 
-        ImGui::Text("Decoder Backend: %s", atom::BackendRuntime::GetInstance().GetAudioDecoderBackendId().c_str());
-
-        // Atom 不推荐在大量 ID 已注册时（例如游戏状态进行中）切换后端；
-        // 建议只在“设置”页面等仅注册极少数 ID 的场景中执行切换。
-        ImGui::TextWrapped("Switch backends only in settings/menu pages with very few "
-                           "registered audio IDs, not during active gameplay.");
-
-        if (ImGui::Button("Use SDL3 Decoder Backend")) {
-            if (atom::BackendRuntime::GetInstance().SetAudioDecoderBackend("sdl3")) {
-                sfx_.Load("registerId_1", kSFX1Path);
-                sfx_.Load("registerId_2", kSFX2Path);
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Use Builtin Decoder Backend")) {
-            if (atom::BackendRuntime::GetInstance().SetAudioDecoderBackend("builtin")) {
-                sfx_.Load("registerId_1", kSFX1Path);
-                sfx_.Load("registerId_2", kSFX2Path);
-            }
-        }
         ImGui::TextDisabled("Playback Backend: SDL3 (only registered playback backend)");
         ImGui::Separator();
 

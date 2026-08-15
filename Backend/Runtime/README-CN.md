@@ -2,20 +2,18 @@
 
 ## 适用范围
 
-普通游戏项目不需要操作 `BackendRegistry`，也不应该包含 `Backend/SDL3/*`。默认构造的 `MusicPlayer`、`SFXPlayer` 和 `AudioClipCache` 会自动使用全局 `BackendRuntime`，播放与 Decoder 后端默认都是 SDL3。
+普通游戏项目不需要操作 `BackendRegistry`，也不应该包含 `Backend/SDL3/*`。默认构造的 `MusicPlayer`、`SFXPlayer` 和 `AudioClipCache` 会自动使用全局 `BackendRuntime`，播放后端默认为 SDL3，格式解码器由引擎默认注册（`.wav` → WavRiffDecoder，`.mp3` → Minimp3Decoder）。
 
-本文面向实现新播放后端、新 Decoder 后端、Fake/Null 测试后端，或在设置页面提供全局后端选择的开发者。
+本文面向实现新播放后端、Fake/Null 测试后端，或添加新音频格式解码器的开发者。
 
-## 两类音频后端
-
-Playback Backend 与 Decoder Backend 必须独立：
+## 解码与播放的分层
 
 ```text
-Decoder Backend  : WAV/OGG/MP3/FLAC → PCM
-Playback Backend : PCM → Source/Stream → Audio Device
+Decoder  : 文件格式 → PCM（AudioDecoderRegistry 按扩展名查找解码器）
+Playback : PCM → Source/Stream → Audio Device（BackendRegistry 按 ID 查找后端）
 ```
 
-因此可以自由组合，例如 Builtin WAV Decoder + SDL3 Playback Backend，或者 FFmpeg Decoder + OpenAL Playback Backend。
+解码器与播放后端相互独立：WAV/MP3 解码器可以搭配任何播放后端使用，新增格式只需注册一个 `IAudioDecoder`，无需改动播放链路。
 
 ## 注册自定义播放后端
 
@@ -41,37 +39,33 @@ runtime.Registry().RegisterAudioBackend(
 - Backend 析构释放设备、线程、Stream 和平台子系统租约；
 - Source 不得在创建它的 Backend 销毁后继续存在。
 
-## 注册自定义 Decoder 后端
+## 注册自定义格式解码器
+
+解码器按扩展名直接注册到全局 `AudioDecoderRegistry`：
 
 ```cpp
-runtime.Registry().RegisterAudioDecoderBackend(
-    "ffmpeg",
-    [](atom::AudioDecoderRegistry& decoders) {
-        bool result = true;
-        result &= decoders.Register(".mp3", [] {
-            return std::make_unique<FFmpegMp3Decoder>();
-        });
-        result &= decoders.Register(".ogg", [] {
-            return std::make_unique<FFmpegOggDecoder>();
-        });
-        return result;
-    });
+#include <Backend/Runtime/BackendRuntime.hpp>
+
+auto& decoders = atom::BackendRuntime::GetInstance().AudioDecoders();
+decoders.Register(".ogg", [] { return std::make_unique<MyOggDecoder>(); });
 ```
 
-Installer 接收一个空的临时 Registry。任一必要格式注册失败时应返回 `false`，Runtime 不会替换当前 Decoder Registry。
+注意：
+
+- `Register` 保留先注册者。引擎默认解码器（`.wav`/`.mp3`）在 Runtime 初始化时已注册；自定义注册请使用不同扩展名，或用 `Replace` 覆盖。
+- 显式注入的注册表（见下）可以用 `BackendRuntime::RegisterDefaultAudioDecoders(registry)` 一次性补齐引擎默认解码器。
 
 ## 全局切换语义
 
 ```cpp
 runtime.SetAudioBackend("openal");
-runtime.SetAudioDecoderBackend("ffmpeg");
 ```
 
 切换前，所有接入全局 Runtime 的 Player 会停止当前声音，删除全部注册 ID，并销毁 Music Source、SFX VoicePool 和缓存。系统不迁移播放位置，也不自动重播；切换后由页面或后续场景重新调用 `Load/Play`。
 
 ## 切换时机约束
 
-Atom 不推荐在大量 ID 已注册时切换 Backend，例如正式 Gameplay、战斗或关卡运行期间。建议只在主菜单或“设置”页面切换，此时通常只有零到两个背景音乐/UI 音效 ID，清理和重新加载成本明确。
+Atom 不推荐在大量 ID 已注册时切换 Backend，例如正式 Gameplay、战斗或关卡运行期间。建议只在主菜单或"设置"页面切换，此时通常只有零到两个背景音乐/UI 音效 ID，清理和重新加载成本明确。
 
 Gameplay 状态检测目前尚未由 Runtime 强制执行，项目应自行限制设置入口。Backend 切换应从主线程发起；当前 Listener Registry 不承诺与播放线程或资源加载线程并发切换时的线程安全。
 
@@ -80,6 +74,8 @@ Gameplay 状态检测目前尚未由 Runtime 强制执行，项目应自行限�
 测试和独立工具可以绕过全局 Runtime：
 
 ```cpp
+atom::AudioDecoderRegistry test_decoders;
+atom::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders); // 补齐 .wav/.mp3
 atom::MusicPlayer music{fake_backend, test_decoders, mixer};
 atom::AudioClipCache clips{test_decoders};
 atom::SFXPlayer sfx{fake_backend, clips, mixer};
@@ -87,36 +83,15 @@ atom::SFXPlayer sfx{fake_backend, clips, mixer};
 
 显式注入的 Player 不注册全局切换监听器，也不会在全局 Backend 改变时自动清空。
 
-## 当前内置 ID
+## 当前内置
 
 ```text
 Audio Playback Backend:
 - sdl3（默认）
 
-Audio Decoder Backend:
-- sdl3（默认，仅 WAV）
-- builtin（实验性 WAV RIFF Decoder）
-
-Engine Default Decoder（由 Runtime 注册，与 Decoder 后端无关）:
-- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Builtin/Audio/Decoder/Minimp3Decoder）
+Default Decoders（BackendRuntime::RegisterDefaultAudioDecoders）:
+- .wav → WavRiffDecoder（Backend/Builtin/Audio/Decoder/WavRiff）
+- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Builtin/Audio/Decoder）
 ```
 
 只有一个播放后端时，重复设置 `sdl3` 不触发清理或重建。新增第二个播放后端后，同一套全局切换协议无需修改 Player。
-
-## 引擎默认解码器（Engine Default Decoders）
-
-SDL3 本身不提供任何音频编解码器，因此 `BackendRuntime` 在初始化以及每次
-切换 Decoder 后端后，都会向新的 `AudioDecoderRegistry` 注册引擎默认解码器：
-
-```cpp
-decoders.Register(".mp3", [] { return std::make_unique<Minimp3Decoder>(); });
-```
-
-也就是说 **MP3 的默认解码器始终是 Minimp3**，与当前激活的是 `sdl3` 还是
-`builtin` 无关——这是直接的扩展名→解码器映射，不是"降级/回退"。
-如果某个 Decoder 后端自己注册了 `.mp3`（例如自定义 FFmpeg 后端），则以
-该后端注册为准（`Register` 保留先注册者）。
-
-注意：引擎默认解码器由 `BackendRuntime` 注入；显式注入构造
-（`MusicPlayer{backend, decoders, mixer}`）的测试注册表不会自动包含
-`.mp3`，需要时请自行 `Register(".mp3", ...)`。

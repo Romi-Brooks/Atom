@@ -84,8 +84,4 @@ auto SFXPlayer::OnAudioBackendChanging() -> void {
     Reset();
 }
 
-auto SFXPlayer::OnAudioDecoderBackendChanging() -> void {
-    Reset();
-}
-
 } // namespace atom
