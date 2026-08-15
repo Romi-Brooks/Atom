@@ -119,7 +119,7 @@
 
 ### AUDIO-004：音频格式覆盖
 
-- [!] 后续版本实现 OGG、MP3、FLAC 等格式。
+- [!] 后续版本实现 OGG、FLAC 等格式（MP3 已通过 minimp3 支持，见 `Backend/Builtin/Audio/Decoder/Minimp3Decoder`）。
 - [ ] 每种格式实现独立 `IAudioDecoder` 并显式注册到 `AudioDecoderRegistry`。
 - [ ] 选择依赖时记录许可证、错误模型和流式解码能力。
 

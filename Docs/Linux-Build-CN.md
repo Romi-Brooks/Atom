@@ -1,8 +1,9 @@
 # Linux 编译指南
 
 Atom 会从 `ThirdParty/` 中锁定版本的 Git submodule 编译 SDL3、TagLib、
-Dear ImGui、Lua 和 utfcpp。Linux 不再需要单独安装这些库，也不能复用
-Windows 或其他编译器生成的二进制文件。
+Dear ImGui、Lua 和 utfcpp，并通过 minimp3 submodule 提供 MP3 解码。
+Linux 不再需要单独安装这些库，也不能复用 Windows 或其他编译器生成的
+二进制文件。
 
 ## 1. 环境要求
 
@@ -95,10 +96,11 @@ cmake --build build --parallel
 构建内容包括：
 
 1. utfcpp 接口目标。
-2. SDL3 静态库。
-3. Lua 和 Dear ImGui 静态库。
-4. TagLib 静态库。
-5. Atom 引擎库、工具和示例程序。
+2. minimp3 接口目标（header-only MP3 解码器）。
+3. SDL3 静态库。
+4. Lua 和 Dear ImGui 静态库。
+5. TagLib 静态库。
+6. Atom 引擎库、工具和示例程序。
 
 CMake 会按照 target 依赖关系自动决定顺序，不需要手动先编译依赖。
 

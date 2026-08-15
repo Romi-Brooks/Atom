@@ -4,6 +4,7 @@
 #include <cctype>
 #include <stdexcept>
 
+#include <Backend/Builtin/Audio/Decoder/Minimp3Decoder.hpp>
 #include <Backend/Builtin/Audio/RegisterBuiltinAudio.hpp>
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Backend/Runtime/IAudioBackendChangeListener.hpp>
@@ -36,6 +37,7 @@ BackendRuntime::BackendRuntime() {
     if (!registry_.InstallAudioDecoderBackend("sdl3", audio_decoders_)) {
         throw std::runtime_error("Failed to initialize default SDL3 audio decoder backend");
     }
+    InstallAudioDecoderFallbacks(audio_decoders_);
     audio_decoder_backend_id_ = "sdl3";
 }
 
@@ -52,6 +54,13 @@ auto BackendRuntime::RegisterAvailableBackends() -> void {
         "sdl3", [](AudioDecoderRegistry& decoders) { return RegisterSDL3AudioDecoders(decoders); });
     registry_.RegisterAudioDecoderBackend(
         "builtin", [](AudioDecoderRegistry& decoders) { return RegisterBuiltinAudioDecoders(decoders); });
+}
+
+auto BackendRuntime::InstallAudioDecoderFallbacks(AudioDecoderRegistry& decoders) -> void {
+    // Neither the SDL3 nor the builtin backend ships an MP3 decoder; the
+    // minimp3-based decoder is the default for the ".mp3" extension no matter
+    // which decoder backend is active.
+    decoders.RegisterFallback(".mp3", [] { return std::make_unique<Minimp3Decoder>(); });
 }
 
 auto BackendRuntime::Audio() -> IAudioBackend& {
@@ -123,6 +132,7 @@ auto BackendRuntime::SetAudioDecoderBackend(const std::string_view id) -> bool {
     }
     NotifyAudioDecoderBackendChanging();
     audio_decoders_ = std::move(replacement);
+    InstallAudioDecoderFallbacks(audio_decoders_);
     audio_decoder_backend_id_ = normalized_id;
     LOG_INFO(atom::LogChannel::ATOM_BACKEND_RUNTIME, "Audio decoder backend switched to '" + normalized_id + "'");
     return true;

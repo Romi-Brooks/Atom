@@ -69,7 +69,7 @@ add_subdirectory(ThirdParty)
         Backend/Registry/BackendRegistry.cpp
     )
     target_include_directories(atom_backend_registry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts)
+    target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts engine_log)
 
     add_library(atom_backend_builtin_audio STATIC
         Backend/Builtin/Audio/RegisterBuiltinAudio.hpp
@@ -78,9 +78,11 @@ add_subdirectory(ThirdParty)
         Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.cpp
         Backend/Builtin/Audio/Decoder/WavRiff/BuiltinWavDecoder.hpp
         Backend/Builtin/Audio/Decoder/WavRiff/BuiltinWavDecoder.cpp
+        Backend/Builtin/Audio/Decoder/Minimp3Decoder.hpp
+        Backend/Builtin/Audio/Decoder/Minimp3Decoder.cpp
     )
     target_include_directories(atom_backend_builtin_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(atom_backend_builtin_audio PUBLIC atom_backend_contracts atom_backend_registry)
+    target_link_libraries(atom_backend_builtin_audio PUBLIC atom_backend_contracts atom_backend_registry atom::minimp3 engine_utf8)
 
 # 5. SDL3 Audio Backend
     add_library(atom_backend_sdl3_audio STATIC
@@ -146,6 +148,16 @@ add_subdirectory(ThirdParty)
     target_include_directories(engine_media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_media PUBLIC atom_backend_contracts atom_backend_registry atom_backend_runtime engine_log)
 
+# --------------------------------------------------------------------------
+# UTF-8 encoding utilities (shared by all Atom modules)
+# --------------------------------------------------------------------------
+add_library(engine_utf8 STATIC
+    Utilities/Utf8/Utf8.hpp
+    Utilities/Utf8/Utf8.cpp
+)
+target_include_directories(engine_utf8 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(engine_utf8 PUBLIC atom_backend_contracts atom::utfcpp)
+
 # 8. Packager
     add_library(engine_packager STATIC
             Utilities/Packager/Unpackager.cpp
@@ -202,6 +214,7 @@ add_subdirectory(ThirdParty)
             engine_log
             engine_lua
             engine_config
+            engine_utf8
     )
 
 # 13. Lua Binding

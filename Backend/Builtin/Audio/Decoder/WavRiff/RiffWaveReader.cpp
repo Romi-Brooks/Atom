@@ -12,23 +12,7 @@
 #include <cstring>
 #include <cstdio>
 
-#ifdef _WIN32
-#include <windows.h>
-
-// Convert UTF-8 to wide string for _wfopen on Windows.
-// std::fopen uses the ANSI code page, which corrupts UTF-8 paths
-// with non-ASCII characters (e.g. Chinese).
-static auto Utf8ToWide(const std::string& str) -> std::wstring {
-    if (str.empty())
-        return {};
-    const int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
-    if (len <= 0)
-        return {};
-    std::wstring wstr(static_cast<std::size_t>(len) - 1, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wstr[0], len);
-    return wstr;
-}
-#endif
+#include <Utilities/Utf8/Utf8.hpp>
 
 namespace atom {
 
@@ -42,7 +26,7 @@ auto RiffWaveReader::Open(const std::string& path) -> bool {
 
 #ifdef _WIN32
     // Use _wfopen to support UTF-8 paths with non-ASCII characters
-    const auto wpath = Utf8ToWide(path);
+    const auto wpath = atom::Utf8ToWide(path);
     fp_ = _wfopen(wpath.c_str(), L"rb");
 #else
     fp_ = std::fopen(path.c_str(), "rb");

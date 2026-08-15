@@ -7,13 +7,15 @@ set(ATOM_LUA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Lua")
 set(ATOM_SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SDL3")
 set(ATOM_TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/taglib")
 set(ATOM_UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utfcpp")
+set(ATOM_MINIMP3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minimp3")
 
 foreach(dependency_file IN ITEMS
         "${ATOM_IMGUI_DIR}/imgui.cpp"
         "${ATOM_LUA_DIR}/lapi.c"
         "${ATOM_SDL3_DIR}/CMakeLists.txt"
         "${ATOM_TAGLIB_DIR}/CMakeLists.txt"
-        "${ATOM_UTFCPP_DIR}/CMakeLists.txt")
+        "${ATOM_UTFCPP_DIR}/CMakeLists.txt"
+        "${ATOM_MINIMP3_DIR}/minimp3.h")
     if(NOT EXISTS "${dependency_file}")
         message(FATAL_ERROR
             "Missing third-party dependency content: ${dependency_file}\n"
@@ -195,3 +197,10 @@ add_library(atom_taglib INTERFACE)
 target_include_directories(atom_taglib INTERFACE ${ATOM_TAGLIB_INCLUDE_DIRS})
 target_link_libraries(atom_taglib INTERFACE tag)
 add_library(atom::taglib ALIAS atom_taglib)
+
+# --------------------------------------------------------------------------
+# minimp3 (header-only MP3 decoder, no upstream build system)
+# --------------------------------------------------------------------------
+add_library(atom_minimp3 INTERFACE)
+target_include_directories(atom_minimp3 INTERFACE "${ATOM_MINIMP3_DIR}")
+add_library(atom::minimp3 ALIAS atom_minimp3)

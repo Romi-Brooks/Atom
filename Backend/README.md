@@ -5,9 +5,9 @@
 ## Layout
 
 - `Contracts/` contains backend-independent contracts and shared data types required by Atom.
-- `Registry/` stores backend and audio decoder factories.
+- `Registry/` stores backend and audio decoder factories; it also supports fallback decoders queried when the active decoder backend has no factory for an extension (e.g. `.mp3` always resolves to the minimp3 decoder).
 - `Runtime/` owns global backend selection, default registration, and audio backend switching.
-- `Builtin/` contains Atom-owned implementations such as the experimental WAV RIFF decoder.
+- `Builtin/` contains Atom-owned implementations such as the experimental WAV RIFF decoder and the minimp3-based MP3 decoder.
 - `SDL3/` contains SDL lifecycle, window, render, audio playback, and SDL decoder implementations.
 - Future platform backends should use sibling directories such as `Null/` or `OpenAL/`. Codec integrations belong under an appropriate decoder implementation rather than being treated as a complete platform backend.
 

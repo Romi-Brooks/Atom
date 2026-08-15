@@ -23,7 +23,7 @@
 #endif // _WIN32
 
 namespace {
-constexpr auto kMusic1Path = R"(E:\Music\永恒 - 幼稚园杀手.wav)";
+constexpr auto kMusic1Path = R"(E:\Music\我的歌声里 - 曲婉婷.mp3)";
 constexpr auto kMusic2Path = R"(E:\Music\1_So Far Away (feat. Jamie Scott & Romy Dya)_(Instrumental).wav)";
 } // namespace
 
