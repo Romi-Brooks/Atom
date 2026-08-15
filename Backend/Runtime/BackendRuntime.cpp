@@ -37,7 +37,7 @@ BackendRuntime::BackendRuntime() {
     if (!registry_.InstallAudioDecoderBackend("sdl3", audio_decoders_)) {
         throw std::runtime_error("Failed to initialize default SDL3 audio decoder backend");
     }
-    InstallAudioDecoderFallbacks(audio_decoders_);
+    InstallEngineDefaultDecoders(audio_decoders_);
     audio_decoder_backend_id_ = "sdl3";
 }
 
@@ -56,11 +56,14 @@ auto BackendRuntime::RegisterAvailableBackends() -> void {
         "builtin", [](AudioDecoderRegistry& decoders) { return RegisterBuiltinAudioDecoders(decoders); });
 }
 
-auto BackendRuntime::InstallAudioDecoderFallbacks(AudioDecoderRegistry& decoders) -> void {
-    // Neither the SDL3 nor the builtin backend ships an MP3 decoder; the
-    // minimp3-based decoder is the default for the ".mp3" extension no matter
-    // which decoder backend is active.
-    decoders.RegisterFallback(".mp3", [] { return std::make_unique<Minimp3Decoder>(); });
+auto BackendRuntime::InstallEngineDefaultDecoders(AudioDecoderRegistry& decoders) -> void {
+    // SDL3 itself provides no audio codecs, so the minimp3-based decoder is the
+    // default for the ".mp3" extension no matter which decoder backend is
+    // active. If a decoder backend registers its own ".mp3" decoder, that one
+    // wins (Register keeps the first registration).
+    if (decoders.Register(".mp3", [] { return std::make_unique<Minimp3Decoder>(); })) {
+        LOG_DEBUG(atom::LogChannel::ATOM_BACKEND_RUNTIME, "Registered default '.mp3' decoder (minimp3)");
+    }
 }
 
 auto BackendRuntime::Audio() -> IAudioBackend& {

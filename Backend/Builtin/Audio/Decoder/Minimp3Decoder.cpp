@@ -108,6 +108,8 @@ auto Minimp3Decoder::Open(const std::string& path) -> bool {
     const auto detected_samples = impl_->dec.detected_samples > 0 ? impl_->dec.detected_samples : impl_->dec.samples;
     if (detected_samples > 0 && info_.channels > 0)
         info_.total_pcm_frames = detected_samples / info_.channels;
+
+    LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Minimp3: MP3 stream opened: " + path);
     return true;
 }
 

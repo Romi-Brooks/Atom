@@ -69,7 +69,7 @@ add_subdirectory(ThirdParty)
         Backend/Registry/BackendRegistry.cpp
     )
     target_include_directories(atom_backend_registry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts engine_log)
+    target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts)
 
     add_library(atom_backend_builtin_audio STATIC
         Backend/Builtin/Audio/RegisterBuiltinAudio.hpp

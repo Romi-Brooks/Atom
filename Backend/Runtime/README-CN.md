@@ -94,22 +94,29 @@ Audio Playback Backend:
 - sdl3（默认）
 
 Audio Decoder Backend:
-- sdl3（默认）
+- sdl3（默认，仅 WAV）
 - builtin（实验性 WAV RIFF Decoder）
 
-Fallback Decoder（与 Decoder 后端无关）:
+Engine Default Decoder（由 Runtime 注册，与 Decoder 后端无关）:
 - .mp3 → Minimp3Decoder（minimp3 封装，Backend/Builtin/Audio/Decoder/Minimp3Decoder）
 ```
 
 只有一个播放后端时，重复设置 `sdl3` 不触发清理或重建。新增第二个播放后端后，同一套全局切换协议无需修改 Player。
 
-## 回退解码器（Fallback Decoder）
+## 引擎默认解码器（Engine Default Decoders）
 
-`AudioDecoderRegistry` 支持 `RegisterFallback(extension, factory)`：当当前
-Decoder 后端没有注册该扩展名的解码器时，`CreateForFile` 会回退到
-fallback 表（并输出 DEBUG 日志说明发生了回退）。
+SDL3 本身不提供任何音频编解码器，因此 `BackendRuntime` 在初始化以及每次
+切换 Decoder 后端后，都会向新的 `AudioDecoderRegistry` 注册引擎默认解码器：
 
-Atom 默认将 `.mp3` 注册为 fallback，因此 **MP3 的默认解码器始终是
-Minimp3**，与当前激活的是 `sdl3` 还是 `builtin` 无关——SDL3 后端自身不
-提供 MP3 解码器，`.mp3` 查询会自动降级到 minimp3。切换 Decoder 后端时，
-fallback 会随新 Registry 一并重新注册。
+```cpp
+decoders.Register(".mp3", [] { return std::make_unique<Minimp3Decoder>(); });
+```
+
+也就是说 **MP3 的默认解码器始终是 Minimp3**，与当前激活的是 `sdl3` 还是
+`builtin` 无关——这是直接的扩展名→解码器映射，不是"降级/回退"。
+如果某个 Decoder 后端自己注册了 `.mp3`（例如自定义 FFmpeg 后端），则以
+该后端注册为准（`Register` 保留先注册者）。
+
+注意：引擎默认解码器由 `BackendRuntime` 注入；显式注入构造
+（`MusicPlayer{backend, decoders, mixer}`）的测试注册表不会自动包含
+`.mp3`，需要时请自行 `Register(".mp3", ...)`。

@@ -40,7 +40,7 @@ private:
     BackendRuntime();
 
     auto RegisterAvailableBackends() -> void;
-    auto InstallAudioDecoderFallbacks(AudioDecoderRegistry& decoders) -> void;
+    auto InstallEngineDefaultDecoders(AudioDecoderRegistry& decoders) -> void;
     auto NotifyAudioBackendChanging() -> void;
     auto NotifyAudioDecoderBackendChanging() -> void;
 
