@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [master]
 
+# Only the latest commit of a PR is built: a newer push to the PR branch
+# cancels any in-progress or queued run for the same pull request.
+concurrency:
+  group: build-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   windows:
     name: Windows MSVC
