@@ -285,6 +285,10 @@ target_link_libraries(packager_tool PRIVATE engine_packager)
 # Platforms Config
 # ============================================================================
 if(MINGW)
+    # Link the MinGW runtime statically so executables are self-contained and
+    # do not require libstdc++-6.dll / libgcc_s_seh-1.dll / libwinpthread-1.dll
+    # at runtime. Applies to every executable in this project.
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc -static-libstdc++")
     target_link_options(Atom PRIVATE -lstdc++exp -lws2_32)
 endif()
 if(WIN32)
