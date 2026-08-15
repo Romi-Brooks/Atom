@@ -89,6 +89,7 @@ auto SDL3StreamingMusicSource::Play() -> void {
         decode_thread_.join();
     SDL_ClearAudioStream(stream_);
     frames_submitted_ = 0;
+    progress_logged_frames_ = 0;
     eof_ = false;
     decode_error_ = false;
 
@@ -175,6 +176,7 @@ auto SDL3StreamingMusicSource::SetPlayingOffset(float seconds) -> void {
     if (stream_)
         SDL_ClearAudioStream(stream_);
     frames_submitted_ = 0;
+    progress_logged_frames_ = 0;
     read_idx_ = 0;
     write_idx_ = 0;
     eof_ = false;
@@ -212,6 +214,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         std::min(kRingBufferCapacity, static_cast<std::size_t>(bytes_per_second * kRingHighWaterDuration));
     const auto sdl_queue_target =
         std::max(stream_chunk, static_cast<std::size_t>(bytes_per_second * kSDLQueueTargetDuration));
+    const auto progress_interval_frames = static_cast<std::uint64_t>(spec_.freq * kProgressLogIntervalSeconds);
 
     LOG_DEBUG(atom::LogChannel::SDL_BACKEND_AUDIO,
               "DecodeLoop (streaming) started: chunk=" + std::to_string(stream_chunk) +
@@ -272,6 +275,17 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
             frames_submitted_.fetch_add(to_push / bytes_per_frame);
         }
 
+        // ---- Phase 2.5: low-frequency debug progress log ----
+        const auto submitted_frames = frames_submitted_.load();
+        if (submitted_frames - progress_logged_frames_ >= progress_interval_frames) {
+            progress_logged_frames_ = submitted_frames;
+            LOG_DEBUG(atom::LogChannel::SDL_BACKEND_AUDIO,
+                      "DecodeLoop (streaming) progress: played_frames=" + std::to_string(submitted_frames) +
+                          " queued=" + std::to_string(SDL_GetAudioStreamQueued(stream_)) +
+                          " buffered=" + std::to_string(ReadableBytes()) +
+                          " eof=" + std::to_string(eof_.load() ? 1 : 0));
+        }
+
         // ---- Phase 3: handle EOF / loop / stop ----
         if (eof_.load() && ReadableBytes() == 0 && SDL_GetAudioStreamQueued(stream_) == 0) {
             if (loop_.load()) {
@@ -281,6 +295,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                     read_idx_ = 0;
                     write_idx_ = 0;
                     frames_submitted_ = 0;
+                    progress_logged_frames_ = 0;
                     continue;
                 }
                 LOG_ERROR(atom::LogChannel::SDL_BACKEND_AUDIO, "Decoder rewind failed during loop");

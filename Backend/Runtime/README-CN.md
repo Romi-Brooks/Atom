@@ -2,7 +2,7 @@
 
 ## 适用范围
 
-普通游戏项目不需要操作 `BackendRegistry`，也不应该包含 `Backend/SDL3/*`。默认构造的 `MusicPlayer`、`SFXPlayer` 和 `AudioClipCache` 会自动使用全局 `BackendRuntime`，播放后端默认为 SDL3，格式解码器由引擎默认注册（`.wav` → WavRiffDecoder，`.mp3` → Minimp3Decoder）。
+普通游戏项目不需要操作 `BackendRegistry`，也不应该包含 `Backend/SDL3/*`。默认构造的 `MusicPlayer`、`SFXPlayer` 和 `AudioClipCache` 会自动使用全局 `BackendRuntime`，播放后端默认为 SDL3，格式解码器由引擎默认注册（`.wav` → WavProfDecoder，`.mp3` → Minimp3Decoder）。
 
 本文面向实现新播放后端、Fake/Null 测试后端，或添加新音频格式解码器的开发者。
 
@@ -90,8 +90,8 @@ Audio Playback Backend:
 - sdl3（默认）
 
 Default Decoders（BackendRuntime::RegisterDefaultAudioDecoders）:
-- .wav → WavRiffDecoder（Backend/Builtin/Audio/Decoder/WavRiff）
-- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Builtin/Audio/Decoder）
+- .wav → WavProfDecoder（Backend/Builtin/Audio/Decoder/WavProf）
+- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Builtin/Audio/Decoder/minimp3）
 ```
 
 只有一个播放后端时，重复设置 `sdl3` 不触发清理或重建。新增第二个播放后端后，同一套全局切换协议无需修改 Player。

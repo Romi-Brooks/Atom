@@ -3,7 +3,7 @@
 ## 设计原则
 
 - SDL3 等具体实现由 Atom 内部注册，普通用户不包含 `Backend/SDL3/*`。
-- 音频播放后端全局选择，默认为 `sdl3`；格式解码器由引擎默认注册（`.wav` → WavRiffDecoder，`.mp3` → Minimp3Decoder）。
+- 音频播放后端全局选择，默认为 `sdl3`；格式解码器由引擎默认注册（`.wav` → WavProfDecoder，`.mp3` → Minimp3Decoder）。
 - `MusicPlayer`、`SFXPlayer`、`AudioMixer` 和 `MusicCrossfade` 仍是可自由组合的实例，不强制使用统一 `AudioSystem`。
 - Backend 热切换会停止声音并清空 Player 中已注册的音频 ID；页面或后续场景需要重新 `Load/Play`。
 

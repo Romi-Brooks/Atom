@@ -65,7 +65,7 @@ auto Minimp3Decoder::Open(const std::string& path) -> bool {
     // (no _GLIBCXX_HAVE__WFOPEN), so use _wfopen like RiffWaveReader does.
     const auto wide_path = atom::Utf8ToWide(path);
     if (wide_path.empty()) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC, "Minimp3: failed to convert path to UTF-16: " + path);
+        LOG_ERROR(LogChannel::ATOM_AUDIO_MINIMP3, "Minimp3: failed to convert path to UTF-16: " + path);
         return false;
     }
     impl_->stream = _wfopen(wide_path.c_str(), L"rb");
@@ -73,7 +73,7 @@ auto Minimp3Decoder::Open(const std::string& path) -> bool {
     impl_->stream = std::fopen(path.c_str(), "rb");
 #endif
     if (!impl_->stream) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC, "Minimp3: failed to open file: " + path);
+        LOG_ERROR(LogChannel::ATOM_AUDIO_MINIMP3, "Minimp3: failed to open file: " + path);
         return false;
     }
 
@@ -86,7 +86,7 @@ auto Minimp3Decoder::Open(const std::string& path) -> bool {
     // index; MP3D_SEEK_TO_SAMPLE: mp3dec_ex_seek(0) lands on the first frame.
     const int open_result = mp3dec_ex_open_cb(&impl_->dec, &impl_->io, MP3D_SEEK_TO_SAMPLE | MP3D_DO_NOT_SCAN);
     if (open_result != 0) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_ERROR(LogChannel::ATOM_AUDIO_MINIMP3,
                   "Minimp3: failed to open stream (error " + std::to_string(open_result) + "): " + path);
         Close();
         return false;
@@ -94,7 +94,7 @@ auto Minimp3Decoder::Open(const std::string& path) -> bool {
 
     const auto& frame_info = impl_->dec.info;
     if (frame_info.hz == 0 || frame_info.channels == 0 || frame_info.channels > 2) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC, "Minimp3: no valid MPEG audio frame found: " + path);
+        LOG_ERROR(LogChannel::ATOM_AUDIO_MINIMP3, "Minimp3: no valid MPEG audio frame found: " + path);
         Close();
         return false;
     }
@@ -109,7 +109,7 @@ auto Minimp3Decoder::Open(const std::string& path) -> bool {
     if (detected_samples > 0 && info_.channels > 0)
         info_.total_pcm_frames = detected_samples / info_.channels;
 
-    LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Minimp3: MP3 stream opened: " + path);
+    LOG_DEBUG(LogChannel::ATOM_AUDIO_MINIMP3, "Minimp3: MP3 stream opened: " + path);
     return true;
 }
 
@@ -148,7 +148,7 @@ auto Minimp3Decoder::DecodeChunk(uint8_t* output, const uint32_t max_bytes) -> u
         mp3dec_ex_read(&impl_->dec, reinterpret_cast<mp3d_sample_t*>(scratch_.data()), requested_samples);
     if (decoded_samples == 0) {
         if (impl_->dec.last_error != 0) {
-            LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC, "Minimp3: decode error (error " +
+            LOG_ERROR(LogChannel::ATOM_AUDIO_MINIMP3, "Minimp3: decode error (error " +
                                                         std::to_string(impl_->dec.last_error) + "): " + current_path_);
             Close(); // lets the source distinguish this from a normal EOF
         }

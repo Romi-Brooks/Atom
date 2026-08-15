@@ -23,7 +23,7 @@
 
 namespace {
 constexpr auto kMusic1Path = R"(E:\Music\我的歌声里 - 曲婉婷.mp3)";
-constexpr auto kMusic2Path = R"(E:\Music\1_So Far Away (feat. Jamie Scott & Romy Dya)_(Instrumental).wav)";
+constexpr auto kMusic2Path = R"(E:\Music\滴滴 - 覆予.mp3)";
 } // namespace
 
 class MusicDebugger final : public atom::Debugger {

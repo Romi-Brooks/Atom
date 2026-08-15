@@ -50,6 +50,9 @@ private:
     static constexpr double kRingHighWaterDuration = 1.0;
     static constexpr double kSDLQueueTargetDuration = 0.2;
     // Minimum buffered data before pushing to SDL (2× chunk size).
+    // Debug progress log cadence: one line per ~5 s of audio submitted,
+    // regardless of wall-clock timing.
+    static constexpr double kProgressLogIntervalSeconds = 5.0;
 
     SDL_AudioStream* stream_ = nullptr;
     SDL_AudioSpec spec_{};
@@ -64,6 +67,8 @@ private:
     std::atomic<float> volume_{100.0f};
     std::atomic<bool> loop_{false};
     std::atomic<std::uint64_t> frames_submitted_{0};
+    // Written only by the decode thread; reset while that thread is joined.
+    std::uint64_t progress_logged_frames_ = 0;
 
     std::thread decode_thread_;
     std::atomic<bool> thread_running_{false};

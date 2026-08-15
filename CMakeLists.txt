@@ -72,12 +72,12 @@ add_subdirectory(ThirdParty)
     target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts)
 
     add_library(atom_backend_builtin_audio STATIC
-        Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.hpp
-        Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.cpp
-        Backend/Builtin/Audio/Decoder/WavRiff/WavRiffDecoder.hpp
-        Backend/Builtin/Audio/Decoder/WavRiff/WavRiffDecoder.cpp
-        Backend/Builtin/Audio/Decoder/Minimp3Decoder.hpp
-        Backend/Builtin/Audio/Decoder/Minimp3Decoder.cpp
+        Backend/Builtin/Audio/Decoder/WavProf/RiffWaveReader.hpp
+        Backend/Builtin/Audio/Decoder/WavProf/RiffWaveReader.cpp
+        Backend/Builtin/Audio/Decoder/WavProf/WavProfDecoder.hpp
+        Backend/Builtin/Audio/Decoder/WavProf/WavProfDecoder.cpp
+        Backend/Builtin/Audio/Decoder/minimp3/Minimp3Decoder.hpp
+        Backend/Builtin/Audio/Decoder/minimp3/Minimp3Decoder.cpp
     )
     target_include_directories(atom_backend_builtin_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(atom_backend_builtin_audio PUBLIC atom_backend_contracts atom_backend_registry atom::minimp3 engine_utf8)

@@ -1,7 +1,7 @@
 /**
-  * @file           : WavRiffDecoder.hpp
+  * @file           : WavProfDecoder.hpp
   * @author         : Romi Brooks
-  * @brief          : The engine's single WAV decoder, backed by RiffWaveReader
+  * @brief          : The engine's single WAV decoder (WavProf), backed by RiffWaveReader
   * @attention      : Handles uncompressed PCM (8/16/24/32-bit) and IEEE float
   *                   (32-bit). 24-bit packed PCM is expanded to S32 because SDL
   *                   has no native packed 24-bit format.
@@ -9,18 +9,18 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifndef ATOM_BACKEND_WAVRIFF_DECODER_HPP
-#define ATOM_BACKEND_WAVRIFF_DECODER_HPP
+#ifndef ATOM_BACKEND_WAVPROF_DECODER_HPP
+#define ATOM_BACKEND_WAVPROF_DECODER_HPP
 
 #include <cstdint>
 #include <vector>
 
-#include <Backend/Builtin/Audio/Decoder/WavRiff/RiffWaveReader.hpp>
+#include <Backend/Builtin/Audio/Decoder/WavProf/RiffWaveReader.hpp>
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 
 namespace atom {
 
-class WavRiffDecoder final : public IAudioDecoder {
+class WavProfDecoder final : public IAudioDecoder {
 public:
     auto Open(const std::string& path) -> bool override;
     auto Close() -> void override;
@@ -38,4 +38,4 @@ private:
 
 } // namespace atom
 
-#endif // ATOM_BACKEND_WAVRIFF_DECODER_HPP
+#endif // ATOM_BACKEND_WAVPROF_DECODER_HPP

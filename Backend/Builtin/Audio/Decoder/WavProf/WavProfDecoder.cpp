@@ -1,23 +1,27 @@
 /**
-  * @file           : WavRiffDecoder.cpp
+  * @file           : WavProfDecoder.cpp
   * @author         : Romi Brooks
-  * @brief          : The engine's single WAV decoder, backed by RiffWaveReader
+  * @brief          : The engine's single WAV decoder (WavProf), backed by RiffWaveReader
   * @attention      : Keeps the file open and reads PCM in bounded chunks,
   *                   matching the engine's streaming decoder contract.
   * @date           : 2026/8/15
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include "WavRiffDecoder.hpp"
+#include "WavProfDecoder.hpp"
 
 #include <cstdint>
 
+#include <Log/LogSystem.hpp>
+
 namespace atom {
 
-auto WavRiffDecoder::Open(const std::string& path) -> bool {
+auto WavProfDecoder::Open(const std::string& path) -> bool {
     Close();
-    if (!reader_.Open(path))
+    if (!reader_.Open(path)) {
+        LOG_ERROR(LogChannel::ATOM_AUDIO_WAVPROF, "WavProf: failed to open WAV file: " + path);
         return false;
+    }
 
     info_.sample_rate = reader_.GetSampleRate();
     info_.channels = reader_.GetChannels();
@@ -31,17 +35,26 @@ auto WavRiffDecoder::Open(const std::string& path) -> bool {
 
     const auto bytes_per_frame = static_cast<uint64_t>(info_.channels) * (source_bits_per_sample_ / 8u);
     info_.total_pcm_frames = bytes_per_frame == 0 ? 0 : reader_.GetTotalPCMBytes() / bytes_per_frame;
-    return info_.total_pcm_frames > 0;
+    if (info_.total_pcm_frames == 0) {
+        LOG_ERROR(LogChannel::ATOM_AUDIO_WAVPROF, "WavProf: WAV file has no PCM data: " + path);
+        return false;
+    }
+
+    LOG_DEBUG(LogChannel::ATOM_AUDIO_WAVPROF,
+              "WavProf: WAV stream opened: " + path + " (sample_rate=" + std::to_string(info_.sample_rate) +
+                  ", channels=" + std::to_string(info_.channels) + ", bits_per_sample=" +
+                  std::to_string(info_.bits_per_sample) + ")");
+    return true;
 }
 
-auto WavRiffDecoder::Close() -> void {
+auto WavProfDecoder::Close() -> void {
     reader_.Close();
     decode_scratch_.clear();
     source_bits_per_sample_ = 0;
     info_ = {};
 }
 
-auto WavRiffDecoder::DecodeChunk(uint8_t* output, const uint32_t max_bytes) -> uint32_t {
+auto WavProfDecoder::DecodeChunk(uint8_t* output, const uint32_t max_bytes) -> uint32_t {
     if (!reader_.IsOpen() || !output || max_bytes == 0)
         return 0;
 
@@ -73,15 +86,15 @@ auto WavRiffDecoder::DecodeChunk(uint8_t* output, const uint32_t max_bytes) -> u
     return static_cast<uint32_t>(reader_.ReadChunk(output, max_bytes));
 }
 
-auto WavRiffDecoder::Rewind() -> bool {
+auto WavProfDecoder::Rewind() -> bool {
     return reader_.Rewind();
 }
 
-auto WavRiffDecoder::GetInfo() const -> const DecoderInfo& {
+auto WavProfDecoder::GetInfo() const -> const DecoderInfo& {
     return info_;
 }
 
-auto WavRiffDecoder::IsOpen() const -> bool {
+auto WavProfDecoder::IsOpen() const -> bool {
     return reader_.IsOpen();
 }
 
