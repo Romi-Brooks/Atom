@@ -35,6 +35,7 @@ Complete list of built-in channels:
 | `ATOM_ENTITY_PLAYER` | Atom.Entity.Player |
 | `ATOM_CONFIG_MOVEMENT` | Atom.Movement |
 | `ATOM_FILESYSTEM` | Atom.Filesystem |
+| `ATOM_LOGGER` | Atom.Logger |
 | `ATOM_MAIN` | Atom.Main |
 | `ATOM_LUA` | Atom.Lua |
 | `ATOM_AUDIO_MUSIC` | Atom.Audio.Music |
@@ -129,6 +130,10 @@ Use `SetViewLogLevel` to filter logs by severity:
 // Only show WARNING and above
 atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING);
 ```
+
+Each call prints a confirmation through the `ATOM_LOGGER` channel, e.g.
+`Set log level to WARNING`, so the currently active level is always visible
+in the console.
 
 Priority order: `DEBUG < INFO < WARNING < ERROR`
 

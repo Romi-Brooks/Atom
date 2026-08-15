@@ -27,8 +27,10 @@ MusicPlayer::~MusicPlayer() {
 
 auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     std::lock_guard lock(mutex_);
-    if (tracks_.contains(id))
+    if (tracks_.contains(id)) {
+        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Music track already loaded, skip: " + id);
         return true;
+    }
 
     AudioClipLoader loader{*decoders_};
     auto streaming = loader.OpenStreaming(file);
@@ -38,9 +40,13 @@ auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     }
     auto& backend = runtime_ ? runtime_->Audio() : *backend_;
     auto source = backend.CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
-    if (!source)
+    if (!source) {
+        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC,
+                  "Failed to create streaming music source for track '" + id + "': " + file);
         return false;
+    }
     tracks_.emplace(id, Track{std::move(source)});
+    LOG_INFO(LogChannel::ATOM_AUDIO_MUSIC, "Music track loaded: " + id + " (" + file + ")");
     return true;
 }
 
