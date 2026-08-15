@@ -11,7 +11,7 @@ toolchain used for the engine.
 | Dear ImGui | Debug overlay UI with SDL3 backends | `https://github.com/ocornut/imgui.git` | `01380c579715e62fb9a8d6ec0502c4ea83bfde6e` (`v1.92.9`) |
 | Lua | Embedded scripting runtime | `https://github.com/lua/lua.git` | `1ab3208a1fceb12fca8f24ba57d6e13c5bff15e3` (`v5.4.7`) |
 | utfcpp | UTF-8 validation and conversion | `https://github.com/nemtrif/utfcpp.git` | `f9319195dfddf369f68f18e7c0039b3f351797fd` (`v4.0.8`) |
-| minimp3 | MP3 decoding (header-only) | `https://github.com/lieff/minimp3.git` | `ea99364f61c14656440e8d77e9c233ccf3124633` (master, 2022-06-25; upstream has no release tags) |
+| minimp3 | MP3 decoding | `https://github.com/lieff/minimp3.git` | `ea99364f61c14656440e8d77e9c233ccf3124633` |
 
 Initialize the versions locked by Atom:
 

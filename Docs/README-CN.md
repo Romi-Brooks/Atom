@@ -120,32 +120,6 @@ CMake 和编译器产物。项目不再跨平台或跨编译器复用预编译�
 
 ***
 
-## 架构
-
-```
-Atom/
-├── Backend/
-│   ├── Contracts/      # Render/Audio/Video 后端契约
-│   ├── Registry/       # 后端无关的解码器注册中心
-│   ├── Runtime/        # 全局后端选择、默认装配与热切换
-│   ├── Builtin/        # Atom 自研实验实现
-│   └── SDL3/           # SDL3 渲染、窗口与音频实现
-├── Media/
-│   ├── Audio/
-│   │   ├── Mixing/     # AudioMixer 与分类音量
-│   │   ├── Resources/  # AudioClipLoader 与 AudioClipCache
-│   │   ├── Playback/   # MusicPlayer、SFXPlayer 与 VoicePool
-│   │   └── Transitions/# 帧驱动音乐过渡
-│   └── Video/          # 视频（空壳）
-├── Log/                # 日志系统
-├── Window/             # 屏幕系统、Debugger
-├── Lua/                # Lua 绑定
-├── Utilities/          # 引擎共享工具（如 UTF-8 转换）
-└── ThirdParty/         # 固定版本源码 submodule 与依赖 CMake 入口
-```
-
-***
-
 ## 未来规划
 
 - [未完成工作统一清单](Remaining-Issues.md)

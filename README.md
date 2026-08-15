@@ -126,32 +126,6 @@ precompiled Windows libraries are reused on Linux or with another compiler.
 
 ---
 
-## Architecture
-
-```
-Atom/
-├── Backend/
-│   ├── Contracts/      # Render/Audio/Video backend contracts
-│   ├── Registry/       # Backend-independent decoder registry
-│   ├── Runtime/        # Global backend selection, defaults and hot switching
-│   ├── Builtin/        # Atom-owned experimental implementations
-│   └── SDL3/           # SDL3 render, window and audio implementations
-├── Media/
-│   ├── Audio/
-│   │   ├── Mixing/     # AudioMixer and category volumes
-│   │   ├── Resources/  # AudioClipLoader and AudioClipCache
-│   │   ├── Playback/   # MusicPlayer, SFXPlayer and VoicePool
-│   │   └── Transitions/# Frame-driven music transitions
-│   └── Video/          # Video (stub)
-├── Log/                # Logging system
-├── Window/             # Screen system, Debugger
-├── Lua/                # Lua binding
-├── Utilities/          # Shared engine utilities (e.g. UTF-8 conversion)
-└── ThirdParty/         # Pinned source submodules and dependency CMake entry
-```
-
----
-
 ## Roadmap
 
 - [x]  **Backend Migration** — Migrated from **SFML** to **SDL3**
