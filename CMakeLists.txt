@@ -285,11 +285,31 @@ target_link_libraries(packager_tool PRIVATE engine_packager)
 # Platforms Config
 # ============================================================================
 if(MINGW)
-    # Link the MinGW runtime statically so executables are self-contained and
-    # do not require libstdc++-6.dll / libgcc_s_seh-1.dll / libwinpthread-1.dll
-    # at runtime. Applies to every executable in this project.
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc -static-libstdc++")
+    # Statically link libgcc and libstdc++ so executables do not require
+    # libgcc_s_seh-1.dll / libstdc++-6.dll at runtime. Plain "-static" is
+    # avoided: this toolchain's static winpthread archive is built for UCRT and
+    # references __intrinsic_setjmpex, which the MSVCRT runtime sequence does
+    # not provide (undefined reference at link time).
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
     target_link_options(Atom PRIVATE -lstdc++exp -lws2_32)
+
+    # The thread runtime stays dynamic; copy libwinpthread-1.dll next to every
+    # executable so they run without manual DLL setup.
+    get_filename_component(ATOM_MINGW_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    set(ATOM_MINGW_RUNTIME_DLL "${ATOM_MINGW_BIN_DIR}/libwinpthread-1.dll")
+    function(atom_copy_mingw_runtime_dll target)
+        if(EXISTS "${ATOM_MINGW_RUNTIME_DLL}")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ATOM_MINGW_RUNTIME_DLL}" "$<TARGET_FILE_DIR:${target}>"
+                COMMENT "Copying libwinpthread-1.dll next to ${target}")
+        endif()
+    endfunction()
+    foreach(atom_exe IN ITEMS Atom example_media_metadata example_audio_playback
+                           example_sfx_playback example_simple_window
+                           example_simple_window_debug packager_tool)
+        atom_copy_mingw_runtime_dll(${atom_exe})
+    endforeach()
 endif()
 if(WIN32)
     target_link_libraries(Atom PRIVATE opengl32 gdi32)
