@@ -41,9 +41,58 @@ atom::ScreenManager::GetInstance().LoadScreen(
 atom::ScreenManager::GetInstance().SwitchScreen("menu");
 
 auto& window = atom::RenderWindow::GetInstance();
-window.Initialize("My Game", atom::Vec2{1280, 720});
+window.Initialize("My Game", atom::Vec2{1280, 720});        // 默认渲染后端 "sdl3"
+window.Initialize("My Game", atom::Vec2{1280, 720}, "sdl3"); // 显式指定后端
 window.SetFPS(60);
 window.Run();
+```
+
+`Initialize` 的第三个参数（`backendId`）选择渲染后端，默认 `"sdl3"`（SDL3 Renderer，跨平台硬件加速）。
+自定义后端通过 `RenderBackendRegistry` 注册后即可选用：
+
+```cpp
+#include <Backend/Registry/RenderBackendRegistry.hpp>
+
+atom::RenderBackendRegistry::GetInstance().RegisterWindowFactory(
+    "my_backend", [] { return std::make_unique<MyRenderWindow>(); });
+// window.Initialize("My Game", atom::Vec2{1280, 720}, "my_backend");
+```
+
+具体后端实现（`Backend/SDL3/*` 等）由引擎运行时内部注册与持有，普通用户只使用
+`Backend/Contracts/*` 接口，不直接包含后端头文件。
+
+### 调试覆盖层（ImGui）
+
+引擎负责 ImGui 的后端接线，用户只需要引擎头：
+
+```cpp
+#include <Window/Overlay.hpp> // 引擎导出 ImGui API + atom::Debugger
+
+class MyDebugger final : public atom::Debugger {
+protected:
+    auto OnDrawOverlay() -> void override {
+        ImGui::Begin("Debug");
+        ImGui::Text("FPS: %.1f", GetFPS());
+        ImGui::End();
+    }
+};
+
+MyDebugger debugger{};
+debugger.Attach(atom::RenderWindow::GetInstance());
+```
+
+- 用户**不要**直接 `#include <imgui.h>` 或任何 `Backend/*` 头文件；`Overlay.hpp` 是唯一入口。
+- 一个窗口建议只挂一个基于 ImGui 的 `Debugger`（ImGui 上下文为每 Debugger 一份，多挂会互相覆盖渲染；非 ImGui 的扩展可通过监听器并存）。
+
+### 窗口扩展监听器
+
+事件、帧更新、Overlay、Resize、Shutdown 均通过监听器注册（ARCH-112），返回 RAII
+`ListenerConnection`，析构自动注销；多个监听器可并存，注销一个不影响其他：
+
+```cpp
+auto conn = window.AddUpdateListener([](float dt) { /* 每帧更新 */ });
+auto resizeConn = window.AddResizeListener([](uint32_t w, uint32_t h) { /* 窗口尺寸变化 */ });
+// conn / resizeConn 析构时自动移除对应监听器
 ```
 
 ## 音乐
@@ -170,11 +219,11 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 | 类型 | 默认使用方式 | 说明 |
 |---|---|---|
 | `BackendRuntime` | `GetInstance()` | 全局 Backend 选择与热切换 |
-| `RenderWindow` | `GetInstance()` | 窗口和主循环门面 |
+| `RenderWindow` | `GetInstance()` + `Initialize(title, size, backendId)` | 窗口和主循环门面；默认后端 "sdl3" |
 | `ScreenManager` | `GetInstance()` | Screen 注册、切换与调度 |
 | `AudioMixer` | 普通实例 | Master/Music/SFX 分类音量 |
 | `MusicPlayer` | `MusicPlayer(mixer)` | 默认使用全局音频后端与引擎默认解码器 |
 | `AudioClipCache` | 默认构造 | 默认使用全局解码器注册表 |
 | `SFXPlayer` | `SFXPlayer(clips, mixer)` | 默认使用全局音频后端 |
 | `MusicCrossfade` | `MusicCrossfade(music)` | 帧驱动音乐过渡 |
-| `Debugger` | 普通实例 + `Attach` | ImGui 调试覆盖层 |
+| `Debugger` | 普通实例 + `Attach` | ImGui 调试覆盖层（include `<Window/Overlay.hpp>`；一个窗口建议一个 ImGui Debugger） |

@@ -7,12 +7,11 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <imgui.h>
+#include <Window/Overlay.hpp>
 
 #include <Window/RenderWindow.hpp>
 #include <Window/Manager/ScreenManager.hpp>
 #include <Window/Screen.hpp>
-#include <Window/Debugger.hpp>
 #include <Log/LogSystem.hpp>
 
 #ifdef _WIN32

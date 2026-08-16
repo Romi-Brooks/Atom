@@ -104,10 +104,6 @@ auto SDL3RenderWindow::Shutdown() -> void {
     if (!window_ && !renderer_ && !video_runtime_.IsValid() && !events_runtime_.IsValid())
         return;
 
-    if (on_shutdown_) {
-        on_shutdown_();
-    }
-
     for (auto& [key, tex] : circle_cache_) {
         SDL_DestroyTexture(tex);
     }
@@ -242,17 +238,12 @@ auto SDL3RenderWindow::PollEvent() -> std::optional<IEvent> {
     if (!SDL_PollEvent(&ev))
         return std::nullopt;
 
-    // Pre-process raw event (ImGui hook) before translation.
-    if (on_pre_process_sdl_event_) {
-        on_pre_process_sdl_event_(ev);
+    // Pre-process raw event (platform adapter / ImGui hook) before translation.
+    if (raw_event_hook_) {
+        raw_event_hook_(&ev);
     }
 
     IEvent result = TranslateEvent(ev);
-
-    // Optional callback overlay processing (e.g., ImGui)
-    if (on_process_event_ && result.type != EventType::None) {
-        on_process_event_(result);
-    }
 
     if (ev.type == SDL_EVENT_QUIT) {
         open_ = false;
@@ -272,13 +263,23 @@ auto SDL3RenderWindow::GetFPS() const -> uint32_t {
     return fps_limit_;
 }
 
-// ── Native handles ──────────────────────────────────────────────────
-auto SDL3RenderWindow::GetNativeWindowHandle() const -> void* {
-    return static_cast<void*>(window_);
+auto SDL3RenderWindow::SetRawEventHook(std::function<void(const void*)> hook) -> void {
+    raw_event_hook_ = std::move(hook);
 }
 
-auto SDL3RenderWindow::GetNativeRendererHandle() const -> void* {
-    return static_cast<void*>(renderer_);
+// ── Native handles (ISDL3WindowExtensions) ──────────────────────────
+auto SDL3RenderWindow::GetNativeWindow() const -> SDL_Window* {
+    return window_;
+}
+
+auto SDL3RenderWindow::GetNativeRenderer() const -> SDL_Renderer* {
+    return renderer_;
+}
+
+// ── Resize ──────────────────────────────────────────────────────────
+auto SDL3RenderWindow::HandleResize(uint32_t /*width*/, uint32_t /*height*/) -> void {
+    // SDL3 renderer tracks window size changes internally; nothing to do.
+    // A Vulkan backend would recreate its swapchain here.
 }
 
 } // namespace atom

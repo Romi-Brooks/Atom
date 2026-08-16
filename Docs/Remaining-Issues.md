@@ -1,13 +1,13 @@
 # Atom 未完成工作统一清单
 
 > 状态：唯一有效的架构整改与后续规划文档
-> 更新日期：2026-08-14
-> 原则：只记录尚未完成的事项；已经完成的迁移和修复不在本文保留实施历史。
+> 更新日期：2026-08-16
 
 ## 1. 使用规则
 
 - `[ ]` 未开始
 - `[-]` 处理中
+- `[x]` 已完成（保留实施历史，不删除）
 - `[!]` Beta 阶段暂缓
 - API、编码规范和使用说明继续保留在各自稳定文档中。
 
@@ -15,8 +15,8 @@
 
 ### ARCH-004：引擎事件可能被扩展层重复处理
 
-- [ ] 确认 `SDL3RenderWindow::PollEvent()` 与 `RenderWindow::ProcessEvents()` 的回调链，确保一个 SDL 事件只转换和分发一次。
-- [ ] 原始 SDL 事件仅提供给平台适配/ImGui，引擎事件只在上层分发。
+- [x] 确认 `SDL3RenderWindow::PollEvent()` 与 `RenderWindow::ProcessEvents()` 的回调链，确保一个 SDL 事件只转换和分发一次。（已修复：`PollEvent` 回归纯取事件原语，`RenderWindow::ProcessEvents` 唯一分发并带 None 守卫，见 2026-08-16 提交。）
+- [x] 原始 SDL 事件仅提供给平台适配/ImGui，引擎事件只在上层分发。（已落地：`IRenderWindow::SetRawEventHook` 只服务平台适配器；引擎事件经 `IEvent` 在门面层分发。）
 - 验收：单次键盘、鼠标和窗口事件不会触发两次业务回调。
 
 ### ARCH-005：Lua 错误处理与空指针保护
@@ -85,9 +85,16 @@
 
 ### ARCH-112：扩展回调由单槽改为 Listener Registry
 
-- [ ] Event、Update、Overlay、Shutdown 使用 token/RAII Connection 注册。
-- [ ] Debugger、Profiler、Console 和用户 Overlay 可以并存。
-- [ ] 注销一个监听器不得清空其他监听器。
+- [x] Event、Update、Overlay、Shutdown 使用 token/RAII Connection 注册。（已落地：`RenderWindow` 提供 `Add*Listener` + `ListenerConnection`，见 2026-08-16。）
+- [x] Debugger、Profiler、Console 和用户 Overlay 可以并存。（监听器层已可并存；ImGui 层限制见 ARCH-113。）
+- [x] 注销一个监听器不得清空其他监听器。（已落地：按 id 独立注销。）
+- 约束：监听器不得在自身被分发期间注销。
+
+### ARCH-113：多个 ImGui Overlay 需要共享上下文
+
+- [ ] ImGui 全局上下文按窗口共享一份（OverlayManager），Debugger/Profiler/Console 只贡献 `OnDrawOverlay` 内容。
+- [ ] 现状：每个 `Debugger::Attach` 独立 `ImGui::CreateContext()`，同窗口挂两个 ImGui Debugger 会互相覆盖渲染（监听器层已可并存，ImGui 层尚不能）。
+- 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。
 
 ## 4. 音频后续事项
 
@@ -136,9 +143,9 @@
 ### RENDER-001：渲染后端与窗口进一步拆分
 
 - [ ] 将窗口管理与 Renderer/RenderDevice 分离。
-- [ ] 消除上层对具体 `SDL3RenderWindow` 的所有权依赖。
-- [ ] 纹理由所属 RenderDevice 创建和消费，禁止依赖跨后端 `dynamic_cast`。
-- [ ] Native handle 只存在于后端专用扩展接口。
+- [x] 消除上层对具体 `SDL3RenderWindow` 的所有权依赖。（已落地：`RenderWindow` 持有 `IRenderWindow*`，经 `RenderBackendRegistry` + `RenderBackendRuntime` 创建，见 2026-08-16。）
+- [ ] 纹理由所属 RenderDevice 创建和消费，禁止依赖跨后端 `dynamic_cast`。（现状记录：`SDL3RenderWindow::DrawTexture` 仍 `dynamic_cast<SDL3Texture&>`；且 Atom 尚未实现纹理/渲染功能主体——`ITexture` 无创建工厂、`Entity::texture_` 无赋值路径。此条随 RENDER-002 与纹理工厂实施时一并解决，Vulkan 进场前必须落地。）
+- [x] Native handle 只存在于后端专用扩展接口。（已落地：`ISDL3WindowExtensions`，`IRenderWindow` 不再暴露 `void*`，见 2026-08-16。）
 
 ### RENDER-002：完整 2D Renderer
 
@@ -181,7 +188,7 @@
 
 ### CORE-005：CMake target 与可移植性
 
-- [ ] 清理全局 include/link directories，改为 target 级依赖。
+- [-] 清理全局 include/link directories，改为 target 级依赖。（部分落地：渲染链已显式化——`atom_backend_sdl3_render` 显式链接 `engine_algorithm`，`engine_windows` 经 `atom_backend_render_runtime` 与具体后端解耦，见 2026-08-16。）
 - [ ] 明确 PUBLIC/PRIVATE/INTERFACE 传播边界。
 - [ ] 消除本机绝对路径与平台隐式依赖。
 - [ ] 增加 install/export/package config 和 `Atom::*` 导出目标。

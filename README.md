@@ -129,7 +129,7 @@ precompiled Windows libraries are reused on Linux or with another compiler.
 ## Roadmap
 
 - [x]  **Backend Migration** — Migrated from **SFML** to **SDL3**
-- [ ] **Renderer Plugin System** — Users will be able to choose or write their own rendering backend.
+- [x]  **Backend Selection Mechanism** — `RenderBackendRegistry` + `RenderWindow::Initialize(backendId)`; custom render backends can be registered. The Vulkan backend itself remains planned (RENDER-003).
 - [ ] **ECS Framework** — Replace the current simple entity system with a proper Entity-Component-System architecture.
 - [ ] **Tooling** — Editor, asset pipeline, and profiling tools.
 

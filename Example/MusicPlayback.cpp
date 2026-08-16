@@ -7,7 +7,7 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <imgui.h>
+#include <Window/Overlay.hpp>
 
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
@@ -15,7 +15,6 @@
 #include <Media/Audio/Transitions/MusicCrossfade.hpp>
 #include <Window/Screen.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Debugger.hpp>
 #include <Log/LogSystem.hpp>
 #ifdef _WIN32
 #include "windows.h"
