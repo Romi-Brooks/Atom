@@ -39,7 +39,6 @@ public:
     };
 
     // Operation result
-    // 操作结果
     enum class Result {
         SUCCESS,
         ERROR_OPEN_FILE,
@@ -87,12 +86,10 @@ private:
     std::vector<char> last_read_buffer_;
 
     // Magic number and version
-    // 魔数和版本号
     static constexpr char MAGIC[4] = {'A', 'P', 'K', 'G'};
     static constexpr uint16_t VERSION = 1;
 
     // Utility functions
-    // 工具函数
     auto CreateDirectory(const std::filesystem::path& dir_path) -> bool;
     auto SafePathToString(const std::filesystem::path& path) -> std::string;
     auto GetFileSize(const std::string& filename) -> uint64_t;

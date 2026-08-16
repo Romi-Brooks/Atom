@@ -69,7 +69,6 @@ public:
 protected:
     // Override this to draw your debug overlay content.
     // Called every frame inside the overlay. Use ImGui::Begin/End here.
-    // 重写此方法以绘制调试叠加层内容。每帧调用。
     virtual auto OnDrawOverlay() -> void {}
 };
 
