@@ -24,6 +24,7 @@
 #endif // _WIN32
 
 namespace {
+// replace it
 constexpr auto kMusic1Path = R"(E:\Music\我的歌声里 - 曲婉婷.mp3)";
 constexpr auto kMusic2Path = R"(E:\Music\滴滴 - 覆予.mp3)";
 

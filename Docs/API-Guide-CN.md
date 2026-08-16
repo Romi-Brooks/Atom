@@ -181,6 +181,26 @@ mixer.SetSFXVolume(100.0f);
 
 当前 `AudioMixer` 是轻量分类音量配置。完整 Bus 增益传播仍属于后续事项。
 
+## 音频元数据
+
+读取音频文件的标签与属性（基于 TagLib，由引擎封装，调用方无需包含
+TagLib 头）：
+
+```cpp
+#include <Media/Audio/Metadata/AudioMetadataReader.hpp>
+
+if (const auto meta = atom::AudioMetadataReader::Read("assets/menu.mp3")) {
+    std::cout << meta->title << " - " << meta->artist << std::endl;
+    std::cout << meta->durationSeconds << "s, " << meta->sampleRate
+              << " Hz, " << meta->channels << " ch" << std::endl;
+} else {
+    // 文件无法读取或没有标签
+}
+```
+
+`AudioMetadata` 字段：`title/artist/album/comment/genre/year/track` +
+`durationSeconds/bitrateKbps/sampleRate/channels`（属性不可用时为 0）。
+
 ## 全局 Backend 设置
 
 默认设置：
@@ -263,4 +283,5 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 | `AudioClipCache` | 默认构造 | 默认使用全局解码器注册表 |
 | `SFXPlayer` | `SFXPlayer(clips, mixer)` | 默认使用全局音频后端 |
 | `MusicCrossfade` | `MusicCrossfade(music)` | 帧驱动音乐过渡 |
+| `AudioMetadataReader` | `AudioMetadataReader::Read(path)` | 读取音频标签与属性（基于 TagLib） |
 | `Debugger` | 普通实例 + `Attach` | ImGui 调试覆盖层（include `<Window/Overlay.hpp>`；一个窗口建议一个 ImGui Debugger） |

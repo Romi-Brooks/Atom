@@ -125,6 +125,9 @@ include 按以下分组顺序排列，每组空一行：
 - 顶层命名空间常量以 `ATOM_` 或 `SDL_` 开头
 - 子模块间用 `_` 分隔，全部大写
 - 显示字符串使用 `.` 分隔，每个单词 PascalCase
+- 调用处一律直接写 `LogChannel::ATOM_XXX`，不要定义局部别名
+  （如 `const auto& kLogChannel = LogChannel::ATOM_XXX;`）——别名虽然让调用
+  更短，但会给接手的人增加一层间接跳转，收益有限。
 
 ### 3.2 详细规则
 

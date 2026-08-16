@@ -57,6 +57,7 @@ namespace atom {
     const LogChannel LogChannel::ATOM_AUDIO_PLUG_MUSICFADE("Atom.Audio.Plug.MusicFade", "Atom.Audio.Plug.MusicFade -> ");
     const LogChannel LogChannel::ATOM_AUDIO_MINIMP3("Atom.Audio.Minimp3", "Atom.Audio.Minimp3 -> ");
     const LogChannel LogChannel::ATOM_AUDIO_WAVPROF("Atom.Audio.WavProf", "Atom.Audio.WavProf -> ");
+    const LogChannel LogChannel::ATOM_AUDIO_METADATA("Atom.Audio.Metadata", "Atom.Audio.Metadata -> ");
 
     const LogChannel LogChannel::ATOM_BACKEND_RUNTIME("Atom.Backend.Runtime", "Atom.Backend.Runtime -> ");
 

@@ -552,15 +552,10 @@ auto Unpackager::PrintPackageInfo() const -> void {
 
     uint64_t total_size = 0;
     for (const auto& entry : file_table_) {
-        std::string display_name;
-        for (const char c : entry.filename) {
-            if (c >= 32 && c <= 126) {
-                display_name += c;
-            } else if (display_name.length() < 50) {
-                display_name += '?';
-            }
-        }
-
+        // Entry names are stored as UTF-8; print them as-is (the console is
+        // expected to run with a UTF-8 code page). Only bound the length for
+        // readability.
+        std::string display_name = entry.filename;
         if (display_name.length() > 50) {
             display_name = display_name.substr(0, 47) + "...";
         }

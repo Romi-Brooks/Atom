@@ -147,6 +147,8 @@ add_subdirectory(ThirdParty)
 
 # 7. Media
     add_library(engine_media STATIC
+        Media/Audio/Metadata/AudioMetadataReader.cpp
+        Media/Audio/Metadata/AudioMetadataReader.hpp
         Media/Audio/Mixing/AudioMixer.cpp
         Media/Audio/Mixing/AudioMixer.hpp
         Media/Audio/Resources/AudioClipLoader.cpp
@@ -165,7 +167,7 @@ add_subdirectory(ThirdParty)
         Media/Video/Video.hpp
     )
     target_include_directories(engine_media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_media PUBLIC atom_backend_contracts atom_backend_registry atom_backend_runtime engine_log)
+    target_link_libraries(engine_media PUBLIC atom_backend_contracts atom_backend_registry atom_backend_runtime engine_log engine_utf8 atom::taglib)
 
 # --------------------------------------------------------------------------
 # UTF-8 encoding utilities (shared by all Atom modules)
@@ -264,7 +266,6 @@ add_executable(Atom Atom.cpp)
 
 target_link_libraries(Atom PRIVATE
         engine_core
-        atom::taglib
 )
 
 # Examples
@@ -292,6 +293,13 @@ add_executable(example_simple_window_debug Example/SimpleWindowWithDebugger.cpp)
 target_link_libraries(example_simple_window_debug PRIVATE engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_simple_window_debug PRIVATE)
+endif()
+
+# Audio metadata example (uses the engine's AudioMetadataReader)
+add_executable(example_audio_metadata Example/AudioMetadata.cpp)
+target_link_libraries(example_audio_metadata PRIVATE engine_media)
+if(WIN32)
+    target_link_libraries(example_audio_metadata PRIVATE)
 endif()
 
 # Resource-pack + in-memory streaming playback example
@@ -335,9 +343,9 @@ if(MINGW)
         endif()
     endfunction()
     foreach(atom_exe IN ITEMS Atom example_audio_playback
-                           example_sfx_playback example_simple_window
-                           example_simple_window_debug example_packaged_music
-                           packager_tool)
+                           example_audio_metadata example_sfx_playback
+                           example_simple_window example_simple_window_debug
+                           example_packaged_music packager_tool)
         atom_copy_mingw_runtime_dll(${atom_exe})
     endforeach()
 endif()
