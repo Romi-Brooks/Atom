@@ -13,5 +13,5 @@ auto main() -> int {
     +=============================================================+
     )" << std::endl;
 
-    LOG_INFO(atom::LogChannel::ATOM_MAIN, "Atom engine finished up :)");
+    LOG_INFO(atom::core::LogChannel::MAIN, "Atom engine finished up :)");
 }

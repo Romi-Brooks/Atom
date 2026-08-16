@@ -112,21 +112,24 @@ include 按以下分组顺序排列，每组空一行：
 | **局部变量**        | `snake_case`         | `it`、`load_result`、`music`             |
 | **宏**           | `UPPER_SNAKE_CASE`   | `LOG_INFO`、`LOG_ERROR`                 |
 
-### 3.1.1 日志频道命名
+### 3.1.1 日志通道命名
 
-日志频道常量遵循 `CATEGORY_SUBCATEGORY` 格式，显示名使用 `Category.Subcategory`：
+通道是**按层级域分组**的枚举——每个域是一个 `ATOM_DEFINE_CHANNELS` 块
+（引擎通道在 `Log/AtomLogChannels.hpp`，游戏域在游戏项目里）。一个域拥有
+一个命名空间、一个枚举和一个显示前缀：
 
-| 常量名 | 显示字符串 | 说明 |
-|--------|----------|------|
-| `ATOM_AUDIO_MUSIC` | `Atom.Audio.Music ->` | 引擎音频-音乐域 |
-| `SDL_BACKEND_AUDIO` | `SDL.Backend.Audio ->` | SDL 音频后端 |
-| `ATOM_AUDIO_PLUG_MUSICFADE` | `Atom.Audio.Plug.MusicFade ->` | 插件子模块 |
+| 域 | 前缀 | 示例 |
+|---|---|---|
+| `atom::core::LogChannel` | `Atom.` | `atom::core::LogChannel::MAIN` |
+| `atom::audio::LogChannel` | `Atom.Audio.` | `atom::audio::LogChannel::MUSIC` |
+| `atom::backend::sdl::LogChannel` | `Atom.SDL.Backend.` | `atom::backend::sdl::LogChannel::AUDIO` |
+| `game::GameLogChannel` | `Game.` | `game::GameLogChannel::GAME_NPC` |
 
-- 顶层命名空间常量以 `ATOM_` 或 `SDL_` 开头
-- 子模块间用 `_` 分隔，全部大写
-- 显示字符串使用 `.` 分隔，每个单词 PascalCase
-- 调用处一律直接写 `LogChannel::ATOM_XXX`，不要定义局部别名
-  （如 `const auto& kLogChannel = LogChannel::ATOM_XXX;`）——别名虽然让调用
+- 枚举名使用 `UPPER_SNAKE_CASE`（`SCREEN_MANAGER`、`PLUG_MUSICFADE`）；游戏域可保留
+  简短分类前缀（`GAME_NPC`）
+- 显示名使用 `.` 分隔的 PascalCase（`Atom.Entity.NPC ->`）
+- 调用处一律直接写域的枚举值（如 `atom::audio::LogChannel::MUSIC`），不要定义局部别名
+  （如 `const auto& kLogChannel = atom::audio::LogChannel::MUSIC;`）——别名虽然让调用
   更短，但会给接手的人增加一层间接跳转，收益有限。
 
 ### 3.2 详细规则

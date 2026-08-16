@@ -28,25 +28,25 @@ MusicPlayer::~MusicPlayer() {
 auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     std::lock_guard lock(mutex_);
     if (tracks_.contains(id)) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Music track already loaded, skip: " + id);
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Music track already loaded, skip: " + id);
         return true;
     }
 
     AudioClipLoader loader{*decoders_};
     auto streaming = loader.OpenStreaming(file);
     if (!streaming) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC, "Failed to decode music: " + file);
+        LOG_ERROR(atom::audio::LogChannel::MUSIC, "Failed to decode music: " + file);
         return false;
     }
     auto& backend = runtime_ ? runtime_->Audio() : *backend_;
     auto source = backend.CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
     if (!source) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_ERROR(atom::audio::LogChannel::MUSIC,
                   "Failed to create streaming music source for track '" + id + "': " + file);
         return false;
     }
     tracks_.emplace(id, Track{std::move(source)});
-    LOG_INFO(LogChannel::ATOM_AUDIO_MUSIC, "Music track loaded: " + id + " (" + file + ")");
+    LOG_INFO(atom::audio::LogChannel::MUSIC, "Music track loaded: " + id + " (" + file + ")");
     return true;
 }
 
@@ -54,25 +54,25 @@ auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filen
                                  const std::size_t size) -> bool {
     std::lock_guard lock(mutex_);
     if (tracks_.contains(id)) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Music track already loaded, skip: " + id);
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Music track already loaded, skip: " + id);
         return true;
     }
 
     AudioClipLoader loader{*decoders_};
     auto streaming = loader.OpenStreamingFromMemory(filename, data, size);
     if (!streaming) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC, "Failed to decode music from memory: " + filename);
+        LOG_ERROR(atom::audio::LogChannel::MUSIC, "Failed to decode music from memory: " + filename);
         return false;
     }
     auto& backend = runtime_ ? runtime_->Audio() : *backend_;
     auto source = backend.CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
     if (!source) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_ERROR(atom::audio::LogChannel::MUSIC,
                   "Failed to create streaming music source for track '" + id + "': " + filename);
         return false;
     }
     tracks_.emplace(id, Track{std::move(source)});
-    LOG_INFO(LogChannel::ATOM_AUDIO_MUSIC,
+    LOG_INFO(atom::audio::LogChannel::MUSIC,
              "Music track loaded from memory: " + id + " (" + filename + ", " + std::to_string(size) + " bytes)");
     return true;
 }
@@ -84,21 +84,20 @@ auto MusicPlayer::Play(const std::string& id) -> void {
 auto MusicPlayer::Play(const std::string& id, const float volume) -> void {
     std::lock_guard lock(mutex_);
     const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source)
-        return;
+    if (it == tracks_.end() || !it->second.source) { return; }
     it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
     it->second.source->Play();
+    LOG_INFO(atom::audio::LogChannel::MUSIC, "Now Playing track: " + id);
     current_playing_id_ = id;
 }
 
 auto MusicPlayer::Stop(const std::string& id) -> void {
     std::lock_guard lock(mutex_);
     const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source)
-        return;
+    if (it == tracks_.end() || !it->second.source) { return; }
     it->second.source->Stop();
-    if (current_playing_id_ == id)
-        current_playing_id_.clear();
+    LOG_INFO(atom::audio::LogChannel::MUSIC, "Track Stopped: " + id);
+    if (current_playing_id_ == id) { current_playing_id_.clear(); }
 }
 
 auto MusicPlayer::Reset() -> void {
@@ -130,22 +129,27 @@ auto MusicPlayer::SetMusicVolume(const float volume) -> void {
 auto MusicPlayer::GetMusicVolume() const -> float {
     return mixer_.GetMusicVolume();
 }
+
 auto MusicPlayer::SetNowPlaying(const std::string& id) -> void {
     std::lock_guard lock(mutex_);
     current_playing_id_ = id;
 }
+
 auto MusicPlayer::GetNowPlaying() const -> std::string {
     std::lock_guard lock(mutex_);
     return current_playing_id_;
 }
+
 auto MusicPlayer::IsLoaded(const std::string& id) const -> bool {
     std::lock_guard lock(mutex_);
     return tracks_.contains(id);
 }
+
 auto MusicPlayer::IsNowPlaying(const std::string& id) const -> bool {
     std::lock_guard lock(mutex_);
     return current_playing_id_ == id;
 }
+
 auto MusicPlayer::ClearNowPlaying() -> void {
     std::lock_guard lock(mutex_);
     current_playing_id_.clear();

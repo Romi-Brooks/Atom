@@ -27,14 +27,14 @@ auto FormatSeconds(const float seconds) -> std::string {
 }
 auto MusicCrossfade::Start(const std::string& target, const MusicCrossfadeConfig& config) -> bool {
     if (!player_.IsLoaded(target) || config.fade_out_duration < 0.0f || config.fade_in_duration < 0.0f) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+        LOG_ERROR(atom::audio::LogChannel::PLUG_MUSICFADE,
                   "MusicCrossfade: fade failed: target '" + target + "' not loaded or invalid duration");
         EnterState(MusicTransitionState::Failed);
         return false;
     }
     if (IsRunning()) {
         if (config.conflict_policy == TransitionConflictPolicy::Reject) {
-            LOG_DEBUG(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+            LOG_DEBUG(atom::audio::LogChannel::PLUG_MUSICFADE,
                       "MusicCrossfade: fade request rejected, transition already running (policy=Reject)");
             return false;
         }
@@ -46,19 +46,19 @@ auto MusicCrossfade::Start(const std::string& target, const MusicCrossfadeConfig
     elapsed_ = 0.0f;
     peak_volume_ = player_.GetMusicVolume();
     if (from_id_ == to_id_) {
-        LOG_INFO(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+        LOG_INFO(atom::audio::LogChannel::PLUG_MUSICFADE,
                  "MusicCrossfade: target '" + to_id_ + "' is already playing, no fade needed");
         EnterState(MusicTransitionState::Completed);
         return true;
     }
     if (from_id_.empty()) {
         player_.Play(to_id_);
-        LOG_INFO(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+        LOG_INFO(atom::audio::LogChannel::PLUG_MUSICFADE,
                  "MusicCrossfade: started '" + to_id_ + "' directly (no current track to fade from)");
         EnterState(MusicTransitionState::Completed);
         return true;
     }
-    LOG_INFO(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+    LOG_INFO(atom::audio::LogChannel::PLUG_MUSICFADE,
              "MusicCrossfade: fade started '" + from_id_ + "' -> '" + to_id_ + "' (out=" +
                  FormatSeconds(config_.fade_out_duration) + "s, in=" + FormatSeconds(config_.fade_in_duration) +
                  "s, curve=" + CurveName(config_.curve) + ")");
@@ -72,7 +72,7 @@ auto MusicCrossfade::Switch(const std::string& target, const float duration) -> 
 }
 auto MusicCrossfade::Update(float delta_time) -> void {
     if (IsRunning() && !player_.IsLoaded(to_id_)) {
-        LOG_ERROR(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+        LOG_ERROR(atom::audio::LogChannel::PLUG_MUSICFADE,
                   "MusicCrossfade: fade failed: target '" + to_id_ + "' was unloaded mid-fade");
         EnterState(MusicTransitionState::Failed);
         return;
@@ -94,12 +94,12 @@ auto MusicCrossfade::Update(float delta_time) -> void {
         if (fading_out) {
             player_.Stop(from_id_);
             player_.Play(to_id_, 0.0f);
-            LOG_INFO(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+            LOG_INFO(atom::audio::LogChannel::PLUG_MUSICFADE,
                      "MusicCrossfade: faded out '" + from_id_ + "', fading in '" + to_id_ + "'");
             EnterState(MusicTransitionState::FadingIn);
         } else {
             player_.SetVolume(to_id_, peak_volume_);
-            LOG_INFO(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+            LOG_INFO(atom::audio::LogChannel::PLUG_MUSICFADE,
                      "MusicCrossfade: fade completed '" + from_id_ + "' -> '" + to_id_ + "'");
             Complete();
         }
@@ -111,7 +111,7 @@ auto MusicCrossfade::Cancel() -> void {
     const auto& active = state_ == MusicTransitionState::FadingOut ? from_id_ : to_id_;
     if (!active.empty())
         player_.SetVolume(active, peak_volume_);
-    LOG_DEBUG(LogChannel::ATOM_AUDIO_PLUG_MUSICFADE,
+    LOG_DEBUG(atom::audio::LogChannel::PLUG_MUSICFADE,
               "MusicCrossfade: fade cancelled '" + from_id_ + "' -> '" + to_id_ + "'");
     EnterState(MusicTransitionState::Cancelled);
 }

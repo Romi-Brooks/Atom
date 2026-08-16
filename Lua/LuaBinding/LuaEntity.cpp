@@ -110,7 +110,7 @@ auto RegisterEntityToLua(lua_State* L) -> void {
         {nullptr, nullptr} // End marker
     };
     luaL_setfuncs(L, entityMethods, 0);
-    LOG_INFO(atom::LogChannel::ATOM_LUA, "Engine.Entity registered successfully.");
+    LOG_INFO(atom::core::LogChannel::LUA, "Engine.Entity registered successfully.");
     // Pop metatable (clean up stack)
     // 弹出元表（清理栈）
     lua_pop(L, 1);

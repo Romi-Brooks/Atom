@@ -131,5 +131,5 @@ auto RegisterSFXToLua(lua_State* L) -> void {
     luaL_setfuncs(L, sfx_manager_method_list, 0);
     lua_setglobal(L, "AudioClipCache");
 
-    LOG_INFO(atom::LogChannel::ATOM_LUA, "Atom Audio SFXPlayer and AudioClipCache registered successfully.");
+    LOG_INFO(atom::core::LogChannel::LUA, "Atom Audio SFXPlayer and AudioClipCache registered successfully.");
 }

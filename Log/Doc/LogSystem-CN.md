@@ -6,102 +6,137 @@
 
 ## 概述
 
-`LogSystem` 是 Atom 引擎的日志系统，支持分级日志输出，并通过 `LogChannel` 机制区分不同模块的日志来源。
+`LogSystem` 是 Atom 引擎的日志系统，支持分级日志输出，并通过**层级通道域**机制区分不同模块的日志来源。
+
+每个域由一个宏（`ATOM_DEFINE_CHANNELS`）在编译期生成"枚举 + 名字映射 + 前缀"：
+
+- **引擎域**：`atom::core::LogChannel`、`atom::audio::LogChannel`、`atom::entity::LogChannel`、`atom::backend::LogChannel`、`atom::backend::sdl::LogChannel`、`atom::utilities::LogChannel` —— 输出前缀 `Atom.` / `Atom.Audio.` / `Atom.Entity.` / ...
+- **游戏域**：如 `game::GameLogChannel` —— 输出前缀 `Game.`（由游戏自己创建）
+
+不需要任何运行时注册 —— `LOG_*` 宏会自动解析任意域的通道枚举（ADL）。显示前缀天然支持按层级筛选。
 
 ---
 
-## LogChannel 使用
-
-`LogChannel` 允许您：
-
-- **引擎内置通道** 以静态常量的形式提供（如 `LogChannel::ATOM_ENTITY`）
-- **游戏自定义通道** 可以直接构造 `LogChannel` 实例，无需修改引擎源码
+## 通道使用
 
 ### 引擎内置通道
 
+定义在 `Log/AtomLogChannels.hpp`，按层级域组织：
+
 ```cpp
-// 直接使用，无需任何额外操作
-LOG_INFO(atom::LogChannel::ATOM_ENTITY, "Entity created");
-LOG_WARNING(atom::LogChannel::ATOM_AUDIO_SFX, "SFX not found");
-LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Pack failed");
+// 一级域：atom::core，前缀 "Atom."
+ATOM_DEFINE_CHANNELS(atom::core, LogChannel, "Atom.",
+    (MAIN, "Main"),
+    (LOGGER, "Logger"),
+    // ...
+)
+
+// 二级域：atom::audio，前缀 "Atom.Audio."
+ATOM_DEFINE_CHANNELS(atom::audio, LogChannel, "Atom.Audio.",
+    (MUSIC, "Music"),
+    (SFX, "SFX"),
+    // ...
+)
+
+// 三级域：atom::backend::sdl，前缀 "Atom.SDL.Backend."
+ATOM_DEFINE_CHANNELS(atom::backend::sdl, LogChannel, "Atom.SDL.Backend.",
+    (AUDIO, "Audio"),
+    // ...
+)
 ```
 
-完整的内置通道列表：
+直接使用即可，自带 IDE 自动补全和编译期校验：
 
-| 通道常量 | 显示名称 |
+```cpp
+LOG_INFO(atom::core::LogChannel::MAIN, "Engine started");
+LOG_WARNING(atom::audio::LogChannel::SFX, "SFX not found");
+LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Pack failed");
+```
+
+完整的引擎通道列表（按域分组）：
+
+| 通道 | 显示名 |
 |---|---|
-| `ATOM_ENTITY` | Atom.Entity |
-| `ATOM_ENTITY_NPC` | Atom.Entity.NPC |
-| `ATOM_ENTITY_PLAYER` | Atom.Entity.Player |
-| `ATOM_CONFIG_MOVEMENT` | Atom.Movement |
-| `ATOM_FILESYSTEM` | Atom.Filesystem |
-| `ATOM_LOGGER` | Atom.Logger |
-| `ATOM_MAIN` | Atom.Main |
-| `ATOM_LUA` | Atom.Lua |
-| `ATOM_AUDIO_MUSIC` | Atom.Audio.Music |
-| `ATOM_AUDIO_SFX` | Atom.Audio.SFX |
-| `ATOM_AUDIO_PLUG_MUSICFADE` | Atom.Audio.Plug.MusicFade |
-| `ATOM_AUDIO_MINIMP3` | Atom.Audio.Minimp3 |
-| `ATOM_AUDIO_WAVPROF` | Atom.Audio.WavProf |
-| `ATOM_BACKEND_RUNTIME` | Atom.Backend.Runtime |
-| `ATOM_VIDEO` | Atom.Video |
-| `SDL_BACKEND_AUDIO` | SDL.Backend.Audio |
-| `SDL_BACKEND_VIDEO` | SDL.Backend.Video |
-| `SDL_BACKEND_RENDER` | SDL.Backend.Render |
-| `SDL_BACKEND_WINDOW` | SDL.Backend.Window |
-| `ATOM_WINDOW` | Atom.Window |
-| `ATOM_SCREEN` | Atom.Screen |
-| `ATOM_SCREEN_MANAGER` | Atom.Screen.Manager |
-| `ATOM_UTILITIES_PACKAGER` | Atom.Utilities.Packager |
+| `atom::core::LogChannel::MAIN` | Atom.Main |
+| `atom::core::LogChannel::LOGGER` | Atom.Logger |
+| `atom::core::LogChannel::FILESYSTEM` | Atom.Filesystem |
+| `atom::core::LogChannel::LUA` | Atom.Lua |
+| `atom::core::LogChannel::VIDEO` | Atom.Video |
+| `atom::core::LogChannel::WINDOW` | Atom.Window |
+| `atom::core::LogChannel::SCREEN` | Atom.Screen |
+| `atom::core::LogChannel::SCREEN_MANAGER` | Atom.Screen.Manager |
+| `atom::core::LogChannel::MOVEMENT` | Atom.Movement |
+| `atom::core::LogChannel::ENTITY` | Atom.Entity |
+| `atom::entity::LogChannel::NPC` | Atom.Entity.NPC |
+| `atom::entity::LogChannel::PLAYER` | Atom.Entity.Player |
+| `atom::audio::LogChannel::MUSIC` | Atom.Audio.Music |
+| `atom::audio::LogChannel::SFX` | Atom.Audio.SFX |
+| `atom::audio::LogChannel::PLUG_MUSICFADE` | Atom.Audio.Plug.MusicFade |
+| `atom::audio::LogChannel::MINIMP3` | Atom.Audio.Minimp3 |
+| `atom::audio::LogChannel::WAVPROF` | Atom.Audio.WavProf |
+| `atom::audio::LogChannel::METADATA` | Atom.Audio.Metadata |
+| `atom::backend::LogChannel::RUNTIME` | Atom.Backend.Runtime |
+| `atom::backend::sdl::LogChannel::AUDIO` | Atom.SDL.Backend.Audio |
+| `atom::backend::sdl::LogChannel::VIDEO` | Atom.SDL.Backend.Video |
+| `atom::backend::sdl::LogChannel::RENDER` | Atom.SDL.Backend.Render |
+| `atom::backend::sdl::LogChannel::WINDOW` | Atom.SDL.Backend.Window |
+| `atom::utilities::LogChannel::PACKAGER` | Atom.Utilities.Packager |
 
-随着引擎的更新，对应的通道常量也会更新。
+新增通道只需在 `Log/AtomLogChannels.hpp` 对应域的表单里加一行，无需改动其他任何文件。每个域最多 64 个通道；域可以无限嵌套（如 `atom::entity::npc`）。
 
-### 游戏自定义通道
+### 游戏自定义通道（独立域）
 
-不需要修改引擎代码，直接构造即可：
-
-
-#### 定义为常量复用（推荐）
-
-在游戏项目中创建自己的头文件：
+游戏侧完全不需要接触引擎源码。在游戏项目中创建一个头文件即可 —— **写通道 + 一行注入**：
 
 ```cpp
-// 此文件在您的游戏项目中创建
+// Game/GameChannels.hpp —— 游戏侧全部代码
 #pragma once
-#include "Log/LogSystem.hpp"
+#include <Log/LogSystem.hpp>
 
-namespace game {
-    const atom::LogChannel GAME_NPC("Game.NPC");
-    const atom::LogChannel GAME_PLAYER("Game.Player");
-    const atom::LogChannel GAME_SCREEN("Game.Screen");
-    const atom::LogChannel GAME_MAIN("Game.Main");
-}
+// ============ 写通道 + 一行注入 ============
+ATOM_DEFINE_CHANNELS(game, GameLogChannel, "Game.",
+    (GAME_NPC, "NPC"),
+    (GAME_PLAYER, "Player"),
+    (GAME_MAIN, "Main")
+)
 ```
 
-使用：
+这一行宏调用在编译期生成枚举、名字映射和 `Game.` 前缀：
 
 ```cpp
-#include "GameLogChannels.hpp"
+#include "Game/GameChannels.hpp"
 
-LOG_INFO(game::GAME_NPC, "NPC spawned");
-LOG_ERROR(game::GAME_PLAYER, "Failed to save");
+LOG_INFO(game::GameLogChannel::GAME_NPC, "NPC spawned");     // Game.NPC -> NPC spawned
+LOG_ERROR(game::GameLogChannel::GAME_PLAYER, "Save failed"); // Game.Player -> Save failed
 ```
 
-#### 临时使用（不推荐）
+也可以定义多个域（比如每个游戏模块一个，或嵌套如 `game::npc::LogChannel`），各自独立的命名空间、枚举名和前缀即可。
+
+### 临时使用（Ad-hoc 通道）
+
+快速试验时直接传字符串，无需任何声明：
 
 ```cpp
-LOG_INFO(atom::LogChannel("Game.NPC"), "NPC dialog started");
-LOG_INFO(atom::LogChannel("Game.Player"), "Player save game");
+LOG_INFO("Game.NPC", "NPC dialog started");
+LOG_INFO("Debug.temp", "Just trying something");
 ```
 
-显示效果：
+---
+
+## 输出与层级筛选
+
+每条日志都以域前缀开头，任意层级都能筛：
 
 ```
-[2026-01-01 12:00:00] [INFO] Game.NPC -> NPC dialog started
-[2026-01-01 12:00:01] [INFO] Game.Player -> Player save game
+[2026-01-01 12:00:00] [INFO] Atom.Audio.Music -> Playback started
+[2026-01-01 12:00:01] [INFO] Atom.Entity.NPC -> NPC spawned
+[2026-01-01 12:00:02] [INFO] Game.NPC -> NPC spawned
+[2026-01-01 12:00:03] [WARNING] Game.Player -> Save failed
 ```
 
-通道名称会自动追加 ` -> ` 作为显示后缀。
+- 过滤 `"Game."` → 只看游戏的日志
+- 过滤 `"Atom.Audio."` → 只看音频日志；`"Atom.SDL."` → 只看 SDL 后端日志
+- 过滤 `"Atom."` → 所有引擎日志
 
 ---
 
@@ -117,10 +152,10 @@ LOG_INFO(atom::LogChannel("Game.Player"), "Player save game");
 示例：
 
 ```cpp
-LOG_INFO(atom::LogChannel::ATOM_MAIN, "Engine started");
-LOG_WARNING(atom::LogChannel::ATOM_AUDIO_SFX, "File not found: " + filename);
-LOG_ERROR(atom::LogChannel::ATOM_LUA, "Script error: " + errorMsg);
-LOG_DEBUG(atom::LogChannel::ATOM_ENTITY, "Entity id: " + std::to_string(id));
+LOG_INFO(atom::core::LogChannel::MAIN, "Engine started");
+LOG_WARNING(atom::audio::LogChannel::SFX, "File not found: " + filename);
+LOG_ERROR(atom::core::LogChannel::LUA, "Script error: " + errorMsg);
+LOG_DEBUG(atom::core::LogChannel::ENTITY, "Entity id: " + std::to_string(id));
 ```
 
 ---
@@ -134,16 +169,27 @@ LOG_DEBUG(atom::LogChannel::ATOM_ENTITY, "Entity id: " + std::to_string(id));
 atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING);
 ```
 
-每次调用都会通过 `ATOM_LOGGER` 通道输出一条确认日志（例如
+每次调用都会通过 `ATOM_LOGGER` 通道（`atom::core::LogChannel::LOGGER`）输出一条确认日志（例如
 `Set log level to WARNING`），因此控制台中始终可以看到当前生效的日志级别。
 
 级别优先级：`DEBUG < INFO < WARNING < ERROR`
 
 ---
 
+## TODO / 后续规划
+
+域筛选是下一个规划中的功能集
+
+- [ ] **运行时按域过滤** —— 如 `atom::Log::SetChannelFilter("Atom.Audio.", false)`，按域（或单通道）静音/保留，无需 grep 即可把 `Game.` 日志与引擎噪音分开
+- [ ] **按域设置显示级别** —— 例如 `Atom.Audio.` 保持 DEBUG，其余保持 WARNING
+- [ ] **运行时通道配置文件**（可选）—— 从文件加载显示名/级别，游戏不改代码即可调整日志
+
+---
+
 ## 注意事项
 
-1. `LogChannel` 构造时接受 `std::string`，建议使用简短且有意义的名称
-2. 通道名称是显示字符串，Atom 不会统一其大小写，因此应保持一致风格
-3. 自定义通道不需要注册或提前声明，随用随建
-4. 日志输出由内部 mutex 串行化；并发修改显示等级目前尚不保证线程安全
+1. 通道是**枚举**——拼写错误在编译期就会报错，IDE 也能自动补全。
+2. 显示格式为 `前缀 + 短名 + " -> "`。引擎域统一 `Atom.*` 前缀；游戏每个域自定义前缀。
+3. 新增通道 = 在所属域的表单里加一行 `(CPP_NAME, "Short.Name")`。单个域最多 64 个通道；域可无限嵌套。
+4. 临时通道直接用字符串，无需声明或注册。
+5. 日志输出由内部 mutex 串行化；并发修改显示等级目前尚不保证线程安全。

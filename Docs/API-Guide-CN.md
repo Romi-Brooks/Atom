@@ -12,9 +12,9 @@
 ```cpp
 #include <Log/LogSystem.hpp>
 
-LOG_INFO(atom::LogChannel::ATOM_MAIN, "Engine started");
-LOG_WARNING(atom::LogChannel::ATOM_FILESYSTEM, "File not found");
-LOG_ERROR(atom::LogChannel::ATOM_LUA, "Script error");
+LOG_INFO(atom::core::LogChannel::MAIN, "Engine started");
+LOG_WARNING(atom::core::LogChannel::FILESYSTEM, "File not found");
+LOG_ERROR(atom::core::LogChannel::LUA, "Script error");
 
 atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 ```
@@ -151,7 +151,7 @@ for (std::size_t i = 0; i < files.size(); ++i) {
 music.Play("track_0");
 ```
 
-完整可运行示例见 `Example/PackagedMusicPlayback.cpp`（目标 `example_packaged_music`）：
+完整可运行示例见 `Example/Media/PackagedMusicPlayback.cpp`（目标 `example_packaged_music`）：
 首次运行自动把 E:\Music 下的样例打成 `music_demo.pak`（删除该文件即可重新打包）。
 
 ## 音效

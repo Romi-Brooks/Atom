@@ -13,8 +13,16 @@
 // Standard Library
 #include <mutex>
 #include <string>
+#include <string_view>
+#include <type_traits>
 
 //	using reference: LogSystem.md
+
+// 通道域定义机制（ATOM_DEFINE_CHANNELS 等预处理基础设施）
+#include "LogChannelMacros.hpp"
+
+// 引擎通道域：Atom 内置通道（新增/修改通道请编辑 AtomLogChannels.hpp）
+#include "AtomLogChannels.hpp"
 
 namespace atom {
 enum class LogLevel {
@@ -24,64 +32,25 @@ enum class LogLevel {
     ATOM_ERROR    // 3
 };
 
-class LogChannel {
-public:
-    // User can create custom channels directly
-    explicit LogChannel(std::string channelName)
-        : channelName_(std::move(channelName)), displayString_(channelName_ + " -> ") {}
+// 通用通道解析
+// ADL
+[[nodiscard]] constexpr auto ResolveChannelPrefix(const std::string_view) -> std::string_view {
+    return {};
+}
+template <typename TChannel>
+    requires std::is_enum_v<TChannel>
+[[nodiscard]] constexpr auto ResolveChannelPrefix(const TChannel channel) -> std::string_view {
+    return GetChannelPrefix(channel);
+}
 
-    [[nodiscard]] const std::string& GetChannelName() const {
-        return channelName_;
-    }
-    [[nodiscard]] const std::string& GetDisplayString() const {
-        return displayString_;
-    }
-
-    // Pre-defined engine channels
-    static const LogChannel ATOM_ENTITY;
-    static const LogChannel ATOM_ENTITY_NPC;
-    static const LogChannel ATOM_ENTITY_PLAYER;
-
-    static const LogChannel ATOM_CONFIG_MOVEMENT;
-
-    static const LogChannel ATOM_FILESYSTEM;
-
-    static const LogChannel ATOM_LOGGER;
-
-    static const LogChannel ATOM_MAIN;
-
-    static const LogChannel ATOM_LUA;
-
-    static const LogChannel ATOM_AUDIO_MUSIC;
-    static const LogChannel ATOM_AUDIO_SFX;
-    static const LogChannel ATOM_AUDIO_PLUG_MUSICFADE;
-    static const LogChannel ATOM_AUDIO_MINIMP3;
-    static const LogChannel ATOM_AUDIO_WAVPROF;
-    static const LogChannel ATOM_AUDIO_METADATA;
-
-    static const LogChannel ATOM_BACKEND_RUNTIME;
-
-    static const LogChannel ATOM_VIDEO;
-
-    static const LogChannel ATOM_UTILITIES_PACKAGER;
-
-    static const LogChannel SDL_BACKEND_AUDIO;
-    static const LogChannel SDL_BACKEND_VIDEO;
-    static const LogChannel SDL_BACKEND_RENDER;
-    static const LogChannel SDL_BACKEND_WINDOW;
-
-    static const LogChannel ATOM_WINDOW;
-    static const LogChannel ATOM_SCREEN;
-    static const LogChannel ATOM_SCREEN_MANAGER;
-
-private:
-    std::string channelName_;
-    std::string displayString_;
-
-    // Private constructor for pre-defined channels with custom display string format
-    LogChannel(std::string channelName, std::string displayString)
-        : channelName_(std::move(channelName)), displayString_(std::move(displayString)) {}
-};
+[[nodiscard]] constexpr auto ResolveChannelName(const std::string_view channelName) -> std::string_view {
+    return channelName;
+}
+template <typename TChannel>
+    requires std::is_enum_v<TChannel>
+[[nodiscard]] constexpr auto ResolveChannelName(const TChannel channel) -> std::string_view {
+    return GetChannelName(channel);
+}
 
 class Log {
 private:
@@ -94,7 +63,8 @@ private:
 public:
     [[nodiscard]] static auto GetLogInstance() -> Log&;
 
-    static auto LogOut(const LogChannel& channel, LogLevel level, const std::string& logMessage) -> void;
+    static auto LogOut(std::string_view channelPrefix, std::string_view channelName, LogLevel level,
+                       const std::string& logMessage) -> void;
     static auto SetViewLogLevel(LogLevel viewLogLevel) -> void;
 
     Log(const Log&) = delete;
@@ -102,12 +72,17 @@ public:
 };
 } // namespace atom
 
-#define LOG_INFO(channel, logMessage) atom::Log::GetLogInstance().LogOut(channel, atom::LogLevel::ATOM_INFO, logMessage)
+#define LOG_INFO(channel, logMessage)                                                                                  \
+    atom::Log::GetLogInstance().LogOut(atom::ResolveChannelPrefix(channel), atom::ResolveChannelName(channel),         \
+                                       atom::LogLevel::ATOM_INFO, logMessage)
 #define LOG_WARNING(channel, logMessage)                                                                               \
-    atom::Log::GetLogInstance().LogOut(channel, atom::LogLevel::ATOM_WARNING, logMessage)
+    atom::Log::GetLogInstance().LogOut(atom::ResolveChannelPrefix(channel), atom::ResolveChannelName(channel),         \
+                                       atom::LogLevel::ATOM_WARNING, logMessage)
 #define LOG_ERROR(channel, logMessage)                                                                                 \
-    atom::Log::GetLogInstance().LogOut(channel, atom::LogLevel::ATOM_ERROR, logMessage)
+    atom::Log::GetLogInstance().LogOut(atom::ResolveChannelPrefix(channel), atom::ResolveChannelName(channel),         \
+                                       atom::LogLevel::ATOM_ERROR, logMessage)
 #define LOG_DEBUG(channel, logMessage)                                                                                 \
-    atom::Log::GetLogInstance().LogOut(channel, atom::LogLevel::ATOM_DEBUG, logMessage)
+    atom::Log::GetLogInstance().LogOut(atom::ResolveChannelPrefix(channel), atom::ResolveChannelName(channel),         \
+                                       atom::LogLevel::ATOM_DEBUG, logMessage)
 
 #endif // ATOM_LOGSYSTEM_HPP

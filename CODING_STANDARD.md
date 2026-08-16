@@ -112,20 +112,24 @@ headers in the following order, separated by blank lines:
 
 ### 3.1.1 Log Channel Naming
 
-Log channel constants use `CATEGORY_SUBCATEGORY`; display names use dotted
-PascalCase components:
+Channels are enums grouped into hierarchical **domains** — each domain is one
+`ATOM_DEFINE_CHANNELS` block (engine channels live in `Log/AtomLogChannels.hpp`,
+game domains live in the game project). A domain owns a namespace, an enum and a
+display prefix:
 
-| Constant | Display string | Purpose |
+| Domain | Prefix | Example usage |
 |---|---|---|
-| `ATOM_AUDIO_MUSIC` | `Atom.Audio.Music ->` | Engine music domain |
-| `SDL_BACKEND_AUDIO` | `SDL.Backend.Audio ->` | SDL audio backend |
-| `ATOM_AUDIO_PLUG_MUSICFADE` | `Atom.Audio.Plug.MusicFade ->` | Extension module |
+| `atom::core::LogChannel` | `Atom.` | `atom::core::LogChannel::MAIN` |
+| `atom::audio::LogChannel` | `Atom.Audio.` | `atom::audio::LogChannel::MUSIC` |
+| `atom::backend::sdl::LogChannel` | `Atom.SDL.Backend.` | `atom::backend::sdl::LogChannel::AUDIO` |
+| `game::GameLogChannel` | `Game.` | `game::GameLogChannel::GAME_NPC` |
 
-- Engine channel constants begin with `ATOM_` or a backend prefix such as `SDL_`.
-- Constant components are uppercase and separated by `_`.
-- Display components are PascalCase and separated by `.`.
-- Always reference a channel as `LogChannel::ATOM_XXX` at the call site. Do not
-  introduce local aliases such as `const auto& kLogChannel = LogChannel::ATOM_XXX;`
+- Enumerator names are `UPPER_SNAKE_CASE` (`SCREEN_MANAGER`, `PLUG_MUSICFADE`); a game
+  domain may keep a short category prefix (`GAME_NPC`).
+- Display names are dotted PascalCase components (`Atom.Entity.NPC ->`).
+- Always reference a channel as its domain enum value at the call site
+  (e.g. `atom::audio::LogChannel::MUSIC`). Do not introduce local aliases such as
+  `const auto& kLogChannel = atom::audio::LogChannel::MUSIC;`
   — they add indirection for readers without meaningful benefit.
 
 ### 3.2 Detailed Rules
