@@ -11,7 +11,6 @@
 #include "LogSystem.hpp"
 
 // Standard Library
-#include <string>
 #include <iostream>
 #include <mutex>
 #include <chrono>
@@ -19,7 +18,6 @@
 #include <iomanip>
 
 using atom::Log;
-using atom::LogChannel;
 using atom::LogLevel;
 
 // Forward Function
@@ -36,48 +34,6 @@ static auto GetLogLevel(const LogLevel& logLevel) -> std::string {
     }
     return "Error log level";
 }
-namespace atom {
-    // Pre-defined engine channel constants
-    const LogChannel LogChannel::ATOM_ENTITY("Atom.Entity", "Atom.Entity -> ");
-    const LogChannel LogChannel::ATOM_ENTITY_NPC("Atom.Entity.NPC", "Atom.Entity.NPC -> ");
-    const LogChannel LogChannel::ATOM_ENTITY_PLAYER("Atom.Entity.Player", "Atom.Entity.Player -> ");
-
-    const LogChannel LogChannel::ATOM_CONFIG_MOVEMENT("Atom.Movement", "Atom.Movement -> ");
-
-    const LogChannel LogChannel::ATOM_FILESYSTEM("Atom.Filesystem", "Atom.Filesystem -> ");
-
-    const LogChannel LogChannel::ATOM_LOGGER("Atom.Logger", "Atom.Logger -> ");
-
-    const LogChannel LogChannel::ATOM_MAIN("Atom.Main", "Atom.Main -> ");
-
-    const LogChannel LogChannel::ATOM_LUA("Atom.Lua", "Atom.Lua -> ");
-
-    const LogChannel LogChannel::ATOM_AUDIO_MUSIC("Atom.Audio.Music", "Atom.Audio.Music -> ");
-    const LogChannel LogChannel::ATOM_AUDIO_SFX("Atom.Audio.SFX", "Atom.Audio.SFX -> ");
-    const LogChannel LogChannel::ATOM_AUDIO_PLUG_MUSICFADE("Atom.Audio.Plug.MusicFade", "Atom.Audio.Plug.MusicFade -> ");
-    const LogChannel LogChannel::ATOM_AUDIO_MINIMP3("Atom.Audio.Minimp3", "Atom.Audio.Minimp3 -> ");
-    const LogChannel LogChannel::ATOM_AUDIO_WAVPROF("Atom.Audio.WavProf", "Atom.Audio.WavProf -> ");
-    const LogChannel LogChannel::ATOM_AUDIO_METADATA("Atom.Audio.Metadata", "Atom.Audio.Metadata -> ");
-
-    const LogChannel LogChannel::ATOM_BACKEND_RUNTIME("Atom.Backend.Runtime", "Atom.Backend.Runtime -> ");
-
-    const LogChannel LogChannel::ATOM_VIDEO("Atom.Video", "Atom.Video -> ");
-
-    const LogChannel LogChannel::SDL_BACKEND_AUDIO("SDL.Backend.Audio", "SDL.Backend.Audio -> ");
-    const LogChannel LogChannel::SDL_BACKEND_VIDEO("SDL.Backend.Video", "SDL.Backend.Video -> ");
-    const LogChannel LogChannel::SDL_BACKEND_RENDER("SDL.Backend.Render", "SDL.Backend.Render -> ");
-    const LogChannel LogChannel::SDL_BACKEND_WINDOW("SDL.Backend.Window", "SDL.Backend.Window -> ");
-
-    const LogChannel LogChannel::ATOM_WINDOW("Atom.Window", "Atom.Window -> ");
-    const LogChannel LogChannel::ATOM_SCREEN("Atom.Screen", "Atom.Screen -> ");
-    const LogChannel LogChannel::ATOM_SCREEN_MANAGER("Atom.Screen.Manager", "Atom.Screen.Manager -> ");
-
-    const LogChannel LogChannel::ATOM_UTILITIES_PACKAGER("Atom.Utilities.Packager", "Atom.Utilities.Packager -> ");
-}
-
-static auto GetLogChannel(const LogChannel& channel) -> std::string {
-    return channel.GetDisplayString();
-}
 
 static auto GetCurrentTime() -> std::stringstream {
     const auto Time = std::chrono::system_clock::now();
@@ -92,7 +48,8 @@ auto Log::GetLogInstance() -> Log& {
     return LogInstance;
 }
 
-auto Log::LogOut(const LogChannel& channel, const LogLevel level, const std::string& logMessage) -> void {
+auto Log::LogOut(const std::string_view channelPrefix, const std::string_view channelName, const LogLevel level,
+                 const std::string& logMessage) -> void {
     auto& instance = GetLogInstance();
 
     // only output logs at or above the current view level
@@ -102,12 +59,15 @@ auto Log::LogOut(const LogChannel& channel, const LogLevel level, const std::str
 
     std::lock_guard<std::mutex> lock(instance.log_mutex_);
 
-    const std::string FullLogMessage =
-        "[" + GetCurrentTime().str() + "] [" + GetLogLevel(level) + "] " + GetLogChannel(channel) + logMessage;
+    std::string FullLogMessage = "[" + GetCurrentTime().str() + "] [" + GetLogLevel(level) + "] ";
+    FullLogMessage += channelPrefix;
+    FullLogMessage += channelName;
+    FullLogMessage += " -> ";
+    FullLogMessage += logMessage;
     std::cout << FullLogMessage << std::endl;
 }
 
 auto Log::SetViewLogLevel(const LogLevel viewLogLevel) -> void {
-    LOG_INFO(LogChannel::ATOM_LOGGER, "Set log level to " + GetLogLevel(viewLogLevel));
+    LOG_INFO(atom::core::LogChannel::LOGGER, "Set log level to " + GetLogLevel(viewLogLevel));
     GetLogInstance().view_log_level_ = viewLogLevel;
 }

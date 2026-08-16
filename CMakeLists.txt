@@ -29,6 +29,8 @@ add_subdirectory(ThirdParty)
     add_library(engine_log STATIC
             Log/LogSystem.cpp
             Log/LogSystem.hpp
+            Log/LogChannelMacros.hpp
+            Log/AtomLogChannels.hpp
     )
     target_include_directories(engine_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_log PUBLIC atom_backend_contracts)
@@ -269,45 +271,52 @@ target_link_libraries(Atom PRIVATE
 )
 
 # Examples
-add_executable(example_audio_playback Example/MusicPlayback.cpp)
+add_executable(example_audio_playback Example/Media/AudioPlayback.cpp)
 target_link_libraries(example_audio_playback PRIVATE
         engine_media engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_audio_playback PRIVATE)
 endif()
 
-add_executable(example_sfx_playback Example/SFXPlayback.cpp)
+add_executable(example_sfx_playback Example/Media/SFXPlayback.cpp)
 target_link_libraries(example_sfx_playback PRIVATE
         engine_media engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_sfx_playback PRIVATE)
 endif()
 
-add_executable(example_simple_window Example/SimpleWindow.cpp)
+add_executable(example_simple_window Example/Window/SimpleWindow.cpp)
 target_link_libraries(example_simple_window PRIVATE engine_windows)
 if(WIN32)
     target_link_libraries(example_simple_window PRIVATE)
 endif()
 
-add_executable(example_simple_window_debug Example/SimpleWindowWithDebugger.cpp)
+add_executable(example_simple_window_debug Example/Window/SimpleWindowWithDebugger.cpp)
 target_link_libraries(example_simple_window_debug PRIVATE engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_simple_window_debug PRIVATE)
 endif()
 
 # Audio metadata example (uses the engine's AudioMetadataReader)
-add_executable(example_audio_metadata Example/AudioMetadata.cpp)
+add_executable(example_audio_metadata Example/Media/AudioMetadata.cpp)
 target_link_libraries(example_audio_metadata PRIVATE engine_media)
 if(WIN32)
     target_link_libraries(example_audio_metadata PRIVATE)
 endif()
 
 # Resource-pack + in-memory streaming playback example
-add_executable(example_packaged_music Example/PackagedMusicPlayback.cpp)
+add_executable(example_packaged_music Example/Media/PackagedMusicPlayback.cpp)
 target_link_libraries(example_packaged_music PRIVATE
         engine_media engine_windows engine_debugger engine_packager)
 if(WIN32)
     target_link_libraries(example_packaged_music PRIVATE)
+endif()
+
+# Log channel demo (engine channels + game-side registration test)
+add_executable(example_log_channel_demo Example/Log/LogChannelDemo.cpp)
+target_link_libraries(example_log_channel_demo PRIVATE engine_log)
+if(WIN32)
+    target_link_libraries(example_log_channel_demo PRIVATE)
 endif()
 
 # ============================================================================
@@ -345,7 +354,8 @@ if(MINGW)
     foreach(atom_exe IN ITEMS Atom example_audio_playback
                            example_audio_metadata example_sfx_playback
                            example_simple_window example_simple_window_debug
-                           example_packaged_music packager_tool)
+                           example_packaged_music example_log_channel_demo
+                           packager_tool)
         atom_copy_mingw_runtime_dll(${atom_exe})
     endforeach()
 endif()

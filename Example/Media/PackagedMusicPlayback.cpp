@@ -149,7 +149,7 @@ auto main() -> int {
         const std::vector<std::string> sources(std::begin(kSourceFiles), std::end(kSourceFiles));
         const auto result = packer.Pack(sources, kPackPath, config);
         if (result != atom::tools::Packager::Result::SUCCESS) {
-            LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Packing failed, cannot continue");
+            LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Packing failed, cannot continue");
             return 1;
         }
         packer.PrintPackageInfo();
@@ -161,14 +161,14 @@ auto main() -> int {
     // load the pack and extract every entry into memory
     atom::tools::Unpackager unpacker;
     if (unpacker.Load(kPackPath, /*verbose=*/true) != atom::tools::Unpackager::Result::SUCCESS) {
-        LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Failed to load package: " + std::string(kPackPath));
+        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Failed to load package: " + std::string(kPackPath));
         return 1;
     }
     unpacker.PrintPackageInfo();
 
     std::vector<atom::tools::Unpackager::MemoryFile> memoryFiles;
     if (unpacker.ExtractAllToMemory(memoryFiles) != atom::tools::Unpackager::Result::SUCCESS) {
-        LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Failed to extract package contents into memory");
+        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Failed to extract package contents into memory");
         return 1;
     }
 
@@ -184,15 +184,15 @@ auto main() -> int {
         // track for the whole program lifetime, satisfying the contract.
         if (music.LoadFromMemory(id, file.filename, file.GetData(), file.GetSize())) {
             ++loadedCount;
-            LOG_INFO(atom::LogChannel::ATOM_AUDIO_MUSIC,
+            LOG_INFO(atom::audio::LogChannel::MUSIC,
                      "Track ready (in-memory): " + file.filename);
         } else {
-            LOG_WARNING(atom::LogChannel::ATOM_AUDIO_MUSIC,
+            LOG_WARNING(atom::audio::LogChannel::MUSIC,
                         "Track load failed: " + file.filename);
         }
     }
     if (loadedCount == 0) {
-        LOG_ERROR(atom::LogChannel::ATOM_AUDIO_MUSIC, "No track could be loaded from the pack");
+        LOG_ERROR(atom::audio::LogChannel::MUSIC, "No track could be loaded from the pack");
         return 1;
     }
 

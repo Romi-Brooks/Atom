@@ -66,7 +66,7 @@ auto RenderWindow::Initialize(const std::string& title, Vec2 resolution, std::st
     auto& registry = RenderBackendRegistry::GetInstance();
     window_ = registry.CreateWindow(backendId);
     if (!window_) {
-        LOG_ERROR(atom::LogChannel::ATOM_WINDOW, "Render backend '" + backend_id_ + "' is not registered");
+        LOG_ERROR(atom::core::LogChannel::WINDOW, "Render backend '" + backend_id_ + "' is not registered");
         return;
     }
 

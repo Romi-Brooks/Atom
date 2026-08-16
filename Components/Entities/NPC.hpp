@@ -55,7 +55,7 @@ public:
             position_.SetY(y + (move_speed_ + move_acceleration_));
             break;
         default:
-            LOG_ERROR(atom::LogChannel::ATOM_CONFIG_MOVEMENT, "Error Movement sign!");
+            LOG_ERROR(atom::core::LogChannel::MOVEMENT, "Error Movement sign!");
             break;
         }
     }

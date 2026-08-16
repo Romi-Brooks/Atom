@@ -48,7 +48,7 @@ auto Expand24To32(const std::vector<uint8_t>& packed) -> std::vector<uint8_t> {
 auto AudioClipLoader::Load(const std::string& path) const -> std::optional<DecodedAudio> {
     const auto dot = path.find_last_of('.');
     if (dot == std::string::npos) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Load: no file extension, cannot select a decoder: " + path);
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Load: no file extension, cannot select a decoder: " + path);
         return std::nullopt;
     }
     const auto extension = path.substr(dot);
@@ -57,19 +57,19 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
     // normalization and factory selection all happen inside CreateForFile.
     auto decoder = decoders_.CreateForFile(path);
     if (!decoder) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
                   "Load: no decoder available for extension '" + extension + "': " + path);
         return std::nullopt;
     }
     if (!decoder->Open(path)) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Load: decoder failed to open file: " + path);
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Load: decoder failed to open file: " + path);
         return std::nullopt;
     }
 
     const auto info = decoder->GetInfo();
     const auto format = ToSampleFormat(info);
     if (!format || info.sample_rate == 0 || info.channels == 0) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
                   "Load: unsupported or invalid audio format (bits_per_sample=" +
                       std::to_string(info.bits_per_sample) + ", is_float=" + (info.is_float ? "true" : "false") +
                       ", sample_rate=" + std::to_string(info.sample_rate) +
@@ -85,14 +85,14 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
     }
     decoder->Close();
     if (pcm.empty()) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Load: decoder produced no PCM data: " + path);
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Load: decoder produced no PCM data: " + path);
         return std::nullopt;
     }
 
     if (info.bits_per_sample == 24)
         pcm = Expand24To32(pcm);
 
-    LOG_INFO(LogChannel::ATOM_AUDIO_MUSIC,
+    LOG_INFO(atom::audio::LogChannel::MUSIC,
              "Load: decoded audio successfully: " + path + " (pcm_bytes=" + std::to_string(pcm.size()) +
                  ", sample_rate=" + std::to_string(info.sample_rate) + ", channels=" + std::to_string(info.channels) +
                  ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
@@ -105,7 +105,7 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
 auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optional<StreamingResult> {
     const auto dot = path.find_last_of('.');
     if (dot == std::string::npos) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "OpenStreaming: no file extension, cannot select a decoder: " + path);
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "OpenStreaming: no file extension, cannot select a decoder: " + path);
         return std::nullopt;
     }
     const auto extension = path.substr(dot);
@@ -114,19 +114,19 @@ auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optio
     // normalization and factory selection all happen inside CreateForFile.
     auto decoder = decoders_.CreateForFile(path);
     if (!decoder) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
                   "OpenStreaming: no decoder available for extension '" + extension + "': " + path);
         return std::nullopt;
     }
     if (!decoder->Open(path)) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "OpenStreaming: decoder failed to open file: " + path);
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "OpenStreaming: decoder failed to open file: " + path);
         return std::nullopt;
     }
 
     const auto& info = decoder->GetInfo();
     const auto format = ToSampleFormat(info);
     if (!format || info.sample_rate == 0 || info.channels == 0) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
                   "OpenStreaming: unsupported or invalid audio format (bits_per_sample=" +
                       std::to_string(info.bits_per_sample) + ", is_float=" + (info.is_float ? "true" : "false") +
                       ", sample_rate=" + std::to_string(info.sample_rate) +
@@ -135,7 +135,7 @@ auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optio
         return std::nullopt;
     }
 
-    LOG_INFO(LogChannel::ATOM_AUDIO_MUSIC,
+    LOG_INFO(atom::audio::LogChannel::MUSIC,
              "OpenStreaming: opened streaming decoder: " + path + " (sample_rate=" + std::to_string(info.sample_rate) +
                  ", channels=" + std::to_string(info.channels) + ", bits_per_sample=" + std::to_string(info.bits_per_sample) +
                  ")");
@@ -149,7 +149,7 @@ auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const
     -> std::optional<StreamingResult> {
     const auto dot = filename.find_last_of('.');
     if (dot == std::string::npos) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
                   "OpenStreamingFromMemory: no file extension, cannot select a decoder: " + filename);
         return std::nullopt;
     }
@@ -159,12 +159,12 @@ auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const
     // normalization and factory selection all happen inside CreateForFile.
     auto decoder = decoders_.CreateForFile(filename);
     if (!decoder) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
                   "OpenStreamingFromMemory: no decoder available for extension '" + extension + "': " + filename);
         return std::nullopt;
     }
     if (!decoder->OpenFromMemory(data, size)) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
                   "OpenStreamingFromMemory: decoder failed to open memory buffer: " + filename);
         return std::nullopt;
     }
@@ -172,7 +172,7 @@ auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const
     const auto& info = decoder->GetInfo();
     const auto format = ToSampleFormat(info);
     if (!format || info.sample_rate == 0 || info.channels == 0) {
-        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC,
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
                   "OpenStreamingFromMemory: unsupported or invalid audio format (bits_per_sample=" +
                       std::to_string(info.bits_per_sample) + ", is_float=" + (info.is_float ? "true" : "false") +
                       ", sample_rate=" + std::to_string(info.sample_rate) +
@@ -181,7 +181,7 @@ auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const
         return std::nullopt;
     }
 
-    LOG_INFO(LogChannel::ATOM_AUDIO_MUSIC,
+    LOG_INFO(atom::audio::LogChannel::MUSIC,
              "OpenStreamingFromMemory: opened streaming decoder over " + std::to_string(size) +
                  " bytes: " + filename + " (sample_rate=" + std::to_string(info.sample_rate) +
                  ", channels=" + std::to_string(info.channels) + ", bits_per_sample=" +

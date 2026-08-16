@@ -6,101 +6,137 @@
 
 ## Overview
 
-`LogSystem` is the logging system for the Atom engine. It supports level-based log output and uses `LogChannel` to differentiate log sources across modules.
+`LogSystem` is the logging system for the Atom engine. It supports level-based log output and uses **hierarchical channel domains** to differentiate log sources across modules.
+
+Each domain is declared with a single macro (`ATOM_DEFINE_CHANNELS`) that generates, at compile time, an enum + name mapping + display prefix:
+
+- **Engine domains**: `atom::core::LogChannel`, `atom::audio::LogChannel`, `atom::entity::LogChannel`, `atom::backend::LogChannel`, `atom::backend::sdl::LogChannel`, `atom::utilities::LogChannel` — output prefixed with `Atom.` / `Atom.Audio.` / `Atom.Entity.` / ...
+- **Game domains**: e.g. `game::GameLogChannel` — output prefixed with `Game.` (the game creates its own)
+
+No runtime registration is needed — the `LOG_*` macros resolve any domain's enum automatically (ADL). Display prefixes make hierarchical filtering trivial.
 
 ---
 
-## Using LogChannel
+## Using Channels
 
-With `LogChannel`, you can:
+### Engine Channels (Built-in)
 
-- Use **built-in engine channels** provided as static constants (e.g., `LogChannel::ATOM_ENTITY`)
-- Create **custom game channels** by constructing `LogChannel` instances directly — no engine source modification required
-
-### Built-in Engine Channels
+Defined in `Log/AtomLogChannels.hpp`, organized as hierarchical domains:
 
 ```cpp
-// Use directly, no extra setup needed
-LOG_INFO(atom::LogChannel::ATOM_ENTITY, "Entity created");
-LOG_WARNING(atom::LogChannel::ATOM_AUDIO_SFX, "SFX not found");
-LOG_ERROR(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Pack failed");
+// Level-1 domain: atom::core, prefix "Atom."
+ATOM_DEFINE_CHANNELS(atom::core, LogChannel, "Atom.",
+    (MAIN, "Main"),
+    (LOGGER, "Logger"),
+    // ...
+)
+
+// Level-2 domain: atom::audio, prefix "Atom.Audio."
+ATOM_DEFINE_CHANNELS(atom::audio, LogChannel, "Atom.Audio.",
+    (MUSIC, "Music"),
+    (SFX, "SFX"),
+    // ...
+)
+
+// Level-3 domain: atom::backend::sdl, prefix "Atom.SDL.Backend."
+ATOM_DEFINE_CHANNELS(atom::backend::sdl, LogChannel, "Atom.SDL.Backend.",
+    (AUDIO, "Audio"),
+    // ...
+)
 ```
 
-Complete list of built-in channels:
+Use directly — IDE autocomplete and compile-time checks included:
 
-| Channel Constant | Display Name |
+```cpp
+LOG_INFO(atom::core::LogChannel::MAIN, "Engine started");
+LOG_WARNING(atom::audio::LogChannel::SFX, "SFX not found");
+LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Pack failed");
+```
+
+Complete list of engine channels (grouped by domain):
+
+| Channel | Display Name |
 |---|---|
-| `ATOM_ENTITY` | Atom.Entity |
-| `ATOM_ENTITY_NPC` | Atom.Entity.NPC |
-| `ATOM_ENTITY_PLAYER` | Atom.Entity.Player |
-| `ATOM_CONFIG_MOVEMENT` | Atom.Movement |
-| `ATOM_FILESYSTEM` | Atom.Filesystem |
-| `ATOM_LOGGER` | Atom.Logger |
-| `ATOM_MAIN` | Atom.Main |
-| `ATOM_LUA` | Atom.Lua |
-| `ATOM_AUDIO_MUSIC` | Atom.Audio.Music |
-| `ATOM_AUDIO_SFX` | Atom.Audio.SFX |
-| `ATOM_AUDIO_PLUG_MUSICFADE` | Atom.Audio.Plug.MusicFade |
-| `ATOM_AUDIO_MINIMP3` | Atom.Audio.Minimp3 |
-| `ATOM_AUDIO_WAVPROF` | Atom.Audio.WavProf |
-| `ATOM_BACKEND_RUNTIME` | Atom.Backend.Runtime |
-| `ATOM_VIDEO` | Atom.Video |
-| `SDL_BACKEND_AUDIO` | SDL.Backend.Audio |
-| `SDL_BACKEND_VIDEO` | SDL.Backend.Video |
-| `SDL_BACKEND_RENDER` | SDL.Backend.Render |
-| `SDL_BACKEND_WINDOW` | SDL.Backend.Window |
-| `ATOM_WINDOW` | Atom.Window |
-| `ATOM_SCREEN` | Atom.Screen |
-| `ATOM_SCREEN_MANAGER` | Atom.Screen.Manager |
-| `ATOM_UTILITIES_PACKAGER` | Atom.Utilities.Packager |
+| `atom::core::LogChannel::MAIN` | Atom.Main |
+| `atom::core::LogChannel::LOGGER` | Atom.Logger |
+| `atom::core::LogChannel::FILESYSTEM` | Atom.Filesystem |
+| `atom::core::LogChannel::LUA` | Atom.Lua |
+| `atom::core::LogChannel::VIDEO` | Atom.Video |
+| `atom::core::LogChannel::WINDOW` | Atom.Window |
+| `atom::core::LogChannel::SCREEN` | Atom.Screen |
+| `atom::core::LogChannel::SCREEN_MANAGER` | Atom.Screen.Manager |
+| `atom::core::LogChannel::MOVEMENT` | Atom.Movement |
+| `atom::core::LogChannel::ENTITY` | Atom.Entity |
+| `atom::entity::LogChannel::NPC` | Atom.Entity.NPC |
+| `atom::entity::LogChannel::PLAYER` | Atom.Entity.Player |
+| `atom::audio::LogChannel::MUSIC` | Atom.Audio.Music |
+| `atom::audio::LogChannel::SFX` | Atom.Audio.SFX |
+| `atom::audio::LogChannel::PLUG_MUSICFADE` | Atom.Audio.Plug.MusicFade |
+| `atom::audio::LogChannel::MINIMP3` | Atom.Audio.Minimp3 |
+| `atom::audio::LogChannel::WAVPROF` | Atom.Audio.WavProf |
+| `atom::audio::LogChannel::METADATA` | Atom.Audio.Metadata |
+| `atom::backend::LogChannel::RUNTIME` | Atom.Backend.Runtime |
+| `atom::backend::sdl::LogChannel::AUDIO` | Atom.SDL.Backend.Audio |
+| `atom::backend::sdl::LogChannel::VIDEO` | Atom.SDL.Backend.Video |
+| `atom::backend::sdl::LogChannel::RENDER` | Atom.SDL.Backend.Render |
+| `atom::backend::sdl::LogChannel::WINDOW` | Atom.SDL.Backend.Window |
+| `atom::utilities::LogChannel::PACKAGER` | Atom.Utilities.Packager |
 
-The channel list will be updated as the engine evolves.
+To add a channel, just add one line to the form of its domain in `Log/AtomLogChannels.hpp` — no other file changes. Each domain supports up to 64 channels; you can nest domains arbitrarily deep (e.g. `atom::entity::npc`).
 
-### Custom Game Channels
+### Game Channels (Custom Domain)
 
-No need to modify engine code — just construct a channel directly:
-
-#### Define as Constants (Recommended)
-
-Create your own header file in your game project:
+Games never touch the engine library. Create a single header in your game project — **write the channels, one line injects everything**:
 
 ```cpp
-// This file belongs to your game project
+// Game/GameChannels.hpp — everything you need on the game side
 #pragma once
-#include "Log/LogSystem.hpp"
+#include <Log/LogSystem.hpp>
 
-namespace game {
-    const atom::LogChannel GAME_NPC("Game.NPC");
-    const atom::LogChannel GAME_PLAYER("Game.Player");
-    const atom::LogChannel GAME_SCREEN("Game.Screen");
-    const atom::LogChannel GAME_MAIN("Game.Main");
-}
+// ============ Write channels + one-line injection ============
+ATOM_DEFINE_CHANNELS(game, GameLogChannel, "Game.",
+    (GAME_NPC, "NPC"),
+    (GAME_PLAYER, "Player"),
+    (GAME_MAIN, "Main")
+)
 ```
 
-Usage:
+This generates the enum, the name mapping and the `Game.` prefix — all at compile time:
 
 ```cpp
-#include "GameLogChannels.hpp"
+#include "Game/GameChannels.hpp"
 
-LOG_INFO(game::GAME_NPC, "NPC spawned");
-LOG_ERROR(game::GAME_PLAYER, "Failed to save");
+LOG_INFO(game::GameLogChannel::GAME_NPC, "NPC spawned");     // Game.NPC -> NPC spawned
+LOG_ERROR(game::GameLogChannel::GAME_PLAYER, "Save failed"); // Game.Player -> Save failed
 ```
 
-#### Ad-hoc Usage (Not Recommended)
+You can also define multiple domains (e.g. one per game module, or nested like `game::npc::LogChannel`) — each just needs its own namespace, enum name and prefix.
+
+### Ad-hoc Usage (Temporary Channels)
+
+For quick experiments, pass a plain string — no declaration needed:
 
 ```cpp
-LOG_INFO(atom::LogChannel("Game.NPC"), "NPC dialog started");
-LOG_INFO(atom::LogChannel("Game.Player"), "Player save game");
+LOG_INFO("Game.NPC", "NPC dialog started");
+LOG_INFO("Debug.temp", "Just trying something");
 ```
 
-Output:
+---
+
+## Output & Hierarchical Filtering
+
+Every log line starts with the domain prefix, so filtering works at any level:
 
 ```
-[2026-01-01 12:00:00] [INFO] Game.NPC -> NPC dialog started
-[2026-01-01 12:00:01] [INFO] Game.Player -> Player save game
+[2026-01-01 12:00:00] [INFO] Atom.Audio.Music -> Playback started
+[2026-01-01 12:00:01] [INFO] Atom.Entity.NPC -> NPC spawned
+[2026-01-01 12:00:02] [INFO] Game.NPC -> NPC spawned
+[2026-01-01 12:00:03] [WARNING] Game.Player -> Save failed
 ```
 
-The channel name automatically appends ` -> ` as a display suffix.
+- Grep `"Game."` → only your game's logs
+- Grep `"Atom.Audio."` → only audio logs; `"Atom.SDL."` → only SDL backend logs
+- Grep `"Atom."` → all engine logs
 
 ---
 
@@ -116,10 +152,10 @@ The channel name automatically appends ` -> ` as a display suffix.
 Examples:
 
 ```cpp
-LOG_INFO(atom::LogChannel::ATOM_MAIN, "Engine started");
-LOG_WARNING(atom::LogChannel::ATOM_AUDIO_SFX, "File not found: " + filename);
-LOG_ERROR(atom::LogChannel::ATOM_LUA, "Script error: " + errorMsg);
-LOG_DEBUG(atom::LogChannel::ATOM_ENTITY, "Entity id: " + std::to_string(id));
+LOG_INFO(atom::core::LogChannel::MAIN, "Engine started");
+LOG_WARNING(atom::audio::LogChannel::SFX, "File not found: " + filename);
+LOG_ERROR(atom::core::LogChannel::LUA, "Script error: " + errorMsg);
+LOG_DEBUG(atom::core::LogChannel::ENTITY, "Entity id: " + std::to_string(id));
 ```
 
 ---
@@ -133,7 +169,7 @@ Use `SetViewLogLevel` to filter logs by severity:
 atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING);
 ```
 
-Each call prints a confirmation through the `ATOM_LOGGER` channel, e.g.
+Each call prints a confirmation through the `ATOM_LOGGER` channel (`atom::core::LogChannel::LOGGER`), e.g.
 `Set log level to WARNING`, so the currently active level is always visible
 in the console.
 
@@ -141,9 +177,20 @@ Priority order: `DEBUG < INFO < WARNING < ERROR`
 
 ---
 
+## TODO / Roadmap
+
+Domain-based filtering is the next planned feature set
+
+- [ ] **Runtime domain filter** — e.g. `atom::Log::SetChannelFilter("Atom.Audio.", false)` to mute/keep whole domains (or per-channel), separating `Game.` logs from engine noise without grepping.
+- [ ] **Per-domain view level** — e.g. keep `Atom.Audio.` at DEBUG while the rest stays at WARNING.
+- [ ] **Runtime channel config file** (optional) — load display names / levels from a file so games can tune logging without recompiling.
+
+---
+
 ## Notes
 
-1. `LogChannel` constructor takes a `std::string`. Use short, meaningful names.
-2. Channel names are display strings. Atom does not normalize their case, so use a consistent style.
-3. Custom channels do not require registration or prior declaration — create and use them on the fly.
-4. Log output is serialized by an internal mutex. Changing the view level concurrently with logging is not yet guaranteed to be thread-safe.
+1. Channels are **enums** — typos fail at compile time, and the IDE autocompletes them.
+2. Display format is `prefix + shortName + " -> "`. Engine domains use `Atom.*` prefixes; each game domain picks its own.
+3. To add a channel, add one line to the form of its domain (`(CPP_NAME, "Short.Name")`). A single domain supports up to 64 channels; nesting domains is unlimited.
+4. Ad-hoc channels are plain strings — no declaration or registration required.
+5. Log output is serialized by an internal mutex. Changing the view level concurrently with logging is not yet guaranteed to be thread-safe.

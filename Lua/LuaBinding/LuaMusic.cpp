@@ -114,5 +114,5 @@ auto RegisterMusicToLua(lua_State* L) -> void {
     luaL_setfuncs(L, musicFunctions, 0);
 
     lua_setglobal(L, "Music");
-    LOG_INFO(atom::LogChannel::ATOM_LUA, "Engine.Audio.Music registered successfully.");
+    LOG_INFO(atom::core::LogChannel::LUA, "Engine.Audio.Music registered successfully.");
 }

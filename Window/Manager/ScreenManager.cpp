@@ -21,7 +21,7 @@ auto ScreenManager::GetInstance() -> ScreenManager& {
 
 auto ScreenManager::LoadScreen(const std::string& name, std::unique_ptr<Screen> screen) -> void {
     screens_[name] = std::move(screen);
-    LOG_INFO(atom::LogChannel::ATOM_SCREEN_MANAGER, "Registering screen: " + name);
+    LOG_INFO(atom::core::LogChannel::SCREEN_MANAGER, "Registering screen: " + name);
 }
 
 auto ScreenManager::SwitchScreen(const std::string& name) -> void {
@@ -35,7 +35,7 @@ auto ScreenManager::SwitchScreen(const std::string& name) -> void {
         current_screen_name_ = name;
         current_screen_->OnActivate();
     }
-    LOG_INFO(atom::LogChannel::ATOM_SCREEN_MANAGER, "Switched screen to : " + name);
+    LOG_INFO(atom::core::LogChannel::SCREEN_MANAGER, "Switched screen to : " + name);
 }
 
 auto ScreenManager::PushScreen(const std::string& name) -> void {
@@ -49,7 +49,7 @@ auto ScreenManager::PushScreen(const std::string& name) -> void {
         current_screen_name_ = name;
         current_screen_->OnActivate();
     }
-    LOG_INFO(atom::LogChannel::ATOM_SCREEN_MANAGER, "Pushed & Rendering screen: " + name);
+    LOG_INFO(atom::core::LogChannel::SCREEN_MANAGER, "Pushed & Rendering screen: " + name);
 }
 
 auto ScreenManager::PopScreen() -> void {
@@ -63,7 +63,7 @@ auto ScreenManager::PopScreen() -> void {
         screen_stack_.pop_back();
         current_screen_->OnActivate();
     }
-    LOG_INFO(atom::LogChannel::ATOM_SCREEN_MANAGER, "Popped all screen: ");
+    LOG_INFO(atom::core::LogChannel::SCREEN_MANAGER, "Popped all screen: ");
 }
 
 auto ScreenManager::Render(IRenderTarget& target) const -> void {
