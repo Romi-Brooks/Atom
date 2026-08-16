@@ -11,6 +11,7 @@
 #ifndef ATOM_BACKEND_BUILTIN_RIFF_WAVE_READER_HPP
 #define ATOM_BACKEND_BUILTIN_RIFF_WAVE_READER_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -43,6 +44,11 @@ public:
     // uncompressed PCM / IEEE float WAV.
     auto Open(const std::string& path) -> bool;
 
+    // Open a WAV stream from an in-memory buffer (e.g. an entry extracted
+    // from a resource pack). The buffer is borrowed: the caller must keep it
+    // alive until Close(). Returns false if the data is invalid.
+    auto OpenFromMemory(const void* data, std::size_t size) -> bool;
+
     // Close the file.
     auto Close() -> void;
 
@@ -54,7 +60,7 @@ public:
 
     // Queries
     [[nodiscard]] auto IsOpen() const -> bool {
-        return fp_ != nullptr;
+        return fp_ != nullptr || mem_data_ != nullptr;
     }
     [[nodiscard]] auto GetChannels() const -> uint16_t {
         return channels_;
@@ -81,6 +87,12 @@ private:
     uint32_t sample_rate_ = 0;
     uint16_t bits_per_sample_ = 0;
     uint16_t audio_format_ = 0;
+    // Borrowed in-memory buffer (OpenFromMemory). Never owned: the caller
+    // must keep it alive until Close(). mem_pos_ is the current read cursor
+    // within the whole buffer.
+    const uint8_t* mem_data_ = nullptr;
+    size_t mem_size_ = 0;
+    size_t mem_pos_ = 0;
 };
 
 } // namespace atom

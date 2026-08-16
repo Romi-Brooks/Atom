@@ -1,6 +1,7 @@
 #ifndef ATOM_MUSIC_PLAYER_HPP
 #define ATOM_MUSIC_PLAYER_HPP
 
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -23,6 +24,14 @@ public:
     ~MusicPlayer() override;
 
     auto Load(const std::string& id, const std::string& file) -> bool;
+
+    // Load a music track from an in-memory buffer, e.g. an entry extracted
+    // from a resource pack. filename is used only to select a decoder by
+    // extension. The buffer is borrowed: the caller must keep it alive for as
+    // long as the track is loaded (until Reset() or destruction).
+    auto LoadFromMemory(const std::string& id, const std::string& filename, const void* data, std::size_t size)
+        -> bool;
+
     auto Play(const std::string& id) -> void;
     auto Play(const std::string& id, float volume) -> void;
     auto Stop(const std::string& id) -> void;

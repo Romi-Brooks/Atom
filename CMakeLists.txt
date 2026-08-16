@@ -55,11 +55,32 @@ add_subdirectory(ThirdParty)
     add_library(atom_backend_sdl3_render STATIC
         Backend/SDL3/Window/SDL3RenderWindow.cpp
         Backend/SDL3/Window/SDL3RenderWindow.hpp
+        Backend/SDL3/Window/ISDL3WindowExtensions.hpp
         Backend/SDL3/Render/SDL3Texture.cpp
         Backend/SDL3/Render/SDL3Texture.hpp
     )
     target_include_directories(atom_backend_sdl3_render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(atom_backend_sdl3_render PUBLIC atom_backend_contracts atom_backend_sdl3_core)
+    # SDL3RenderWindow.cpp calls Vec2 (GetX/GetY) directly, so engine_algorithm
+    # must be an explicit dependency — never rely on consumer link ordering.
+    target_link_libraries(atom_backend_sdl3_render PUBLIC atom_backend_contracts atom_backend_sdl3_core engine_algorithm)
+
+# 3b. SDL3 Debug (ImGui) Backend — ImGui glue for the SDL3 render backend.
+    add_library(atom_backend_sdl3_debug STATIC
+        Backend/SDL3/Debug/SDL3DebugImGuiBackend.cpp
+        Backend/SDL3/Debug/SDL3DebugImGuiBackend.hpp
+    )
+    target_include_directories(atom_backend_sdl3_debug PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(atom_backend_sdl3_debug PUBLIC atom_backend_contracts atom_backend_sdl3_render atom::imgui_sdl3)
+
+# 3c. Render Backend Runtime — the sanctioned layer that knows the concrete
+#     backends and registers them (window factory + debug overlay backend);
+#     upper layers only consume the registries and the I* interfaces.
+    add_library(atom_backend_render_runtime STATIC
+        Backend/Runtime/RenderBackendRuntime.cpp
+        Backend/Runtime/RenderBackendRuntime.hpp
+    )
+    target_include_directories(atom_backend_render_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(atom_backend_render_runtime PUBLIC atom_backend_registry atom_backend_sdl3_render atom_backend_sdl3_debug)
 
 # 4. Backend registry and builtin audio decoders
     add_library(atom_backend_registry STATIC
@@ -67,6 +88,10 @@ add_subdirectory(ThirdParty)
         Backend/Registry/AudioDecoderRegistry.cpp
         Backend/Registry/BackendRegistry.hpp
         Backend/Registry/BackendRegistry.cpp
+        Backend/Registry/RenderBackendRegistry.hpp
+        Backend/Registry/RenderBackendRegistry.cpp
+        Backend/Registry/DebugImGuiBackendRegistry.hpp
+        Backend/Registry/DebugImGuiBackendRegistry.cpp
     )
     target_include_directories(atom_backend_registry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(atom_backend_registry PUBLIC atom_backend_contracts)
@@ -122,6 +147,8 @@ add_subdirectory(ThirdParty)
 
 # 7. Media
     add_library(engine_media STATIC
+        Media/Audio/Metadata/AudioMetadataReader.cpp
+        Media/Audio/Metadata/AudioMetadataReader.hpp
         Media/Audio/Mixing/AudioMixer.cpp
         Media/Audio/Mixing/AudioMixer.hpp
         Media/Audio/Resources/AudioClipLoader.cpp
@@ -140,7 +167,7 @@ add_subdirectory(ThirdParty)
         Media/Video/Video.hpp
     )
     target_include_directories(engine_media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_media PUBLIC atom_backend_contracts atom_backend_registry atom_backend_runtime engine_log)
+    target_link_libraries(engine_media PUBLIC atom_backend_contracts atom_backend_registry atom_backend_runtime engine_log engine_utf8 atom::taglib)
 
 # --------------------------------------------------------------------------
 # UTF-8 encoding utilities (shared by all Atom modules)
@@ -174,7 +201,8 @@ target_link_libraries(engine_utf8 PUBLIC atom_backend_contracts atom::utfcpp)
     target_include_directories(engine_windows PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(engine_windows PUBLIC
         atom_backend_contracts
-        atom_backend_sdl3_render
+        atom_backend_registry
+        atom_backend_render_runtime
         engine_log
         engine_algorithm)
 
@@ -182,9 +210,10 @@ target_link_libraries(engine_utf8 PUBLIC atom_backend_contracts atom::utfcpp)
     add_library(engine_debugger STATIC
             Window/Debugger.hpp
             Window/Debugger.cpp
+            Window/Overlay.hpp
     )
     target_include_directories(engine_debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(engine_debugger PUBLIC engine_windows atom::imgui_sdl3)
+    target_link_libraries(engine_debugger PUBLIC engine_windows atom_backend_sdl3_debug)
     if(WIN32)
         target_link_libraries(engine_debugger PUBLIC opengl32 gdi32)
     endif()
@@ -237,16 +266,9 @@ add_executable(Atom Atom.cpp)
 
 target_link_libraries(Atom PRIVATE
         engine_core
-        atom::taglib
 )
 
 # Examples
-add_executable(example_media_metadata Example/MediaMetadata.cpp)
-target_link_libraries(example_media_metadata PRIVATE atom::taglib)
-if(WIN32)
-    target_link_libraries(example_media_metadata PRIVATE ws2_32 winmm)
-endif()
-
 add_executable(example_audio_playback Example/MusicPlayback.cpp)
 target_link_libraries(example_audio_playback PRIVATE
         engine_media engine_windows engine_debugger)
@@ -271,6 +293,21 @@ add_executable(example_simple_window_debug Example/SimpleWindowWithDebugger.cpp)
 target_link_libraries(example_simple_window_debug PRIVATE engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_simple_window_debug PRIVATE)
+endif()
+
+# Audio metadata example (uses the engine's AudioMetadataReader)
+add_executable(example_audio_metadata Example/AudioMetadata.cpp)
+target_link_libraries(example_audio_metadata PRIVATE engine_media)
+if(WIN32)
+    target_link_libraries(example_audio_metadata PRIVATE)
+endif()
+
+# Resource-pack + in-memory streaming playback example
+add_executable(example_packaged_music Example/PackagedMusicPlayback.cpp)
+target_link_libraries(example_packaged_music PRIVATE
+        engine_media engine_windows engine_debugger engine_packager)
+if(WIN32)
+    target_link_libraries(example_packaged_music PRIVATE)
 endif()
 
 # ============================================================================
@@ -305,9 +342,10 @@ if(MINGW)
                 COMMENT "Copying libwinpthread-1.dll next to ${target}")
         endif()
     endfunction()
-    foreach(atom_exe IN ITEMS Atom example_media_metadata example_audio_playback
-                           example_sfx_playback example_simple_window
-                           example_simple_window_debug packager_tool)
+    foreach(atom_exe IN ITEMS Atom example_audio_playback
+                           example_audio_metadata example_sfx_playback
+                           example_simple_window example_simple_window_debug
+                           example_packaged_music packager_tool)
         atom_copy_mingw_runtime_dll(${atom_exe})
     endforeach()
 endif()

@@ -98,7 +98,12 @@ auto Packager::GenerateInternalFilename(const fs::path& filePath, const Config& 
     try {
         if (config.preserveStructure) {
             const std::string relative_path = SafeRelativePath(filePath);
-            return ToUTF8(NormalizePath(relative_path));
+            // fs::relative() yields an empty path when the two paths sit on
+            // different drives (libstdc++) or throws (MSVC); fall back to the
+            // bare filename so entries never get an empty name.
+            if (!relative_path.empty())
+                return ToUTF8(NormalizePath(relative_path));
+            return ToUTF8(NormalizePath(SafePathToString(filePath.filename())));
         } else {
             const std::string filename = ToUTF8(SafePathToString(filePath.filename()));
             int counter = 1;
@@ -148,18 +153,15 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
     }
 
     // Write file header
-    // 写入文件头
     output.write(MAGIC, 4);
     output.write(reinterpret_cast<const char*>(&VERSION), sizeof(VERSION));
 
     // Reserve file table position - write file count as 0 initially, update later
-    // 预留文件表位置 - 先写入文件数量为0，稍后更新
     uint64_t file_table_offset = output.tellp();
     uint32_t file_count = 0;
     output.write(reinterpret_cast<const char*>(&file_count), sizeof(file_count));
 
     // Write file data
-    // 写入文件数据
     uint64_t current_offset = file_table_offset + sizeof(file_count);
     std::vector<FileEntry> entries;
 
@@ -180,13 +182,11 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         }
 
         // Get file size
-        // 获取文件大小
         input.seekg(0, std::ios::end);
         uint64_t file_size = static_cast<uint64_t>(input.tellg());
         input.seekg(0, std::ios::beg);
 
         // Create file entry
-        // 创建文件条目
         FileEntry entry;
         try {
             entry.original_path = SafePathToString(filePath);
@@ -202,7 +202,6 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         }
 
         // Read and write file data
-        // 读取并写入文件数据
         std::vector<char> buffer(file_size);
         input.read(buffer.data(), static_cast<long long>(file_size));
 
@@ -237,20 +236,16 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
     }
 
     // Record file table start position
-    // 记录文件表开始位置
     uint64_t table_start = output.tellp();
 
     // Update file count
-    // 更新文件计数
     output.seekp(static_cast<std::streampos>(static_cast<long long>(file_table_offset)));
     output.write(reinterpret_cast<const char*>(&file_count), sizeof(file_count));
     output.seekp(static_cast<std::streampos>(static_cast<long long>(table_start)));
 
     // Write each file entry
-    // 写入每个文件条目
     for (const auto& entry : entries) {
         // Write filename
-        // 写入文件名
         std::string safe_filename = ToUTF8(entry.filename);
         if (safe_filename.size() > UINT16_MAX) {
             return Result::ERROR_INVALID_PATH;
@@ -260,14 +255,12 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         output.write(safe_filename.c_str(), name_length);
 
         // Write file info
-        // 写入文件信息
         uint64_t offset = entry.offset;
         uint64_t size = entry.size;
         output.write(reinterpret_cast<const char*>(&offset), sizeof(offset));
         output.write(reinterpret_cast<const char*>(&size), sizeof(size));
 
         // Write file type
-        // 写入文件类型
         std::string safe_type = ToUTF8(entry.type);
         if (safe_type.size() > UINT8_MAX) {
             return Result::ERROR_INVALID_PATH;
@@ -277,20 +270,17 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         output.write(safe_type.c_str(), type_length);
 
         // Save to internal file table
-        // 保存到内部文件表
         file_table_.push_back(entry);
         file_index_[entry.filename] = file_table_.size() - 1;
     }
 
     // Write file table offset
-    // 写入文件表偏移量
     uint64_t table_end = static_cast<uint64_t>(output.tellp());
     output.write(reinterpret_cast<const char*>(&table_start), sizeof(table_start));
 
     output.close();
 
     // Verify package file
-    // 验证包文件
     LOG_INFO(atom::LogChannel::ATOM_UTILITIES_PACKAGER, "Packing complete, commencing verification...");
     std::ifstream verify(outputFile, std::ios::binary);
     if (verify.is_open()) {
@@ -313,7 +303,6 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
                      (file_count_verify == file_count ? "True" : "False"));
 
         // Read file table offset
-        // 读取文件表偏移量
         verify.seekg(-static_cast<std::streamoff>(sizeof(uint64_t)), std::ios::end);
         uint64_t table_offset_verify;
         verify.read(reinterpret_cast<char*>(&table_offset_verify), sizeof(table_offset_verify));

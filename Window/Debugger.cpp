@@ -1,20 +1,16 @@
 /**
   * @file           : Debugger.cpp
   * @author         : Romi Brooks
-  * @brief          : Debug overlay implementation (ImGui SDL3 backend)
+  * @brief          : Debug overlay implementation (backend-agnostic)
   * @date           : 2026/6/6
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
 #include "Debugger.hpp"
 
-// Third Party Libraries
-#include <SDL3/SDL.h>
-#include <imgui.h>
-#include <imgui_impl_sdl3.h>
-#include <imgui_impl_sdlrenderer3.h>
-
 // Engine Headers
+#include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
+#include <Backend/Registry/DebugImGuiBackendRegistry.hpp>
 #include <Window/RenderWindow.hpp>
 
 namespace atom {
@@ -31,26 +27,31 @@ auto Debugger::Attach(RenderWindow& window) -> void {
 
     target_window_ = &window;
 
-    void* native_window = window.GetNativeWindowHandle();
-    void* native_renderer = window.GetNativeRendererHandle();
-
-    if (!native_window || !native_renderer)
+    auto* renderWindow = window.GetIRenderWindow();
+    if (!renderWindow) {
+        target_window_ = nullptr;
         return;
+    }
 
-    // Initialize ImGui SDL3 backend
-    ImGui::CreateContext();
-    ImGui_ImplSDL3_InitForSDLRenderer(static_cast<SDL_Window*>(native_window),
-                                      static_cast<SDL_Renderer*>(native_renderer));
-    ImGui_ImplSDLRenderer3_Init(static_cast<SDL_Renderer*>(native_renderer));
+    // Select the ImGui backend through the contract registry (registered by
+    // the runtime layer for the window's backend id). No SDL3/ImGui types
+    // appear in this file: all coupling lives in Backend/SDL3/Debug/.
+    imgui_backend_ = DebugImGuiBackendRegistry::GetInstance().Create(window.GetBackendId(), *renderWindow);
+    if (!imgui_backend_ || !imgui_backend_->Initialize()) {
+        imgui_backend_.reset();
+        target_window_ = nullptr;
+        return;
+    }
 
-    // Hook raw SDL event processing (ImGui needs the SDL_Event before translation)
-    window.on_pre_process_sdl_event_ = [](const SDL_Event& event) { ImGui_ImplSDL3_ProcessEvent(&event); };
+    // Register listeners with RAII connections. Each connection removes only
+    // this debugger's own listener on destruction / Detach(); other listeners
+    // (other debuggers, user overlays) are never touched.
+    raw_event_connection_ = std::make_unique<ListenerConnection>(window.AddRawEventListener([this](const void* rawEvent) {
+        imgui_backend_->ProcessRawEvent(rawEvent);
+    }));
 
-    // Hook per-frame update
-    window.on_update_ = [this](float deltaTime) {
-        ImGui_ImplSDLRenderer3_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
-        ImGui::NewFrame();
+    update_connection_ = std::make_unique<ListenerConnection>(window.AddUpdateListener([this](float deltaTime) {
+        imgui_backend_->NewFrame();
 
         // Track FPS
         frame_count_++;
@@ -60,23 +61,21 @@ auto Debugger::Attach(RenderWindow& window) -> void {
             frame_count_ = 0;
             fps_accumulator_ = 0.0f;
         }
-    };
+    }));
 
-    // Hook overlay render
-    window.on_render_overlay_ = [this]() {
+    overlay_connection_ = std::make_unique<ListenerConnection>(window.AddOverlayListener([this]() {
         OnDrawOverlay();
-        ImGui::Render();
-        auto* renderer = static_cast<SDL_Renderer*>(target_window_->GetNativeRendererHandle());
-        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
-    };
+        imgui_backend_->Render();
+    }));
 
-    // Hook shutdown
-    window.on_shutdown_ = [this]() {
-        ImGui_ImplSDLRenderer3_Shutdown();
-        ImGui_ImplSDL3_Shutdown();
-        ImGui::DestroyContext();
+    // Hook shutdown (single-shot, invoked by RenderWindow::Shutdown)
+    shutdown_connection_ = std::make_unique<ListenerConnection>(window.AddShutdownListener([this]() {
+        if (imgui_backend_) {
+            imgui_backend_->Shutdown();
+            imgui_backend_.reset();
+        }
         imgui_shutdown_ = true;
-    };
+    }));
 
     attached_ = true;
 }
@@ -85,19 +84,17 @@ auto Debugger::Detach() -> void {
     if (!attached_ || !target_window_)
         return;
 
-    // Clear all callbacks
-    target_window_->on_pre_process_sdl_event_ = nullptr;
-    target_window_->on_process_event_ = nullptr;
-    target_window_->on_update_ = nullptr;
-    target_window_->on_render_overlay_ = nullptr;
-    target_window_->on_shutdown_ = nullptr;
+    // Remove only this debugger's own listeners; other listeners stay intact.
+    raw_event_connection_.reset();
+    update_connection_.reset();
+    overlay_connection_.reset();
+    shutdown_connection_.reset();
 
-    // Shutdown ImGui SDL3 backend (skip if already done by the shutdown callback)
-    if (!imgui_shutdown_) {
-        ImGui_ImplSDLRenderer3_Shutdown();
-        ImGui_ImplSDL3_Shutdown();
-        ImGui::DestroyContext();
+    // Shutdown ImGui backend (skip if already done by the shutdown listener)
+    if (!imgui_shutdown_ && imgui_backend_) {
+        imgui_backend_->Shutdown();
     }
+    imgui_backend_.reset();
 
     target_window_ = nullptr;
     attached_ = false;

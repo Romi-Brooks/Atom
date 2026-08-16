@@ -33,8 +33,7 @@ Unpackager::~Unpackager() {
 Unpackager::Unpackager(Unpackager&& other) noexcept
     : file_table_(std::move(other.file_table_)), file_index_(std::move(other.file_index_)),
       package_path_(std::move(other.package_path_)) {
-    // Stream object movement is complex; new object reopens as needed
-    // 流对象移动复杂，新对象按需重新打开
+    // Stream object movement is complex; the new object reopens as needed.
 }
 
 Unpackager& Unpackager::operator=(Unpackager&& other) noexcept {
@@ -56,7 +55,7 @@ auto Unpackager::CreateDirectory(const fs::path& dir_path) -> bool {
         }
         return true;
     } catch (const std::exception& e) {
-        std::cout << "错误: 创建目录失败 " << dir_path << ": " << e.what() << std::endl;
+        std::cout << "Error: failed to create directory " << dir_path << ": " << e.what() << std::endl;
         return false;
     }
 }
@@ -65,7 +64,7 @@ auto Unpackager::SafePathToString(const fs::path& path) -> std::string {
     try {
         return path.string();
     } catch (const std::exception& e) {
-        std::cout << "警告: 路径转换错误: " << e.what() << std::endl;
+        std::cout << "Warning: path conversion error: " << e.what() << std::endl;
         return "unknown_path";
     }
 }
@@ -111,95 +110,91 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
 
     if (!fs::exists(packageFile)) {
         if (verbose)
-            std::cout << "错误: 包文件不存在: " << packageFile << std::endl;
+            std::cout << "Error: package file does not exist: " << packageFile << std::endl;
         return Result::ERROR_OPEN_FILE;
     }
 
     uint64_t package_size = GetFileSize(packageFile);
     if (verbose)
-        std::cout << "包文件大小: " << package_size << " 字节" << std::endl;
+        std::cout << "Package file size: " << package_size << " bytes" << std::endl;
 
     if (package_size < 20) {
         if (verbose)
-            std::cout << "错误: 文件太小，不是有效的包文件" << std::endl;
+            std::cout << "Error: file is too small to be a valid package" << std::endl;
         return Result::ERROR_INVALID_FORMAT;
     }
 
     std::ifstream input(packageFile, std::ios::binary);
     if (!input.is_open()) {
         if (verbose)
-            std::cout << "错误: 无法打开包文件" << std::endl;
+            std::cout << "Error: cannot open package file" << std::endl;
         return Result::ERROR_OPEN_FILE;
     }
 
     // Read magic number
-    // 读取魔数
     char magic[4];
     input.read(magic, 4);
     if (!input) {
         if (verbose)
-            std::cout << "错误: 读取文件头失败" << std::endl;
+            std::cout << "Error: failed to read file header" << std::endl;
         input.close();
         return Result::ERROR_INVALID_FORMAT;
     }
 
     std::string magic_str(magic, 4);
     if (verbose)
-        std::cout << "文件魔数: " << magic_str << std::endl;
+        std::cout << "File magic: " << magic_str << std::endl;
 
     if (!std::equal(std::begin(MAGIC), std::end(MAGIC), magic)) {
         if (verbose)
-            std::cout << "错误: 无效的文件魔数，期望 'APKG'" << std::endl;
+            std::cout << "Error: invalid magic number, expected 'APKG'" << std::endl;
         input.close();
         return Result::ERROR_INVALID_FORMAT;
     }
 
     // Read version number
-    // 读取版本号
     uint16_t version;
     input.read(reinterpret_cast<char*>(&version), sizeof(version));
     if (!input) {
         if (verbose)
-            std::cout << "错误: 读取版本号失败" << std::endl;
+            std::cout << "Error: failed to read version number" << std::endl;
         input.close();
         return Result::ERROR_INVALID_FORMAT;
     }
 
     if (verbose)
-        std::cout << "文件版本: " << version << std::endl;
+        std::cout << "File version: " << version << std::endl;
     if (version != VERSION) {
         if (verbose)
-            std::cout << "错误: 不支持的版本号: " << version << std::endl;
+            std::cout << "Error: unsupported version number: " << version << std::endl;
         input.close();
         return Result::ERROR_INVALID_FORMAT;
     }
 
     // Read file count
-    // 读取文件数量
     uint32_t file_count;
     input.read(reinterpret_cast<char*>(&file_count), sizeof(file_count));
     if (!input) {
         if (verbose)
-            std::cout << "错误: 读取文件数量失败" << std::endl;
+            std::cout << "Error: failed to read file count" << std::endl;
         input.close();
         return Result::ERROR_INVALID_FORMAT;
     }
 
     if (verbose)
-        std::cout << "文件数量: " << file_count << std::endl;
+        std::cout << "File count: " << file_count << std::endl;
     if (file_count > 1000000) {
         if (verbose)
-            std::cout << "错误: 文件数量异常: " << file_count << std::endl;
+            std::cout << "Error: abnormal file count: " << file_count << std::endl;
         input.close();
         return Result::ERROR_CORRUPTED_PACKAGE;
     }
 
     // Read file table offset
-    // 读取文件表偏移量
     input.seekg(-static_cast<std::streamoff>(sizeof(uint64_t)), std::ios::end);
     if (!input) {
         if (verbose)
-            std::cout << "错误: 定位到文件表偏移量失败" << std::endl;
+            std::cout << "Error: failed to seek to file table offset" << std::endl;
         input.close();
         return Result::ERROR_INVALID_FORMAT;
     }
@@ -208,32 +203,30 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
     input.read(reinterpret_cast<char*>(&table_offset), sizeof(table_offset));
     if (!input) {
         if (verbose)
-            std::cout << "错误: 读取文件表偏移量失败" << std::endl;
+            std::cout << "Error: failed to read file table offset" << std::endl;
         input.close();
         return Result::ERROR_INVALID_FORMAT;
     }
 
     if (verbose)
-        std::cout << "文件表偏移量: " << table_offset << std::endl;
+        std::cout << "File table offset: " << table_offset << std::endl;
     if (table_offset >= package_size || table_offset < 10) {
         if (verbose)
-            std::cout << "错误: 无效的文件表偏移量: " << table_offset << std::endl;
+            std::cout << "Error: invalid file table offset: " << table_offset << std::endl;
         input.close();
         return Result::ERROR_CORRUPTED_PACKAGE;
     }
 
     // Seek to file table
-    // 定位到文件表
     input.seekg(static_cast<std::streamoff>(table_offset));
     if (!input) {
         if (verbose)
-            std::cout << "错误: 定位到文件表开始位置失败" << std::endl;
+            std::cout << "Error: failed to seek to file table start" << std::endl;
         input.close();
         return Result::ERROR_READ_FILE_TABLE;
     }
 
     // Read file table
-    // 读取文件表
     file_table_.clear();
     file_index_.clear();
     for (uint32_t i = 0; i < file_count; ++i) {
@@ -245,7 +238,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         input.read(reinterpret_cast<char*>(&name_length), sizeof(name_length));
         if (!input || name_length == 0 || name_length > 4096) {
             if (verbose)
-                std::cout << "错误: 无效的文件名长度: " << name_length << std::endl;
+                std::cout << "Error: invalid filename length: " << name_length << std::endl;
             return Result::ERROR_CORRUPTED_PACKAGE;
         }
 
@@ -270,7 +263,6 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         }
 
         // Read offset and size
-        // 读取偏移量和大小
         uint64_t offset, size;
         input.read(reinterpret_cast<char*>(&offset), sizeof(offset));
         input.read(reinterpret_cast<char*>(&size), sizeof(size));
@@ -279,7 +271,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
 
         if (offset < 10 || offset > table_offset || size > table_offset - offset) {
             if (verbose) {
-                std::cout << "警告: 跳过无效的文件条目: " << entry.filename << " (offset=" << offset
+                std::cout << "Warning: skipping invalid file entry: " << entry.filename << " (offset=" << offset
                           << ", size=" << size << ")" << std::endl;
             }
             return Result::ERROR_CORRUPTED_PACKAGE;
@@ -289,7 +281,6 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         entry.size = size;
 
         // Read file type
-        // 读取文件类型
         uint8_t type_length;
         input.read(reinterpret_cast<char*>(&type_length), sizeof(type_length));
         if (!input)
@@ -321,14 +312,13 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
     }
 
     if (verbose) {
-        std::cout << "成功加载 " << file_table_.size() << " 个文件条目" << std::endl;
+        std::cout << "Successfully loaded " << file_table_.size() << " file entries" << std::endl;
     }
 
     return Result::SUCCESS;
 }
 
-// ==================== In-memory unpacking functionality implementation ====================
-// ==================== 内存解包功能实现 ====================
+// ==================== In-memory unpacking functionality ====================
 auto Unpackager::ExtractFileToMemory(const std::string& filename, MemoryFile& memoryFile) -> Result {
     const auto it = file_index_.find(filename);
     if (it == file_index_.end()) {
@@ -368,7 +358,7 @@ auto Unpackager::ExtractFilesToMemory(const std::vector<std::string>& filenames,
         if (result == Result::SUCCESS) {
             memoryFiles.push_back(std::move(memoryFile));
         } else {
-            std::cout << "警告: 无法提取文件到内存: " << filename << std::endl;
+            std::cout << "Warning: failed to extract file to memory: " << filename << std::endl;
         }
     }
 
@@ -384,7 +374,7 @@ auto Unpackager::ExtractAllToMemory(std::vector<MemoryFile>& memoryFiles) -> Res
         if (result == Result::SUCCESS) {
             memoryFiles.push_back(std::move(memoryFile));
         } else {
-            std::cout << "警告: 无法提取文件到内存: " << entry.filename << std::endl;
+            std::cout << "Warning: failed to extract file to memory: " << entry.filename << std::endl;
         }
     }
 
@@ -412,8 +402,7 @@ auto Unpackager::GetFileData(const std::string& filename, const char** data, siz
     return Result::SUCCESS;
 }
 
-// ==================== Disk unpacking functionality implementation ====================
-// ==================== 磁盘解包功能实现 ====================
+// ==================== Disk unpacking functionality ====================
 auto Unpackager::UnpackAll(const Config& config) -> Result {
     if (file_table_.empty()) {
         return Result::ERROR_READ_FILE_TABLE;
@@ -432,8 +421,8 @@ auto Unpackager::UnpackAll(const Config& config) -> Result {
     }
 
     if (config.verbose) {
-        std::cout << "解包完成: " << success_count << "/" << file_table_.size() << " 个文件解压到 " << config.outputDir
-                  << std::endl;
+        std::cout << "Extraction complete: " << success_count << "/" << file_table_.size() << " files extracted to "
+                  << config.outputDir << std::endl;
     }
 
     return overall_result;
@@ -443,7 +432,7 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
     auto it = file_index_.find(filename);
     if (it == file_index_.end()) {
         if (config.verbose) {
-            std::cout << "错误: 文件未找到 - " << filename << std::endl;
+            std::cout << "Error: file not found - " << filename << std::endl;
         }
         return Result::ERROR_EXTRACT_FILE;
     }
@@ -451,7 +440,6 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
     const FileEntry& entry = file_table_[it->second];
 
     // Build output path
-    // 构建输出路径
     fs::path output_path;
     try {
         output_path = config.outputDir;
@@ -463,35 +451,32 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
         }
     } catch (const std::exception& e) {
         if (config.verbose) {
-            std::cout << "错误: 构建输出路径失败: " << e.what() << std::endl;
+            std::cout << "Error: failed to build output path: " << e.what() << std::endl;
         }
         return Result::ERROR_ENCODING;
     }
 
     // Create directory
-    // 创建目录
     fs::path output_dir = output_path.parent_path();
     if (!CreateDirectory(output_dir)) {
         return Result::ERROR_CREATE_DIRECTORY;
     }
 
-    // Check if file already exists
-    // 检查文件是否已存在
+    // Check if the file already exists
     try {
         if (fs::exists(output_path) && !config.overwrite) {
             if (config.verbose) {
-                std::cout << "跳过: 文件已存在 - " << SafePathToString(output_path) << std::endl;
+                std::cout << "Skipped: file already exists - " << SafePathToString(output_path) << std::endl;
             }
             return Result::SUCCESS;
         }
     } catch (const std::exception& e) {
         if (config.verbose) {
-            std::cout << "警告: 检查文件存在性失败: " << e.what() << std::endl;
+            std::cout << "Warning: failed to check file existence: " << e.what() << std::endl;
         }
     }
 
     // Read file data
-    // 读取文件数据
     std::vector<char> buffer;
     Result read_result = ReadFileData(entry, buffer);
     if (read_result != Result::SUCCESS) {
@@ -499,13 +484,13 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
     }
 
     // Write file
-    // 写入文件
     std::ofstream output;
     try {
         output.open(output_path, std::ios::binary);
     } catch (const std::exception& e) {
         if (config.verbose) {
-            std::cout << "错误: 无法创建输出文件 " << SafePathToString(output_path) << ": " << e.what() << std::endl;
+            std::cout << "Error: cannot create output file " << SafePathToString(output_path) << ": " << e.what()
+                      << std::endl;
         }
         return Result::ERROR_EXTRACT_FILE;
     }
@@ -518,14 +503,13 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
     output.close();
 
     if (config.verbose) {
-        std::cout << "解压: " << SafePathToString(output_path) << " (" << entry.size << " 字节)" << std::endl;
+        std::cout << "Extracted: " << SafePathToString(output_path) << " (" << entry.size << " bytes)" << std::endl;
     }
 
     return Result::SUCCESS;
 }
 
-// ==================== Query functionality implementation ====================
-// ==================== 查询功能实现 ====================
+// ==================== Query functionality ====================
 auto Unpackager::GetFileList() const -> std::vector<std::string> {
     std::vector<std::string> files;
     for (const auto& entry : file_table_) {
@@ -547,28 +531,23 @@ auto Unpackager::GetFileInfo(const std::string& filename) const -> const FileEnt
 }
 
 auto Unpackager::PrintPackageInfo() const -> void {
-    std::cout << "包文件: " << package_path_ << std::endl;
-    std::cout << "包含 " << file_table_.size() << " 个文件:" << std::endl;
+    std::cout << "Package file: " << package_path_ << std::endl;
+    std::cout << "Contains " << file_table_.size() << " files:" << std::endl;
 
     uint64_t total_size = 0;
     for (const auto& entry : file_table_) {
-        std::string display_name;
-        for (const char c : entry.filename) {
-            if (c >= 32 && c <= 126) {
-                display_name += c;
-            } else if (display_name.length() < 50) {
-                display_name += '?';
-            }
-        }
-
+        // Entry names are stored as UTF-8; print them as-is (the console is
+        // expected to run with a UTF-8 code page). Only bound the length for
+        // readability.
+        std::string display_name = entry.filename;
         if (display_name.length() > 50) {
             display_name = display_name.substr(0, 47) + "...";
         }
 
-        std::cout << "  " << display_name << " [" << entry.type << "] - " << entry.size << " 字节" << std::endl;
+        std::cout << "  " << display_name << " [" << entry.type << "] - " << entry.size << " bytes" << std::endl;
         total_size += entry.size;
     }
 
-    std::cout << "总大小: " << total_size << " 字节" << std::endl;
+    std::cout << "Total size: " << total_size << " bytes" << std::endl;
 }
 } // namespace atom::tools

@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <Backend/Contracts/Render/IRenderWindow.hpp>
 #include <Backend/SDL3/Core/SDLRuntime.hpp>
+#include <Backend/SDL3/Window/ISDL3WindowExtensions.hpp>
 
 #include <unordered_map>
 #include <memory>
@@ -11,7 +12,7 @@
 
 namespace atom {
 
-class SDL3RenderWindow : public IRenderWindow {
+class SDL3RenderWindow : public IRenderWindow, public ISDL3WindowExtensions {
 public:
     SDL3RenderWindow() = default;
     ~SDL3RenderWindow() override;
@@ -26,6 +27,8 @@ public:
     [[nodiscard]] auto PollEvent() -> std::optional<IEvent> override;
     auto SetFPS(uint32_t fps) -> void override;
     [[nodiscard]] auto GetFPS() const -> uint32_t override;
+    auto SetRawEventHook(std::function<void(const void*)> hook) -> void override;
+    auto HandleResize(uint32_t width, uint32_t height) -> void override;
 
     // IRenderTarget
     auto Clear(const Color& color) -> void override;
@@ -39,20 +42,14 @@ public:
     auto DrawCircle(float cx, float cy, float radius, const Color& color) -> void override;
     auto DrawRect(float x, float y, float w, float h, const Color& color) -> void override;
 
-    // Native handles (ImGui interop)
-    [[nodiscard]] auto GetNativeWindowHandle() const -> void* override;
-    [[nodiscard]] auto GetNativeRendererHandle() const -> void* override;
-
-    // Callback hooks (used by Debugger / ImGui overlay)
-    // Called with the raw SDL_Event *before* translation (for ImGui event processing).
-    std::function<void(const SDL_Event&)> on_pre_process_sdl_event_;
-    // Called with the translated IEvent after pre-processing (for game-level hooks).
-    std::function<void(IEvent&)> on_process_event_;
-    std::function<void(float)> on_update_;
-    std::function<void()> on_render_overlay_;
-    std::function<void()> on_shutdown_;
+    // ISDL3WindowExtensions (native handles only via backend extension)
+    [[nodiscard]] auto GetNativeWindow() const -> SDL_Window* override;
+    [[nodiscard]] auto GetNativeRenderer() const -> SDL_Renderer* override;
 
 private:
+    // Set through SetRawEventHook(); invoked with &ev inside PollEvent()
+    // before translation (platform adapters / ImGui only).
+    std::function<void(const void*)> raw_event_hook_;
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
     uint32_t fps_limit_ = 60;

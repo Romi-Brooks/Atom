@@ -2,6 +2,7 @@
 #define ATOM_IRENDER_WINDOW_HPP
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <variant>
@@ -50,9 +51,17 @@ public:
     virtual auto SetFPS(uint32_t fps) -> void = 0;
     [[nodiscard]] virtual auto GetFPS() const -> uint32_t = 0;
 
-    // Required for ImGui SDL3 backend interop.
-    [[nodiscard]] virtual auto GetNativeWindowHandle() const -> void* = 0;
-    [[nodiscard]] virtual auto GetNativeRendererHandle() const -> void* = 0;
+    // Raw-event hook for platform adapters (ImGui). The backend invokes the
+    // callback with an opaque pointer to its raw event *before* translation
+    // (SDL3 backend: const SDL_Event*). Engine-level events flow through
+    // PollEvent() as IEvent. Backends must call this once per raw event;
+    // an empty hook disables delivery.
+    virtual auto SetRawEventHook(std::function<void(const void*)> hook) -> void = 0;
+
+    // Engine-level resize notification, called by the upper layer when a
+    // Resized event is observed. Backends that do not self-heal (e.g. Vulkan
+    // swapchains) must recreate their present resources here.
+    virtual auto HandleResize(uint32_t width, uint32_t height) -> void = 0;
 };
 
 } // namespace atom

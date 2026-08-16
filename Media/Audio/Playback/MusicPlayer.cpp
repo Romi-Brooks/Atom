@@ -50,6 +50,33 @@ auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     return true;
 }
 
+auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filename, const void* data,
+                                 const std::size_t size) -> bool {
+    std::lock_guard lock(mutex_);
+    if (tracks_.contains(id)) {
+        LOG_DEBUG(LogChannel::ATOM_AUDIO_MUSIC, "Music track already loaded, skip: " + id);
+        return true;
+    }
+
+    AudioClipLoader loader{*decoders_};
+    auto streaming = loader.OpenStreamingFromMemory(filename, data, size);
+    if (!streaming) {
+        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC, "Failed to decode music from memory: " + filename);
+        return false;
+    }
+    auto& backend = runtime_ ? runtime_->Audio() : *backend_;
+    auto source = backend.CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
+    if (!source) {
+        LOG_ERROR(LogChannel::ATOM_AUDIO_MUSIC,
+                  "Failed to create streaming music source for track '" + id + "': " + filename);
+        return false;
+    }
+    tracks_.emplace(id, Track{std::move(source)});
+    LOG_INFO(LogChannel::ATOM_AUDIO_MUSIC,
+             "Music track loaded from memory: " + id + " (" + filename + ", " + std::to_string(size) + " bytes)");
+    return true;
+}
+
 auto MusicPlayer::Play(const std::string& id) -> void {
     Play(id, mixer_.GetEffectiveMusicVolume());
 }

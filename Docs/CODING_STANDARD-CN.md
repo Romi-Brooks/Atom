@@ -125,6 +125,9 @@ include 按以下分组顺序排列，每组空一行：
 - 顶层命名空间常量以 `ATOM_` 或 `SDL_` 开头
 - 子模块间用 `_` 分隔，全部大写
 - 显示字符串使用 `.` 分隔，每个单词 PascalCase
+- 调用处一律直接写 `LogChannel::ATOM_XXX`，不要定义局部别名
+  （如 `const auto& kLogChannel = LogChannel::ATOM_XXX;`）——别名虽然让调用
+  更短，但会给接手的人增加一层间接跳转，收益有限。
 
 ### 3.2 详细规则
 
@@ -316,6 +319,9 @@ auto GetValue()const -> float;        // 缺少空格
 
 ## 6. 注释规范
 
+注释默认使用英文。仅在必要时才使用中文等其他语言，例如引用本地化文案，
+或补充英文无法准确表达的语境说明。
+
 ### 6.1 Doxygen 文件头
 
 ```cpp
@@ -324,10 +330,10 @@ auto GetValue()const -> float;        // 缺少空格
 
 /**
  * @file FileName.hpp
- * @brief 一句话说明文件职责。
+ * @brief One-line description.
  * @author Author
  * @date YYYY/MM/DD
- * @attention 可选的注意事项。
+ * @attention Optional caveats or notes.
  */
 ```
 

@@ -74,7 +74,8 @@ submodule。如果 clone 时没有取得依赖，请在配置 CMake 前执行
 | `example_simple_window_debug` | 带 ImGui 调试覆盖层的窗口 |
 | `example_audio_playback` | 音乐播放 + 淡入淡出切换 |
 | `example_sfx_playback` | 音效播放（Voice Pool 重叠播放） |
-| `example_media_metadata` | 通过 TagLib 读取音频元数据 |
+| `example_audio_metadata` | 通过引擎 AudioMetadataReader 读取音频标签与属性 |
+| `example_packaged_music` | 资源包打包 → 加载到内存 → 流式播放（MP3/WAV） |
 
 ***
 
@@ -124,7 +125,7 @@ CMake 和编译器产物。项目不再跨平台或跨编译器复用预编译�
 
 - [未完成工作统一清单](Remaining-Issues.md)
 
-- [ ] **渲染器插件系统** — 用户可以选择或编写自己的渲染后端
+- [x] **渲染后端选择机制** — `RenderBackendRegistry` + `RenderWindow::Initialize(backendId)` 已落地，可注册自定义后端；Vulkan 后端本体仍在规划（RENDER-003）。
 - [ ] **ECS 框架** — 将当前简单的实体系统替换为正式的 Entity-Component-System 架构
 - [ ] **工具链** — 编辑器、资源管线和分析工具
 

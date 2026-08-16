@@ -80,7 +80,8 @@ Ready-to-run examples are located in [`Example/`](Example/).
 | `example_simple_window_debug` | Window with ImGui debug overlay |
 | `example_audio_playback` | Music playback with fade switching |
 | `example_sfx_playback` | SFX playback with voice pool (overlapping) |
-| `example_media_metadata` | Read audio file metadata via TagLib |
+| `example_audio_metadata` | Read audio tags/properties via the engine's AudioMetadataReader |
+| `example_packaged_music` | Pack resources → load into memory → stream-play (MP3/WAV) |
 
 ---
 
@@ -129,7 +130,7 @@ precompiled Windows libraries are reused on Linux or with another compiler.
 ## Roadmap
 
 - [x]  **Backend Migration** — Migrated from **SFML** to **SDL3**
-- [ ] **Renderer Plugin System** — Users will be able to choose or write their own rendering backend.
+- [x]  **Backend Selection Mechanism** — `RenderBackendRegistry` + `RenderWindow::Initialize(backendId)`; custom render backends can be registered. The Vulkan backend itself remains planned (RENDER-003).
 - [ ] **ECS Framework** — Replace the current simple entity system with a proper Entity-Component-System architecture.
 - [ ] **Tooling** — Editor, asset pipeline, and profiling tools.
 

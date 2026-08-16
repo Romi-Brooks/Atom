@@ -124,6 +124,9 @@ PascalCase components:
 - Engine channel constants begin with `ATOM_` or a backend prefix such as `SDL_`.
 - Constant components are uppercase and separated by `_`.
 - Display components are PascalCase and separated by `.`.
+- Always reference a channel as `LogChannel::ATOM_XXX` at the call site. Do not
+  introduce local aliases such as `const auto& kLogChannel = LogChannel::ATOM_XXX;`
+  — they add indirection for readers without meaningful benefit.
 
 ### 3.2 Detailed Rules
 
@@ -315,6 +318,10 @@ auto GetValue()const -> float;        // missing space
 ---
 
 ## 6. Comment Rules
+
+Comments are written in English by default. Use another language (such as
+Chinese) only when necessary — for example, to quote a localized string or
+clarify a concept that English cannot express faithfully.
 
 ### 6.1 Doxygen File Header
 
