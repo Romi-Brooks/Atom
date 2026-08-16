@@ -268,12 +268,6 @@ target_link_libraries(Atom PRIVATE
 )
 
 # Examples
-add_executable(example_media_metadata Example/MediaMetadata.cpp)
-target_link_libraries(example_media_metadata PRIVATE atom::taglib)
-if(WIN32)
-    target_link_libraries(example_media_metadata PRIVATE ws2_32 winmm)
-endif()
-
 add_executable(example_audio_playback Example/MusicPlayback.cpp)
 target_link_libraries(example_audio_playback PRIVATE
         engine_media engine_windows engine_debugger)
@@ -298,6 +292,14 @@ add_executable(example_simple_window_debug Example/SimpleWindowWithDebugger.cpp)
 target_link_libraries(example_simple_window_debug PRIVATE engine_windows engine_debugger)
 if(WIN32)
     target_link_libraries(example_simple_window_debug PRIVATE)
+endif()
+
+# Resource-pack + in-memory streaming playback example
+add_executable(example_packaged_music Example/PackagedMusicPlayback.cpp)
+target_link_libraries(example_packaged_music PRIVATE
+        engine_media engine_windows engine_debugger engine_packager)
+if(WIN32)
+    target_link_libraries(example_packaged_music PRIVATE)
 endif()
 
 # ============================================================================
@@ -332,9 +334,10 @@ if(MINGW)
                 COMMENT "Copying libwinpthread-1.dll next to ${target}")
         endif()
     endfunction()
-    foreach(atom_exe IN ITEMS Atom example_media_metadata example_audio_playback
+    foreach(atom_exe IN ITEMS Atom example_audio_playback
                            example_sfx_playback example_simple_window
-                           example_simple_window_debug packager_tool)
+                           example_simple_window_debug example_packaged_music
+                           packager_tool)
         atom_copy_mingw_runtime_dll(${atom_exe})
     endforeach()
 endif()

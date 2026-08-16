@@ -147,4 +147,51 @@ auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optio
     };
 }
 
+auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const void* data, const std::size_t size) const
+    -> std::optional<StreamingResult> {
+    const auto dot = filename.find_last_of('.');
+    if (dot == std::string::npos) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "OpenStreamingFromMemory: no file extension, cannot select a decoder: " + filename);
+        return std::nullopt;
+    }
+    const auto extension = filename.substr(dot);
+
+    // The registry is the single resolution authority: extension lookup,
+    // normalization and factory selection all happen inside CreateForFile.
+    auto decoder = decoders_.CreateForFile(filename);
+    if (!decoder) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "OpenStreamingFromMemory: no decoder available for extension '" + extension + "': " + filename);
+        return std::nullopt;
+    }
+    if (!decoder->OpenFromMemory(data, size)) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "OpenStreamingFromMemory: decoder failed to open memory buffer: " + filename);
+        return std::nullopt;
+    }
+
+    const auto& info = decoder->GetInfo();
+    const auto format = ToSampleFormat(info);
+    if (!format || info.sample_rate == 0 || info.channels == 0) {
+        LOG_DEBUG(kClipLoaderLogChannel,
+                  "OpenStreamingFromMemory: unsupported or invalid audio format (bits_per_sample=" +
+                      std::to_string(info.bits_per_sample) + ", is_float=" + (info.is_float ? "true" : "false") +
+                      ", sample_rate=" + std::to_string(info.sample_rate) +
+                      ", channels=" + std::to_string(info.channels) + "): " + filename);
+        decoder->Close();
+        return std::nullopt;
+    }
+
+    LOG_INFO(kClipLoaderLogChannel,
+             "OpenStreamingFromMemory: opened streaming decoder over " + std::to_string(size) +
+                 " bytes: " + filename + " (sample_rate=" + std::to_string(info.sample_rate) +
+                 ", channels=" + std::to_string(info.channels) + ", bits_per_sample=" +
+                 std::to_string(info.bits_per_sample) + ")");
+    return StreamingResult{
+        .decoder = std::move(decoder),
+        .spec = AudioSpec{*format, info.sample_rate, info.channels},
+    };
+}
+
 } // namespace atom

@@ -1,6 +1,7 @@
 #ifndef ATOM_AUDIO_CLIP_LOADER_HPP
 #define ATOM_AUDIO_CLIP_LOADER_HPP
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,6 +25,13 @@ public:
         AudioSpec spec;
     };
     [[nodiscard]] auto OpenStreaming(const std::string& path) const -> std::optional<StreamingResult>;
+
+    // Same as OpenStreaming, but over an in-memory buffer (e.g. an entry
+    // extracted from a resource pack). filename is used only to select a
+    // decoder by extension. The buffer is borrowed: the caller must keep it
+    // alive for as long as the returned decoder is used.
+    [[nodiscard]] auto OpenStreamingFromMemory(const std::string& filename, const void* data, std::size_t size) const
+        -> std::optional<StreamingResult>;
 
 private:
     AudioDecoderRegistry& decoders_;

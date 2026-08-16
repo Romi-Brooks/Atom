@@ -316,6 +316,10 @@ auto GetValue()const -> float;        // missing space
 
 ## 6. Comment Rules
 
+Comments are written in English by default. Use another language (such as
+Chinese) only when necessary — for example, to quote a localized string or
+clarify a concept that English cannot express faithfully.
+
 ### 6.1 Doxygen File Header
 
 ```cpp

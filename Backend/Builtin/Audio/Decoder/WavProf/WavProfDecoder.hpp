@@ -12,7 +12,9 @@
 #ifndef ATOM_BACKEND_WAVPROF_DECODER_HPP
 #define ATOM_BACKEND_WAVPROF_DECODER_HPP
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include <Backend/Builtin/Audio/Decoder/WavProf/RiffWaveReader.hpp>
@@ -23,6 +25,7 @@ namespace atom {
 class WavProfDecoder final : public IAudioDecoder {
 public:
     auto Open(const std::string& path) -> bool override;
+    auto OpenFromMemory(const void* data, std::size_t size) -> bool override;
     auto Close() -> void override;
     auto DecodeChunk(uint8_t* output, uint32_t max_bytes) -> uint32_t override;
     auto Rewind() -> bool override;
@@ -30,6 +33,10 @@ public:
     [[nodiscard]] auto IsOpen() const -> bool override;
 
 private:
+    // Fills info_ from the reader; returns false when the stream carries no
+    // PCM data. source_label is only used for logging.
+    auto SetupInfo(const std::string& source_label) -> bool;
+
     RiffWaveReader reader_;
     DecoderInfo info_{};
     uint16_t source_bits_per_sample_ = 0;

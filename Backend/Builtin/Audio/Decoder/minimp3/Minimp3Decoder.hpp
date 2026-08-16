@@ -13,6 +13,7 @@
 #ifndef ATOM_BACKEND_BUILTIN_MINIMP3_DECODER_HPP
 #define ATOM_BACKEND_BUILTIN_MINIMP3_DECODER_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -32,6 +33,7 @@ public:
 
     // IAudioDecoder
     auto Open(const std::string& path) -> bool override;
+    auto OpenFromMemory(const void* data, std::size_t size) -> bool override;
     auto Close() -> void override;
     auto DecodeChunk(uint8_t* output, uint32_t max_bytes) -> uint32_t override;
     auto Rewind() -> bool override;

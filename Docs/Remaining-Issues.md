@@ -96,6 +96,12 @@
 - [ ] 现状：每个 `Debugger::Attach` 独立 `ImGui::CreateContext()`，同窗口挂两个 ImGui Debugger 会互相覆盖渲染（监听器层已可并存，ImGui 层尚不能）。
 - 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。
 
+### ARCH-114：Packager 路径与编码加固
+
+- [x] 跨盘打包导致包内文件名为空 → 已修复：`fs::relative` 跨盘返回空路径（libstdc++）或抛异常（MSVC），`GenerateInternalFilename` 现在 fallback 到裸文件名。（2026-08-16 实测 + 修复）
+- [ ] 路径统一走宽字符转换（复用 `Utf8ToWide`/`Utf8FromWide`）：`std::filesystem` 窄字符串按实现定义的字符集解释（MinGW 按 UTF-8 透传、MSVC 按 ANSI 代码页），保证中文/非 ASCII 文件名跨编译器稳定。当前 MinGW 下 UTF-8 输入全链路正常（实测通过）。
+- [ ] `packager_tool` 交互输入：中文 Windows 控制台 stdin 为 GBK 字节，与文件系统的 UTF-8 语义冲突（实测报 `Illegal byte sequence`）；读入后按 UTF-8 期望或显式转码。
+
 ## 4. 音频后续事项
 
 ### AUDIO-001：Mixer / Bus 增益传播

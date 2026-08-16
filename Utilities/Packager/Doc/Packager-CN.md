@@ -183,5 +183,11 @@ auto main() -> int {
 }
 ```
 
+### 与音频系统结合：内存流式播放
+
+`MemoryFile` 的内容可以直接交给 `MusicPlayer::LoadFromMemory`（或解码器接口
+`IAudioDecoder::OpenFromMemory`）流式播放，无需写临时文件。完整示例见
+`Example/PackagedMusicPlayback.cpp`（目标 `example_packaged_music`）。
+
 ***
 

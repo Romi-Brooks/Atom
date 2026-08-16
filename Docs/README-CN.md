@@ -74,7 +74,7 @@ submodule。如果 clone 时没有取得依赖，请在配置 CMake 前执行
 | `example_simple_window_debug` | 带 ImGui 调试覆盖层的窗口 |
 | `example_audio_playback` | 音乐播放 + 淡入淡出切换 |
 | `example_sfx_playback` | 音效播放（Voice Pool 重叠播放） |
-| `example_media_metadata` | 通过 TagLib 读取音频元数据 |
+| `example_packaged_music` | 资源包打包 → 加载到内存 → 流式播放（MP3/WAV） |
 
 ***
 

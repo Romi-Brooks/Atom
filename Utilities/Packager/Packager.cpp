@@ -98,7 +98,12 @@ auto Packager::GenerateInternalFilename(const fs::path& filePath, const Config& 
     try {
         if (config.preserveStructure) {
             const std::string relative_path = SafeRelativePath(filePath);
-            return ToUTF8(NormalizePath(relative_path));
+            // fs::relative() yields an empty path when the two paths sit on
+            // different drives (libstdc++) or throws (MSVC); fall back to the
+            // bare filename so entries never get an empty name.
+            if (!relative_path.empty())
+                return ToUTF8(NormalizePath(relative_path));
+            return ToUTF8(NormalizePath(SafePathToString(filePath.filename())));
         } else {
             const std::string filename = ToUTF8(SafePathToString(filePath.filename()));
             int counter = 1;

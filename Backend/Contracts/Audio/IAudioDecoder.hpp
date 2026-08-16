@@ -11,6 +11,7 @@
 #ifndef ATOM_IAUDIO_DECODER_HPP
 #define ATOM_IAUDIO_DECODER_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -30,6 +31,11 @@ public:
 
     // Open a file for decoding. Returns false if format not supported.
     virtual auto Open(const std::string& path) -> bool = 0;
+
+    // Open a decoder over an in-memory buffer (e.g. an entry extracted from
+    // a resource pack). The buffer is borrowed: the caller must keep it alive
+    // until Close() is called. Returns false if the format is not supported.
+    virtual auto OpenFromMemory(const void* data, std::size_t size) -> bool = 0;
 
     // Close and release all resources.
     virtual auto Close() -> void = 0;

@@ -80,7 +80,7 @@ Ready-to-run examples are located in [`Example/`](Example/).
 | `example_simple_window_debug` | Window with ImGui debug overlay |
 | `example_audio_playback` | Music playback with fade switching |
 | `example_sfx_playback` | SFX playback with voice pool (overlapping) |
-| `example_media_metadata` | Read audio file metadata via TagLib |
+| `example_packaged_music` | Pack resources → load into memory → stream-play (MP3/WAV) |
 
 ---
 

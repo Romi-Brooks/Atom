@@ -316,6 +316,9 @@ auto GetValue()const -> float;        // 缺少空格
 
 ## 6. 注释规范
 
+注释默认使用英文。仅在必要时才使用中文等其他语言，例如引用本地化文案，
+或补充英文无法准确表达的语境说明。
+
 ### 6.1 Doxygen 文件头
 
 ```cpp
@@ -324,10 +327,10 @@ auto GetValue()const -> float;        // 缺少空格
 
 /**
  * @file FileName.hpp
- * @brief 一句话说明文件职责。
+ * @brief One-line description.
  * @author Author
  * @date YYYY/MM/DD
- * @attention 可选的注意事项。
+ * @attention Optional caveats or notes.
  */
 ```
 

@@ -117,6 +117,43 @@ crossfade.Switch("game", 2.0f);
 crossfade.Update(delta_time);
 ```
 
+### 资源包 + 内存流式播放
+
+`MusicPlayer::LoadFromMemory` 可以直接从内存缓冲流式播放（例如
+`Unpackager::ExtractFileToMemory` 从资源包读出的内容），全程不写临时文件。
+解码器（minimp3 / WavProf）均实现了 `IAudioDecoder::OpenFromMemory`：
+
+```cpp
+#include <Packager.hpp>
+#include <Unpackager.hpp>
+#include <Media/Audio/Playback/MusicPlayer.hpp>
+
+// 1. 打包（也可用 packager_tool.exe，或只跑 2/3 步读取现成资源包）
+atom::tools::Packager packer;
+atom::tools::Packager::Config config;
+config.verbose = true;
+config.preserveStructure = false; // 条目仅用文件名（保留扩展名，便于按扩展名选解码器）
+packer.Pack({R"(E:\Music\demo.mp3)", R"(E:\Music\demo.wav)"}, "music.pak", config);
+
+// 2. 打开资源包并把每个条目完整读入内存
+atom::tools::Unpackager unpacker;
+unpacker.Load("music.pak");
+std::vector<atom::tools::Unpackager::MemoryFile> files;
+unpacker.ExtractAllToMemory(files);
+
+// 3. 直接从内存缓冲流式播放。
+//    注意：缓冲是借用的，调用方必须保证它比轨道存活得更久（此处 files
+//    与 music 同生命周期）。
+for (std::size_t i = 0; i < files.size(); ++i) {
+    music.LoadFromMemory("track_" + std::to_string(i),
+                         files[i].filename, files[i].GetData(), files[i].GetSize());
+}
+music.Play("track_0");
+```
+
+完整可运行示例见 `Example/PackagedMusicPlayback.cpp`（目标 `example_packaged_music`）：
+首次运行自动把 E:\Music 下的样例打成 `music_demo.pak`（删除该文件即可重新打包）。
+
 ## 音效
 
 ```cpp
