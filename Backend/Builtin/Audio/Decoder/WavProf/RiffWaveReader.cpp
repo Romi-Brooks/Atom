@@ -15,7 +15,7 @@
 
 #include <Utilities/Utf8/Utf8.hpp>
 
-namespace atom {
+namespace atom::backend::builtin::audio {
 
 RiffWaveReader::~RiffWaveReader() {
     Close();
@@ -203,4 +203,4 @@ auto RiffWaveReader::Rewind() -> bool {
     return true;
 }
 
-} // namespace atom
+} // namespace atom::backend::builtin::audio

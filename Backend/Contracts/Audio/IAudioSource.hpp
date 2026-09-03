@@ -3,42 +3,42 @@
 
 #include <cstdint>
 
-namespace atom {
+namespace atom::audio {
 
 enum class AudioSourceState { Stopped, Playing, Paused };
 
 class IAudioSource {
-public:
-    virtual ~IAudioSource() = default;
+    public:
+        virtual ~IAudioSource() = default;
 
-    // Playback control
-    virtual auto Play() -> void = 0;
-    virtual auto Stop() -> void = 0;
-    virtual auto Pause() -> void = 0;
-    [[nodiscard]] virtual auto GetState() const -> AudioSourceState = 0;
+        // Playback control
+        virtual auto Play() -> void = 0;
+        virtual auto Stop() -> void = 0;
+        virtual auto Pause() -> void = 0;
+        [[nodiscard]] virtual auto GetState() const -> AudioSourceState = 0;
 
-    // Volume (range 0.0 – 100.0)
-    virtual auto SetVolume(float volume) -> void = 0;
-    [[nodiscard]] virtual auto GetVolume() const -> float = 0;
+        // Volume (range 0.0 – 100.0)
+        virtual auto SetVolume(float volume) -> void = 0;
+        [[nodiscard]] virtual auto GetVolume() const -> float = 0;
 
-    // Looping
-    virtual auto SetLooping(bool loop) -> void = 0;
-    [[nodiscard]] virtual auto IsLooping() const -> bool = 0;
+        // Looping
+        virtual auto SetLooping(bool loop) -> void = 0;
+        [[nodiscard]] virtual auto IsLooping() const -> bool = 0;
 
-    // Seek
-    virtual auto SetPlayingOffset(float seconds) -> void = 0;
-    [[nodiscard]] virtual auto GetPlayingOffset() const -> float = 0;
+        // Seek
+        virtual auto SetPlayingOffset(float seconds) -> void = 0;
+        [[nodiscard]] virtual auto GetPlayingOffset() const -> float = 0;
 
-    // Bind raw PCM data (used by SFX sources — optional, default no-op)
-    virtual auto SetBuffer(const uint8_t* data, uint32_t length) -> void {}
+        // Bind raw PCM data (used by SFX sources — optional, default no-op)
+        virtual auto SetBuffer(const uint8_t* data, uint32_t length) -> void {}
 
-    // Check if playback has finished naturally (stream dry).
-    // Used by voice pools to determine voice reuse eligibility.
-    [[nodiscard]] virtual auto IsFinished() const -> bool {
-        return true;
-    }
+        // Check if playback has finished naturally (stream dry).
+        // Used by voice pools to determine voice reuse eligibility.
+        [[nodiscard]] virtual auto IsFinished() const -> bool {
+            return true;
+        }
 };
 
-} // namespace atom
+} // namespace atom::audio
 
 #endif // ATOM_IAUDIO_SOURCE_HPP

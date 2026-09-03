@@ -21,36 +21,35 @@
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 
-namespace atom {
+namespace atom::backend::builtin::audio {
+class Minimp3Decoder final : public atom::audio::IAudioDecoder {
+    public:
+        Minimp3Decoder();
+        ~Minimp3Decoder() override;
 
-class Minimp3Decoder final : public IAudioDecoder {
-public:
-    Minimp3Decoder();
-    ~Minimp3Decoder() override;
+        Minimp3Decoder(const Minimp3Decoder&) = delete;
+        auto operator=(const Minimp3Decoder&) -> Minimp3Decoder& = delete;
 
-    Minimp3Decoder(const Minimp3Decoder&) = delete;
-    auto operator=(const Minimp3Decoder&) -> Minimp3Decoder& = delete;
+        // atom::audio::IAudioDecoder
+        auto Open(const std::string& path) -> bool override;
+        auto OpenFromMemory(const void* data, std::size_t size) -> bool override;
+        auto Close() -> void override;
+        auto DecodeChunk(uint8_t* output, uint32_t max_bytes) -> uint32_t override;
+        auto Rewind() -> bool override;
+        [[nodiscard]] auto GetInfo() const -> const atom::audio::DecoderInfo& override;
+        [[nodiscard]] auto IsOpen() const -> bool override;
 
-    // IAudioDecoder
-    auto Open(const std::string& path) -> bool override;
-    auto OpenFromMemory(const void* data, std::size_t size) -> bool override;
-    auto Close() -> void override;
-    auto DecodeChunk(uint8_t* output, uint32_t max_bytes) -> uint32_t override;
-    auto Rewind() -> bool override;
-    [[nodiscard]] auto GetInfo() const -> const atom::DecoderInfo& override;
-    [[nodiscard]] auto IsOpen() const -> bool override;
+    private:
+        // Holds the C mp3dec_ex_t state; defined in the .cpp so this header never
+        // leaks minimp3's C headers to its consumers.
+        struct Impl;
 
-private:
-    // Holds the C mp3dec_ex_t state; defined in the .cpp so this header never
-    // leaks minimp3's C headers to its consumers.
-    struct Impl;
-
-    std::unique_ptr<Impl> impl_;
-    std::vector<uint8_t> scratch_;
-    atom::DecoderInfo info_{};
-    std::string current_path_;
+        std::unique_ptr<Impl> impl_;
+        std::vector<uint8_t> scratch_;
+        atom::audio::DecoderInfo info_{};
+        std::string current_path_;
 };
 
-} // namespace atom
+} // namespace atom::backend::builtin::audio
 
 #endif // ATOM_BACKEND_BUILTIN_MINIMP3_DECODER_HPP

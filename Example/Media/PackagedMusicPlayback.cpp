@@ -45,11 +45,9 @@ constexpr const char* kPackPath = "music_demo.pak";
 // Debugger overlay
 class PackedMusicDebugger final : public atom::Debugger {
     public:
-        PackedMusicDebugger(atom::MusicPlayer& music,
-                            const std::vector<atom::tools::Unpackager::MemoryFile>& files,
+        PackedMusicDebugger(atom::MusicPlayer& music, const std::vector<atom::tools::Unpackager::MemoryFile>& files,
                             std::string packPath, std::string packStatus)
-            : music_(music), files_(files), pack_path_(std::move(packPath)),
-              pack_status_(std::move(packStatus)) {}
+            : music_(music), files_(files), pack_path_(std::move(packPath)), pack_status_(std::move(packStatus)) {}
 
     protected:
         auto OnDrawOverlay() -> void override {
@@ -111,13 +109,13 @@ class PackedMusicDebugger final : public atom::Debugger {
 
 class PackedMusicScreen final : public atom::Screen {
     public:
-        auto Render(atom::IRenderTarget& target) -> void override {
-            target.Clear(atom::Color{30, 30, 60});
+        auto Render(atom::render::IRenderTarget& target) -> void override {
+            target.Clear(atom::render::Color{30, 30, 60});
         }
 
-        auto HandleEvent(const atom::IEvent& event) -> bool override {
-            if (event.type == atom::EventType::KeyPressed) {
-                const auto& key = std::get<atom::KeyEvent>(event.data);
+        auto HandleEvent(const atom::window::IEvent& event) -> bool override {
+            if (event.type == atom::window::EventType::KeyPressed) {
+                const auto& key = std::get<atom::window::KeyEvent>(event.data);
                 if (key.scancode == 41) { // SDL_SCANCODE_ESCAPE
                     atom::RenderWindow::GetInstance().Shutdown();
                     return true;
@@ -131,9 +129,9 @@ class PackedMusicScreen final : public atom::Screen {
 } // namespace
 
 auto main() -> int {
-    #ifdef _WIN32
+#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
-    #endif // _WIN32
+#endif // _WIN32
 
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
@@ -184,11 +182,9 @@ auto main() -> int {
         // track for the whole program lifetime, satisfying the contract.
         if (music.LoadFromMemory(id, file.filename, file.GetData(), file.GetSize())) {
             ++loadedCount;
-            LOG_INFO(atom::audio::LogChannel::MUSIC,
-                     "Track ready (in-memory): " + file.filename);
+            LOG_INFO(atom::audio::LogChannel::MUSIC, "Track ready (in-memory): " + file.filename);
         } else {
-            LOG_WARNING(atom::audio::LogChannel::MUSIC,
-                        "Track load failed: " + file.filename);
+            LOG_WARNING(atom::audio::LogChannel::MUSIC, "Track load failed: " + file.filename);
         }
     }
     if (loadedCount == 0) {
@@ -201,7 +197,7 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("PackedMusic");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::Vec2{920, 720});
+    window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720});
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly

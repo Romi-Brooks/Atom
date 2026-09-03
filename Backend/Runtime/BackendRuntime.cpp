@@ -12,7 +12,8 @@
 
 #include <Log/LogSystem.hpp>
 
-namespace atom {
+namespace atom::backend {
+
 namespace {
 auto NormalizeBackendId(const std::string_view id) -> std::string {
     std::string normalized{id};
@@ -39,27 +40,27 @@ BackendRuntime::BackendRuntime() {
 BackendRuntime::~BackendRuntime() = default;
 
 auto BackendRuntime::RegisterAvailableBackends() -> void {
-    registry_.RegisterAudioBackend("sdl3", []() -> std::unique_ptr<IAudioBackend> {
-        auto backend = std::make_unique<SDL3AudioBackend>();
+    registry_.RegisterAudioBackend("sdl3", []() -> std::unique_ptr<audio::IAudioBackend> {
+        auto backend = std::make_unique<sdl3::SDL3AudioBackend>();
         if (!backend->IsReady())
             return nullptr;
         return backend;
     });
 }
 
-auto BackendRuntime::RegisterDefaultAudioDecoders(AudioDecoderRegistry& decoders) -> void {
+auto BackendRuntime::RegisterDefaultAudioDecoders(audio::AudioDecoderRegistry& decoders) -> void {
     // SDL3 itself provides no audio codecs; the engine ships one decoder per
     // format. Add new formats here as they are implemented.
-    decoders.Register(".wav", [] { return std::make_unique<WavProfDecoder>(); });
-    decoders.Register(".mp3", [] { return std::make_unique<Minimp3Decoder>(); });
+    decoders.Register(".wav", [] { return std::make_unique<builtin::audio::WavProfDecoder>(); });
+    decoders.Register(".mp3", [] { return std::make_unique<builtin::audio::Minimp3Decoder>(); });
 }
 
-auto BackendRuntime::Audio() -> IAudioBackend& {
+auto BackendRuntime::Audio() -> audio::IAudioBackend& {
     if (!audio_backend_)
         throw std::runtime_error("No active audio backend");
     return *audio_backend_;
 }
-auto BackendRuntime::AudioDecoders() -> AudioDecoderRegistry& {
+auto BackendRuntime::AudioDecoders() -> audio::AudioDecoderRegistry& {
     return audio_decoders_;
 }
 auto BackendRuntime::Registry() -> BackendRegistry& {
@@ -86,7 +87,7 @@ auto BackendRuntime::SetAudioBackend(const std::string_view id) -> bool {
     auto replacement = registry_.CreateAudioBackend(normalized_id);
     if (!replacement) {
         LOG_ERROR(atom::backend::LogChannel::RUNTIME, "Failed to create audio backend '" + normalized_id +
-                                                              "', restoring previous backend '" + previous_id + "'");
+                                                          "', restoring previous backend '" + previous_id + "'");
         audio_backend_ = registry_.CreateAudioBackend(previous_id);
         if (!audio_backend_) {
             throw std::runtime_error("Audio backend switch failed and the previous backend could not be restored");
@@ -120,4 +121,4 @@ auto BackendRuntime::NotifyAudioBackendChanging() -> void {
             listener->OnAudioBackendChanging();
 }
 
-} // namespace atom
+} // namespace atom::backend

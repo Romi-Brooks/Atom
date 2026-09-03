@@ -23,12 +23,10 @@ extern "C" {
 #include <Log/LogSystem.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
-namespace atom {
+namespace atom::backend::builtin::audio {
 namespace {
-
-// minimp3 callback-I/O adapters over a FILE* kept open in binary mode. The
-// file stays open and is read in bounded chunks, matching the engine's
-// streaming decoder contract.
+// For streaming play, minimp3 callback-I/O adapters over a FILE* kept open in binary mode.
+// The file stays open and is read in bounded chunks.
 auto Mp3ReadCallback(void* buffer, const size_t size, void* user_data) -> size_t {
     return std::fread(buffer, 1, size, static_cast<FILE*>(user_data));
 }
@@ -70,8 +68,8 @@ auto Mp3MemSeekCallback(const uint64_t position, void* user_data) -> int {
     return 0;
 }
 
-// Shared validation for the decoded MPEG frame info: false when the stream
-// contains no valid MPEG audio frame.
+// Shared validation for the decoded MPEG frame info:
+// false when the stream contains no valid MPEG audio frame.
 auto ValidateMp3Frame(const mp3dec_frame_info_t& frame_info) -> bool {
     return frame_info.hz != 0 && frame_info.channels != 0 && frame_info.channels <= 2;
 }
@@ -96,8 +94,11 @@ auto Minimp3Decoder::Open(const std::string& path) -> bool {
 
 #ifdef _WIN32
     // Wide open so UTF-8 paths with non-ASCII characters (e.g. Chinese) work.
-    // std::ifstream::open(const wchar_t*) is unavailable in this toolchain
-    // (no _GLIBCXX_HAVE__WFOPEN), so use _wfopen like RiffWaveReader does.
+    // To support non‑ASCII filenames such as Chinese.
+
+    // A better modern‑C++ approach would be std::ifstream::open(const wchar_t*),
+    // but this is unavailable in my toolchain (no _GLIBCXX_HAVE__WFOPEN).
+    // So use _wfopen like RiffWaveReader does.
     const auto wide_path = atom::Utf8ToWide(path);
     if (wide_path.empty()) {
         LOG_ERROR(atom::audio::LogChannel::MINIMP3, "Minimp3: failed to convert path to UTF-16: " + path);
@@ -117,8 +118,8 @@ auto Minimp3Decoder::Open(const std::string& path) -> bool {
     impl_->io.seek = Mp3SeekCallback;
     impl_->io.seek_data = impl_->stream;
 
-    // MP3D_DO_NOT_SCAN: open fast without scanning the whole file for a frame
-    // index; MP3D_SEEK_TO_SAMPLE: mp3dec_ex_seek(0) lands on the first frame.
+    // MP3D_DO_NOT_SCAN: open fast without scanning the whole file for a frame index;
+    // MP3D_SEEK_TO_SAMPLE: mp3dec_ex_seek(0) lands on the first frame.
     const int open_result = mp3dec_ex_open_cb(&impl_->dec, &impl_->io, MP3D_SEEK_TO_SAMPLE | MP3D_DO_NOT_SCAN);
     if (open_result != 0) {
         LOG_ERROR(atom::audio::LogChannel::MINIMP3,
@@ -232,8 +233,8 @@ auto Minimp3Decoder::DecodeChunk(uint8_t* output, const uint32_t max_bytes) -> u
         mp3dec_ex_read(&impl_->dec, reinterpret_cast<mp3d_sample_t*>(scratch_.data()), requested_samples);
     if (decoded_samples == 0) {
         if (impl_->dec.last_error != 0) {
-            LOG_ERROR(atom::audio::LogChannel::MINIMP3, "Minimp3: decode error (error " +
-                                                        std::to_string(impl_->dec.last_error) + "): " + current_path_);
+            LOG_ERROR(atom::audio::LogChannel::MINIMP3,
+                      "Minimp3: decode error (error " + std::to_string(impl_->dec.last_error) + "): " + current_path_);
             Close(); // lets the source distinguish this from a normal EOF
         }
         return 0;
@@ -250,7 +251,7 @@ auto Minimp3Decoder::Rewind() -> bool {
     return mp3dec_ex_seek(&impl_->dec, 0) == 0;
 }
 
-auto Minimp3Decoder::GetInfo() const -> const DecoderInfo& {
+auto Minimp3Decoder::GetInfo() const -> const atom::audio::DecoderInfo& {
     return info_;
 }
 
@@ -258,4 +259,4 @@ auto Minimp3Decoder::IsOpen() const -> bool {
     return impl_->stream != nullptr || impl_->mem.data != nullptr;
 }
 
-} // namespace atom
+} // namespace atom::backend::builtin::audio

@@ -6,7 +6,7 @@
 
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 
-namespace atom {
+namespace atom::backend {
 
 auto BackendRegistry::NormalizeId(const std::string_view id) -> std::string {
     std::string normalized{id};
@@ -21,7 +21,7 @@ auto BackendRegistry::RegisterAudioBackend(std::string id, AudioBackendFactory f
     return audio_backends_.emplace(NormalizeId(id), std::move(factory)).second;
 }
 
-auto BackendRegistry::CreateAudioBackend(const std::string_view id) const -> std::unique_ptr<IAudioBackend> {
+auto BackendRegistry::CreateAudioBackend(const std::string_view id) const -> std::unique_ptr<audio::IAudioBackend> {
     const auto it = audio_backends_.find(NormalizeId(id));
     return it == audio_backends_.end() ? nullptr : it->second();
 }
@@ -30,4 +30,4 @@ auto BackendRegistry::ContainsAudioBackend(const std::string_view id) const -> b
     return audio_backends_.contains(NormalizeId(id));
 }
 
-} // namespace atom
+} // namespace atom::backend

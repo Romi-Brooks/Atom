@@ -20,29 +20,28 @@
 #include <Backend/Builtin/Audio/Decoder/WavProf/RiffWaveReader.hpp>
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 
-namespace atom {
+namespace atom::backend::builtin::audio {
+class WavProfDecoder final : public atom::audio::IAudioDecoder {
+    public:
+        auto Open(const std::string& path) -> bool override;
+        auto OpenFromMemory(const void* data, std::size_t size) -> bool override;
+        auto Close() -> void override;
+        auto DecodeChunk(uint8_t* output, uint32_t max_bytes) -> uint32_t override;
+        auto Rewind() -> bool override;
+        [[nodiscard]] auto GetInfo() const -> const atom::audio::DecoderInfo& override;
+        [[nodiscard]] auto IsOpen() const -> bool override;
 
-class WavProfDecoder final : public IAudioDecoder {
-public:
-    auto Open(const std::string& path) -> bool override;
-    auto OpenFromMemory(const void* data, std::size_t size) -> bool override;
-    auto Close() -> void override;
-    auto DecodeChunk(uint8_t* output, uint32_t max_bytes) -> uint32_t override;
-    auto Rewind() -> bool override;
-    [[nodiscard]] auto GetInfo() const -> const DecoderInfo& override;
-    [[nodiscard]] auto IsOpen() const -> bool override;
+    private:
+        // Fills info_ from the reader; returns false when the stream carries no
+        // PCM data. source_label is only used for logging.
+        auto SetupInfo(const std::string& source_label) -> bool;
 
-private:
-    // Fills info_ from the reader; returns false when the stream carries no
-    // PCM data. source_label is only used for logging.
-    auto SetupInfo(const std::string& source_label) -> bool;
-
-    RiffWaveReader reader_;
-    DecoderInfo info_{};
-    uint16_t source_bits_per_sample_ = 0;
-    std::vector<uint8_t> decode_scratch_;
+        RiffWaveReader reader_;
+        atom::audio::DecoderInfo info_{};
+        uint16_t source_bits_per_sample_ = 0;
+        std::vector<uint8_t> decode_scratch_;
 };
 
-} // namespace atom
+} // namespace atom::backend::builtin::audio
 
 #endif // ATOM_BACKEND_WAVPROF_DECODER_HPP

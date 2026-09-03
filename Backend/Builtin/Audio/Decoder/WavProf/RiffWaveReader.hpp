@@ -16,85 +16,83 @@
 #include <cstdio>
 #include <string>
 
-namespace atom {
-
+namespace atom::backend::builtin::audio {
 struct WavHeader {
-    char chunk_id[4]{};         // "RIFF"
-    uint32_t chunk_size = 0;    // file size - 8
-    char format[4]{};           // "WAVE"
-    char subchunk_id[4]{};      // "fmt "
-    uint32_t subchunk_size = 0; // fmt chunk size (16 for PCM)
-    uint16_t audio_format = 0;  // 1 = PCM
-    uint16_t num_channels = 0;
-    uint32_t sample_rate = 0;
-    uint32_t byte_rate = 0;
-    uint16_t block_align = 0;
-    uint16_t bits_per_sample = 0;
+        char chunk_id[4]{};         // "RIFF"
+        uint32_t chunk_size = 0;    // file size - 8
+        char format[4]{};           // "WAVE"
+        char subchunk_id[4]{};      // "fmt "
+        uint32_t subchunk_size = 0; // fmt chunk size (16 for PCM)
+        uint16_t audio_format = 0;  // 1 = PCM
+        uint16_t num_channels = 0;
+        uint32_t sample_rate = 0;
+        uint32_t byte_rate = 0;
+        uint16_t block_align = 0;
+        uint16_t bits_per_sample = 0;
 } __attribute__((packed));
 
 class RiffWaveReader {
-public:
-    RiffWaveReader() = default;
-    ~RiffWaveReader();
+    public:
+        RiffWaveReader() = default;
+        ~RiffWaveReader();
 
-    RiffWaveReader(const RiffWaveReader&) = delete;
-    auto operator=(const RiffWaveReader&) -> RiffWaveReader& = delete;
+        RiffWaveReader(const RiffWaveReader&) = delete;
+        auto operator=(const RiffWaveReader&) -> RiffWaveReader& = delete;
 
-    // Open a WAV file. Returns false if the file is invalid or not
-    // uncompressed PCM / IEEE float WAV.
-    auto Open(const std::string& path) -> bool;
+        // Open a WAV file. Returns false if the file is invalid or not
+        // uncompressed PCM / IEEE float WAV.
+        auto Open(const std::string& path) -> bool;
 
-    // Open a WAV stream from an in-memory buffer (e.g. an entry extracted
-    // from a resource pack). The buffer is borrowed: the caller must keep it
-    // alive until Close(). Returns false if the data is invalid.
-    auto OpenFromMemory(const void* data, std::size_t size) -> bool;
+        // Open a WAV stream from an in-memory buffer (e.g. an entry extracted
+        // from a resource pack). The buffer is borrowed: the caller must keep it
+        // alive until Close(). Returns false if the data is invalid.
+        auto OpenFromMemory(const void* data, std::size_t size) -> bool;
 
-    // Close the file.
-    auto Close() -> void;
+        // Close the file.
+        auto Close() -> void;
 
-    // Read the next PCM chunk. Returns bytes written to buffer, 0 = EOF.
-    auto ReadChunk(uint8_t* buffer, size_t max_bytes) -> size_t;
+        // Read the next PCM chunk. Returns bytes written to buffer, 0 = EOF.
+        auto ReadChunk(uint8_t* buffer, size_t max_bytes) -> size_t;
 
-    // Seek to the beginning of PCM data (rewind).
-    auto Rewind() -> bool;
+        // Seek to the beginning of PCM data (rewind).
+        auto Rewind() -> bool;
 
-    // Queries
-    [[nodiscard]] auto IsOpen() const -> bool {
-        return fp_ != nullptr || mem_data_ != nullptr;
-    }
-    [[nodiscard]] auto GetChannels() const -> uint16_t {
-        return channels_;
-    }
-    [[nodiscard]] auto GetSampleRate() const -> uint32_t {
-        return sample_rate_;
-    }
-    [[nodiscard]] auto GetBitsPerSample() const -> uint16_t {
-        return bits_per_sample_;
-    }
-    // 1 = uncompressed PCM, 3 = IEEE float (32-bit only).
-    [[nodiscard]] auto GetAudioFormat() const -> uint16_t {
-        return audio_format_;
-    }
-    [[nodiscard]] auto GetTotalPCMBytes() const -> size_t {
-        return data_bytes_;
-    }
+        // Queries
+        [[nodiscard]] auto IsOpen() const -> bool {
+            return fp_ != nullptr || mem_data_ != nullptr;
+        }
+        [[nodiscard]] auto GetChannels() const -> uint16_t {
+            return channels_;
+        }
+        [[nodiscard]] auto GetSampleRate() const -> uint32_t {
+            return sample_rate_;
+        }
+        [[nodiscard]] auto GetBitsPerSample() const -> uint16_t {
+            return bits_per_sample_;
+        }
+        // 1 = uncompressed PCM, 3 = IEEE float (32-bit only).
+        [[nodiscard]] auto GetAudioFormat() const -> uint16_t {
+            return audio_format_;
+        }
+        [[nodiscard]] auto GetTotalPCMBytes() const -> size_t {
+            return data_bytes_;
+        }
 
-private:
-    FILE* fp_ = nullptr;
-    size_t data_start_ = 0;
-    size_t data_bytes_ = 0;
-    uint16_t channels_ = 0;
-    uint32_t sample_rate_ = 0;
-    uint16_t bits_per_sample_ = 0;
-    uint16_t audio_format_ = 0;
-    // Borrowed in-memory buffer (OpenFromMemory). Never owned: the caller
-    // must keep it alive until Close(). mem_pos_ is the current read cursor
-    // within the whole buffer.
-    const uint8_t* mem_data_ = nullptr;
-    size_t mem_size_ = 0;
-    size_t mem_pos_ = 0;
+    private:
+        FILE* fp_ = nullptr;
+        size_t data_start_ = 0;
+        size_t data_bytes_ = 0;
+        uint16_t channels_ = 0;
+        uint32_t sample_rate_ = 0;
+        uint16_t bits_per_sample_ = 0;
+        uint16_t audio_format_ = 0;
+        // Borrowed in-memory buffer (OpenFromMemory). Never owned: the caller
+        // must keep it alive until Close(). mem_pos_ is the current read cursor
+        // within the whole buffer.
+        const uint8_t* mem_data_ = nullptr;
+        size_t mem_size_ = 0;
+        size_t mem_pos_ = 0;
 };
-
-} // namespace atom
+} // namespace atom::backend::builtin::audio
 
 #endif // ATOM_BACKEND_BUILTIN_RIFF_WAVE_READER_HPP

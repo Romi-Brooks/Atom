@@ -11,11 +11,13 @@
 
 #include <fileref.h>
 #include <tag.h>
+#include <tbytevector.h>
+#include <tvariant.h>
 
 #include <Log/LogSystem.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
-namespace atom {
+namespace atom::audio {
 
 auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMetadata> {
     try {
@@ -48,6 +50,24 @@ auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMe
         meta.year = tag->year();
         meta.track = tag->track();
 
+        const auto pictures = file.complexProperties("PICTURE");
+        if (!pictures.isEmpty()) {
+            const auto& picture = pictures.front();
+            const auto bytes = picture.value("data").toByteVector();
+            if (!bytes.isEmpty()) {
+                meta.artworkMimeType = picture.value("mimeType").toString().to8Bit(true);
+                const auto* begin = reinterpret_cast<const uint8_t*>(bytes.data());
+                meta.artworkData.assign(begin, begin + bytes.size());
+                LOG_DEBUG(atom::audio::LogChannel::METADATA, "Extracted embedded artwork: " + meta.artworkMimeType +
+                                                                 ", " + std::to_string(meta.artworkData.size()) +
+                                                                 " bytes");
+            } else {
+                LOG_WARNING(atom::audio::LogChannel::METADATA, "Embedded artwork entry has no image data: " + path);
+            }
+        } else {
+            LOG_DEBUG(atom::audio::LogChannel::METADATA, "No embedded artwork found: " + path);
+        }
+
         if (file.audioProperties()) {
             const auto* props = file.audioProperties();
             meta.durationSeconds = static_cast<uint32_t>(props->lengthInSeconds());
@@ -57,8 +77,8 @@ auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMe
         }
 
         LOG_INFO(atom::audio::LogChannel::METADATA, "Read metadata: " + path + " (title='" + meta.title +
-                                                     "', artist='" + meta.artist + "', duration=" +
-                                                     std::to_string(meta.durationSeconds) + "s)");
+                                                        "', artist='" + meta.artist +
+                                                        "', duration=" + std::to_string(meta.durationSeconds) + "s)");
         return meta;
     } catch (...) {
         LOG_WARNING(atom::audio::LogChannel::METADATA, "Failed to read metadata: " + path);

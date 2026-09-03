@@ -8,44 +8,44 @@
 
 #include <Backend/Contracts/Audio/IAudioSource.hpp>
 
-namespace atom {
+namespace atom::backend::sdl3 {
 
-class SDL3SFXSource : public IAudioSource {
-public:
-    SDL3SFXSource();
-    ~SDL3SFXSource() override;
+class SDL3SFXSource : public atom::audio::IAudioSource {
+    public:
+        SDL3SFXSource();
+        ~SDL3SFXSource() override;
 
-    SDL3SFXSource(const SDL3SFXSource&) = delete;
-    auto operator=(const SDL3SFXSource&) -> SDL3SFXSource& = delete;
+        SDL3SFXSource(const SDL3SFXSource&) = delete;
+        auto operator=(const SDL3SFXSource&) -> SDL3SFXSource& = delete;
 
-    auto Play() -> void override;
-    auto Stop() -> void override;
-    auto Pause() -> void override;
-    [[nodiscard]] auto GetState() const -> AudioSourceState override;
-    auto SetVolume(float volume) -> void override;
-    [[nodiscard]] auto GetVolume() const -> float override;
-    auto SetLooping(bool loop) -> void override;
-    [[nodiscard]] auto IsLooping() const -> bool override;
-    auto SetPlayingOffset(float seconds) -> void override;
-    [[nodiscard]] auto GetPlayingOffset() const -> float override;
-    auto SetBuffer(const uint8_t* data, uint32_t length) -> void override;
+        auto Play() -> void override;
+        auto Stop() -> void override;
+        auto Pause() -> void override;
+        [[nodiscard]] auto GetState() const -> atom::audio::AudioSourceState override;
+        auto SetVolume(float volume) -> void override;
+        [[nodiscard]] auto GetVolume() const -> float override;
+        auto SetLooping(bool loop) -> void override;
+        [[nodiscard]] auto IsLooping() const -> bool override;
+        auto SetPlayingOffset(float seconds) -> void override;
+        [[nodiscard]] auto GetPlayingOffset() const -> float override;
+        auto SetBuffer(const uint8_t* data, uint32_t length) -> void override;
 
-    // Set the audio format spec (must be called before Play, alongside SetBuffer)
-    auto SetSpec(const SDL_AudioSpec& spec) -> void;
+        // Set the audio format spec (must be called before Play, alongside SetBuffer)
+        auto SetSpec(const SDL_AudioSpec& spec) -> void;
 
-private:
-    SDL_AudioStream* stream_ = nullptr;
-    std::vector<uint8_t> pcm_data_;
-    SDL_AudioSpec spec_{};
-    float volume_ = 100.0f;
-    bool looping_ = false;
-    AudioSourceState state_ = AudioSourceState::Stopped;
+    private:
+        SDL_AudioStream* stream_ = nullptr;
+        std::vector<uint8_t> pcm_data_;
+        SDL_AudioSpec spec_{};
+        float volume_ = 100.0f;
+        bool looping_ = false;
+        atom::audio::AudioSourceState state_ = atom::audio::AudioSourceState::Stopped;
 
-    auto EnsureStream() -> bool;
+        auto EnsureStream() -> bool;
 
-    [[nodiscard]] auto IsFinished() const -> bool override;
+        [[nodiscard]] auto IsFinished() const -> bool override;
 };
 
-} // namespace atom
+} // namespace atom::backend::sdl3
 
 #endif // ATOM_SDL3_SFX_SOURCE_HPP

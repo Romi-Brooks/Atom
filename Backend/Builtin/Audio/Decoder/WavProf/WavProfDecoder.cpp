@@ -14,7 +14,7 @@
 
 #include <Log/LogSystem.hpp>
 
-namespace atom {
+namespace atom::backend::builtin::audio {
 
 auto WavProfDecoder::Open(const std::string& path) -> bool {
     Close();
@@ -52,10 +52,10 @@ auto WavProfDecoder::SetupInfo(const std::string& source_label) -> bool {
         return false;
     }
 
-    LOG_DEBUG(atom::audio::LogChannel::WAVPROF,
-              "WavProf: WAV stream opened: " + source_label + " (sample_rate=" + std::to_string(info_.sample_rate) +
-                  ", channels=" + std::to_string(info_.channels) + ", bits_per_sample=" +
-                  std::to_string(info_.bits_per_sample) + ")");
+    LOG_DEBUG(atom::audio::LogChannel::WAVPROF, "WavProf: WAV stream opened: " + source_label +
+                                                    " (sample_rate=" + std::to_string(info_.sample_rate) +
+                                                    ", channels=" + std::to_string(info_.channels) +
+                                                    ", bits_per_sample=" + std::to_string(info_.bits_per_sample) + ")");
     return true;
 }
 
@@ -102,7 +102,7 @@ auto WavProfDecoder::Rewind() -> bool {
     return reader_.Rewind();
 }
 
-auto WavProfDecoder::GetInfo() const -> const DecoderInfo& {
+auto WavProfDecoder::GetInfo() const -> const atom::audio::DecoderInfo& {
     return info_;
 }
 
@@ -110,4 +110,4 @@ auto WavProfDecoder::IsOpen() const -> bool {
     return reader_.IsOpen();
 }
 
-} // namespace atom
+} // namespace atom::backend::builtin::audio
