@@ -1,7 +1,7 @@
 # Atom 未完成工作统一清单
 
 > 状态：唯一有效的架构整改与后续规划文档
-> 更新日期：2026-09-01
+> 更新日期：2026-09-03
 
 ## 1. 使用规则
 
@@ -146,6 +146,9 @@
 
 ## 5. 渲染与窗口后续事项
 
+> 已接受的渲染架构、SDL_GPU 实施路线、基础 3D 边界与原生 Vulkan 多后端计划见
+> [`Render-Backend-Architecture-CN.md`](Render-Backend-Architecture-CN.md)。该文档是渲染后端方向的实施基线。
+
 ### RENDER-001：渲染后端与窗口进一步拆分
 
 - [ ] 将窗口管理与 Renderer/RenderDevice 分离。
@@ -153,20 +156,30 @@
 - [ ] 纹理由所属 RenderDevice 创建和消费，禁止依赖跨后端 `dynamic_cast`。（现状记录：`SDL3RenderWindow::DrawTexture` 仍 `dynamic_cast<SDL3Texture&>`；且 Atom 尚未实现纹理/渲染功能主体——`ITexture` 无创建工厂、`Entity::texture_` 无赋值路径。此条随 RENDER-002 与纹理工厂实施时一并解决，Vulkan 进场前必须落地。）
 - [x] Native handle 只存在于后端专用扩展接口。（已落地：`ISDL3WindowExtensions`，`IRenderWindow` 不再暴露 `void*`，见 2026-08-16。）
 
-### RENDER-002：完整 2D Renderer
+### RENDER-002：统一 RHI 与 2D/基础 3D Renderer
 
-- [ ] 规划 `RenderDevice + Renderer2D + RenderQueue + RenderPass`。
+- [ ] 规划 `RenderDevice + CommandBuffer + RenderPass + Renderer2D + Renderer3D`，第一版同时用 2D sprite 与 3D unlit mesh 验证接口。
 - [ ] 支持 source rect、atlas、scale、rotation、origin、blend、camera、text、render texture、layer 与 batching。
+- [ ] 基础 3D 支持 vertex/index mesh、透视相机、depth buffer、纹理和最小 opaque pass；PBR、阴影与 Render Graph 延后。
 - [ ] 不继续无限扩张 `IRenderTarget` 虚函数集合。
 
-### RENDER-003：Vulkan 2D 后端
+### RENDER-003：SDL_GPU 首个正式渲染后端
 
-- [!] 在 RENDER-001 抽象稳定后实施。
-- [ ] CMake 集成 Vulkan SDK，建立 Instance、Device、Surface、Swapchain 和同步对象。
-- [ ] 实现 Clear/Present、纹理上传、DrawTexture、DrawRect、DrawCircle。
-- [ ] 集成 ImGui Vulkan、Resize/Swapchain 重建和设备丢失恢复。
-- [ ] 保留 SDL3 Renderer 作为默认或 fallback，并提供明确后端选择机制。
-- 非目标：3D、光线追踪、多队列异步计算、Beta 阶段 shader 热重载。
+- [!] 作为新渲染架构的首个实现，与 RENDER-001/002 同步推进。
+- [ ] 由 SDL 自动选择 D3D12、Vulkan 或 Metal；Atom 初期不维护原生 API 选择逻辑。
+- [ ] 建立 HLSL 到 SPIR-V、DXIL、MSL/metallib 的离线 Shader 流程。
+- [ ] 实现 device/window claim、command buffer、swapchain、render pass、pipeline、buffer、texture、sampler 和同步。
+- [ ] 接入 `imgui_impl_sdlgpu3`，完成 resize、VSync、错误诊断和资源安全销毁。
+- [ ] 迁移验收后删除 SDL_Renderer/SDL_Texture 路径，不保留行为不同的运行时 fallback。
+- 非目标：PBR、阴影、光线追踪、多队列异步计算和首期源码 Shader 热重载。
+
+### RENDER-006：原生 Vulkan 与多后端
+
+- [!] SDL_GPU 完成 2D textured quad、基础 3D mesh，并稳定 RHI 后实施。
+- [ ] 复用 SDL 窗口，建立 Vulkan Instance、Device、Surface、Swapchain、descriptor 和同步对象。
+- [ ] 复用同一 Shader manifest、Renderer2D 和 Renderer3D，上层仅通过后端 ID `sdl_gpu` / `vulkan` 选择。
+- [ ] GPU 资源严格归属创建它的 device；不支持进程运行期间热切换后端。
+- [ ] 增加两后端截图一致性、resize、设备错误和资源生命周期测试。
 
 ### RENDER-004：跨平台图片解码与纹理上传
 
