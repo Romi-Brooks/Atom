@@ -12,7 +12,7 @@
 
 #include "lua.hpp"
 
-#include <Components/Entities/Entity.hpp>
+#include <ECS/Components/Entities/Entity.hpp>
 #include <Log/LogSystem.hpp>
 
 using Entity = atom::Entity;
@@ -65,7 +65,7 @@ static int lua_Entity_SetPosition(lua_State* L) {
 
 static int lua_Entity_GetPosition(lua_State* L) {
     CHECK_ENTITY(L);
-    atom::Vec2 pos = entity->GetPosition();
+    atom::algo::Vec2 pos = entity->GetPosition();
     lua_newtable(L);
     lua_pushnumber(L, pos.GetX());
     lua_setfield(L, -2, "x");

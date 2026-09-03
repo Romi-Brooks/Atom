@@ -16,3 +16,6 @@
 [submodule "ThirdParty/minimp3"]
 	path = ThirdParty/minimp3
 	url = https://github.com/lieff/minimp3.git
+[submodule "ThirdParty/Yoga"]
+	path = ThirdParty/Yoga
+	url = https://github.com/facebook/yoga.git
