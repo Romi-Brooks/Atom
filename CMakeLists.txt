@@ -447,26 +447,35 @@ if(MINGW)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
     target_link_options(Atom_Engine PRIVATE -lstdc++exp -lws2_32)
 
-    # The thread runtime stays dynamic; copy libwinpthread-1.dll next to every
-    # executable so they run without manual DLL setup.
+    # The thread runtime stays dynamic. All executables currently use the common
+    # CMAKE_RUNTIME_OUTPUT_DIRECTORY (the build directory), so copy the DLL once
+    # into that directory instead of attaching a POST_BUILD copy to every
+    # executable. Per-target POST_BUILD copies race under Ninja when several
+    # executables link in parallel and can fail with ERROR_ACCESS_DENIED.
     get_filename_component(ATOM_MINGW_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
     set(ATOM_MINGW_RUNTIME_DLL "${ATOM_MINGW_BIN_DIR}/libwinpthread-1.dll")
-    function(atom_copy_mingw_runtime_dll target)
-        if(EXISTS "${ATOM_MINGW_RUNTIME_DLL}")
-            add_custom_command(TARGET ${target} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${ATOM_MINGW_RUNTIME_DLL}" "$<TARGET_FILE_DIR:${target}>"
-                COMMENT "Copying libwinpthread-1.dll next to ${target}")
-        endif()
-    endfunction()
-    foreach(atom_exe IN ITEMS Atom_Engine Example_Audio_Playback
-                           Example_Audio_Metadata Example_SFX_Playback
-                           Example_Simple_Window Example_Simple_Window_Debug
-                           Example_Packaged_Music Example_Log_Channel_Demo
-                           Example_SDL_GPU_Clear_Smoke Example_Renderer2D_Smoke
-                           Example_MusicCard Atom_Tool_Packager)
-        atom_copy_mingw_runtime_dll(${atom_exe})
-    endforeach()
+    if(EXISTS "${ATOM_MINGW_RUNTIME_DLL}")
+        set(ATOM_MINGW_RUNTIME_DLL_OUTPUT
+            "${CMAKE_BINARY_DIR}/libwinpthread-1.dll")
+        add_custom_command(
+            OUTPUT "${ATOM_MINGW_RUNTIME_DLL_OUTPUT}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ATOM_MINGW_RUNTIME_DLL}"
+                    "${ATOM_MINGW_RUNTIME_DLL_OUTPUT}"
+            DEPENDS "${ATOM_MINGW_RUNTIME_DLL}"
+            COMMENT "Copying libwinpthread-1.dll to the runtime output directory"
+            VERBATIM)
+        add_custom_target(Atom_Mingw_Runtime_DLL
+            DEPENDS "${ATOM_MINGW_RUNTIME_DLL_OUTPUT}")
+        foreach(atom_exe IN ITEMS Atom_Engine Example_Audio_Playback
+                               Example_Audio_Metadata Example_SFX_Playback
+                               Example_Simple_Window Example_Simple_Window_Debug
+                               Example_Packaged_Music Example_Log_Channel_Demo
+                               Example_SDL_GPU_Clear_Smoke Example_Renderer2D_Smoke
+                               Example_MusicCard Atom_Tool_Packager)
+            add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
+        endforeach()
+    endif()
 endif()
 if(WIN32)
     target_link_libraries(Atom_Engine PRIVATE opengl32 gdi32)
