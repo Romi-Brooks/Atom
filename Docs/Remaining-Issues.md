@@ -1,7 +1,7 @@
 # Atom 未完成工作统一清单
 
 > 状态：唯一有效的架构整改与后续规划文档
-> 更新日期：2026-08-16
+> 更新日期：2026-09-01
 
 ## 1. 使用规则
 
@@ -168,6 +168,20 @@
 - [ ] 保留 SDL3 Renderer 作为默认或 fallback，并提供明确后端选择机制。
 - 非目标：3D、光线追踪、多队列异步计算、Beta 阶段 shader 热重载。
 
+### RENDER-004：跨平台图片解码与纹理上传
+
+- [ ] 将“媒体元数据提取”“图片解码”“GPU 纹理上传”拆成三个边界清晰的阶段：TagLib/Media 层只返回封面编码字节与 MIME；独立 ImageCodec/Asset 模块输出后端无关的 RGBA 像素缓冲、尺寸及颜色/Alpha 信息；RenderDevice 只负责上传像素并创建所属后端纹理。
+- [ ] 评估 SDL_image、stb_image 或自有 codec adapter，记录许可证、内存解码、格式覆盖、错误模型和线程安全；WIC 等平台原生解码器只作为可选适配器，不能成为公共 API 契约。
+- [ ] Windows、Linux 使用同一份 JPEG/PNG/WebP 输入做一致性测试，并覆盖损坏数据、超大尺寸、空封面和不支持格式。
+- 当前 `Example_Animated_Music_Card` 中的 WIC → SDL_Texture 路径只是 Windows 概念验证；非 Windows 使用生成式 fallback。后续不得把 WIC 或 SDL 纹理职责并入 TagLib 元数据封装。
+
+### RENDER-005：Atom 文本与字体系统
+
+- [ ] 正式 Renderer 增加独立于 ImGui 的 FontAsset/FontFace、GlyphAtlas、TextLayout 与 TextRenderer；支持 UTF-8、CJK fallback、文件/内存/VFS 加载、DPI、字形缓存，并评估 HarfBuzz 等 shaping 方案。
+- [ ] 字形栅格结果保持后端无关，由 RenderDevice 上传 atlas；公共 API 不暴露 ImGui、SDL 或平台字体类型。
+- 当前 `atom::debugger::ImGuiFontLoader` 只修复 Debugger 的 ImGui font atlas，支持文件与内存字体；它不是 Atom Renderer 的字体实现，也不应被正式游戏 UI 依赖。
+- 在正式文本渲染器完成前，Example/Debugger 可继续使用当前桥接方案验证中文显示。
+
 ## 6. 调度、输入与模块边界
 
 ### CORE-001：固定时间步与调度
@@ -194,7 +208,7 @@
 
 ### CORE-005：CMake target 与可移植性
 
-- [-] 清理全局 include/link directories，改为 target 级依赖。（部分落地：渲染链已显式化——`atom_backend_sdl3_render` 显式链接 `engine_algorithm`，`engine_windows` 经 `atom_backend_render_runtime` 与具体后端解耦，见 2026-08-16。）
+- [-] 清理全局 include/link directories，改为 target 级依赖。（部分落地：渲染链已显式化——`Atom_Backend_SDL3_Render` 显式链接 `Atom_Algorithm`，`Atom_Window` 经 `Atom_Backend_Render_Runtime` 与具体后端解耦，见 2026-08-16。）
 - [ ] 明确 PUBLIC/PRIVATE/INTERFACE 传播边界。
 - [ ] 消除本机绝对路径与平台隐式依赖。
 - [ ] 增加 install/export/package config 和 `Atom::*` 导出目标。

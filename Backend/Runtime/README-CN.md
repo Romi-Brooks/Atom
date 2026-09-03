@@ -20,11 +20,11 @@ Playback : PCM → Source/Stream → Audio Device（BackendRegistry 按 ID 查�
 ```cpp
 #include <Backend/Runtime/BackendRuntime.hpp>
 
-auto& runtime = atom::BackendRuntime::GetInstance();
+auto& runtime = atom::backend::BackendRuntime::GetInstance();
 
 runtime.Registry().RegisterAudioBackend(
     "openal",
-    []() -> std::unique_ptr<atom::IAudioBackend> {
+    []() -> std::unique_ptr<atom::audio::IAudioBackend> {
         auto backend = std::make_unique<MyOpenALAudioBackend>();
         if (!backend->IsReady()) return nullptr;
         return backend;
@@ -46,7 +46,7 @@ runtime.Registry().RegisterAudioBackend(
 ```cpp
 #include <Backend/Runtime/BackendRuntime.hpp>
 
-auto& decoders = atom::BackendRuntime::GetInstance().AudioDecoders();
+auto& decoders = atom::backend::BackendRuntime::GetInstance().AudioDecoders();
 decoders.Register(".ogg", [] { return std::make_unique<MyOggDecoder>(); });
 ```
 
@@ -74,8 +74,8 @@ Gameplay 状态检测目前尚未由 Runtime 强制执行，项目应自行限�
 测试和独立工具可以绕过全局 Runtime：
 
 ```cpp
-atom::AudioDecoderRegistry test_decoders;
-atom::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders); // 补齐 .wav/.mp3
+atom::audio::AudioDecoderRegistry test_decoders;
+atom::backend::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders); // 补齐 .wav/.mp3
 atom::MusicPlayer music{fake_backend, test_decoders, mixer};
 atom::AudioClipCache clips{test_decoders};
 atom::SFXPlayer sfx{fake_backend, clips, mixer};

@@ -168,7 +168,7 @@ fix: correct include path for Vec2 in RenderWindow.hpp
 
 docs: add CONTRIBUTING.md with development guide
 
-build: add engine_math library target to CMake
+build: add Atom_Math library target to CMake
 ```
 
 ---

@@ -28,11 +28,11 @@ atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
 class MenuScreen final : public atom::Screen {
 public:
-    auto Render(atom::IRenderTarget& target) -> void override {
-        target.Clear(atom::Color{30, 30, 60});
+    auto Render(atom::render::IRenderTarget& target) -> void override {
+        target.Clear(atom::render::Color{30, 30, 60});
     }
 
-    auto HandleEvent(const atom::IEvent&) -> bool override { return false; }
+    auto HandleEvent(const atom::window::IEvent&) -> bool override { return false; }
     auto Update(float delta_time) -> void override { /* game logic */ }
 };
 
@@ -41,8 +41,8 @@ atom::ScreenManager::GetInstance().LoadScreen(
 atom::ScreenManager::GetInstance().SwitchScreen("menu");
 
 auto& window = atom::RenderWindow::GetInstance();
-window.Initialize("My Game", atom::Vec2{1280, 720});        // 默认渲染后端 "sdl3"
-window.Initialize("My Game", atom::Vec2{1280, 720}, "sdl3"); // 显式指定后端
+window.Initialize("My Game", atom::algo::Vec2{1280, 720});        // 默认渲染后端 "sdl3"
+window.Initialize("My Game", atom::algo::Vec2{1280, 720}, "sdl3"); // 显式指定后端
 window.SetFPS(60);
 window.Run();
 ```
@@ -53,9 +53,9 @@ window.Run();
 ```cpp
 #include <Backend/Registry/RenderBackendRegistry.hpp>
 
-atom::RenderBackendRegistry::GetInstance().RegisterWindowFactory(
+atom::backend::RenderBackendRegistry::GetInstance().RegisterWindowFactory(
     "my_backend", [] { return std::make_unique<MyRenderWindow>(); });
-// window.Initialize("My Game", atom::Vec2{1280, 720}, "my_backend");
+// window.Initialize("My Game", atom::algo::Vec2{1280, 720}, "my_backend");
 ```
 
 具体后端实现（`Backend/SDL3/*` 等）由引擎运行时内部注册与持有，普通用户只使用
@@ -214,7 +214,7 @@ audio backend = sdl3
 ```cpp
 #include <Backend/Runtime/BackendRuntime.hpp>
 
-auto& backends = atom::BackendRuntime::GetInstance();
+auto& backends = atom::backend::BackendRuntime::GetInstance();
 
 if (!backends.SetAudioBackend("sdl3")) {
     // 后端不存在、初始化失败，或旧后端恢复失败。
@@ -235,7 +235,7 @@ Beta 阶段建议只在主菜单或设置页面切换。游戏运行状态检测
 普通项目不需要操作 Registry。自定义后端开发者可以注册播放后端工厂：
 
 ```cpp
-auto& runtime = atom::BackendRuntime::GetInstance();
+auto& runtime = atom::backend::BackendRuntime::GetInstance();
 
 runtime.Registry().RegisterAudioBackend("custom", [] {
     return std::make_unique<MyAudioBackend>();
@@ -245,15 +245,15 @@ runtime.Registry().RegisterAudioBackend("custom", [] {
 自定义格式解码器直接注册到解码器注册表：
 
 ```cpp
-auto& decoders = atom::BackendRuntime::GetInstance().AudioDecoders();
+auto& decoders = atom::backend::BackendRuntime::GetInstance().AudioDecoders();
 decoders.Register(".ogg", [] { return std::make_unique<MyOggDecoder>(); });
 ```
 
 测试或特殊工具仍可使用显式注入构造，不受全局切换影响：
 
 ```cpp
-atom::AudioDecoderRegistry test_decoders;
-atom::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders);
+atom::audio::AudioDecoderRegistry test_decoders;
+atom::backend::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders);
 atom::MusicPlayer music{fake_backend, test_decoders, mixer};
 atom::SFXPlayer sfx{fake_backend, clips, mixer};
 ```
