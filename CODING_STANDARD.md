@@ -121,6 +121,8 @@ display prefix:
 |---|---|---|
 | `atom::core::LogChannel` | `Atom.` | `atom::core::LogChannel::MAIN` |
 | `atom::audio::LogChannel` | `Atom.Audio.` | `atom::audio::LogChannel::MUSIC` |
+| `atom::render::LogChannel` | `Atom.Render.` | `atom::render::LogChannel::RENDERER2D` |
+| `atom::image::LogChannel` | `Atom.Image.` | `atom::image::LogChannel::DECODER` |
 | `atom::backend::sdl3::LogChannel` | `Atom.SDL3.Backend.` | `atom::backend::sdl3::LogChannel::AUDIO` |
 | `game::GameLogChannel` | `Game.` | `game::GameLogChannel::GAME_NPC` |
 
@@ -330,21 +332,19 @@ clarify a concept that English cannot express faithfully.
 ### 6.1 Doxygen File Header
 
 ```cpp
-// Copyright (c) YYYY Author
-// SPDX-License-Identifier: MIT
-
 /**
- * @file FileName.hpp
- * @brief One-line description.
- * @author Author
- * @date YYYY/MM/DD
- * @attention Optional caveats or notes.
- */
+  * @file           : FileName.hpp
+  * @author         : Author
+  * @brief          : One-line description.
+  * @attention      : Optional caveats or notes.
+  * @date           : YYYY/M/D
+  Copyright (c) YYYY Author, All rights reserved.
+**/
 ```
 
-Do not add `All rights reserved` to the template. The copyright notice records
-authorship, while the SPDX identifier points to the repository's MIT license and
-makes the granted permissions explicit.
+This is the current header format for new Atom files and examples. Existing
+headers are not being migrated in this phase; the SPDX/许可证 header migration
+remains a separately tracked mechanical task in `Docs/Remaining-Issues.md`.
 
 ### 6.2 Inline Comments
 

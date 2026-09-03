@@ -3,8 +3,8 @@
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
 #include <Backend/Registry/DebugImGuiBackendRegistry.hpp>
 #include <Backend/Registry/RenderBackendRegistry.hpp>
-#include <Backend/SDL3/Debug/SDL3DebugImGuiBackend.hpp>
-#include <Backend/SDL3/Window/SDL3RenderWindow.hpp>
+#include <Backend/SDLGPU/Debug/SDLGPUImGuiBackend.hpp>
+#include <Backend/SDLGPU/Device/SDLGPUBackend.hpp>
 
 namespace atom::backend {
 
@@ -17,16 +17,16 @@ auto RenderBackendRuntime::EnsureDefaultRenderBackend() -> void {
     const auto& id = RenderBackendRegistry::kDefaultBackendId;
 
     auto& registry = RenderBackendRegistry::GetInstance();
-    if (!registry.ContainsWindowBackend(id)) {
-        registry.RegisterWindowFactory(id, [] { return std::make_unique<sdl3::SDL3RenderWindow>(); });
-    }
+    if (!registry.ContainsBackend(id))
+        registry.RegisterBackendFactory(id, [] { return std::make_unique<sdlgpu::SDLGPUBackend>(); });
 
-    // The debug overlay (ImGui) backend belongs to the same render backend
-    // bundle, so it is registered here as well (idempotent).
-    auto& debugRegistry = debugger::DebugImGuiBackendRegistry::GetInstance();
-    if (!debugRegistry.Contains(id)) {
-        debugRegistry.Register(id, [](window::IRenderWindow& window) { return sdl3::CreateDebugImGuiBackend(window); });
-    }
+    // The SDL_GPU ImGui glue is registered next to the render backend it binds
+    // to; the Debugger only consumes it through IDebugImGuiBackend.
+    auto& imguiRegistry = debugger::DebugImGuiBackendRegistry::GetInstance();
+    if (!imguiRegistry.Contains(id))
+        imguiRegistry.Register(id, [](window::IWindow& window, render::IRenderDevice& device) {
+            return sdlgpu::CreateSDLGPUImGuiBackend(window, device);
+        });
 }
 
 } // namespace atom::backend

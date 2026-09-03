@@ -2,7 +2,7 @@
   * @file           : RenderWindow.hpp
   * @author         : Romi Brooks
   * @brief          : Main render window singleton (Engine Core)
-  * @attention      : Wraps an atom::window::IRenderWindow (created via atom::backend::RenderBackendRegistry)
+  * @attention      : Wraps an atom::render::IRenderBackend (created via atom::backend::RenderBackendRegistry)
   *                   behind a stable singleton API. Never depends on a concrete
   *                   backend type; pick one with the backendId argument.
   *                   Overlay/event hooks are multi-slot listeners registered
@@ -22,7 +22,9 @@
 #include <utility>
 #include <vector>
 
-#include <Backend/Contracts/Render/IRenderWindow.hpp>
+#include <Backend/Contracts/Render/IRenderBackend.hpp>
+#include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Backend/Contracts/Window/IWindow.hpp>
 #include <Backend/Registry/RenderBackendRegistry.hpp>
 #include <Window/Manager/ScreenManager.hpp>
 
@@ -65,7 +67,7 @@ class ListenerConnection {
 
 class RenderWindow {
     private:
-        std::unique_ptr<atom::window::IRenderWindow> window_;
+        std::unique_ptr<atom::render::IRenderBackend> backend_;
         std::string backend_id_{};
         unsigned int fps_ = 60;
         bool shutdown_notified_ = false;
@@ -149,7 +151,7 @@ class RenderWindow {
         [[nodiscard]] auto AddShutdownListener(ShutdownListener listener) -> ListenerConnection;
 
         // Core API
-        // backendId selects the render backend (e.g. "sdl3", or a custom backend
+        // backendId selects the render backend (e.g. "sdl_gpu", or a custom backend
         // registered in atom::backend::RenderBackendRegistry). Defaults to the engine default.
         auto Initialize(const std::string& title, algo::Vec2 resolution,
                         std::string_view backendId = atom::backend::RenderBackendRegistry::kDefaultBackendId) -> void;
@@ -162,7 +164,8 @@ class RenderWindow {
         auto Shutdown() -> void;
 
         // Backend access
-        [[nodiscard]] auto GetIRenderWindow() -> atom::window::IRenderWindow*;
+        [[nodiscard]] auto GetIWindow() -> atom::window::IWindow*;
+        [[nodiscard]] auto GetRenderDevice() -> atom::render::IRenderDevice*;
         [[nodiscard]] auto GetBackendId() const -> const std::string&;
 };
 

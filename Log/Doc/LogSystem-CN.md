@@ -10,7 +10,7 @@
 
 每个域由一个宏（`ATOM_DEFINE_CHANNELS`）在编译期生成"枚举 + 名字映射 + 前缀"：
 
-- **引擎域**：`atom::core::LogChannel`、`atom::audio::LogChannel`、`atom::entity::LogChannel`、`atom::backend::LogChannel`、`atom::backend::sdl3::LogChannel`、`atom::utilities::LogChannel` —— 输出前缀 `Atom.` / `Atom.Audio.` / `Atom.Entity.` / ...
+- **引擎域**：`atom::core::LogChannel`、`atom::audio::LogChannel`、`atom::entity::LogChannel`、`atom::render::LogChannel`、`atom::image::LogChannel`、`atom::layout::LogChannel`、`atom::debugger::LogChannel`、`atom::backend::LogChannel`、`atom::backend::sdl3::LogChannel`、`atom::utilities::LogChannel` —— 输出前缀 `Atom.` / `Atom.Audio.` / `Atom.Render.` / ...
 - **游戏域**：如 `game::GameLogChannel` —— 输出前缀 `Game.`（由游戏自己创建）
 
 不需要任何运行时注册 —— `LOG_*` 宏会自动解析任意域的通道枚举（ADL）。显示前缀天然支持按层级筛选。
@@ -75,6 +75,10 @@ LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Pack failed");
 | `atom::audio::LogChannel::MINIMP3` | Atom.Audio.Minimp3 |
 | `atom::audio::LogChannel::WAVPROF` | Atom.Audio.WavProf |
 | `atom::audio::LogChannel::METADATA` | Atom.Audio.Metadata |
+| `atom::render::LogChannel::RENDERER2D` | Atom.Render.Renderer2D |
+| `atom::image::LogChannel::DECODER` | Atom.Image.Decoder |
+| `atom::layout::LogChannel::CORE` | Atom.Layout.Core |
+| `atom::debugger::LogChannel::IMGUI` | Atom.Debugger.ImGui |
 | `atom::backend::LogChannel::RUNTIME` | Atom.Backend.Runtime |
 | `atom::backend::sdl3::LogChannel::AUDIO` | Atom.SDL3.Backend.Audio |
 | `atom::backend::sdl3::LogChannel::VIDEO` | Atom.SDL3.Backend.Video |

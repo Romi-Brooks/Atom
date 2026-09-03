@@ -11,6 +11,7 @@
 #define ATOM_PLAYER_HPP
 
 #include <string>
+#include <utility>
 
 #include <Config/Movement/MoveEvent.hpp>
 

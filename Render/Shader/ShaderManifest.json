@@ -1,0 +1,12 @@
+﻿{
+  "sourceLanguage": "GLSL",
+  "canonicalIntermediate": "SPIR-V",
+  "bindingConvention": "SDL_GPU",
+  "shaders": [
+    { "name": "MeshUnlit", "vertex": "MeshUnlit.vert.glsl", "fragment": "MeshUnlit.frag.glsl", "vertexUniformBuffers": 1 },
+    { "name": "Sprite", "vertex": "Sprite.vert.glsl", "fragment": "Sprite.frag.glsl", "fragmentSamplers": 1 },
+    { "name": "Primitive2D", "vertex": "Primitive2D.vert.glsl", "fragment": "Primitive2D.frag.glsl", "vertexUniformBuffers": 1, "fragmentSamplers": 1 },
+    { "name": "PostProcess", "vertex": "PostProcess.vert.glsl", "fragment": "ChromaticAberration.frag.glsl", "fragmentUniformBuffers": 1, "fragmentSamplers": 1 },
+    { "name": "Glitch", "vertex": "PostProcess.vert.glsl", "fragment": "Glitch.frag.glsl", "fragmentUniformBuffers": 1, "fragmentSamplers": 1 }
+  ]
+}

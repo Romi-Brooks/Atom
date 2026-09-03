@@ -10,7 +10,7 @@
 
 Each domain is declared with a single macro (`ATOM_DEFINE_CHANNELS`) that generates, at compile time, an enum + name mapping + display prefix:
 
-- **Engine domains**: `atom::core::LogChannel`, `atom::audio::LogChannel`, `atom::entity::LogChannel`, `atom::backend::LogChannel`, `atom::backend::sdl3::LogChannel`, `atom::utilities::LogChannel` — output prefixed with `Atom.` / `Atom.Audio.` / `Atom.Entity.` / ...
+- **Engine domains**: `atom::core::LogChannel`, `atom::audio::LogChannel`, `atom::entity::LogChannel`, `atom::render::LogChannel`, `atom::image::LogChannel`, `atom::layout::LogChannel`, `atom::debugger::LogChannel`, `atom::backend::LogChannel`, `atom::backend::sdl3::LogChannel`, `atom::utilities::LogChannel` — output prefixed with `Atom.` / `Atom.Audio.` / `Atom.Render.` / ...
 - **Game domains**: e.g. `game::GameLogChannel` — output prefixed with `Game.` (the game creates its own)
 
 No runtime registration is needed — the `LOG_*` macros resolve any domain's enum automatically (ADL). Display prefixes make hierarchical filtering trivial.
@@ -75,6 +75,10 @@ Complete list of engine channels (grouped by domain):
 | `atom::audio::LogChannel::MINIMP3` | Atom.Audio.Minimp3 |
 | `atom::audio::LogChannel::WAVPROF` | Atom.Audio.WavProf |
 | `atom::audio::LogChannel::METADATA` | Atom.Audio.Metadata |
+| `atom::render::LogChannel::RENDERER2D` | Atom.Render.Renderer2D |
+| `atom::image::LogChannel::DECODER` | Atom.Image.Decoder |
+| `atom::layout::LogChannel::CORE` | Atom.Layout.Core |
+| `atom::debugger::LogChannel::IMGUI` | Atom.Debugger.ImGui |
 | `atom::backend::LogChannel::RUNTIME` | Atom.Backend.Runtime |
 | `atom::backend::sdl3::LogChannel::AUDIO` | Atom.SDL3.Backend.Audio |
 | `atom::backend::sdl3::LogChannel::VIDEO` | Atom.SDL3.Backend.Video |

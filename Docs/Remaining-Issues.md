@@ -1,7 +1,7 @@
 # Atom 未完成工作统一清单
 
 > 状态：唯一有效的架构整改与后续规划文档
-> 更新日期：2026-09-03
+> 更新日期：2026-09-04
 
 ## 1. 使用规则
 
@@ -9,15 +9,15 @@
 - `[-]` 处理中
 - `[x]` 已完成（保留实施历史，不删除）
 - `[!]` Beta 阶段暂缓
-- API、编码规范和使用说明继续保留在各自稳定文档中。
 
 ## 2. P0：稳定性与确定性问题
 
-### ARCH-004：引擎事件可能被扩展层重复处理
+### ARCH-004：引擎事件单次分发
 
-- [x] 确认 `SDL3RenderWindow::PollEvent()` 与 `RenderWindow::ProcessEvents()` 的回调链，确保一个 SDL 事件只转换和分发一次。（已修复：`PollEvent` 回归纯取事件原语，`RenderWindow::ProcessEvents` 唯一分发并带 None 守卫，见 2026-08-16 提交。）
-- [x] 原始 SDL 事件仅提供给平台适配/ImGui，引擎事件只在上层分发。（已落地：`IRenderWindow::SetRawEventHook` 只服务平台适配器；引擎事件经 `IEvent` 在门面层分发。）
-- 验收：单次键盘、鼠标和窗口事件不会触发两次业务回调。
+- [x] `SDL3Window::PollEvent()` 只做原始事件 hook 与单次转换，`RenderWindow::ProcessEvents()` 负责唯一一次引擎分发。
+- [x] 未映射的 SDL 事件不再以 `EventType::None` 发送给 Screen。
+- [x] `SDL_EVENT_QUIT` 与 `SDL_EVENT_WINDOW_CLOSE_REQUESTED` 都转换为关闭事件。
+- [x] 原始 SDL 事件仅通过 `IWindow::SetRawEventHook` 提供给平台适配器；普通业务只消费 `IEvent`。 。
 
 ### ARCH-005：Lua 错误处理与空指针保护
 
@@ -28,7 +28,7 @@
 
 ### ARCH-006：公共数值参数缺少统一边界契约
 
-- [ ] 明确 `SetFPS(0)` 的含义并避免除零。
+- [x] `SetFPS(0)` 明确表示不做软件限帧，计时器不会除零；重新初始化窗口会恢复门面层保存的 FPS 设置。
 - [ ] 校验圆形半径、音频 offset、voice 上限和潜在大内存参数。
 - [ ] 统一音量范围和非法参数处理方式。
 - 验收：非法输入不会造成崩溃、除零、溢出或异常大分配。
@@ -47,13 +47,6 @@
 - [ ] 禁止静默覆盖 active/stack 中的同名 Screen。
 - [ ] 为重复注册、卸载和切换返回明确结果。
 - 验收：替换或卸载 Screen 后不存在悬空引用。
-
-### ARCH-106：Circle Texture Cache 无界增长
-
-- [ ] 对半径进行量化，设置容量上限或 LRU。
-- [ ] 评估单位圆纹理、几何渲染或 shader，避免动态半径持续创建纹理。
-- [ ] 不永久缓存失败项。
-- 验收：动态圆形场景中缓存和 GPU 内存保持有界。
 
 ### ARCH-107：统一资源系统与 VFS
 
@@ -92,8 +85,9 @@
 
 ### ARCH-113：多个 ImGui Overlay 需要共享上下文
 
-- [ ] ImGui 全局上下文按窗口共享一份（OverlayManager），Debugger/Profiler/Console 只贡献 `OnDrawOverlay` 内容。
-- [ ] 现状：每个 `Debugger::Attach` 独立 `ImGui::CreateContext()`，同窗口挂两个 ImGui Debugger 会互相覆盖渲染（监听器层已可并存，ImGui 层尚不能）。
+- [ ] 由窗口级 OverlayManager 共享一份 ImGui 上下文；Debugger/Profiler/Console 只贡献 `OnDrawOverlay` 内容。
+- [x] 旧 SDL_Renderer ImGui 适配器已退出 Atom target，SDL_GPU 的 `imgui_impl_sdlgpu3` 已注册并通过单 Debugger 验收。
+- 当前限制：ImGui backend 本身是全局状态，Atom 会拒绝第二个同时活动的 SDL_GPU Debugger 并记录 ERROR，避免上下文互相破坏。
 - 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。
 
 ### ARCH-114：Packager 路径与编码加固
@@ -132,7 +126,7 @@
 
 ### AUDIO-004：音频格式覆盖
 
-- [!] 后续版本实现 OGG、FLAC 等格式（MP3 已通过 minimp3 支持，见 `Backend/Builtin/Audio/Decoder/minimp3/Minimp3Decoder`）。
+- [!] 后续版本实现 OGG、FLAC 等格式（MP3 已通过 minimp3 支持，见 `Backend/Audio/Decoder/minimp3/Minimp3Decoder`）。
 - [ ] 每种格式实现独立 `IAudioDecoder` 并显式注册到 `AudioDecoderRegistry`。
 - [ ] 选择依赖时记录许可证、错误模型和流式解码能力。
 
@@ -146,31 +140,33 @@
 
 ## 5. 渲染与窗口后续事项
 
-> 已接受的渲染架构、SDL_GPU 实施路线、基础 3D 边界与原生 Vulkan 多后端计划见
-> [`Render-Backend-Architecture-CN.md`](Render-Backend-Architecture-CN.md)。该文档是渲染后端方向的实施基线。
+> 已接受的渲染架构、SDL_GPU 实施路线、基础 3D 边界与原生 Vulkan 多后端计划见本文第 9 节；本文件是唯一有效的实施基线。
 
 ### RENDER-001：渲染后端与窗口进一步拆分
 
-- [ ] 将窗口管理与 Renderer/RenderDevice 分离。
-- [x] 消除上层对具体 `SDL3RenderWindow` 的所有权依赖。（已落地：`RenderWindow` 持有 `IRenderWindow*`，经 `RenderBackendRegistry` + `RenderBackendRuntime` 创建，见 2026-08-16。）
-- [ ] 纹理由所属 RenderDevice 创建和消费，禁止依赖跨后端 `dynamic_cast`。（现状记录：`SDL3RenderWindow::DrawTexture` 仍 `dynamic_cast<SDL3Texture&>`；且 Atom 尚未实现纹理/渲染功能主体——`ITexture` 无创建工厂、`Entity::texture_` 无赋值路径。此条随 RENDER-002 与纹理工厂实施时一并解决，Vulkan 进场前必须落地。）
-- [x] Native handle 只存在于后端专用扩展接口。（已落地：`ISDL3WindowExtensions`，`IRenderWindow` 不再暴露 `void*`，见 2026-08-16。）
+- [x] `IWindow`、`IRenderDevice`、`IRenderBackend` 已拆分；`RenderWindow` 只持有组合后的抽象后端。
+- [x] 上层不再拥有或包含具体 `SDL3RenderWindow`；默认后端由 `RenderBackendRuntime` 注册为 `sdl_gpu`。
+- [ ] 正式 GPU 资源只能由所属 RenderDevice 创建和消费；当前验证场景仍是 SDL_GPU 内部实现，不属于公共 RHI。
+- [x] Native handle 只存在于 `ISDL3WindowExtensions` 和 SDL_GPU 后端内部，不进入公共窗口/RHI 契约。
 
 ### RENDER-002：统一 RHI 与 2D/基础 3D Renderer
 
-- [ ] 规划 `RenderDevice + CommandBuffer + RenderPass + Renderer2D + Renderer3D`，第一版同时用 2D sprite 与 3D unlit mesh 验证接口。
-- [ ] 支持 source rect、atlas、scale、rotation、origin、blend、camera、text、render texture、layer 与 batching。
+- [x] 已用 SDL_GPU 自定义 Shader 三角形、纹理 2D quad 与带 depth test 的旋转 3D mesh 验证底层能力。
+- [ ] 将验证代码收敛为正式的 Buffer、Texture、Sampler、Shader、Pipeline、CommandBuffer/Pass 资源接口。
+- [-] 已支持 source rect、atlas、scale、blend、camera、UTF-8/CJK 基础 text、layer、嵌套裁剪与 batching；rotation/origin、render texture 和复杂 shaping 待实现。
 - [ ] 基础 3D 支持 vertex/index mesh、透视相机、depth buffer、纹理和最小 opaque pass；PBR、阴影与 Render Graph 延后。
 - [ ] 不继续无限扩张 `IRenderTarget` 虚函数集合。
 
 ### RENDER-003：SDL_GPU 首个正式渲染后端
 
-- [!] 作为新渲染架构的首个实现，与 RENDER-001/002 同步推进。
-- [ ] 由 SDL 自动选择 D3D12、Vulkan 或 Metal；Atom 初期不维护原生 API 选择逻辑。
-- [ ] 建立 HLSL 到 SPIR-V、DXIL、MSL/metallib 的离线 Shader 流程。
-- [ ] 实现 device/window claim、command buffer、swapchain、render pass、pipeline、buffer、texture、sampler 和同步。
-- [ ] 接入 `imgui_impl_sdlgpu3`，完成 resize、VSync、错误诊断和资源安全销毁。
-- [ ] 迁移验收后删除 SDL_Renderer/SDL_Texture 路径，不保留行为不同的运行时 fallback。
+- [-] 作为新渲染架构的首个实现，与 RENDER-001/002 同步推进。
+- [x] SDL 根据平台和构建时可用 Shader 格式自动选择 D3D12、Vulkan 或 Metal；Atom 不维护原生 API 选择逻辑。
+- [x] GLSL 是唯一人工维护源，CMake 总是生成并校验 SPIR-V，Windows 默认附加 DXIL，macOS 默认附加 MSL。
+- [x] 已完成 device/window claim、command buffer、swapchain、render pass、pipeline、buffer、texture、sampler 与 depth 的最小闭环。
+- [ ] 将最小闭环重构为可供 Renderer2D/Renderer3D 使用的正式 RHI 资源与命令接口。
+- [x] 接入 `imgui_impl_sdlgpu3`，完成 resize、VSync、错误诊断和资源安全销毁的首轮闭环。
+- [x] SDL_Renderer 后端实现已从 Atom 构建和源码删除，不提供运行时 fallback。
+- [x] MusicCard 与 Debugger 已迁移；Atom 源码和 target 不再使用 `SDL_Renderer`、`SDL_Texture` 或 `imgui_impl_sdlrenderer3`（上游源码树保留未编译 backend 文件）。
 - 非目标：PBR、阴影、光线追踪、多队列异步计算和首期源码 Shader 热重载。
 
 ### RENDER-006：原生 Vulkan 与多后端
@@ -183,17 +179,49 @@
 
 ### RENDER-004：跨平台图片解码与纹理上传
 
-- [ ] 将“媒体元数据提取”“图片解码”“GPU 纹理上传”拆成三个边界清晰的阶段：TagLib/Media 层只返回封面编码字节与 MIME；独立 ImageCodec/Asset 模块输出后端无关的 RGBA 像素缓冲、尺寸及颜色/Alpha 信息；RenderDevice 只负责上传像素并创建所属后端纹理。
-- [ ] 评估 SDL_image、stb_image 或自有 codec adapter，记录许可证、内存解码、格式覆盖、错误模型和线程安全；WIC 等平台原生解码器只作为可选适配器，不能成为公共 API 契约。
-- [ ] Windows、Linux 使用同一份 JPEG/PNG/WebP 输入做一致性测试，并覆盖损坏数据、超大尺寸、空封面和不支持格式。
-- 当前 `Example_Animated_Music_Card` 中的 WIC → SDL_Texture 路径只是 Windows 概念验证；非 Windows 使用生成式 fallback。后续不得把 WIC 或 SDL 纹理职责并入 TagLib 元数据封装。
+- [x] TagLib 元数据字节、`Atom_Image` RGBA 解码和 Renderer2D GPU 上传已拆成独立阶段；MusicCard 不再使用 WIC/SDL_Texture。
+- [x] 选择 vendored stb_image 2.30，版本、许可证、哈希、实现宏所有权、格式覆盖和失败日志记录在 `ThirdParty/stb/README.md` 与 `ImageDecoder` API 中。
+- [ ] Windows、Linux 使用同一份 JPEG/PNG 输入做一致性测试，并覆盖损坏数据、超大尺寸、空封面和不支持格式；WebP 不在 stb_image 支持范围，需要单独 codec adapter。
+- [ ] `DecodeImageFile(std::string)` 在 Windows 的非 ASCII 路径仍依赖 C runtime 窄路径行为；资产/VFS 应优先读入字节并调用 `DecodeImageMemory`，后续补 filesystem/IO adapter。
 
 ### RENDER-005：Atom 文本与字体系统
 
-- [ ] 正式 Renderer 增加独立于 ImGui 的 FontAsset/FontFace、GlyphAtlas、TextLayout 与 TextRenderer；支持 UTF-8、CJK fallback、文件/内存/VFS 加载、DPI、字形缓存，并评估 HarfBuzz 等 shaping 方案。
-- [ ] 字形栅格结果保持后端无关，由 RenderDevice 上传 atlas；公共 API 不暴露 ImGui、SDL 或平台字体类型。
+- [-] Renderer2D 已增加独立于 ImGui 的内存 Font、UTF-8 解码、stb_truetype 栅格与多页 GlyphAtlas；CJK fallback、文件/VFS/DPI 策略和 HarfBuzz shaping 待实现。
+- [x] 字形栅格结果保持后端无关，由 RenderDevice 上传 atlas；公共 API 不暴露 ImGui、SDL 或平台字体类型。
 - 当前 `atom::debugger::ImGuiFontLoader` 只修复 Debugger 的 ImGui font atlas，支持文件与内存字体；它不是 Atom Renderer 的字体实现，也不应被正式游戏 UI 依赖。
-- 在正式文本渲染器完成前，Example/Debugger 可继续使用当前桥接方案验证中文显示。
+- MusicCard 业务文字已使用 Renderer2D；ImGuiFontLoader 只给调试窗口提供字体。
+
+### RENDER-007：SDLGPU 内部组件化
+
+- [x] 完成 `Device`、`Encoding`、`Pipelines`、`Debug` 目录边界；共享 shader loader 与内置 2D pipeline factory 已落地。
+- [ ] 将 `SDLGPUDevice` 内部的 ResourceStore 拆出，集中管理 texture、buffer、sampler、upload 和延迟释放。
+- [ ] 将 CommandEncoder/RenderPass 编码从设备生命周期中拆出，设备只负责 device、window、swapchain 和 frame 状态。
+- [ ] 保持所有 SDL_GPU native 类型留在 `Backend/SDLGPU`，不得泄漏到 `Render/` 或公共 RHI。
+
+### RENDER-008：通用可附加 Shader Effect
+
+- [ ] 用资源驱动的 `RenderEffect`/fullscreen pass 替代 `PostProcess2DEffect` 固定枚举和后端 `switch`。
+- [ ] 支持 effect attach 到任意 RenderTarget/RenderPass，背景、卡片、文字和调试器互不误渲染。
+- [ ] 增加 shader binding/uniform reflection 与布局 hash 校验；缺失变体必须返回明确错误。
+- [ ] Gaussian、Glitch、Chromatic Aberration 迁移为普通内置 shader 包，保持旧 API 兼容包装直到迁移完成。
+
+### RENDER-009：正式通用 RHI 与 3D
+
+- [ ] 将当前 `IRender2DContext` 降级为兼容适配器，新增正式的 Buffer、Texture、Sampler、Shader、Pipeline、RenderTarget 和 CommandEncoder 契约。
+- [ ] 让 Renderer2D/Renderer3D 只生成 DrawPacket、Material 和 RenderPass，不直接选择 SDL_GPU pipeline。
+- [ ] 完成 mesh/index、透视相机、depth、材质和最小 opaque pass 的跨后端闭环；不得把 3D 特例加入 `SDLGPU2D.cpp`。
+
+### RENDER-010：生产级文字后端
+
+- [ ] 将现有 stb 字体路径继续封装为 `FontProvider`、`TextLayout`、`GlyphAtlas`、`TextRenderer`，Renderer2D 不再直接解析 UTF-8 或管理字体文件。
+- [ ] 评估并接入 FreeType + HarfBuzz，用于 CJK fallback、kerning、组合字符、阿拉伯文/Indic shaping 和 DPI 实例缓存。
+- [ ] 保留 stb_truetype 作为轻量构建或无 shaping fallback，统一错误和资源生命周期。
+
+### RENDER-011：渲染回归护栏
+
+- [ ] 增加 Null/Recording Render Backend，验证 frame/pass/资源顺序和释放协议。
+- [ ] 增加 shader reflection/layout 校验、资源生命周期测试和截图 golden test，减少对 MusicCard 人工验收的依赖。
+- [ ] 覆盖 SDL_GPU 的 D3D12、Vulkan、Metal 运行时 shader variant 选择和区域后处理路径。
 
 ## 6. 调度、输入与模块边界
 
@@ -209,7 +237,7 @@
 
 ### CORE-003：目录与命名收敛
 
-- [ ] 继续清理空目录、TODO 占位目录和错误命名。
+- [ ] 继续清理空目录和错误命名；本轮已删除 `Render/Shader/TODO` 空占位文件。
 - [ ] 将 `Config` 中的 C++ 组件类型迁回领域目录；Config 只保留配置数据。
 - [ ] 明确 Public/Internal/Backend 的头文件边界。
 
@@ -221,10 +249,24 @@
 
 ### CORE-005：CMake target 与可移植性
 
-- [-] 清理全局 include/link directories，改为 target 级依赖。（部分落地：渲染链已显式化——`Atom_Backend_SDL3_Render` 显式链接 `Atom_Algorithm`，`Atom_Window` 经 `Atom_Backend_Render_Runtime` 与具体后端解耦，见 2026-08-16。）
+- [-] 清理全局 include/link directories，改为 target 级依赖。（渲染链已拆为 `Atom_Backend_SDL3_Window`、`Atom_Backend_SDL_GPU` 与 `Atom_Backend_Render_Runtime`。）
 - [ ] 明确 PUBLIC/PRIVATE/INTERFACE 传播边界。
-- [ ] 消除本机绝对路径与平台隐式依赖。
+- [x] Shader 工具优先由 `VULKAN_SDK`/`PATH` 发现；SDK 根目录只允许作为本机 CMake cache 提示，仓库不保存绝对路径。
 - [ ] 增加 install/export/package config 和 `Atom::*` 导出目标。
+
+### CORE-008：外部 Shader 工具链
+
+- [ ] 提供独立 `atom-shaderc`，读取用户自己的 `.atomshader` manifest、GLSL 源码和输出目录。
+- [ ] 用户新增 shader 不得修改 Atom 内部 `Render/Shader/AtomShaders.cmake`；引擎只维护内置 shader 默认包。
+- [ ] 工具负责 GLSL → SPIR-V，并按目标平台生成可选 DXIL/MSL 变体及 reflection metadata。
+- [!] 本轮暂不实现编译器和外部项目 CMake 集成，先冻结资源包格式与公共 pipeline 描述。
+
+### CORE-009：Utilities 目录职责与命名
+
+- `Utilities/Utf8` 当前只负责 UTF-8 ↔ 宽字符转换，名称准确，暂不为了“看起来统一”改名。
+- 如果后续扩展为 UTF-16、locale、路径规范化等完整编码服务，再整体迁移为 `Utilities/Encoding`，同时统一 target/API 和所有 include；不要只改目录名。
+- `Utilities/Packager` 继续作为运行时/工具共用的资源打包模块；Utilities 按职责拆分，不建立一个集中式杂物目录。
+- `atom-shaderc` 属于开发工具链，未来应放在 `Tools/Shaderc`（或独立工具仓库），不放进运行时 `Utilities`；它的输出是资源包，不是 Atom 核心库依赖。
 
 ### CORE-006：未实现模块的正式 API 管理
 
@@ -233,7 +275,7 @@
 
 ### CORE-007：源码许可证标头统一
 
-- [ ] 按照 [`Source-Header-Migration-CN.md`](Source-Header-Migration-CN.md) 为 Atom 自有源码统一 MIT SPDX 标识。
+- [ ] 按照本文第 8 节的规则为 Atom 自有源码统一 MIT SPDX 标识。
 - [ ] 删除旧的 `All rights reserved`，不修改 `ThirdParty/` 中的上游标头。
 - [ ] 将标头迁移作为独立机械提交，避免与功能改动混合。
 
@@ -265,12 +307,64 @@
 - [ ] Profiler、帧统计、Editor/Inspector。
 - [ ] 安全的脚本与资源热重载。
 
-## 8. 建议实施顺序
+### PRODUCT-003：动态链接发布配置
 
-1. P0 事件、Lua 错误和参数校验。
-2. 最小测试 target，优先覆盖 MusicCrossfade 与 Screen/Event。
-3. Screen 生命周期、回调 Registry、Lua handle 和日志并发。
-4. 资源系统、固定时间步和 InputSystem。
-5. Renderer2D 抽象稳定后再实现 Vulkan。
-6. Mixer/Bus、Effects/Plugins 按实际 Beta 需求启用。
-7. 最后推进 CI、SDK、资产管线和编辑器能力。
+- [ ] 在公共 ABI、句柄所有权、异常/运行库策略稳定后，增加 `ATOM_BUILD_SHARED` 与 install/export 配置。
+- [ ] 明确 Windows DLL、Linux SO、macOS dylib 的依赖部署、符号导出和版本策略。
+- [ ] shader 资源保持独立包格式；C/C++ 动态链接不会改变 shader 的运行时加载方式。
+- [!] 不把动态链接作为当前 SDL_GPU/RHI 重构前置条件，避免在 ABI 未冻结时引入部署和跨模块内存问题。
+
+
+## 8. 源码许可证标头迁移（暂缓）
+
+该任务只修改 Atom 自有 `.h/.hpp/.c/.cpp` 的注释，不修改 `ThirdParty/`：
+
+- [!] 暂不批量删除 `All rights reserved`，保留现有文件头。
+- [!] 暂不批量补充 `SPDX-License-Identifier: MIT`。
+- [ ] 未来处理时使用真实作者和可确认的首次年份；无法确认时不凭空推测。
+- [ ] 未来处理时保留 `@file`/`@brief` 等有价值说明，不强制 `@author`、`@date` 和空的 `@attention`。
+- [ ] 作为独立机械提交完成，避免与功能改动混合。
+
+新建 Atom 源文件和示例当前统一使用项目编码规范中的 Doxygen 文头模板（含
+`@file/@author/@brief/@attention/@date` 与 `Copyright ... All rights reserved.`）。
+
+当前审计结果：Atom 自有 C/C++ 文件 161 个，其中 45 个仍含旧标头，9 个已有 SPDX。可用下列命令复查：
+
+```powershell
+rg -l "All rights reserved" -g "*.h" -g "*.hpp" -g "*.c" -g "*.cpp" -g "!ThirdParty/**"
+rg -L "SPDX-License-Identifier: MIT" -g "*.h" -g "*.hpp" -g "*.c" -g "*.cpp" -g "!ThirdParty/**"
+```
+
+## 9. 已接受的渲染基线
+
+以下决策原先分散在渲染路线文档中，现集中维护于本清单：
+
+1. 首个正式渲染后端是 SDL_GPU；由 SDL 根据平台和设备选择 D3D12、Vulkan 或 Metal，Atom 不复制一套底层 API 选择逻辑。
+2. SDL_Renderer、SDL_Texture 和 `imgui_impl_sdlrenderer3` 不再作为 Atom 运行时后端；无 GPU 测试应使用未来的 Null/Recording Backend。
+3. RHI 同时面向 2D 和基础 3D，公共头文件不得暴露 SDL_GPU、Vk、D3D 或 Metal 类型。Renderer2D/Renderer3D 只产生渲染意图，后端负责执行。
+4. GLSL 是唯一人工维护的 shader 源语言，优先生成 SPIR-V；DXIL/MSL 是可选离线变体。shader 资源与 Atom C/C++ 链接方式无关。
+5. 原生 Vulkan 是后续并列后端，必须复用同一套资源描述、shader 包和上层 Renderer；进程运行期间不支持后端热切换，GPU 资源不得跨 device 共享。
+6. SDL_GPU 每帧顺序固定为：获取 command buffer → 获取 swapchain → 上传动态数据 → 3D → 2D/UI → Debugger → 提交。最小化或暂时没有 swapchain texture 时跳过该帧，不忙等。
+
+## 10. 已关闭问题的回归记录
+
+### MusicCard 封面区域异常
+
+封面曾出现右下角小块或三角形裁剪，最终由两个独立问题叠加造成：
+
+- `Vertex2D` 的 `FLOAT4` color 字段偏移不满足 D3D12 输入布局对齐；当前布局固定为 `color@0 / position@16 / uv@24`，stride 32。
+- SDL_GPU 不接受 `SDL_SetGPUScissor(pass, nullptr)` 作为关闭裁剪；无 clip 时必须显式设置整帧 scissor，零面积交集直接跳过。
+
+### MusicCard 首次切歌卡顿 / Shader 加载失败
+
+同步打开大量音频曾耗尽 Windows C runtime 文件句柄，连带导致 shader 文件读取失败。当前约束是目录扫描只建立 Track stub，metadata/音频/封面按需加载，GPU 资源只在渲染线程创建；不得在后台线程直接调用 Renderer2D 或 SDL_GPU command buffer。
+
+### 卡片后处理边界
+
+Chromatic Aberration、Glitch 和 Gaussian Blur 必须只作用于卡片离屏目标；背景和 Debugger 直接写入交换链。全屏三角形使用 `(-1,-1)、(3,-1)、(-1,3)`，后处理区域通过 scissor 和圆角/羽化遮罩限制，避免重新引入全屏污染或矩形硬边。
+
+## 11. 文档归档规则
+
+- 本文件是 Atom 架构整改、渲染路线、许可证迁移和后续任务的唯一汇总入口。
+- 具体模块 API 和使用方式仍放在模块 README（例如 `Render/Text/README-CN.md`、`Layout/README.md`）。
+- 已完成任务的详细排查过程不再单独维护历史报告；如其中存在可复用的根因或验收命令，应提炼后写入本文件。

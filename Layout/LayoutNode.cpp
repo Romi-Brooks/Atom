@@ -198,6 +198,17 @@ struct LayoutNode::Impl {
     }
 
     ~Impl() {
+        if (node == nullptr)
+            return;
+
+        // Yoga nodes are non-owning children. Detach from the parent and from
+        // all children before freeing the wrapper so RAII destruction cannot
+        // leave a live tree pointing at reclaimed memory.
+        if (auto* owner = YGNodeGetOwner(node); owner != nullptr)
+            YGNodeRemoveChild(owner, node);
+        while (YGNodeGetChildCount(node) > 0) {
+            YGNodeRemoveChild(node, YGNodeGetChild(node, 0));
+        }
         YGNodeFree(node);
     }
 

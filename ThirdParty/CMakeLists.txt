@@ -8,6 +8,7 @@ set(ATOM_SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SDL3")
 set(ATOM_TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/taglib")
 set(ATOM_UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utfcpp")
 set(ATOM_MINIMP3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minimp3")
+set(ATOM_STB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stb")
 set(ATOM_YOGA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Yoga")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/TargetOverlay.cmake")
@@ -24,6 +25,12 @@ foreach(dependency_file IN ITEMS
         message(FATAL_ERROR
             "Missing third-party dependency content: ${dependency_file}\n"
             "Run: git submodule update --init")
+    endif()
+endforeach()
+
+foreach(stb_header IN ITEMS "${ATOM_STB_DIR}/stb_image.h" "${ATOM_STB_DIR}/stb_truetype.h")
+    if(NOT EXISTS "${stb_header}")
+        message(FATAL_ERROR "Missing vendored stb header: ${stb_header}")
     endif()
 endforeach()
 
@@ -122,9 +129,12 @@ add_library(Atom_3rd_ImGui STATIC
 
 target_include_directories(Atom_3rd_ImGui PUBLIC "${ATOM_IMGUI_DIR}")
 
+# Platform + render backends. The SDL3 platform backend feeds SDL_Event; the
+# render backend targets the SDL_GPU device; the retired
+# imgui_impl_sdlrenderer3 path is intentionally not built.
 add_library(Atom_3rd_ImGui_SDL3 STATIC
     "${ATOM_IMGUI_DIR}/backends/imgui_impl_sdl3.cpp"
-    "${ATOM_IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp"
+    "${ATOM_IMGUI_DIR}/backends/imgui_impl_sdlgpu3.cpp"
 )
 
 target_include_directories(Atom_3rd_ImGui_SDL3 PUBLIC
@@ -225,6 +235,12 @@ endforeach()
 # --------------------------------------------------------------------------
 add_library(Atom_3rd_Minimp3 INTERFACE)
 target_include_directories(Atom_3rd_Minimp3 INTERFACE "${ATOM_MINIMP3_DIR}")
+
+# --------------------------------------------------------------------------
+# stb (vendored dual-licensed single-header image/font utilities)
+# --------------------------------------------------------------------------
+add_library(Atom_3rd_Stb INTERFACE)
+target_include_directories(Atom_3rd_Stb INTERFACE "${ATOM_STB_DIR}")
 
 # --------------------------------------------------------------------------
 # Yoga (Flexbox layout engine)

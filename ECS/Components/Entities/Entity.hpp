@@ -11,6 +11,8 @@
 #define ATOM_ENTITY_HPP
 
 #include <memory>
+#include <string>
+#include <utility>
 
 #include <Algorithm/Vector/Vec2.hpp>
 #include <Config/Movement/MoveEvent.hpp>

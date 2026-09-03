@@ -1,34 +1,16 @@
 #ifndef ATOM_IRENDER_TARGET_HPP
 #define ATOM_IRENDER_TARGET_HPP
 
+// Legacy compatibility contract retained only for the pre-SDL_GPU ECS API.
+// New rendering code must use IRenderDevice/IRender2DContext/Renderer2D;
+// this interface is not implemented by the SDL_GPU backend.
+
 #include <cstdint>
 
 #include <Algorithm/Vector/Vec2.hpp>
+#include <Backend/Contracts/Render/RenderTypes.hpp>
 
 namespace atom::render {
-
-struct Color {
-        uint8_t r = 0, g = 0, b = 0, a = 255;
-        static constexpr Color Black() {
-            return {0, 0, 0};
-        }
-        static constexpr Color White() {
-            return {255, 255, 255};
-        }
-        static constexpr Color Red() {
-            return {255, 0, 0};
-        }
-        static constexpr Color Green() {
-            return {0, 255, 0};
-        }
-        static constexpr Color Blue() {
-            return {0, 0, 255};
-        }
-};
-
-struct Rect {
-        float x = 0, y = 0, w = 0, h = 0;
-};
 
 class ITexture; // atom::render::ITexture
 

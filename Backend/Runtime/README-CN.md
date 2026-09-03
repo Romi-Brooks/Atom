@@ -90,8 +90,8 @@ Audio Playback Backend:
 - sdl3（默认）
 
 Default Decoders（BackendRuntime::RegisterDefaultAudioDecoders）:
-- .wav → WavProfDecoder（Backend/Builtin/Audio/Decoder/WavProf）
-- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Builtin/Audio/Decoder/minimp3）
+- .wav → WavProfDecoder（Backend/Audio/Decoder/WavProf）
+- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Audio/Decoder/minimp3）
 ```
 
 只有一个播放后端时，重复设置 `sdl3` 不触发清理或重建。新增第二个播放后端后，同一套全局切换协议无需修改 Player。

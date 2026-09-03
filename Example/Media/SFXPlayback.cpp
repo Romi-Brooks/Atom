@@ -66,8 +66,8 @@ class SFXDebugger final : public atom::Debugger {
 
 class SFXScreen final : public atom::Screen {
     public:
-        auto Render(atom::render::IRenderTarget& target) -> void override {
-            target.Clear(atom::render::Color{30, 30, 60});
+        auto Render(atom::render::IRenderDevice& device) -> void override {
+            device.Clear(atom::render::Color{30, 30, 60});
         }
 
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {

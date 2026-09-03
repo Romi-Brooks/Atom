@@ -4,8 +4,8 @@
 #include <cctype>
 #include <stdexcept>
 
-#include <Backend/Builtin/Audio/Decoder/minimp3/Minimp3Decoder.hpp>
-#include <Backend/Builtin/Audio/Decoder/WavProf/WavProfDecoder.hpp>
+#include <Backend/Audio/Decoder/minimp3/Minimp3Decoder.hpp>
+#include <Backend/Audio/Decoder/WavProf/WavProfDecoder.hpp>
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Backend/Runtime/IAudioBackendChangeListener.hpp>
 #include <Backend/SDL3/Audio/SDL3AudioBackend.hpp>
@@ -51,8 +51,8 @@ auto BackendRuntime::RegisterAvailableBackends() -> void {
 auto BackendRuntime::RegisterDefaultAudioDecoders(audio::AudioDecoderRegistry& decoders) -> void {
     // SDL3 itself provides no audio codecs; the engine ships one decoder per
     // format. Add new formats here as they are implemented.
-    decoders.Register(".wav", [] { return std::make_unique<builtin::audio::WavProfDecoder>(); });
-    decoders.Register(".mp3", [] { return std::make_unique<builtin::audio::Minimp3Decoder>(); });
+    decoders.Register(".wav", [] { return std::make_unique<audio_decoder::WavProfDecoder>(); });
+    decoders.Register(".mp3", [] { return std::make_unique<audio_decoder::Minimp3Decoder>(); });
 }
 
 auto BackendRuntime::Audio() -> audio::IAudioBackend& {

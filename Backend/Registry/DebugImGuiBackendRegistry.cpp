@@ -5,7 +5,8 @@
 #include <utility>
 
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
-#include <Backend/Contracts/Render/IRenderWindow.hpp>
+#include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Backend/Contracts/Window/IWindow.hpp>
 
 namespace atom::debugger {
 
@@ -27,10 +28,10 @@ auto DebugImGuiBackendRegistry::Register(const std::string_view renderBackendId,
     return debug_backends_.emplace(NormalizeId(renderBackendId), std::move(factory)).second;
 }
 
-auto DebugImGuiBackendRegistry::Create(const std::string_view renderBackendId, window::IRenderWindow& window) const
-    -> std::unique_ptr<IDebugImGuiBackend> {
+auto DebugImGuiBackendRegistry::Create(const std::string_view renderBackendId, window::IWindow& window,
+                                       render::IRenderDevice& device) const -> std::unique_ptr<IDebugImGuiBackend> {
     const auto it = debug_backends_.find(NormalizeId(renderBackendId));
-    return it == debug_backends_.end() ? nullptr : it->second(window);
+    return it == debug_backends_.end() ? nullptr : it->second(window, device);
 }
 
 auto DebugImGuiBackendRegistry::Contains(const std::string_view renderBackendId) const -> bool {

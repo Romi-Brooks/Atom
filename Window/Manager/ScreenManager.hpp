@@ -39,7 +39,7 @@ class ScreenManager {
         auto PushScreen(const std::string& name) -> void;
         auto PopScreen() -> void;
 
-        auto Render(atom::render::IRenderTarget& target) const -> void;
+        auto Render(atom::render::IRenderDevice& device) const -> void;
         auto HandleEvent(const atom::window::IEvent& event) const -> void;
         auto Update(float deltaTime) const -> void;
 

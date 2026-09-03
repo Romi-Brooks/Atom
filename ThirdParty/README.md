@@ -1,8 +1,10 @@
 # Third-Party Dependencies
 
-Atom tracks third-party source code as pinned Git submodules. CMake builds these
-dependencies through [`ThirdParty/CMakeLists.txt`](CMakeLists.txt) with the same
-toolchain used for the engine.
+Atom tracks most third-party source code as pinned Git submodules. Small
+single-header dependencies may be vendored with their version, provenance,
+license and integrity hashes recorded in their own directory. CMake exposes
+all dependencies through [`ThirdParty/CMakeLists.txt`](CMakeLists.txt) with the
+same toolchain used for the engine.
 
 When an upstream project hardcodes a non-Atom target name, Atom creates a
 CMake-only copy under the build directory and renames the target there. The
@@ -17,6 +19,7 @@ pinned submodule remains untouched; see `TargetOverlay.cmake`.
 | utfcpp | `Atom_3rd_UtfCpp` | UTF-8 validation and conversion | `https://github.com/nemtrif/utfcpp.git` | `f9319195dfddf369f68f18e7c0039b3f351797fd` (`v4.0.8`) |
 | minimp3 | `Atom_3rd_Minimp3` | MP3 decoding | `https://github.com/lieff/minimp3.git` | `ea99364f61c14656440e8d77e9c233ccf3124633` |
 | Yoga | `Atom_3rd_Yoga` | Flexbox-compatible UI layout calculation | `https://github.com/facebook/yoga.git` | `042f5013152eb81c1552dec945b88f7b95ca350f` (`v3.2.1`) |
+| stb | `Atom_3rd_Stb` | Image decoding and trusted font rasterization | vendored from `https://github.com/nothings/stb` | `stb_image` v2.30, `stb_truetype` v1.26; see [`stb/README.md`](stb/README.md) |
 
 Initialize the versions locked by Atom:
 

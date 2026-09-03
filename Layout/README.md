@@ -7,6 +7,27 @@ replaced without changing render backends or UI components.
 
 ## Usage
 
+For application/UI code, prefer `LayoutTree`. It owns the nodes and exposes
+stable IDs, so callers do not need to keep a parallel collection of
+`LayoutNode` objects or manually maintain parent lifetimes:
+
+```cpp
+atom::layout::LayoutTree tree;
+const auto root = tree.Root();
+const auto content = tree.CreateNode();
+tree.Append(root, content);
+
+auto style = atom::layout::LayoutStyle{};
+style.flex_grow = 1.0f;
+tree.SetStyle(content, style);
+tree.Calculate(1280.0f, 720.0f);
+const auto bounds = tree.GetLayout(content);
+```
+
+`LayoutNode` remains available for low-level integrations and custom measure
+callbacks. New UI code should use the tree facade unless it needs direct Yoga
+node ownership.
+
 ```cpp
 atom::layout::LayoutConfig config;
 atom::layout::LayoutNode root{config};

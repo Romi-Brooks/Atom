@@ -11,33 +11,33 @@ This document lists the algorithms, theorems, and data structures that the Atom 
 | # | Name | Description | Status |
 |---|------|-------------|--------|
 | 1.1.1 | **Vec2** | 2D vector (x, y). Addition, subtraction, dot product, cross product (scalar), normalization, length, length squared, lerp, reflection, rotation by angle. | ✅ Done |
-| 1.1.2 | **Vec3** | Basic 3D vector storage with construction and component getters/setters. Arithmetic, normalization and other vector operations are still pending. | 🟡 Basic type done |
-| 1.1.3 | **Vec4** | 4D vector (x, y, z, w) — for homogeneous coordinates and color (RGBA) operations. | ❌ TODO |
+| 1.1.2 | **Vec3** | 3D vector arithmetic, dot/cross, normalization, distance and interpolation. | ✅ Done |
+| 1.1.3 | **Vec4** | 4D vector arithmetic for homogeneous coordinates and shader data. | ✅ Done |
 
 ### 1.2 Matrices
 
 | # | Name | Description | Status |
 |---|------|-------------|--------|
-| 1.2.1 | **Mat3x3** | 3×3 matrix for 2D affine transformations (translation, rotation, scale, shear). Composition, inversion, determinant. | ❌ TODO |
-| 1.2.2 | **Mat4x4** | 4×4 matrix for 3D transforms (camera, projection). Needed if shader-based rendering is used. | ❌ TODO |
+| 1.2.1 | **Mat3x3** | Column-major 3×3 matrix for 2D translation, rotation, scale, composition and inversion. | ✅ Core done |
+| 1.2.2 | **Mat4x4** | Column-major 4×4 matrix with transforms, look-at and SDL_GPU-compatible projections. | ✅ Core done |
 
 ### 1.3 Geometry Primitives
 
 | # | Name | Description | Status |
 |---|------|-------------|--------|
-| 1.3.1 | **Rect** | Axis-aligned rectangle (x, y, w, h) or (min, max). Contains point, intersects, union, inset, expand. | ❌ TODO |
-| 1.3.2 | **Circle** | Circle (center, radius). Contains point, intersects line/rect/circle. | ❌ TODO |
-| 1.3.3 | **Line / Ray** | Line segment (p0, p1) and ray (origin, direction). Closest point, intersection tests. | ❌ TODO |
+| 1.3.1 | **Rect** | `Rect2` min/max representation with size, center, point containment and overlap. | 🟡 Core done |
+| 1.3.2 | **Circle** | `Circle2` with point containment and circle overlap. | 🟡 Core done |
+| 1.3.3 | **Line / Ray** | `Ray3` origin/direction and point evaluation; intersection tests remain. | 🟡 Basic done |
 | 1.3.4 | **Polygon** | Convex/concave polygon (vertex array). Area (shoelace formula), centroid, contains point (ray casting), triangulation (ear clipping). | ❌ TODO |
-| 1.3.5 | **AABB** / **OBB** | Axis-aligned bounding box and oriented bounding box. Overlap tests, containment. | ❌ TODO |
+| 1.3.5 | **AABB** / **OBB** | `AABB3` containment/overlap is available; OBB remains. | 🟡 AABB done |
 
 ### 1.4 Interpolation & Curves
 
 | # | Name | Description | Status |
 |---|------|-------------|--------|
-| 1.4.1 | **Lerp** | Linear interpolation: `a + t * (b - a)` for float, Vec2, color. | ❌ TODO |
-| 1.4.2 | **Inverse Lerp** | Inverse: returns `t` from value `v` between `a` and `b`. | ❌ TODO |
-| 1.4.3 | **SmoothStep** | Hermite interpolation: `t * t * (3 - 2 * t)`. | ❌ TODO |
+| 1.4.1 | **Lerp** | Linear interpolation for scalar, Vec2 and Vec3. | ✅ Done |
+| 1.4.2 | **Inverse Lerp** | Safe scalar inverse interpolation. | ✅ Done |
+| 1.4.3 | **SmoothStep** | Clamped Hermite interpolation. | ✅ Done |
 | 1.4.4 | **Bezier Curve** | Quadratic and cubic Bézier curves. Point evaluation, tangent at t. | ❌ TODO |
 | 1.4.5 | **Catmull-Rom Spline** | Spline through control points. Useful for camera paths, animation curves. | ❌ TODO |
 | 1.4.6 | **Easing Functions** | Common easing curves (ease-in, ease-out, ease-in-out) for sine, quad, cubic, quart, quint, expo, elastic, bounce, back. | ❌ TODO |
@@ -46,8 +46,10 @@ This document lists the algorithms, theorems, and data structures that the Atom 
 
 | # | Name | Description | Status |
 |---|------|-------------|--------|
-| 1.5.1 | **Transform2D** | Composition of position, rotation, scale, pivot. Produces a Mat3x3. Parent-child hierarchy (scene graph node). | ❌ TODO |
-| 1.5.2 | **Coordinate Conversion** | World ↔ Screen ↔ UI coordinate conversions. | ❌ TODO |
+| 1.5.1 | **Transform2D** | Position/rotation/scale/pivot composition to Mat3; hierarchy remains a scene-layer concern. | ✅ Core done |
+| 1.5.2 | **Coordinate Conversion** | Camera2D world ↔ screen conversion is available; UI scaling policy remains. | 🟡 Core done |
+| 1.5.3 | **Transform3D** | Position/Euler rotation/scale composition to Mat4. | ✅ Core done |
+| 1.5.4 | **Camera2D / Camera3D** | 2D world/screen conversion and 3D view/projection composition. | ✅ Core done |
 
 ---
 
@@ -140,6 +142,10 @@ P2 (Advanced Features - Do third):
 ---
 
 ## Notes
+
+- Matrix storage is column-major and matrices multiply column vectors.
+- The 3D convention is left-handed with normalized device depth `[0, 1]`, matching SDL_GPU.
+- Angles passed to math and transform APIs are radians; use `ToRadians`/`ToDegrees` at boundaries.
 
 - All algorithms should be **generic** (templates where appropriate) and **header-only** where possible.
 - Use SIMD intrinsics (SSE/NEON) for hot paths: Mat3x3×Vec2, AABB overlap, color blending.

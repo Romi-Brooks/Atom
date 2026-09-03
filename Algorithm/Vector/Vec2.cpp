@@ -1,31 +1,29 @@
-/**
-	* @file           : Vec2.cpp
-	* @author         : Romi Brooks
-	* @brief          : Vec2 implementation
-	* @attention      :
-	* @date           : 2026/6/6
-	Copyright (c) 2026 Romi Brooks, All rights reserved.
-**/
-
-// Self Dependencies
 #include "Vec2.hpp"
 
 namespace atom::algo {
 
-auto Vec2::GetX() const -> float {
-    return x_;
+auto Vec2::Normalized(const float epsilon) const -> Vec2 {
+    const float length = Length();
+    return length <= epsilon ? Zero() : *this / length;
 }
 
-auto Vec2::GetY() const -> float {
-    return y_;
+auto Vec2::Normalize(const float epsilon) -> bool {
+    const float length = Length();
+    if (length <= epsilon)
+        return false;
+    *this /= length;
+    return true;
 }
 
-auto Vec2::SetX(const float x) -> void {
-    x_ = x;
+auto Vec2::Rotated(const float radians) const -> Vec2 {
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+    return {x_ * cosine - y_ * sine, x_ * sine + y_ * cosine};
 }
 
-auto Vec2::SetY(const float y) -> void {
-    y_ = y;
+auto Vec2::Reflected(const Vec2& normal) const -> Vec2 {
+    const Vec2 unit_normal = normal.Normalized();
+    return *this - 2.0f * Dot(unit_normal) * unit_normal;
 }
 
 } // namespace atom::algo

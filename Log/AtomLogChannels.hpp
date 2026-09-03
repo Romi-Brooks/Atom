@@ -39,6 +39,12 @@ ATOM_DEFINE_CHANNELS(atom::layout, LogChannel, "Atom.Layout.", (CORE, "Core"))
 // Level-2
 ATOM_DEFINE_CHANNELS(atom::debugger, LogChannel, "Atom.Debugger.", (IMGUI, "ImGui"))
 
+// Level-2
+ATOM_DEFINE_CHANNELS(atom::render, LogChannel, "Atom.Render.", (RENDERER2D, "Renderer2D"))
+
+// Level-2
+ATOM_DEFINE_CHANNELS(atom::image, LogChannel, "Atom.Image.", (DECODER, "Decoder"))
+
 // Level-3
 ATOM_DEFINE_CHANNELS(atom::backend::sdl3, LogChannel, "Atom.SDL3.Backend.", (AUDIO, "Audio"), (VIDEO, "Video"),
                      (RENDER, "Render"), (WINDOW, "Window"))
