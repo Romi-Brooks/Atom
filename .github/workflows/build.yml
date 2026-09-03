@@ -20,8 +20,29 @@ jobs:
         with:
           submodules: true
 
+      - name: Install Vulkan SDK shader tools
+        uses: humbletim/install-vulkan-sdk@30ba978f977e81b72d091fc8888feb1fb26f9aff # v1.2
+        with:
+          # Pin the SDK used by CI so shader compiler behavior is reproducible.
+          # The SDK provides glslc, spirv-val, spirv-cross and dxc.
+          version: 1.4.309.0
+          cache: true
+
+      - name: Verify shader tools
+        shell: pwsh
+        run: |
+          foreach ($tool in @("glslc", "spirv-val", "spirv-cross", "dxc")) {
+            if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+              throw "Required shader tool not found on PATH: $tool"
+            }
+          }
+
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        shell: pwsh
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DATOM_DXC_ROOT="$env:VULKAN_SDK"
 
       - name: Build
         run: cmake --build build --parallel
