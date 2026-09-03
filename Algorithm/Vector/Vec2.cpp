@@ -10,7 +10,8 @@
 // Self Dependencies
 #include "Vec2.hpp"
 
-namespace atom {
+namespace atom::algo {
+
 auto Vec2::GetX() const -> float {
     return x_;
 }
@@ -27,4 +28,4 @@ auto Vec2::SetY(const float y) -> void {
     y_ = y;
 }
 
-} // namespace atom
+} // namespace atom::algo

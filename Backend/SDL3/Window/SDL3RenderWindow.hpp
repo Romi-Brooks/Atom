@@ -10,70 +10,78 @@
 #include <memory>
 #include <functional>
 
-namespace atom {
+namespace atom::backend::sdl3 {
 
-class SDL3RenderWindow : public IRenderWindow, public ISDL3WindowExtensions {
-public:
-    SDL3RenderWindow() = default;
-    ~SDL3RenderWindow() override;
+class SDL3RenderWindow : public window::IRenderWindow, public ISDL3WindowExtensions {
+    public:
+        SDL3RenderWindow() = default;
+        ~SDL3RenderWindow() override;
 
-    SDL3RenderWindow(const SDL3RenderWindow&) = delete;
-    auto operator=(const SDL3RenderWindow&) -> SDL3RenderWindow& = delete;
+        SDL3RenderWindow(const SDL3RenderWindow&) = delete;
+        auto operator=(const SDL3RenderWindow&) -> SDL3RenderWindow& = delete;
 
-    // IRenderWindow
-    auto Initialize(const std::string& title, Vec2 resolution) -> void override;
-    [[nodiscard]] auto IsOpen() const -> bool override;
-    auto Shutdown() -> void override;
-    [[nodiscard]] auto PollEvent() -> std::optional<IEvent> override;
-    auto SetFPS(uint32_t fps) -> void override;
-    [[nodiscard]] auto GetFPS() const -> uint32_t override;
-    auto SetRawEventHook(std::function<void(const void*)> hook) -> void override;
-    auto HandleResize(uint32_t width, uint32_t height) -> void override;
+        // IRenderWindow
+        auto Initialize(const std::string& title, algo::Vec2 resolution) -> void override;
+        [[nodiscard]] auto IsOpen() const -> bool override;
+        auto Shutdown() -> void override;
+        [[nodiscard]] auto PollEvent() -> std::optional<window::IEvent> override;
+        auto SetFPS(uint32_t fps) -> void override;
+        [[nodiscard]] auto GetFPS() const -> uint32_t override;
+        [[nodiscard]] auto GetTimeSeconds() const -> double override;
+        auto WaitForNextFrame() -> void override;
+        auto SetVSync(bool enabled) -> bool override;
+        [[nodiscard]] auto IsVSyncEnabled() const -> bool override;
+        auto SetRawEventHook(std::function<void(const void*)> hook) -> void override;
+        auto HandleResize(uint32_t width, uint32_t height) -> void override;
 
-    // IRenderTarget
-    auto Clear(const Color& color) -> void override;
-    auto Display() -> void override;
-    [[nodiscard]] auto GetSize() const -> Vec2 override;
-    auto SetViewport(const Rect& viewport) -> void override;
-    [[nodiscard]] auto GetViewport() const -> Rect override;
+        // IRenderTarget
+        auto Clear(const render::Color& color) -> void override;
+        auto Display() -> void override;
+        [[nodiscard]] auto GetSize() const -> algo::Vec2 override;
+        auto SetViewport(const render::Rect& viewport) -> void override;
+        [[nodiscard]] auto GetViewport() const -> render::Rect override;
 
-    // Drawing (IRenderTarget)
-    auto DrawTexture(ITexture& texture, float x, float y) -> void override;
-    auto DrawCircle(float cx, float cy, float radius, const Color& color) -> void override;
-    auto DrawRect(float x, float y, float w, float h, const Color& color) -> void override;
+        // Drawing (IRenderTarget)
+        auto DrawTexture(render::ITexture& texture, float x, float y) -> void override;
+        auto DrawCircle(float cx, float cy, float radius, const render::Color& color) -> void override;
+        auto DrawRect(float x, float y, float w, float h, const render::Color& color) -> void override;
 
-    // ISDL3WindowExtensions (native handles only via backend extension)
-    [[nodiscard]] auto GetNativeWindow() const -> SDL_Window* override;
-    [[nodiscard]] auto GetNativeRenderer() const -> SDL_Renderer* override;
+        // ISDL3WindowExtensions (native handles only via backend extension)
+        [[nodiscard]] auto GetNativeWindow() const -> SDL_Window* override;
+        [[nodiscard]] auto GetNativeRenderer() const -> SDL_Renderer* override;
 
-private:
-    // Set through SetRawEventHook(); invoked with &ev inside PollEvent()
-    // before translation (platform adapters / ImGui only).
-    std::function<void(const void*)> raw_event_hook_;
-    SDL_Window* window_ = nullptr;
-    SDL_Renderer* renderer_ = nullptr;
-    uint32_t fps_limit_ = 60;
-    bool open_ = false;
-    SDLSubsystemLease video_runtime_;
-    SDLSubsystemLease events_runtime_;
+    private:
+        // Set through SetRawEventHook(); invoked with &ev inside PollEvent()
+        // before translation (platform adapters / ImGui only).
+        std::function<void(const void*)> raw_event_hook_;
+        SDL_Window* window_ = nullptr;
+        SDL_Renderer* renderer_ = nullptr;
+        uint32_t fps_limit_ = 60;
+        uint64_t performance_frequency_ = 0;
+        uint64_t next_frame_counter_ = 0;
+        bool vsync_enabled_ = false;
+        bool present_error_reported_ = false;
+        bool open_ = false;
+        SDLSubsystemLease video_runtime_;
+        SDLSubsystemLease events_runtime_;
 
-    // Circle texture cache — avoids regenerating identical circles.
-    struct CircleKey {
-        float radius;
-        Color color;
-    };
-    struct CircleHash {
-        auto operator()(const CircleKey& k) const -> std::size_t;
-    };
-    friend auto operator==(const CircleKey& a, const CircleKey& b) -> bool {
-        return a.radius == b.radius && a.color.r == b.color.r && a.color.g == b.color.g && a.color.b == b.color.b &&
-               a.color.a == b.color.a;
-    }
-    std::unordered_map<CircleKey, SDL_Texture*, CircleHash> circle_cache_;
+        // Circle texture cache — avoids regenerating identical circles.
+        struct CircleKey {
+                float radius;
+                render::Color color;
+        };
+        struct CircleHash {
+                auto operator()(const CircleKey& k) const -> std::size_t;
+        };
+        friend auto operator==(const CircleKey& a, const CircleKey& b) -> bool {
+            return a.radius == b.radius && a.color.r == b.color.r && a.color.g == b.color.g && a.color.b == b.color.b &&
+                   a.color.a == b.color.a;
+        }
+        std::unordered_map<CircleKey, SDL_Texture*, CircleHash> circle_cache_;
 
-    auto GetOrCreateCircleTexture(float radius, const Color& color) -> SDL_Texture*;
+        auto GetOrCreateCircleTexture(float radius, const render::Color& color) -> SDL_Texture*;
 };
 
-} // namespace atom
+} // namespace atom::backend::sdl3
 
 #endif // ATOM_SDL3_RENDER_WINDOW_HPP

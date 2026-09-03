@@ -6,7 +6,7 @@
 #include <Backend/SDL3/Debug/SDL3DebugImGuiBackend.hpp>
 #include <Backend/SDL3/Window/SDL3RenderWindow.hpp>
 
-namespace atom {
+namespace atom::backend {
 
 auto RenderBackendRuntime::GetInstance() -> RenderBackendRuntime& {
     static RenderBackendRuntime instance;
@@ -18,15 +18,15 @@ auto RenderBackendRuntime::EnsureDefaultRenderBackend() -> void {
 
     auto& registry = RenderBackendRegistry::GetInstance();
     if (!registry.ContainsWindowBackend(id)) {
-        registry.RegisterWindowFactory(id, [] { return std::make_unique<SDL3RenderWindow>(); });
+        registry.RegisterWindowFactory(id, [] { return std::make_unique<sdl3::SDL3RenderWindow>(); });
     }
 
     // The debug overlay (ImGui) backend belongs to the same render backend
     // bundle, so it is registered here as well (idempotent).
-    auto& debugRegistry = DebugImGuiBackendRegistry::GetInstance();
+    auto& debugRegistry = debugger::DebugImGuiBackendRegistry::GetInstance();
     if (!debugRegistry.Contains(id)) {
-        debugRegistry.Register(id, [](IRenderWindow& window) { return atom::CreateDebugImGuiBackend(window); });
+        debugRegistry.Register(id, [](window::IRenderWindow& window) { return sdl3::CreateDebugImGuiBackend(window); });
     }
 }
 
-} // namespace atom
+} // namespace atom::backend

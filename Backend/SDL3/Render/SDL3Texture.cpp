@@ -2,7 +2,7 @@
 
 #include <SDL3/SDL.h>
 
-namespace atom {
+namespace atom::backend::sdl3 {
 
 SDL3Texture::SDL3Texture(SDL_Renderer* renderer) : renderer_(renderer) {}
 
@@ -47,8 +47,8 @@ auto SDL3Texture::Update(const uint8_t* pixels, uint32_t width, uint32_t height)
     return SDL_UpdateTexture(texture_, nullptr, pixels, pitch);
 }
 
-auto SDL3Texture::GetSize() const -> Vec2 {
+auto SDL3Texture::GetSize() const -> algo::Vec2 {
     return size_;
 }
 
-} // namespace atom
+} // namespace atom::backend::sdl3

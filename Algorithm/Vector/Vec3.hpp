@@ -10,25 +10,27 @@
 #ifndef ATOM_VEC3_HPP
 #define ATOM_VEC3_HPP
 
-namespace atom {
+namespace atom::algo {
+
 class Vec3 {
-private:
-    float x_ = 0;
-    float y_ = 0;
-    float z_ = 0;
+    private:
+        float x_ = 0;
+        float y_ = 0;
+        float z_ = 0;
 
-public:
-    Vec3() = default;
-    Vec3(const float x, const float y, const float z) : x_(x), y_(y), z_(z) {}
+    public:
+        Vec3() = default;
+        Vec3(const float x, const float y, const float z) : x_(x), y_(y), z_(z) {}
 
-    [[nodiscard]] auto GetX() const -> float;
-    [[nodiscard]] auto GetY() const -> float;
-    [[nodiscard]] auto GetZ() const -> float;
+        [[nodiscard]] auto GetX() const -> float;
+        [[nodiscard]] auto GetY() const -> float;
+        [[nodiscard]] auto GetZ() const -> float;
 
-    auto SetX(float x) -> void;
-    auto SetY(float y) -> void;
-    auto SetZ(float z) -> void;
+        auto SetX(float x) -> void;
+        auto SetY(float y) -> void;
+        auto SetZ(float z) -> void;
 };
-} // namespace atom
+
+} // namespace atom::algo
 
 #endif // ATOM_VEC3_HPP

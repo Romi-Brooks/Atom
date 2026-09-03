@@ -6,7 +6,7 @@
 
 #include <Backend/Contracts/Render/IRenderWindow.hpp>
 
-namespace atom {
+namespace atom::backend {
 
 auto RenderBackendRegistry::GetInstance() -> RenderBackendRegistry& {
     static RenderBackendRegistry instance;
@@ -26,7 +26,7 @@ auto RenderBackendRegistry::RegisterWindowFactory(const std::string_view id, Win
     return window_backends_.emplace(NormalizeId(id), std::move(factory)).second;
 }
 
-auto RenderBackendRegistry::CreateWindow(const std::string_view id) const -> std::unique_ptr<IRenderWindow> {
+auto RenderBackendRegistry::CreateWindow(const std::string_view id) const -> std::unique_ptr<window::IRenderWindow> {
     const auto it = window_backends_.find(NormalizeId(id));
     return it == window_backends_.end() ? nullptr : it->second();
 }
@@ -35,4 +35,4 @@ auto RenderBackendRegistry::ContainsWindowBackend(const std::string_view id) con
     return window_backends_.contains(NormalizeId(id));
 }
 
-} // namespace atom
+} // namespace atom::backend

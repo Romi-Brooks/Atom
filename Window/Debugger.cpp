@@ -36,7 +36,8 @@ auto Debugger::Attach(RenderWindow& window) -> void {
     // Select the ImGui backend through the contract registry (registered by
     // the runtime layer for the window's backend id). No SDL3/ImGui types
     // appear in this file: all coupling lives in Backend/SDL3/Debug/.
-    imgui_backend_ = DebugImGuiBackendRegistry::GetInstance().Create(window.GetBackendId(), *renderWindow);
+    imgui_backend_ =
+        atom::debugger::DebugImGuiBackendRegistry::GetInstance().Create(window.GetBackendId(), *renderWindow);
     if (!imgui_backend_ || !imgui_backend_->Initialize()) {
         imgui_backend_.reset();
         target_window_ = nullptr;
@@ -46,9 +47,8 @@ auto Debugger::Attach(RenderWindow& window) -> void {
     // Register listeners with RAII connections. Each connection removes only
     // this debugger's own listener on destruction / Detach(); other listeners
     // (other debuggers, user overlays) are never touched.
-    raw_event_connection_ = std::make_unique<ListenerConnection>(window.AddRawEventListener([this](const void* rawEvent) {
-        imgui_backend_->ProcessRawEvent(rawEvent);
-    }));
+    raw_event_connection_ = std::make_unique<ListenerConnection>(
+        window.AddRawEventListener([this](const void* rawEvent) { imgui_backend_->ProcessRawEvent(rawEvent); }));
 
     update_connection_ = std::make_unique<ListenerConnection>(window.AddUpdateListener([this](float deltaTime) {
         imgui_backend_->NewFrame();

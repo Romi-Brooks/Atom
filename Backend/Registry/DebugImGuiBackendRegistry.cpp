@@ -7,7 +7,7 @@
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
 #include <Backend/Contracts/Render/IRenderWindow.hpp>
 
-namespace atom {
+namespace atom::debugger {
 
 auto DebugImGuiBackendRegistry::GetInstance() -> DebugImGuiBackendRegistry& {
     static DebugImGuiBackendRegistry instance;
@@ -27,7 +27,7 @@ auto DebugImGuiBackendRegistry::Register(const std::string_view renderBackendId,
     return debug_backends_.emplace(NormalizeId(renderBackendId), std::move(factory)).second;
 }
 
-auto DebugImGuiBackendRegistry::Create(const std::string_view renderBackendId, IRenderWindow& window) const
+auto DebugImGuiBackendRegistry::Create(const std::string_view renderBackendId, window::IRenderWindow& window) const
     -> std::unique_ptr<IDebugImGuiBackend> {
     const auto it = debug_backends_.find(NormalizeId(renderBackendId));
     return it == debug_backends_.end() ? nullptr : it->second(window);
@@ -37,4 +37,4 @@ auto DebugImGuiBackendRegistry::Contains(const std::string_view renderBackendId)
     return debug_backends_.contains(NormalizeId(renderBackendId));
 }
 
-} // namespace atom
+} // namespace atom::debugger

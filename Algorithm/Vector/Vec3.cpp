@@ -9,7 +9,8 @@
 
 #include "Vec3.hpp"
 
-namespace atom {
+namespace atom::algo {
+
 auto Vec3::GetX() const -> float {
     return x_;
 }
@@ -33,4 +34,5 @@ auto Vec3::SetY(const float y) -> void {
 auto Vec3::SetZ(const float z) -> void {
     z_ = z;
 }
-} // namespace atom
+
+} // namespace atom::algo
