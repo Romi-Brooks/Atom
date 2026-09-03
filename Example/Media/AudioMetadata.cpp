@@ -20,24 +20,22 @@
 namespace {
 constexpr const char* kSampleFiles[] = {
     // replace it
-    R"(E:\Music\我的歌声里 - 曲婉婷.mp3)",
-    R"(E:\Music\YOASOBI - 夜に駆ける.mp3)",
-    R"(E:\Music\Doja Cat - Say So.flac)",
-    R"(E:\Music\Glorb - LOIS.mp3)",
+    R"(E:\Music\我的歌声里 - 曲婉婷.mp3)", R"(E:\Music\滴滴 - 覆予.mp3)",  R"(E:\Music\YOASOBI - 夜に駆ける.mp3)",
+    R"(E:\Music\Doja Cat - Say So.flac)",  R"(E:\Music\Glorb - LOIS.mp3)",
 };
 } // namespace
 
 auto main() -> int {
-    #ifdef _WIN32
+#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
-    #endif // _WIN32
+#endif // _WIN32
 
     for (const auto* path : kSampleFiles) {
         std::cout << "========================================" << std::endl;
         std::cout << path << std::endl;
         std::cout << "========================================" << std::endl;
 
-        const auto meta = atom::AudioMetadataReader::Read(path);
+        const auto meta = atom::audio::AudioMetadataReader::Read(path);
         if (!meta) {
             std::cout << "(no metadata)" << std::endl << std::endl;
             continue;
@@ -51,6 +49,11 @@ auto main() -> int {
         std::cout << "Track:    " << meta->track << std::endl;
         std::cout << "Duration: " << meta->durationSeconds << "s, " << meta->bitrateKbps << " kbps, "
                   << meta->sampleRate << " Hz, " << meta->channels << " ch" << std::endl;
+        std::cout << "Artwork:  "
+                  << (meta->artworkData.empty()
+                          ? "none"
+                          : meta->artworkMimeType + ", " + std::to_string(meta->artworkData.size()) + " bytes")
+                  << std::endl;
         std::cout << std::endl;
     }
 

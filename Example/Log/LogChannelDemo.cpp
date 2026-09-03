@@ -5,7 +5,7 @@
   *                   across domains; per-domain enumeration + level filtering):
   *                   - Level-1 domain: atom::core::LogChannel (prefix "Atom.")
   *                   - Level-2 domains: atom::audio / atom::entity
-  *                   - Level-3 domain: atom::backend::sdl
+  *                   - Level-3 domain: atom::backend::sdl3
   *                   - Game domain: game::GameLogChannel (prefix "Game."),
   *                     nested game::npc (Level-2) and game::npc::ai (Level-3)
   *                   - Ad-hoc string channels, per-domain enumeration,
@@ -28,8 +28,7 @@
 
 namespace {
 // Print every channel of a domain: "prefix + shortName"
-template <typename TChannel>
-auto PrintAllChannels(const char* title) -> void {
+template <typename TChannel> auto PrintAllChannels(const char* title) -> void {
     std::cout << "  " << title << ":" << std::endl;
     for (std::size_t i = 0; i < static_cast<std::size_t>(TChannel::COUNT); ++i) {
         const auto channel = static_cast<TChannel>(i);
@@ -39,9 +38,9 @@ auto PrintAllChannels(const char* title) -> void {
 } // namespace
 
 auto main() -> int {
-    #ifdef _WIN32
+#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
-    #endif // _WIN32
+#endif // _WIN32
 
     // Set the log level first
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
@@ -55,8 +54,8 @@ auto main() -> int {
     std::cout << "===== Level-2 domain: atom::entity::LogChannel =====" << std::endl;
     LOG_ERROR(atom::entity::LogChannel::PLAYER, "Player save failed");
 
-    std::cout << "===== Level-3 domain: atom::backend::sdl::LogChannel =====" << std::endl;
-    LOG_DEBUG(atom::backend::sdl::LogChannel::RENDER, "SDL renderer created");
+    std::cout << "===== Level-3 domain: atom::backend::sdl3::LogChannel =====" << std::endl;
+    LOG_DEBUG(atom::backend::sdl3::LogChannel::RENDER, "SDL renderer created");
 
     std::cout << "===== Game domain: game::GameLogChannel =====" << std::endl;
     LOG_INFO(game::GameLogChannel::GAME_NPC, "NPC spawned");
@@ -73,7 +72,7 @@ auto main() -> int {
     PrintAllChannels<atom::core::LogChannel>("all atom::core channels");
     PrintAllChannels<atom::audio::LogChannel>("all atom::audio channels");
     PrintAllChannels<atom::entity::LogChannel>("all atom::entity channels");
-    PrintAllChannels<atom::backend::sdl::LogChannel>("all atom::backend::sdl channels");
+    PrintAllChannels<atom::backend::sdl3::LogChannel>("all atom::backend::sdl3 channels");
     PrintAllChannels<game::GameLogChannel>("all game channels");
     PrintAllChannels<game::npc::LogChannel>("all game::npc channels");
     PrintAllChannels<game::npc::ai::LogChannel>("all game::npc::ai channels");

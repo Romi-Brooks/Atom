@@ -16,34 +16,41 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
-namespace atom {
+namespace atom::audio {
 
 // Audio file metadata: tag fields plus basic audio properties.
 struct AudioMetadata {
-    // Tag fields
-    std::string title;
-    std::string artist;
-    std::string album;
-    std::string comment;
-    std::string genre;
-    uint32_t year = 0;
-    uint32_t track = 0;
+        // Tag fields
+        std::string title;
+        std::string artist;
+        std::string album;
+        std::string comment;
+        std::string genre;
+        uint32_t year = 0;
+        uint32_t track = 0;
 
-    // Audio properties (0 when unavailable)
-    uint32_t durationSeconds = 0;
-    uint32_t bitrateKbps = 0;
-    uint32_t sampleRate = 0;
-    uint16_t channels = 0;
+        // Audio properties (0 when unavailable)
+        uint32_t durationSeconds = 0;
+        uint32_t bitrateKbps = 0;
+        uint32_t sampleRate = 0;
+        uint16_t channels = 0;
+
+        // First embedded artwork image (usually the front cover). Empty when the
+        // file carries no image. Encoded bytes are preserved so rendering backends
+        // can decode PNG, JPEG, or another advertised MIME type as appropriate.
+        std::string artworkMimeType;
+        std::vector<uint8_t> artworkData;
 };
 
 // Reads tag and property metadata from an audio file.
 // Returns nullopt when the file cannot be read or carries no tags.
 class AudioMetadataReader {
-public:
-    static auto Read(const std::string& path) -> std::optional<AudioMetadata>;
+    public:
+        static auto Read(const std::string& path) -> std::optional<AudioMetadata>;
 };
 
-} // namespace atom
+} // namespace atom::audio
 
 #endif // ATOM_AUDIO_METADATA_READER_HPP

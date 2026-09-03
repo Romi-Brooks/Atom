@@ -66,16 +66,16 @@ auto ScreenManager::PopScreen() -> void {
     LOG_INFO(atom::core::LogChannel::SCREEN_MANAGER, "Popped all screen: ");
 }
 
-auto ScreenManager::Render(IRenderTarget& target) const -> void {
+auto ScreenManager::Render(atom::render::IRenderDevice& device) const -> void {
     for (const auto& [name, screen] : screen_stack_) {
-        screen->Render(target);
+        screen->Render(device);
     }
     if (current_screen_) {
-        current_screen_->Render(target);
+        current_screen_->Render(device);
     }
 }
 
-auto ScreenManager::HandleEvent(const IEvent& event) const -> void {
+auto ScreenManager::HandleEvent(const atom::window::IEvent& event) const -> void {
     if (current_screen_) {
         if (current_screen_->HandleEvent(event)) {
             return;

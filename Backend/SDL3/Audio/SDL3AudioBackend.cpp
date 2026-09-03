@@ -5,21 +5,22 @@
 #include <Backend/SDL3/Audio/SDL3SFXSource.hpp>
 #include <Backend/SDL3/Audio/SDL3StreamingMusicSource.hpp>
 
-namespace atom {
+namespace atom::backend::sdl3 {
+
 namespace {
-auto ToSDLSpec(const AudioSpec& spec) -> SDL_AudioSpec {
+auto ToSDLSpec(const atom::audio::AudioSpec& spec) -> SDL_AudioSpec {
     SDL_AudioFormat format = SDL_AUDIO_S16;
     switch (spec.format) {
-    case AudioSampleFormat::Unsigned8:
+    case atom::audio::AudioSampleFormat::Unsigned8:
         format = SDL_AUDIO_U8;
         break;
-    case AudioSampleFormat::Signed16:
+    case atom::audio::AudioSampleFormat::Signed16:
         format = SDL_AUDIO_S16;
         break;
-    case AudioSampleFormat::Signed32:
+    case atom::audio::AudioSampleFormat::Signed32:
         format = SDL_AUDIO_S32;
         break;
-    case AudioSampleFormat::Float32:
+    case atom::audio::AudioSampleFormat::Float32:
         format = SDL_AUDIO_F32;
         break;
     }
@@ -31,15 +32,16 @@ auto ToSDLSpec(const AudioSpec& spec) -> SDL_AudioSpec {
 }
 } // namespace
 
-auto SDL3AudioBackend::CreateMusicSource(std::vector<uint8_t> pcm, const AudioSpec& spec)
-    -> std::unique_ptr<IAudioSource> {
+auto SDL3AudioBackend::CreateMusicSource(std::vector<uint8_t> pcm, const atom::audio::AudioSpec& spec)
+    -> std::unique_ptr<atom::audio::IAudioSource> {
     if (!audio_runtime_.IsValid())
         return nullptr;
     return std::make_unique<SDL3MusicSource>(std::move(pcm), ToSDLSpec(spec));
 }
 
-auto SDL3AudioBackend::CreateStreamingMusicSource(std::unique_ptr<IAudioDecoder> decoder, const AudioSpec& spec)
-    -> std::unique_ptr<IAudioSource> {
+auto SDL3AudioBackend::CreateStreamingMusicSource(std::unique_ptr<atom::audio::IAudioDecoder> decoder,
+                                                  const atom::audio::AudioSpec& spec)
+    -> std::unique_ptr<atom::audio::IAudioSource> {
     if (!audio_runtime_.IsValid())
         return nullptr;
     if (!decoder || !decoder->IsOpen())
@@ -47,8 +49,8 @@ auto SDL3AudioBackend::CreateStreamingMusicSource(std::unique_ptr<IAudioDecoder>
     return std::make_unique<SDL3StreamingMusicSource>(std::move(decoder), ToSDLSpec(spec));
 }
 
-auto SDL3AudioBackend::CreateSFXSource(const std::vector<uint8_t>& pcm, const AudioSpec& spec)
-    -> std::unique_ptr<IAudioSource> {
+auto SDL3AudioBackend::CreateSFXSource(const std::vector<uint8_t>& pcm, const atom::audio::AudioSpec& spec)
+    -> std::unique_ptr<atom::audio::IAudioSource> {
     if (!audio_runtime_.IsValid())
         return nullptr;
     auto source = std::make_unique<SDL3SFXSource>();
@@ -60,4 +62,5 @@ auto SDL3AudioBackend::CreateSFXSource(const std::vector<uint8_t>& pcm, const Au
 auto SDL3AudioBackend::IsReady() const -> bool {
     return audio_runtime_.IsValid();
 }
-} // namespace atom
+
+} // namespace atom::backend::sdl3

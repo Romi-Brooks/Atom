@@ -6,7 +6,7 @@
 #include <utility>
 #include <SDL3/SDL.h>
 
-namespace atom {
+namespace atom::backend::sdl3 {
 namespace {
 std::mutex g_subsystem_mutex;
 std::array<std::size_t, 3> g_subsystem_ref_counts{};
@@ -80,4 +80,4 @@ auto SDLSubsystemLease::Reset() -> void {
 auto SDLSubsystemLease::IsValid() const -> bool {
     return valid_;
 }
-} // namespace atom
+} // namespace atom::backend::sdl3

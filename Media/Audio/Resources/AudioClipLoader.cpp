@@ -12,17 +12,17 @@
 namespace atom {
 namespace {
 
-auto ToSampleFormat(const DecoderInfo& info) -> std::optional<AudioSampleFormat> {
+auto ToSampleFormat(const atom::audio::DecoderInfo& info) -> std::optional<atom::audio::AudioSampleFormat> {
     if (info.is_float && info.bits_per_sample == 32)
-        return AudioSampleFormat::Float32;
+        return atom::audio::AudioSampleFormat::Float32;
     switch (info.bits_per_sample) {
     case 8:
-        return AudioSampleFormat::Unsigned8;
+        return atom::audio::AudioSampleFormat::Unsigned8;
     case 16:
-        return AudioSampleFormat::Signed16;
+        return atom::audio::AudioSampleFormat::Signed16;
     case 24:
     case 32:
-        return AudioSampleFormat::Signed32;
+        return atom::audio::AudioSampleFormat::Signed32;
     default:
         return std::nullopt;
     }
@@ -45,7 +45,7 @@ auto Expand24To32(const std::vector<uint8_t>& packed) -> std::vector<uint8_t> {
 
 } // namespace
 
-auto AudioClipLoader::Load(const std::string& path) const -> std::optional<DecodedAudio> {
+auto AudioClipLoader::Load(const std::string& path) const -> std::optional<atom::audio::DecodedAudio> {
     const auto dot = path.find_last_of('.');
     if (dot == std::string::npos) {
         LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Load: no file extension, cannot select a decoder: " + path);
@@ -70,10 +70,9 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
     const auto format = ToSampleFormat(info);
     if (!format || info.sample_rate == 0 || info.channels == 0) {
         LOG_DEBUG(atom::audio::LogChannel::MUSIC,
-                  "Load: unsupported or invalid audio format (bits_per_sample=" +
-                      std::to_string(info.bits_per_sample) + ", is_float=" + (info.is_float ? "true" : "false") +
-                      ", sample_rate=" + std::to_string(info.sample_rate) +
-                      ", channels=" + std::to_string(info.channels) + "): " + path);
+                  "Load: unsupported or invalid audio format (bits_per_sample=" + std::to_string(info.bits_per_sample) +
+                      ", is_float=" + (info.is_float ? "true" : "false") + ", sample_rate=" +
+                      std::to_string(info.sample_rate) + ", channels=" + std::to_string(info.channels) + "): " + path);
         decoder->Close();
         return std::nullopt;
     }
@@ -96,9 +95,9 @@ auto AudioClipLoader::Load(const std::string& path) const -> std::optional<Decod
              "Load: decoded audio successfully: " + path + " (pcm_bytes=" + std::to_string(pcm.size()) +
                  ", sample_rate=" + std::to_string(info.sample_rate) + ", channels=" + std::to_string(info.channels) +
                  ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
-    return DecodedAudio{
+    return atom::audio::DecodedAudio{
         .pcm = std::move(pcm),
-        .spec = AudioSpec{*format, info.sample_rate, info.channels},
+        .spec = atom::audio::AudioSpec{*format, info.sample_rate, info.channels},
     };
 }
 
@@ -135,18 +134,18 @@ auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optio
         return std::nullopt;
     }
 
-    LOG_INFO(atom::audio::LogChannel::MUSIC,
-             "OpenStreaming: opened streaming decoder: " + path + " (sample_rate=" + std::to_string(info.sample_rate) +
-                 ", channels=" + std::to_string(info.channels) + ", bits_per_sample=" + std::to_string(info.bits_per_sample) +
-                 ")");
+    LOG_INFO(atom::audio::LogChannel::MUSIC, "OpenStreaming: opened streaming decoder: " + path +
+                                                 " (sample_rate=" + std::to_string(info.sample_rate) +
+                                                 ", channels=" + std::to_string(info.channels) +
+                                                 ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
     return StreamingResult{
         .decoder = std::move(decoder),
-        .spec = AudioSpec{*format, info.sample_rate, info.channels},
+        .spec = atom::audio::AudioSpec{*format, info.sample_rate, info.channels},
     };
 }
 
-auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const void* data, const std::size_t size) const
-    -> std::optional<StreamingResult> {
+auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const void* data,
+                                              const std::size_t size) const -> std::optional<StreamingResult> {
     const auto dot = filename.find_last_of('.');
     if (dot == std::string::npos) {
         LOG_DEBUG(atom::audio::LogChannel::MUSIC,
@@ -182,13 +181,12 @@ auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const
     }
 
     LOG_INFO(atom::audio::LogChannel::MUSIC,
-             "OpenStreamingFromMemory: opened streaming decoder over " + std::to_string(size) +
-                 " bytes: " + filename + " (sample_rate=" + std::to_string(info.sample_rate) +
-                 ", channels=" + std::to_string(info.channels) + ", bits_per_sample=" +
-                 std::to_string(info.bits_per_sample) + ")");
+             "OpenStreamingFromMemory: opened streaming decoder over " + std::to_string(size) + " bytes: " + filename +
+                 " (sample_rate=" + std::to_string(info.sample_rate) + ", channels=" + std::to_string(info.channels) +
+                 ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
     return StreamingResult{
         .decoder = std::move(decoder),
-        .spec = AudioSpec{*format, info.sample_rate, info.channels},
+        .spec = atom::audio::AudioSpec{*format, info.sample_rate, info.channels},
     };
 }
 

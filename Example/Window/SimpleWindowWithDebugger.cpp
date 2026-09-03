@@ -32,13 +32,13 @@ class ExampleDebugger final : public atom::Debugger {
 
 class ExampleScreen final : public atom::Screen {
     public:
-        auto Render(atom::IRenderTarget& target) -> void override {
-            target.Clear(atom::Color{30, 30, 60});
+        auto Render(atom::render::IRenderDevice& device) -> void override {
+            device.Clear(atom::render::Color{30, 30, 60});
         }
 
-        auto HandleEvent(const atom::IEvent& event) -> bool override {
-            if (event.type == atom::EventType::KeyPressed) {
-                const auto& key = std::get<atom::KeyEvent>(event.data);
+        auto HandleEvent(const atom::window::IEvent& event) -> bool override {
+            if (event.type == atom::window::EventType::KeyPressed) {
+                const auto& key = std::get<atom::window::KeyEvent>(event.data);
                 if (key.scancode == 41) { // SDL_SCANCODE_ESCAPE
                     atom::RenderWindow::GetInstance().Shutdown();
                     return true;
@@ -52,9 +52,9 @@ class ExampleScreen final : public atom::Screen {
 } // namespace
 
 auto main() -> int {
-    #ifdef _WIN32
+#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
-    #endif // _WIN32
+#endif // _WIN32
 
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
@@ -62,7 +62,7 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("Example");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Debug Overlay Example", atom::Vec2{1280, 720});
+    window.Initialize("Atom Engine - Debug Overlay Example", atom::algo::Vec2{1280, 720});
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly

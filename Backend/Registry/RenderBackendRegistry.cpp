@@ -4,9 +4,9 @@
 #include <cctype>
 #include <utility>
 
-#include <Backend/Contracts/Render/IRenderWindow.hpp>
+#include <Backend/Contracts/Render/IRenderBackend.hpp>
 
-namespace atom {
+namespace atom::backend {
 
 auto RenderBackendRegistry::GetInstance() -> RenderBackendRegistry& {
     static RenderBackendRegistry instance;
@@ -20,19 +20,19 @@ auto RenderBackendRegistry::NormalizeId(const std::string_view id) -> std::strin
     return normalized;
 }
 
-auto RenderBackendRegistry::RegisterWindowFactory(const std::string_view id, WindowFactory factory) -> bool {
+auto RenderBackendRegistry::RegisterBackendFactory(const std::string_view id, BackendFactory factory) -> bool {
     if (!factory)
         return false;
-    return window_backends_.emplace(NormalizeId(id), std::move(factory)).second;
+    return backends_.emplace(NormalizeId(id), std::move(factory)).second;
 }
 
-auto RenderBackendRegistry::CreateWindow(const std::string_view id) const -> std::unique_ptr<IRenderWindow> {
-    const auto it = window_backends_.find(NormalizeId(id));
-    return it == window_backends_.end() ? nullptr : it->second();
+auto RenderBackendRegistry::CreateBackend(const std::string_view id) const -> std::unique_ptr<render::IRenderBackend> {
+    const auto it = backends_.find(NormalizeId(id));
+    return it == backends_.end() ? nullptr : it->second();
 }
 
-auto RenderBackendRegistry::ContainsWindowBackend(const std::string_view id) const -> bool {
-    return window_backends_.contains(NormalizeId(id));
+auto RenderBackendRegistry::ContainsBackend(const std::string_view id) const -> bool {
+    return backends_.contains(NormalizeId(id));
 }
 
-} // namespace atom
+} // namespace atom::backend

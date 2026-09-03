@@ -12,20 +12,20 @@
 namespace atom {
 
 class AudioClipCache final {
-public:
-    AudioClipCache();
-    explicit AudioClipCache(AudioDecoderRegistry& decoders) : loader_(decoders) {}
+    public:
+        AudioClipCache();
+        explicit AudioClipCache(atom::audio::AudioDecoderRegistry& decoders) : loader_(decoders) {}
 
-    auto Load(const std::string& id, const std::string& path) -> bool;
-    [[nodiscard]] auto Get(const std::string& id) const -> std::shared_ptr<const DecodedAudio>;
-    [[nodiscard]] auto Contains(const std::string& id) const -> bool;
-    auto Unload(const std::string& id) -> bool;
-    auto Clear() -> void;
-    [[nodiscard]] auto Size() const -> std::size_t;
+        auto Load(const std::string& id, const std::string& path) -> bool;
+        [[nodiscard]] auto Get(const std::string& id) const -> std::shared_ptr<const atom::audio::DecodedAudio>;
+        [[nodiscard]] auto Contains(const std::string& id) const -> bool;
+        auto Unload(const std::string& id) -> bool;
+        auto Clear() -> void;
+        [[nodiscard]] auto Size() const -> std::size_t;
 
-private:
-    AudioClipLoader loader_;
-    std::unordered_map<std::string, std::shared_ptr<const DecodedAudio>> clips_;
+    private:
+        AudioClipLoader loader_;
+        std::unordered_map<std::string, std::shared_ptr<const atom::audio::DecodedAudio>> clips_;
 };
 
 } // namespace atom

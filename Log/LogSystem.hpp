@@ -53,22 +53,22 @@ template <typename TChannel>
 }
 
 class Log {
-private:
-    Log() = default;
-    ~Log() = default;
+    private:
+        Log() = default;
+        ~Log() = default;
 
-    LogLevel view_log_level_ = LogLevel::ATOM_INFO;
-    std::mutex log_mutex_;
+        LogLevel view_log_level_ = LogLevel::ATOM_INFO;
+        std::mutex log_mutex_;
 
-public:
-    [[nodiscard]] static auto GetLogInstance() -> Log&;
+    public:
+        [[nodiscard]] static auto GetLogInstance() -> Log&;
 
-    static auto LogOut(std::string_view channelPrefix, std::string_view channelName, LogLevel level,
-                       const std::string& logMessage) -> void;
-    static auto SetViewLogLevel(LogLevel viewLogLevel) -> void;
+        static auto LogOut(std::string_view channelPrefix, std::string_view channelName, LogLevel level,
+                           const std::string& logMessage) -> void;
+        static auto SetViewLogLevel(LogLevel viewLogLevel) -> void;
 
-    Log(const Log&) = delete;
-    Log& operator=(const Log&) = delete;
+        Log(const Log&) = delete;
+        Log& operator=(const Log&) = delete;
 };
 } // namespace atom
 

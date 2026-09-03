@@ -25,51 +25,51 @@ class RenderWindow;
 class ListenerConnection;
 
 // Abstract base class for debug overlays.
-// Manages the ImGui lifecycle through IDebugImGuiBackend; override
+// Manages the ImGui lifecycle through atom::debugger::IDebugImGuiBackend; override
 // OnDrawOverlay() to supply content. Listens to RenderWindow through RAII
 // ListenerConnection members, so multiple debuggers/overlays can coexist and
 // Detach() only removes this debugger's own listeners.
 class Debugger {
-private:
-    bool attached_ = false;
-    RenderWindow* target_window_ = nullptr;
-    std::unique_ptr<IDebugImGuiBackend> imgui_backend_;
-    std::unique_ptr<ListenerConnection> raw_event_connection_;
-    std::unique_ptr<ListenerConnection> update_connection_;
-    std::unique_ptr<ListenerConnection> overlay_connection_;
-    std::unique_ptr<ListenerConnection> shutdown_connection_;
-    bool imgui_shutdown_ = false;
+    private:
+        bool attached_ = false;
+        RenderWindow* target_window_ = nullptr;
+        std::unique_ptr<atom::debugger::IDebugImGuiBackend> imgui_backend_;
+        std::unique_ptr<ListenerConnection> raw_event_connection_;
+        std::unique_ptr<ListenerConnection> update_connection_;
+        std::unique_ptr<ListenerConnection> overlay_connection_;
+        std::unique_ptr<ListenerConnection> shutdown_connection_;
+        bool imgui_shutdown_ = false;
 
-    // FPS tracking
-    std::size_t frame_count_ = 0;
-    float fps_accumulator_ = 0.0f;
-    float fps_display_ = 0.0f;
+        // FPS tracking
+        std::size_t frame_count_ = 0;
+        float fps_accumulator_ = 0.0f;
+        float fps_display_ = 0.0f;
 
-public:
-    Debugger() = default;
-    virtual ~Debugger();
+    public:
+        Debugger() = default;
+        virtual ~Debugger();
 
-    Debugger(const Debugger&) = delete;
-    auto operator=(const Debugger&) -> Debugger& = delete;
+        Debugger(const Debugger&) = delete;
+        auto operator=(const Debugger&) -> Debugger& = delete;
 
-    // Attach to a RenderWindow (selects the ImGui backend, hooks callbacks)
-    auto Attach(RenderWindow& window) -> void;
+        // Attach to a RenderWindow (selects the ImGui backend, hooks callbacks)
+        auto Attach(RenderWindow& window) -> void;
 
-    // Detach from its RenderWindow (clears callbacks, shuts down backend)
-    auto Detach() -> void;
+        // Detach from its RenderWindow (clears callbacks, shuts down backend)
+        auto Detach() -> void;
 
-    [[nodiscard]] auto IsAttached() const -> bool {
-        return attached_;
-    }
+        [[nodiscard]] auto IsAttached() const -> bool {
+            return attached_;
+        }
 
-    [[nodiscard]] auto GetFPS() const -> float {
-        return fps_display_;
-    }
+        [[nodiscard]] auto GetFPS() const -> float {
+            return fps_display_;
+        }
 
-protected:
-    // Override this to draw your debug overlay content.
-    // Called every frame inside the overlay. Use ImGui::Begin/End here.
-    virtual auto OnDrawOverlay() -> void {}
+    protected:
+        // Override this to draw your debug overlay content.
+        // Called every frame inside the overlay. Use ImGui::Begin/End here.
+        virtual auto OnDrawOverlay() -> void {}
 };
 
 } // namespace atom

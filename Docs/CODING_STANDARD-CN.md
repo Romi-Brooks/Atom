@@ -122,7 +122,9 @@ include 按以下分组顺序排列，每组空一行：
 |---|---|---|
 | `atom::core::LogChannel` | `Atom.` | `atom::core::LogChannel::MAIN` |
 | `atom::audio::LogChannel` | `Atom.Audio.` | `atom::audio::LogChannel::MUSIC` |
-| `atom::backend::sdl::LogChannel` | `Atom.SDL.Backend.` | `atom::backend::sdl::LogChannel::AUDIO` |
+| `atom::render::LogChannel` | `Atom.Render.` | `atom::render::LogChannel::RENDERER2D` |
+| `atom::image::LogChannel` | `Atom.Image.` | `atom::image::LogChannel::DECODER` |
+| `atom::backend::sdl3::LogChannel` | `Atom.SDL3.Backend.` | `atom::backend::sdl3::LogChannel::AUDIO` |
 | `game::GameLogChannel` | `Game.` | `game::GameLogChannel::GAME_NPC` |
 
 - 枚举名使用 `UPPER_SNAKE_CASE`（`SCREEN_MANAGER`、`PLUG_MUSICFADE`）；游戏域可保留
@@ -226,13 +228,13 @@ class Music {
 ```cpp
 namespace atom {
 class Entity {
-public:
-    auto GetHP() const -> float {
-        return hp_;
-    }
+    public:
+        auto GetHP() const -> float {
+            return hp_;
+        }
 
-private:
-    float hp_;
+    private:
+        float hp_;
 };
 }
 ```
@@ -241,27 +243,27 @@ private:
 
 ```cpp
 class ClassName {
-public:
-    ClassName() = default;
-    ~ClassName() = default;
+    public:
+        ClassName() = default;
+        ~ClassName() = default;
 
-    ClassName(const ClassName&) = delete;
-    auto operator=(const ClassName&) -> ClassName& = delete;
+        ClassName(const ClassName&) = delete;
+        auto operator=(const ClassName&) -> ClassName& = delete;
 
-    static auto GetInstance() -> ClassName&;
-    auto DoSomething() -> void;
+        static auto GetInstance() -> ClassName&;
+        auto DoSomething() -> void;
 
-private:
-    auto Helper() -> void;
+    private:
+        auto Helper() -> void;
 
-    int member_;
+        int member_;
 };
 ```
 
 **规则：**
 
 - 优先使用 `public:` → `protected:` → `private:`，先展示公共 API
-- 访问说明符与类体对齐，声明缩进一级
+- 访问说明符在类内缩进一级，声明再额外缩进一级
 - 移动成员声明时必须考虑初始化顺序；纯风格修改不得改变行为
 
 ### 4.3 成员初始化
@@ -328,20 +330,18 @@ auto GetValue()const -> float;        // 缺少空格
 ### 6.1 Doxygen 文件头
 
 ```cpp
-// Copyright (c) YYYY Author
-// SPDX-License-Identifier: MIT
-
 /**
- * @file FileName.hpp
- * @brief One-line description.
- * @author Author
- * @date YYYY/MM/DD
- * @attention Optional caveats or notes.
- */
+  * @file           : FileName.hpp
+  * @author         : Author
+  * @brief          : 一行文件说明
+  * @attention      : 可选的注意事项
+  * @date           : YYYY/M/D
+  Copyright (c) YYYY Author, All rights reserved.
+**/
 ```
 
-模板中不再写 `All rights reserved`。Copyright 行用于记录著作权归属，SPDX
-标识明确指向仓库的 MIT 许可证及其授权范围，两者可以同时保留。
+这是当前新建 Atom 源文件和示例使用的文头格式。现有文件暂不批量迁移；
+SPDX/许可证文头迁移仍作为独立的机械任务记录在 `Docs/Remaining-Issues.md`。
 
 ### 6.2 行内注释
 

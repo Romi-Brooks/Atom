@@ -12,12 +12,13 @@
 namespace atom {
 
 MusicPlayer::MusicPlayer(AudioMixer& mixer)
-    : backend_(nullptr), decoders_(&BackendRuntime::GetInstance().AudioDecoders()), mixer_(mixer),
-      runtime_(&BackendRuntime::GetInstance()) {
+    : backend_(nullptr), decoders_(&atom::backend::BackendRuntime::GetInstance().AudioDecoders()), mixer_(mixer),
+      runtime_(&atom::backend::BackendRuntime::GetInstance()) {
     runtime_->AddAudioListener(*this);
 }
 
-MusicPlayer::MusicPlayer(IAudioBackend& backend, AudioDecoderRegistry& decoders, AudioMixer& mixer)
+MusicPlayer::MusicPlayer(atom::audio::IAudioBackend& backend, atom::audio::AudioDecoderRegistry& decoders,
+                         AudioMixer& mixer)
     : backend_(&backend), decoders_(&decoders), mixer_(mixer) {}
 
 MusicPlayer::~MusicPlayer() {
@@ -84,7 +85,9 @@ auto MusicPlayer::Play(const std::string& id) -> void {
 auto MusicPlayer::Play(const std::string& id, const float volume) -> void {
     std::lock_guard lock(mutex_);
     const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source) { return; }
+    if (it == tracks_.end() || !it->second.source) {
+        return;
+    }
     it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
     it->second.source->Play();
     LOG_INFO(atom::audio::LogChannel::MUSIC, "Now Playing track: " + id);
@@ -94,10 +97,14 @@ auto MusicPlayer::Play(const std::string& id, const float volume) -> void {
 auto MusicPlayer::Stop(const std::string& id) -> void {
     std::lock_guard lock(mutex_);
     const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source) { return; }
+    if (it == tracks_.end() || !it->second.source) {
+        return;
+    }
     it->second.source->Stop();
     LOG_INFO(atom::audio::LogChannel::MUSIC, "Track Stopped: " + id);
-    if (current_playing_id_ == id) { current_playing_id_.clear(); }
+    if (current_playing_id_ == id) {
+        current_playing_id_.clear();
+    }
 }
 
 auto MusicPlayer::Reset() -> void {

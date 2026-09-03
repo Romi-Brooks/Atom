@@ -12,7 +12,7 @@
 
 namespace engine::video {
 class Video {
-private:
+    private:
 };
 } // namespace engine::video
 

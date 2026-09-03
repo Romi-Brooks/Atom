@@ -166,7 +166,7 @@ fix: 修正 RenderWindow.hpp 中的 Vec2 包含路径
 
 docs: 添加 CONTRIBUTING.md 开发指南
 
-build: 在 CMake 中添加 engine_math 库目标
+build: 在 CMake 中添加 Atom_Math 库目标
 ```
 
 ---

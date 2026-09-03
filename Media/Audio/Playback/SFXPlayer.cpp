@@ -9,11 +9,11 @@
 namespace atom {
 
 SFXPlayer::SFXPlayer(AudioClipCache& clips, AudioMixer& mixer)
-    : backend_(nullptr), clips_(clips), mixer_(mixer), runtime_(&BackendRuntime::GetInstance()) {
+    : backend_(nullptr), clips_(clips), mixer_(mixer), runtime_(&atom::backend::BackendRuntime::GetInstance()) {
     runtime_->AddAudioListener(*this);
 }
 
-SFXPlayer::SFXPlayer(IAudioBackend& backend, AudioClipCache& clips, AudioMixer& mixer)
+SFXPlayer::SFXPlayer(atom::audio::IAudioBackend& backend, AudioClipCache& clips, AudioMixer& mixer)
     : backend_(&backend), clips_(clips), mixer_(mixer) {}
 
 SFXPlayer::~SFXPlayer() {
@@ -62,7 +62,7 @@ auto SFXPlayer::SetVolume(const std::string& id, const float volume) -> void {
 auto SFXPlayer::IsLoaded(const std::string& id) const -> bool {
     return clips_.Contains(id);
 }
-auto SFXPlayer::GetSound(const std::string& id) -> IAudioSource* {
+auto SFXPlayer::GetSound(const std::string& id) -> atom::audio::IAudioSource* {
     const auto it = pools_.find(id);
     return it == pools_.end() ? nullptr : it->second->FirstActive();
 }

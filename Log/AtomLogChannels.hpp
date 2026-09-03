@@ -18,51 +18,38 @@
 // output = domain prefix + DisplayName + " -> ". Each domain holds up to 64 channels.
 
 //Level-1
-ATOM_DEFINE_CHANNELS(atom::core, LogChannel, "Atom.",
-    (MAIN, "Main"),
-    (LOGGER, "Logger"),
-    (FILESYSTEM, "Filesystem"),
-    (LUA, "Lua"),
-    (VIDEO, "Video"),
-    (WINDOW, "Window"),
-    (SCREEN, "Screen"),
-    (SCREEN_MANAGER, "Screen.Manager"),
-    (MOVEMENT, "Movement"),
-    (ENTITY, "Entity")
-)
+ATOM_DEFINE_CHANNELS(atom::core, LogChannel, "Atom.", (MAIN, "Main"), (LOGGER, "Logger"), (FILESYSTEM, "Filesystem"),
+                     (LUA, "Lua"), (VIDEO, "Video"), (WINDOW, "Window"), (SCREEN, "Screen"),
+                     (SCREEN_MANAGER, "Screen.Manager"), (MOVEMENT, "Movement"), (ENTITY, "Entity"))
 
 // Level-2
-ATOM_DEFINE_CHANNELS(atom::entity, LogChannel, "Atom.Entity.",
-    (NPC, "NPC"),
-    (PLAYER, "Player")
-)
+ATOM_DEFINE_CHANNELS(atom::entity, LogChannel, "Atom.Entity.", (NPC, "NPC"), (PLAYER, "Player"))
 
 // Level-2
-ATOM_DEFINE_CHANNELS(atom::audio, LogChannel, "Atom.Audio.",
-    (MUSIC, "Music"),
-    (SFX, "SFX"),
-    (PLUG_MUSICFADE, "Plug.MusicFade"),
-    (MINIMP3, "Minimp3"),
-    (WAVPROF, "WavProf"),
-    (METADATA, "Metadata")
-)
+ATOM_DEFINE_CHANNELS(atom::audio, LogChannel, "Atom.Audio.", (MUSIC, "Music"), (SFX, "SFX"),
+                     (PLUG_MUSICFADE, "Plug.MusicFade"), (MINIMP3, "Minimp3"), (WAVPROF, "WavProf"),
+                     (METADATA, "Metadata"))
 
 // Level-2
-ATOM_DEFINE_CHANNELS(atom::backend, LogChannel, "Atom.Backend.",
-    (RUNTIME, "Runtime")
-)
+ATOM_DEFINE_CHANNELS(atom::backend, LogChannel, "Atom.Backend.", (RUNTIME, "Runtime"))
+
+// Level-2
+ATOM_DEFINE_CHANNELS(atom::layout, LogChannel, "Atom.Layout.", (CORE, "Core"))
+
+// Level-2
+ATOM_DEFINE_CHANNELS(atom::debugger, LogChannel, "Atom.Debugger.", (IMGUI, "ImGui"))
+
+// Level-2
+ATOM_DEFINE_CHANNELS(atom::render, LogChannel, "Atom.Render.", (RENDERER2D, "Renderer2D"))
+
+// Level-2
+ATOM_DEFINE_CHANNELS(atom::image, LogChannel, "Atom.Image.", (DECODER, "Decoder"))
 
 // Level-3
-ATOM_DEFINE_CHANNELS(atom::backend::sdl, LogChannel, "Atom.SDL.Backend.",
-    (AUDIO, "Audio"),
-    (VIDEO, "Video"),
-    (RENDER, "Render"),
-    (WINDOW, "Window")
-)
+ATOM_DEFINE_CHANNELS(atom::backend::sdl3, LogChannel, "Atom.SDL3.Backend.", (AUDIO, "Audio"), (VIDEO, "Video"),
+                     (RENDER, "Render"), (WINDOW, "Window"))
 
 // Level-2
-ATOM_DEFINE_CHANNELS(atom::utilities, LogChannel, "Atom.Utilities.",
-    (PACKAGER, "Packager")
-)
+ATOM_DEFINE_CHANNELS(atom::utilities, LogChannel, "Atom.Utilities.", (PACKAGER, "Packager"))
 
 #endif // ATOM_ATOMLOGCHANNELS_HPP

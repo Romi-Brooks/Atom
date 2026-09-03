@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace atom {
+namespace atom::audio {
 
 enum class AudioSampleFormat {
     Unsigned8,
@@ -37,6 +37,6 @@ struct DecodedAudio {
     return 0;
 }
 
-} // namespace atom
+} // namespace atom::audio
 
 #endif // ATOM_BACKEND_AUDIO_TYPES_HPP

@@ -10,20 +10,20 @@
 #ifndef ATOM_SCREEN_HPP
 #define ATOM_SCREEN_HPP
 
-#include <Backend/Contracts/Render/IRenderTarget.hpp>
-#include <Backend/Contracts/Render/IRenderWindow.hpp>
+#include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Backend/Contracts/Window/IWindow.hpp>
 
 namespace atom {
 class Screen {
-public:
-    virtual ~Screen() = default;
+    public:
+        virtual ~Screen() = default;
 
-    virtual auto Render(IRenderTarget& target) -> void = 0;
-    virtual auto HandleEvent(const IEvent& event) -> bool = 0;
-    virtual auto Update(float deltaTime) -> void = 0;
+        virtual auto Render(atom::render::IRenderDevice& device) -> void = 0;
+        virtual auto HandleEvent(const atom::window::IEvent& event) -> bool = 0;
+        virtual auto Update(float deltaTime) -> void = 0;
 
-    virtual auto OnActivate() -> void {}
-    virtual auto OnDeactivate() -> void {}
+        virtual auto OnActivate() -> void {}
+        virtual auto OnDeactivate() -> void {}
 };
 } // namespace atom
 

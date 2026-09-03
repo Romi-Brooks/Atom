@@ -9,8 +9,10 @@ UseTab: Never
 
 BreakBeforeBraces: Attach
 NamespaceIndentation: None
-AccessModifierOffset: -4
-IndentAccessModifiers: false
+# Indent access specifiers one level inside classes and class members one
+# additional level beneath them.
+AccessModifierOffset: 0
+IndentAccessModifiers: true
 
 ColumnLimit: 120
 PointerAlignment: Left

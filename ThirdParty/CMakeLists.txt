@@ -8,6 +8,10 @@ set(ATOM_SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SDL3")
 set(ATOM_TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/taglib")
 set(ATOM_UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utfcpp")
 set(ATOM_MINIMP3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minimp3")
+set(ATOM_STB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stb")
+set(ATOM_YOGA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Yoga")
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/TargetOverlay.cmake")
 
 foreach(dependency_file IN ITEMS
         "${ATOM_IMGUI_DIR}/imgui.cpp"
@@ -15,7 +19,8 @@ foreach(dependency_file IN ITEMS
         "${ATOM_SDL3_DIR}/CMakeLists.txt"
         "${ATOM_TAGLIB_DIR}/CMakeLists.txt"
         "${ATOM_UTFCPP_DIR}/CMakeLists.txt"
-        "${ATOM_MINIMP3_DIR}/minimp3.h")
+        "${ATOM_MINIMP3_DIR}/minimp3.h"
+        "${ATOM_YOGA_DIR}/yoga/CMakeLists.txt")
     if(NOT EXISTS "${dependency_file}")
         message(FATAL_ERROR
             "Missing third-party dependency content: ${dependency_file}\n"
@@ -23,23 +28,17 @@ foreach(dependency_file IN ITEMS
     endif()
 endforeach()
 
+foreach(stb_header IN ITEMS "${ATOM_STB_DIR}/stb_image.h" "${ATOM_STB_DIR}/stb_truetype.h")
+    if(NOT EXISTS "${stb_header}")
+        message(FATAL_ERROR "Missing vendored stb header: ${stb_header}")
+    endif()
+endforeach()
+
 # --------------------------------------------------------------------------
 # utf8cpp (header-only)
 # --------------------------------------------------------------------------
-add_subdirectory(
-    "${ATOM_UTFCPP_DIR}"
-    "${CMAKE_CURRENT_BINARY_DIR}/utfcpp"
-    EXCLUDE_FROM_ALL
-)
-
-add_library(atom_utfcpp INTERFACE)
-target_link_libraries(atom_utfcpp INTERFACE utf8cpp)
-add_library(atom::utfcpp ALIAS atom_utfcpp)
-
-# TagLib 2.x also accepts this compatibility target name.
-if(NOT TARGET utf8::cpp)
-    add_library(utf8::cpp ALIAS utf8cpp)
-endif()
+add_library(Atom_3rd_UtfCpp INTERFACE)
+target_include_directories(Atom_3rd_UtfCpp INTERFACE "${ATOM_UTFCPP_DIR}/source")
 
 # --------------------------------------------------------------------------
 # SDL3
@@ -51,9 +50,21 @@ set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 set(SDL_UNINSTALL OFF CACHE BOOL "" FORCE)
+# The build-tree overlay is intentionally detached from SDL's Git metadata.
+# Preserve the pinned submodule's release revision in generated version data.
+set(SDL_REVISION "SDL-3.4.12-release-3.4.12" CACHE STRING "" FORCE)
+
+file(SHA256 "${ATOM_SDL3_DIR}/CMakeLists.txt" ATOM_SDL3_CMAKE_HASH)
+set(ATOM_SDL3_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/TargetOverlays/SDL3")
+atom_prepare_target_overlay(
+    "${ATOM_SDL3_DIR}"
+    "${ATOM_SDL3_OVERLAY_DIR}"
+    "${ATOM_SDL3_CMAKE_HASH}:Atom_3rd_SDL3:v1"
+)
+atom_replace_cmake_identifier("${ATOM_SDL3_OVERLAY_DIR}" "SDL3-static" "Atom_3rd_SDL3")
 
 add_subdirectory(
-    "${ATOM_SDL3_DIR}"
+    "${ATOM_SDL3_OVERLAY_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}/SDL3"
     EXCLUDE_FROM_ALL
 )
@@ -61,7 +72,7 @@ add_subdirectory(
 # --------------------------------------------------------------------------
 # Lua
 # --------------------------------------------------------------------------
-add_library(atom_lua STATIC
+add_library(Atom_3rd_Lua STATIC
     "${ATOM_LUA_DIR}/lapi.c"
     "${ATOM_LUA_DIR}/lauxlib.c"
     "${ATOM_LUA_DIR}/lbaselib.c"
@@ -96,47 +107,45 @@ add_library(atom_lua STATIC
     "${ATOM_LUA_DIR}/lzio.c"
 )
 
-target_include_directories(atom_lua PUBLIC "${ATOM_LUA_DIR}")
+target_include_directories(Atom_3rd_Lua PUBLIC "${ATOM_LUA_DIR}")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_compile_definitions(atom_lua PRIVATE LUA_USE_LINUX)
-    target_link_libraries(atom_lua PRIVATE m ${CMAKE_DL_LIBS})
+    target_compile_definitions(Atom_3rd_Lua PRIVATE LUA_USE_LINUX)
+    target_link_libraries(Atom_3rd_Lua PRIVATE m ${CMAKE_DL_LIBS})
 elseif(APPLE)
-    target_compile_definitions(atom_lua PRIVATE LUA_USE_MACOSX)
-    target_link_libraries(atom_lua PRIVATE ${CMAKE_DL_LIBS})
+    target_compile_definitions(Atom_3rd_Lua PRIVATE LUA_USE_MACOSX)
+    target_link_libraries(Atom_3rd_Lua PRIVATE ${CMAKE_DL_LIBS})
 endif()
-
-add_library(atom::lua ALIAS atom_lua)
 
 # --------------------------------------------------------------------------
 # Dear ImGui core and SDL3 backends
 # --------------------------------------------------------------------------
-add_library(atom_imgui STATIC
+add_library(Atom_3rd_ImGui STATIC
     "${ATOM_IMGUI_DIR}/imgui.cpp"
     "${ATOM_IMGUI_DIR}/imgui_draw.cpp"
     "${ATOM_IMGUI_DIR}/imgui_tables.cpp"
     "${ATOM_IMGUI_DIR}/imgui_widgets.cpp"
 )
 
-target_include_directories(atom_imgui PUBLIC "${ATOM_IMGUI_DIR}")
-add_library(atom::imgui ALIAS atom_imgui)
+target_include_directories(Atom_3rd_ImGui PUBLIC "${ATOM_IMGUI_DIR}")
 
-add_library(atom_imgui_sdl3 STATIC
+# Platform + render backends. The SDL3 platform backend feeds SDL_Event; the
+# render backend targets the SDL_GPU device; the retired
+# imgui_impl_sdlrenderer3 path is intentionally not built.
+add_library(Atom_3rd_ImGui_SDL3 STATIC
     "${ATOM_IMGUI_DIR}/backends/imgui_impl_sdl3.cpp"
-    "${ATOM_IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp"
+    "${ATOM_IMGUI_DIR}/backends/imgui_impl_sdlgpu3.cpp"
 )
 
-target_include_directories(atom_imgui_sdl3 PUBLIC
+target_include_directories(Atom_3rd_ImGui_SDL3 PUBLIC
     "${ATOM_IMGUI_DIR}"
     "${ATOM_IMGUI_DIR}/backends"
 )
 
-target_link_libraries(atom_imgui_sdl3 PUBLIC
-    atom::imgui
-    SDL3::SDL3
+target_link_libraries(Atom_3rd_ImGui_SDL3 PUBLIC
+    Atom_3rd_ImGui
+    Atom_3rd_SDL3
 )
-
-add_library(atom::imgui_sdl3 ALIAS atom_imgui_sdl3)
 
 # --------------------------------------------------------------------------
 # TagLib
@@ -151,8 +160,29 @@ set(WITH_ZLIB OFF CACHE BOOL "" FORCE)
 set(utf8cpp_INCLUDE_DIR "${ATOM_UTFCPP_DIR}/source" CACHE PATH "" FORCE)
 set(CMAKE_DISABLE_FIND_PACKAGE_utf8cpp TRUE)
 
-add_subdirectory(
+file(SHA256 "${ATOM_TAGLIB_DIR}/CMakeLists.txt" ATOM_TAGLIB_ROOT_CMAKE_HASH)
+file(SHA256 "${ATOM_TAGLIB_DIR}/taglib/CMakeLists.txt" ATOM_TAGLIB_LIBRARY_CMAKE_HASH)
+set(ATOM_TAGLIB_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/TargetOverlays/TagLib")
+atom_prepare_target_overlay(
     "${ATOM_TAGLIB_DIR}"
+    "${ATOM_TAGLIB_OVERLAY_DIR}"
+    "${ATOM_TAGLIB_ROOT_CMAKE_HASH}:${ATOM_TAGLIB_LIBRARY_CMAKE_HASH}:Atom_3rd_TagLib:v1"
+)
+set(ATOM_TAGLIB_LIBRARY_CMAKE "${ATOM_TAGLIB_OVERLAY_DIR}/taglib/CMakeLists.txt")
+atom_replace_in_file("${ATOM_TAGLIB_LIBRARY_CMAKE}" "add_library(tag " "add_library(Atom_3rd_TagLib ")
+atom_replace_in_file("${ATOM_TAGLIB_LIBRARY_CMAKE}" "target_include_directories(tag " "target_include_directories(Atom_3rd_TagLib ")
+atom_replace_in_file("${ATOM_TAGLIB_LIBRARY_CMAKE}" "target_link_libraries(tag" "target_link_libraries(Atom_3rd_TagLib")
+atom_replace_in_file("${ATOM_TAGLIB_LIBRARY_CMAKE}" "set_target_properties(tag " "set_target_properties(Atom_3rd_TagLib ")
+atom_replace_in_file("${ATOM_TAGLIB_LIBRARY_CMAKE}" "target_compile_definitions(tag " "target_compile_definitions(Atom_3rd_TagLib ")
+atom_replace_in_file("${ATOM_TAGLIB_LIBRARY_CMAKE}" "install(TARGETS tag" "install(TARGETS Atom_3rd_TagLib")
+atom_replace_in_file(
+    "${ATOM_TAGLIB_OVERLAY_DIR}/CMakeLists.txt"
+    "add_custom_target(docs "
+    "add_custom_target(Atom_3rd_TagLib_Docs "
+)
+
+add_subdirectory(
+    "${ATOM_TAGLIB_OVERLAY_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}/taglib"
     EXCLUDE_FROM_ALL
 )
@@ -160,7 +190,7 @@ add_subdirectory(
 unset(CMAKE_DISABLE_FIND_PACKAGE_utf8cpp)
 
 # TagLib's build-tree target does not expose all public header directories.
-# Keep that upstream detail behind an Atom-owned interface target.
+# Add them only to the build interface so TagLib's upstream export remains valid.
 set(ATOM_TAGLIB_INCLUDE_DIRS
     "${ATOM_TAGLIB_DIR}/taglib"
     "${ATOM_TAGLIB_DIR}/taglib/toolkit"
@@ -193,14 +223,41 @@ set(ATOM_TAGLIB_INCLUDE_DIRS
     "${CMAKE_CURRENT_BINARY_DIR}/taglib"
 )
 
-add_library(atom_taglib INTERFACE)
-target_include_directories(atom_taglib INTERFACE ${ATOM_TAGLIB_INCLUDE_DIRS})
-target_link_libraries(atom_taglib INTERFACE tag)
-add_library(atom::taglib ALIAS atom_taglib)
+foreach(include_dir IN LISTS ATOM_TAGLIB_INCLUDE_DIRS)
+    target_include_directories(
+        Atom_3rd_TagLib
+        INTERFACE "$<BUILD_INTERFACE:${include_dir}>"
+    )
+endforeach()
 
 # --------------------------------------------------------------------------
 # minimp3 (header-only MP3 decoder, no upstream build system)
 # --------------------------------------------------------------------------
-add_library(atom_minimp3 INTERFACE)
-target_include_directories(atom_minimp3 INTERFACE "${ATOM_MINIMP3_DIR}")
-add_library(atom::minimp3 ALIAS atom_minimp3)
+add_library(Atom_3rd_Minimp3 INTERFACE)
+target_include_directories(Atom_3rd_Minimp3 INTERFACE "${ATOM_MINIMP3_DIR}")
+
+# --------------------------------------------------------------------------
+# stb (vendored dual-licensed single-header image/font utilities)
+# --------------------------------------------------------------------------
+add_library(Atom_3rd_Stb INTERFACE)
+target_include_directories(Atom_3rd_Stb INTERFACE "${ATOM_STB_DIR}")
+
+# --------------------------------------------------------------------------
+# Yoga (Flexbox layout engine)
+# --------------------------------------------------------------------------
+# Add only Yoga's core library. The upstream top-level project also enables its
+# own test tree and install rules, neither of which belongs in an Atom build.
+file(SHA256 "${ATOM_YOGA_DIR}/yoga/CMakeLists.txt" ATOM_YOGA_CMAKE_HASH)
+set(ATOM_YOGA_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/TargetOverlays/Yoga")
+atom_prepare_target_overlay(
+    "${ATOM_YOGA_DIR}"
+    "${ATOM_YOGA_OVERLAY_DIR}"
+    "${ATOM_YOGA_CMAKE_HASH}:Atom_3rd_Yoga:v1"
+)
+atom_replace_cmake_identifier("${ATOM_YOGA_OVERLAY_DIR}/yoga" "yogacore" "Atom_3rd_Yoga")
+
+add_subdirectory(
+    "${ATOM_YOGA_OVERLAY_DIR}/yoga"
+    "${CMAKE_CURRENT_BINARY_DIR}/Yoga"
+    EXCLUDE_FROM_ALL
+)

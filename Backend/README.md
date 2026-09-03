@@ -7,12 +7,20 @@
 - `Contracts/` contains backend-independent contracts and shared data types required by Atom.
 - `Registry/` stores backend factories and the audio decoder registry (extension → decoder factory).
 - `Runtime/` owns global backend selection, default registration, and audio backend switching; it also registers the engine's default format decoders (`.wav` → WavProfDecoder, `.mp3` → minimp3 decoder).
-- `Builtin/` contains Atom-owned implementations such as the WAV decoder (`WavProfDecoder` / RiffWaveReader) and the minimp3-based MP3 decoder (`Minimp3Decoder`).
-- `SDL3/` contains SDL lifecycle, window, render, audio playback, and SDL IO implementations.
-- Future platform backends should use sibling directories such as `Null/` or `OpenAL/`. Codec integrations belong under an appropriate decoder implementation rather than being treated as a complete platform backend.
+- `Audio/` contains backend-independent audio adapters such as the WAV decoder (`WavProfDecoder` / RiffWaveReader) and the minimp3-based MP3 decoder (`Minimp3Decoder`).
+- `SDL3/` contains SDL lifecycle, platform-window, audio playback, and SDL IO implementations.
+- `SDLGPU/` contains the SDL_GPU render device, backend composition, Renderer2D context, ImGui adapter, and SDL_GPU-specific pipeline/resource code. Validation scenes belong in `Example/Render/`, not in this library.
+- `Builtin/` is reserved for backend-independent `Null`/`Recording` implementations. Future API adapters such as native Vulkan should be siblings of `SDLGPU` (for example `Backend/Vulkan/`). Codec integrations belong under an appropriate decoder implementation rather than being treated as a complete platform backend.
+
+`SDL3/` and `SDLGPU/` are intentionally separate layers, not duplicate render
+backends. `SDL3/Core` owns SDL process lifetime, `SDL3/Window` owns windows and
+events, and `SDL3/Audio` owns SDL audio playback. `SDLGPU` consumes an SDL3
+window but owns the SDL_GPU device, swapchain, render passes, pipelines and
+GPU-specific ImGui glue. A future native Vulkan implementation belongs in a
+separate `Backend/Vulkan/` sibling and must implement the same contracts.
 
 ## Dependency rule
 
 Atom domain modules may depend on `Backend/Contracts`, `Backend/Registry`, and the composition API in `Backend/Runtime`, but they should not depend directly on a concrete backend. Concrete backends implement the contracts and are selected by the runtime composition layer.
 
-Audio players and decoders already use registry/runtime composition. The window facade still owns an `SDL3RenderWindow` directly; further separation of window management and rendering is tracked by `RENDER-001` in [`Docs/Remaining-Issues.md`](../Docs/Remaining-Issues.md).
+Audio players and decoders use registry/runtime composition. Rendering now follows the same boundary: `RenderWindow` owns an `IRenderBackend`, while `IWindow` handles platform events and `IRenderDevice` handles GPU frames. The default `sdl_gpu` backend combines `SDL3Window` with `SDLGPUDevice`; no SDL renderer is created.

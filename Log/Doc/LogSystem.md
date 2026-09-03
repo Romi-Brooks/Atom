@@ -10,7 +10,7 @@
 
 Each domain is declared with a single macro (`ATOM_DEFINE_CHANNELS`) that generates, at compile time, an enum + name mapping + display prefix:
 
-- **Engine domains**: `atom::core::LogChannel`, `atom::audio::LogChannel`, `atom::entity::LogChannel`, `atom::backend::LogChannel`, `atom::backend::sdl::LogChannel`, `atom::utilities::LogChannel` — output prefixed with `Atom.` / `Atom.Audio.` / `Atom.Entity.` / ...
+- **Engine domains**: `atom::core::LogChannel`, `atom::audio::LogChannel`, `atom::entity::LogChannel`, `atom::render::LogChannel`, `atom::image::LogChannel`, `atom::layout::LogChannel`, `atom::debugger::LogChannel`, `atom::backend::LogChannel`, `atom::backend::sdl3::LogChannel`, `atom::utilities::LogChannel` — output prefixed with `Atom.` / `Atom.Audio.` / `Atom.Render.` / ...
 - **Game domains**: e.g. `game::GameLogChannel` — output prefixed with `Game.` (the game creates its own)
 
 No runtime registration is needed — the `LOG_*` macros resolve any domain's enum automatically (ADL). Display prefixes make hierarchical filtering trivial.
@@ -38,8 +38,8 @@ ATOM_DEFINE_CHANNELS(atom::audio, LogChannel, "Atom.Audio.",
     // ...
 )
 
-// Level-3 domain: atom::backend::sdl, prefix "Atom.SDL.Backend."
-ATOM_DEFINE_CHANNELS(atom::backend::sdl, LogChannel, "Atom.SDL.Backend.",
+// Level-3 domain: atom::backend::sdl3, prefix "Atom.SDL3.Backend."
+ATOM_DEFINE_CHANNELS(atom::backend::sdl3, LogChannel, "Atom.SDL3.Backend.",
     (AUDIO, "Audio"),
     // ...
 )
@@ -75,11 +75,15 @@ Complete list of engine channels (grouped by domain):
 | `atom::audio::LogChannel::MINIMP3` | Atom.Audio.Minimp3 |
 | `atom::audio::LogChannel::WAVPROF` | Atom.Audio.WavProf |
 | `atom::audio::LogChannel::METADATA` | Atom.Audio.Metadata |
+| `atom::render::LogChannel::RENDERER2D` | Atom.Render.Renderer2D |
+| `atom::image::LogChannel::DECODER` | Atom.Image.Decoder |
+| `atom::layout::LogChannel::CORE` | Atom.Layout.Core |
+| `atom::debugger::LogChannel::IMGUI` | Atom.Debugger.ImGui |
 | `atom::backend::LogChannel::RUNTIME` | Atom.Backend.Runtime |
-| `atom::backend::sdl::LogChannel::AUDIO` | Atom.SDL.Backend.Audio |
-| `atom::backend::sdl::LogChannel::VIDEO` | Atom.SDL.Backend.Video |
-| `atom::backend::sdl::LogChannel::RENDER` | Atom.SDL.Backend.Render |
-| `atom::backend::sdl::LogChannel::WINDOW` | Atom.SDL.Backend.Window |
+| `atom::backend::sdl3::LogChannel::AUDIO` | Atom.SDL3.Backend.Audio |
+| `atom::backend::sdl3::LogChannel::VIDEO` | Atom.SDL3.Backend.Video |
+| `atom::backend::sdl3::LogChannel::RENDER` | Atom.SDL3.Backend.Render |
+| `atom::backend::sdl3::LogChannel::WINDOW` | Atom.SDL3.Backend.Window |
 | `atom::utilities::LogChannel::PACKAGER` | Atom.Utilities.Packager |
 
 To add a channel, just add one line to the form of its domain in `Log/AtomLogChannels.hpp` — no other file changes. Each domain supports up to 64 channels; you can nest domains arbitrarily deep (e.g. `atom::entity::npc`).

@@ -28,11 +28,11 @@ atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
 class MenuScreen final : public atom::Screen {
 public:
-    auto Render(atom::IRenderTarget& target) -> void override {
-        target.Clear(atom::Color{30, 30, 60});
+    auto Render(atom::render::IRenderDevice& device) -> void override {
+        device.Clear(atom::render::Color{30, 30, 60});
     }
 
-    auto HandleEvent(const atom::IEvent&) -> bool override { return false; }
+    auto HandleEvent(const atom::window::IEvent&) -> bool override { return false; }
     auto Update(float delta_time) -> void override { /* game logic */ }
 };
 
@@ -41,21 +41,22 @@ atom::ScreenManager::GetInstance().LoadScreen(
 atom::ScreenManager::GetInstance().SwitchScreen("menu");
 
 auto& window = atom::RenderWindow::GetInstance();
-window.Initialize("My Game", atom::Vec2{1280, 720});        // 默认渲染后端 "sdl3"
-window.Initialize("My Game", atom::Vec2{1280, 720}, "sdl3"); // 显式指定后端
+window.Initialize("My Game", atom::algo::Vec2{1280, 720});           // 默认渲染后端 "sdl_gpu"
+window.Initialize("My Game", atom::algo::Vec2{1280, 720}, "sdl_gpu"); // 显式指定后端
 window.SetFPS(60);
 window.Run();
 ```
 
-`Initialize` 的第三个参数（`backendId`）选择渲染后端，默认 `"sdl3"`（SDL3 Renderer，跨平台硬件加速）。
-自定义后端通过 `RenderBackendRegistry` 注册后即可选用：
+`Initialize` 的第三个参数（`backendId`）选择渲染后端，默认 `"sdl_gpu"`。SDL_GPU
+根据平台、驱动和本次构建提供的 Shader 格式选择 D3D12、Vulkan 或 Metal；Atom
+上层不直接选择这些原生 API。自定义后端通过 `RenderBackendRegistry` 注册后即可选用：
 
 ```cpp
 #include <Backend/Registry/RenderBackendRegistry.hpp>
 
-atom::RenderBackendRegistry::GetInstance().RegisterWindowFactory(
-    "my_backend", [] { return std::make_unique<MyRenderWindow>(); });
-// window.Initialize("My Game", atom::Vec2{1280, 720}, "my_backend");
+atom::backend::RenderBackendRegistry::GetInstance().RegisterBackendFactory(
+    "my_backend", [] { return std::make_unique<MyRenderBackend>(); });
+// window.Initialize("My Game", atom::algo::Vec2{1280, 720}, "my_backend");
 ```
 
 具体后端实现（`Backend/SDL3/*` 等）由引擎运行时内部注册与持有，普通用户只使用
@@ -63,7 +64,8 @@ atom::RenderBackendRegistry::GetInstance().RegisterWindowFactory(
 
 ### 调试覆盖层（ImGui）
 
-引擎负责 ImGui 的后端接线，用户只需要引擎头：
+`Debugger` 的公共接口保持后端无关，运行时会为默认 `sdl_gpu` 后端选择
+`imgui_impl_sdlgpu3`。用户只需要引擎头：
 
 ```cpp
 #include <Window/Overlay.hpp> // 引擎导出 ImGui API + atom::Debugger
@@ -82,7 +84,7 @@ debugger.Attach(atom::RenderWindow::GetInstance());
 ```
 
 - 用户**不要**直接 `#include <imgui.h>` 或任何 `Backend/*` 头文件；`Overlay.hpp` 是唯一入口。
-- 一个窗口建议只挂一个基于 ImGui 的 `Debugger`（ImGui 上下文为每 Debugger 一份，多挂会互相覆盖渲染；非 ImGui 的扩展可通过监听器并存）。
+- 当前一个进程只允许一个活动的 SDL_GPU ImGui `Debugger`；第二次 `Attach()` 会失败并记录 ERROR。多个 ImGui 面板要等窗口级共享上下文（ARCH-113）；非 ImGui 扩展仍可通过监听器并存。
 
 ### 窗口扩展监听器
 
@@ -94,6 +96,33 @@ auto conn = window.AddUpdateListener([](float dt) { /* 每帧更新 */ });
 auto resizeConn = window.AddResizeListener([](uint32_t w, uint32_t h) { /* 窗口尺寸变化 */ });
 // conn / resizeConn 析构时自动移除对应监听器
 ```
+
+## Renderer2D 与图片
+
+`Renderer2D` 通过薄的 `IRender2DContext` 使用当前设备，业务代码不接触 SDL_GPU
+句柄。调用顺序必须位于设备帧之内：
+
+```cpp
+atom::render::Renderer2D renderer;
+renderer.Initialize(device, ATOM_SHADER_OUTPUT_DIR);
+
+device.BeginFrame();
+device.Clear(atom::render::Color{16, 18, 24});
+renderer.BeginFrame(camera_x, camera_y, zoom);
+renderer.DrawRect({20, 20, 160, 80}, atom::render::Color{80, 160, 220});
+renderer.DrawTexture(*texture, {220, 20, 128, 128});
+renderer.EndFrame();
+device.EndFrame();
+```
+
+图片解码与上传是两个独立步骤：`DecodeImageMemory/File` 返回后端无关 RGBA8，
+再交给 `Renderer2D::CreateTexture`。stb_image 当前支持 PNG/JPEG/BMP/GIF/TGA/PSD/
+HDR/PIC/PNM，不支持 WebP。Windows 非 ASCII 资产路径优先经 VFS/文件流读入内存，
+再调用 `DecodeImageMemory`。
+
+纹理、字体与 Renderer2D 必须在创建它们的 RenderDevice 销毁前释放。使用
+`RenderWindow` 时，可把 `renderer.Shutdown()` 注册到 `AddShutdownListener`；返回的
+`ListenerConnection` 必须存活到 `window.Run()` 结束。
 
 ## 音乐
 
@@ -151,7 +180,7 @@ for (std::size_t i = 0; i < files.size(); ++i) {
 music.Play("track_0");
 ```
 
-完整可运行示例见 `Example/Media/PackagedMusicPlayback.cpp`（目标 `example_packaged_music`）：
+完整可运行示例见 `Example/Media/PackagedMusicPlayback.cpp`（目标 `Example_Packaged_Music`）：
 首次运行自动把 E:\Music 下的样例打成 `music_demo.pak`（删除该文件即可重新打包）。
 
 ## 音效
@@ -214,7 +243,7 @@ audio backend = sdl3
 ```cpp
 #include <Backend/Runtime/BackendRuntime.hpp>
 
-auto& backends = atom::BackendRuntime::GetInstance();
+auto& backends = atom::backend::BackendRuntime::GetInstance();
 
 if (!backends.SetAudioBackend("sdl3")) {
     // 后端不存在、初始化失败，或旧后端恢复失败。
@@ -235,7 +264,7 @@ Beta 阶段建议只在主菜单或设置页面切换。游戏运行状态检测
 普通项目不需要操作 Registry。自定义后端开发者可以注册播放后端工厂：
 
 ```cpp
-auto& runtime = atom::BackendRuntime::GetInstance();
+auto& runtime = atom::backend::BackendRuntime::GetInstance();
 
 runtime.Registry().RegisterAudioBackend("custom", [] {
     return std::make_unique<MyAudioBackend>();
@@ -245,15 +274,15 @@ runtime.Registry().RegisterAudioBackend("custom", [] {
 自定义格式解码器直接注册到解码器注册表：
 
 ```cpp
-auto& decoders = atom::BackendRuntime::GetInstance().AudioDecoders();
+auto& decoders = atom::backend::BackendRuntime::GetInstance().AudioDecoders();
 decoders.Register(".ogg", [] { return std::make_unique<MyOggDecoder>(); });
 ```
 
 测试或特殊工具仍可使用显式注入构造，不受全局切换影响：
 
 ```cpp
-atom::AudioDecoderRegistry test_decoders;
-atom::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders);
+atom::audio::AudioDecoderRegistry test_decoders;
+atom::backend::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders);
 atom::MusicPlayer music{fake_backend, test_decoders, mixer};
 atom::SFXPlayer sfx{fake_backend, clips, mixer};
 ```
@@ -276,7 +305,7 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 | 类型 | 默认使用方式 | 说明 |
 |---|---|---|
 | `BackendRuntime` | `GetInstance()` | 全局 Backend 选择与热切换 |
-| `RenderWindow` | `GetInstance()` + `Initialize(title, size, backendId)` | 窗口和主循环门面；默认后端 "sdl3" |
+| `RenderWindow` | `GetInstance()` + `Initialize(title, size, backendId)` | 窗口和主循环门面；默认渲染后端 `sdl_gpu` |
 | `ScreenManager` | `GetInstance()` | Screen 注册、切换与调度 |
 | `AudioMixer` | 普通实例 | Master/Music/SFX 分类音量 |
 | `MusicPlayer` | `MusicPlayer(mixer)` | 默认使用全局音频后端与引擎默认解码器 |

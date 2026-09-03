@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="VcsDirectoryMappings">
-    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/ImGUI" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/Lua" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/SDL3" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ThirdParty/Yoga" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/minimp3" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/taglib" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/utfcpp" vcs="Git" />

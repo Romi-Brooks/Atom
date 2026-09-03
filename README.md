@@ -2,7 +2,7 @@
 [English](README.md) | [中文](Docs/README-CN.md)
 
 ---
-**Atom** is a modular **2D game engine** written in **C++23**, powered by **SDL3**.
+**Atom** is a modular **2D/3D game-engine foundation** written in **C++23**, powered by **SDL3** and **SDL_GPU**.
 Designed to provide a modern, clean, and lightweight development experience.
 
 > **Stable (master)** — This branch tracks the latest beta release.  
@@ -19,54 +19,80 @@ Designed to provide a modern, clean, and lightweight development experience.
 - C++23 compatible compiler
 - Git, for initializing the pinned source dependencies in `ThirdParty/`
 - A C and C++ compiler; dependencies and Atom are built with the same toolchain
+- Vulkan shader tools providing `glslc` and `spirv-val` (via `VULKAN_SDK` or `PATH`)
+- On Windows, DXC and `spirv-cross` for the default D3D12 shader output
+- On macOS, `spirv-cross` for the default Metal shader output
+
+Linux builds generate SPIR-V only and do not require DXC. Tool locations may be
+provided as local CMake cache hints with `ATOM_VULKAN_SDK_ROOT` and
+`ATOM_DXC_ROOT`; never commit machine-specific paths.
 
 ### Building
+
+Clone the repository with its pinned dependencies first:
 
 ```bash
 git clone --recurse-submodules https://github.com/Romi-Brooks/Atom.git
 cd Atom
-cmake -B build -G "MinGW Makefiles"
-cmake --build build --parallel
 ```
 
-The project uses standard CMake workflows on every platform. Choose a generator
-and compiler that belong to the same toolchain as all dependency builds.
-
-Windows with Ninja and MSVC (from a Visual Studio developer shell):
+Windows (MSVC, run from a Visual Studio Developer PowerShell):
 
 ```powershell
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-Windows with MinGW:
+Windows (MinGW):
 
 ```powershell
 cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-Linux with GCC and Ninja:
+Linux (GCC and Ninja):
+
+Install the build and SDL3 development packages first (Ubuntu 22.04+):
 
 ```bash
-cmake -S . -B build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_COMPILER=gcc \
-  -DCMAKE_CXX_COMPILER=g++
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential git make cmake ninja-build pkg-config \
+  glslc spirv-tools \
+  libasound2-dev libpulse-dev libx11-dev libxext-dev \
+  libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxtst-dev \
+  libxss-dev libxkbcommon-dev libdrm-dev libgbm-dev \
+  libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev libdbus-1-dev \
+  libfribidi-dev libibus-1.0-dev libthai-dev \
+  libudev-dev libusb-1.0-0-dev libwayland-dev \
+  wayland-protocols libdecor-0-dev
+```
+
+`glslc` compiles the GLSL sources to SPIR-V and `spirv-tools` provides
+`spirv-val`. SDL3's optional X11/Wayland/audio features use the remaining
+development packages; unavailable optional drivers are disabled by SDL3.
+
+Configure and build:
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
 cmake --build build --parallel
 ```
 
-macOS with Apple Clang and Ninja uses the same commands without the explicit
-GCC compiler options. IDEs with CMake integration can configure the repository
-directly; no IDE-specific project files are required.
+Third-party source dependencies are built from `ThirdParty/` with the same compiler. If the
+submodules were not downloaded, run `git submodule update --init` before CMake.
 
-SDL3, TagLib, Dear ImGui, Lua, utfcpp and minimp3 are pinned Git submodules.
-CMake builds them from source with the same compiler and ABI as Atom. If the
+SDL3, TagLib, Dear ImGui, Lua, utfcpp and minimp3 are pinned Git submodules;
+the two small stb headers are vendored with recorded versions and hashes.
+CMake builds the source dependencies with the same compiler and ABI as Atom. If the
 repository was cloned without the dependencies, run `git submodule update --init`
 before configuring CMake.
 
-For dependency setup and troubleshooting, see the
-[Chinese Linux build guide](Docs/Linux-Build-CN.md).
+Architecture and development references:
+
+- [API guide (Chinese)](Docs/API-Guide-CN.md)
+- [Unified remaining-work list (Chinese)](Docs/Remaining-Issues.md)
 
 ---
 
@@ -76,12 +102,15 @@ Ready-to-run examples are located in [`Example/`](Example/).
 
 | Example | Description |
 |---------|-------------|
-| `example_simple_window` | Minimal SDL3 window |
-| `example_simple_window_debug` | Window with ImGui debug overlay |
-| `example_audio_playback` | Music playback with fade switching |
-| `example_sfx_playback` | SFX playback with voice pool (overlapping) |
-| `example_audio_metadata` | Read audio tags/properties via the engine's AudioMetadataReader |
-| `example_packaged_music` | Pack resources → load into memory → stream-play (MP3/WAV) |
+| `Example_Simple_Window` | Minimal SDL3 + SDL_GPU window |
+| `Example_Simple_Window_Debug` | SDL_GPU-backed ImGui debugger overlay |
+| `Example_SDL_GPU_Clear_Smoke` | Custom shaders, textured 2D quad, and depth-tested 3D mesh |
+| `Example_Renderer2D_Smoke` | Batched primitives, atlas/source rects, decoded PNG, clipping, layers, and camera |
+| `Example_MusicCard` | Yoga music card using Renderer2D, stb image/font data, and an ImGui debugger; scans `E:\Music` by default (optional directory argument) |
+| `Example_Audio_Playback` | Music playback with fade switching |
+| `Example_SFX_Playback` | SFX playback with voice pool (overlapping) |
+| `Example_Audio_Metadata` | Read audio tags/properties via the engine's AudioMetadataReader |
+| `Example_Packaged_Music` | Pack resources → load into memory → stream-play (MP3/WAV) |
 
 ---
 
@@ -102,8 +131,8 @@ Atom provides a resource packaging tool for packing/unpacking game assets into t
 
 ## Engine Dependencies
 
-Atom uses **SDL3** as its multimedia abstraction layer. All third-party
-dependencies are pinned source submodules and are built by
+Atom uses **SDL3** as its multimedia abstraction layer. Third-party source
+dependencies are pinned as submodules or vendored files and are built by
 `ThirdParty/CMakeLists.txt` before the engine targets that use them.
 The exact upstream URLs and locked commits are recorded in
 [`ThirdParty/README.md`](ThirdParty/README.md).
@@ -118,6 +147,7 @@ The exact upstream URLs and locked commits are recorded in
 | [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | Audio metadata reading |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 validation and conversion |
 | [minimp3](https://github.com/lieff/minimp3) | master `ea99364` | `ThirdParty/minimp3/` | MP3 decoding (header-only) |
+| [stb](https://github.com/nothings/stb) | image 2.30 / truetype 1.26 | `ThirdParty/stb/` | Image decoding and trusted-font rasterization |
 
 ### Dependency Builds
 
@@ -129,8 +159,9 @@ precompiled Windows libraries are reused on Linux or with another compiler.
 
 ## Roadmap
 
-- [x]  **Backend Migration** — Migrated from **SFML** to **SDL3**
-- [x]  **Backend Selection Mechanism** — `RenderBackendRegistry` + `RenderWindow::Initialize(backendId)`; custom render backends can be registered. The Vulkan backend itself remains planned (RENDER-003).
+- [x] **SDL_GPU foundation** — SDL chooses D3D12, Vulkan, or Metal; custom GLSL shaders and minimal 2D/3D validation are available.
+- [x] **Renderer2D and debugger migration** — Batched 2D, image/font atlases, MusicCard, and ImGui now use SDL_GPU; no Atom target builds the SDL_Renderer path.
+- [ ] **Native Vulkan backend** — Reuse the same RHI and SPIR-V assets after the SDL_GPU renderer stabilizes.
 - [ ] **ECS Framework** — Replace the current simple entity system with a proper Entity-Component-System architecture.
 - [ ] **Tooling** — Editor, asset pipeline, and profiling tools.
 
@@ -146,6 +177,7 @@ Atom Engine uses the following open-source libraries. We extend our sincere grat
 - [TagLib](https://taglib.org/) — Audio metadata reading
 - [utfcpp](https://github.com/nemtrif/utfcpp) — UTF-8 validation and conversion
 - [minimp3](https://github.com/lieff/minimp3) — MP3 decoding
+- [stb](https://github.com/nothings/stb) — Image decoding and trusted-font rasterization
 
 ---
 

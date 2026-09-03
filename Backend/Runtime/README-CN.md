@@ -20,11 +20,11 @@ Playback : PCM → Source/Stream → Audio Device（BackendRegistry 按 ID 查�
 ```cpp
 #include <Backend/Runtime/BackendRuntime.hpp>
 
-auto& runtime = atom::BackendRuntime::GetInstance();
+auto& runtime = atom::backend::BackendRuntime::GetInstance();
 
 runtime.Registry().RegisterAudioBackend(
     "openal",
-    []() -> std::unique_ptr<atom::IAudioBackend> {
+    []() -> std::unique_ptr<atom::audio::IAudioBackend> {
         auto backend = std::make_unique<MyOpenALAudioBackend>();
         if (!backend->IsReady()) return nullptr;
         return backend;
@@ -46,7 +46,7 @@ runtime.Registry().RegisterAudioBackend(
 ```cpp
 #include <Backend/Runtime/BackendRuntime.hpp>
 
-auto& decoders = atom::BackendRuntime::GetInstance().AudioDecoders();
+auto& decoders = atom::backend::BackendRuntime::GetInstance().AudioDecoders();
 decoders.Register(".ogg", [] { return std::make_unique<MyOggDecoder>(); });
 ```
 
@@ -74,8 +74,8 @@ Gameplay 状态检测目前尚未由 Runtime 强制执行，项目应自行限�
 测试和独立工具可以绕过全局 Runtime：
 
 ```cpp
-atom::AudioDecoderRegistry test_decoders;
-atom::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders); // 补齐 .wav/.mp3
+atom::audio::AudioDecoderRegistry test_decoders;
+atom::backend::BackendRuntime::RegisterDefaultAudioDecoders(test_decoders); // 补齐 .wav/.mp3
 atom::MusicPlayer music{fake_backend, test_decoders, mixer};
 atom::AudioClipCache clips{test_decoders};
 atom::SFXPlayer sfx{fake_backend, clips, mixer};
@@ -90,8 +90,8 @@ Audio Playback Backend:
 - sdl3（默认）
 
 Default Decoders（BackendRuntime::RegisterDefaultAudioDecoders）:
-- .wav → WavProfDecoder（Backend/Builtin/Audio/Decoder/WavProf）
-- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Builtin/Audio/Decoder/minimp3）
+- .wav → WavProfDecoder（Backend/Audio/Decoder/WavProf）
+- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Audio/Decoder/minimp3）
 ```
 
 只有一个播放后端时，重复设置 `sdl3` 不触发清理或重建。新增第二个播放后端后，同一套全局切换协议无需修改 Player。

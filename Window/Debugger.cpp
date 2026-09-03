@@ -11,6 +11,7 @@
 // Engine Headers
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
 #include <Backend/Registry/DebugImGuiBackendRegistry.hpp>
+#include <Log/LogSystem.hpp>
 #include <Window/RenderWindow.hpp>
 
 namespace atom {
@@ -25,19 +26,26 @@ auto Debugger::Attach(RenderWindow& window) -> void {
     if (attached_)
         return;
 
+    imgui_shutdown_ = false;
     target_window_ = &window;
 
-    auto* renderWindow = window.GetIRenderWindow();
-    if (!renderWindow) {
+    auto* platformWindow = window.GetIWindow();
+    auto* renderDevice = window.GetRenderDevice();
+    if (!platformWindow || !renderDevice) {
+        LOG_WARNING(atom::debugger::LogChannel::IMGUI,
+                    "Debugger attach requires an initialized render window and device");
         target_window_ = nullptr;
         return;
     }
 
     // Select the ImGui backend through the contract registry (registered by
     // the runtime layer for the window's backend id). No SDL3/ImGui types
-    // appear in this file: all coupling lives in Backend/SDL3/Debug/.
-    imgui_backend_ = DebugImGuiBackendRegistry::GetInstance().Create(window.GetBackendId(), *renderWindow);
+    // appear in this file: all coupling belongs to the selected backend adapter.
+    imgui_backend_ = atom::debugger::DebugImGuiBackendRegistry::GetInstance().Create(window.GetBackendId(),
+                                                                                     *platformWindow, *renderDevice);
     if (!imgui_backend_ || !imgui_backend_->Initialize()) {
+        LOG_ERROR(atom::debugger::LogChannel::IMGUI,
+                  "Debugger attach failed for render backend '" + window.GetBackendId() + "'");
         imgui_backend_.reset();
         target_window_ = nullptr;
         return;
@@ -46,9 +54,8 @@ auto Debugger::Attach(RenderWindow& window) -> void {
     // Register listeners with RAII connections. Each connection removes only
     // this debugger's own listener on destruction / Detach(); other listeners
     // (other debuggers, user overlays) are never touched.
-    raw_event_connection_ = std::make_unique<ListenerConnection>(window.AddRawEventListener([this](const void* rawEvent) {
-        imgui_backend_->ProcessRawEvent(rawEvent);
-    }));
+    raw_event_connection_ = std::make_unique<ListenerConnection>(
+        window.AddRawEventListener([this](const void* rawEvent) { imgui_backend_->ProcessRawEvent(rawEvent); }));
 
     update_connection_ = std::make_unique<ListenerConnection>(window.AddUpdateListener([this](float deltaTime) {
         imgui_backend_->NewFrame();
@@ -78,6 +85,7 @@ auto Debugger::Attach(RenderWindow& window) -> void {
     }));
 
     attached_ = true;
+    LOG_INFO(atom::debugger::LogChannel::IMGUI, "Debugger attached to render backend '" + window.GetBackendId() + "'");
 }
 
 auto Debugger::Detach() -> void {
@@ -98,6 +106,7 @@ auto Debugger::Detach() -> void {
 
     target_window_ = nullptr;
     attached_ = false;
+    LOG_INFO(atom::debugger::LogChannel::IMGUI, "Debugger detached");
 }
 
 } // namespace atom

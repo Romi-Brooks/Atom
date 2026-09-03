@@ -5,7 +5,7 @@
 #include <ranges>
 #include <utility>
 
-namespace atom {
+namespace atom::audio {
 
 auto AudioDecoderRegistry::NormalizeExtension(std::string_view extension) -> std::string {
     std::string normalized{extension};
@@ -52,4 +52,4 @@ auto AudioDecoderRegistry::Contains(std::string_view extension) const -> bool {
     return factories_.contains(NormalizeExtension(extension));
 }
 
-} // namespace atom
+} // namespace atom::audio

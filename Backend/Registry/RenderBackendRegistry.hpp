@@ -7,34 +7,36 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace atom {
+namespace atom::render {
+class IRenderBackend;
+}
 
-class IRenderWindow;
+namespace atom::backend {
 
-// Registry of render backend factories (window creation). Mirrors
+// Registry of complete render backend factories. Mirrors
 // BackendRegistry (audio): engine internals register concrete backends here
-// (e.g. "sdl3", later "vulkan"), upper layers create windows through the
-// registry instead of touching concrete backend types. Public headers must
+// (e.g. "sdl_gpu", later "vulkan"), upper layers create the window/device
+// bundle through the registry instead of touching concrete backend types. Public headers must
 // never include Backend/<name>/* directly.
 class RenderBackendRegistry final {
-public:
-    using WindowFactory = std::function<std::unique_ptr<IRenderWindow>()>;
+    public:
+        using BackendFactory = std::function<std::unique_ptr<render::IRenderBackend>()>;
 
-    static constexpr std::string_view kDefaultBackendId = "sdl3";
+        static constexpr std::string_view kDefaultBackendId = "sdl_gpu";
 
-    [[nodiscard]] static auto GetInstance() -> RenderBackendRegistry&;
+        [[nodiscard]] static auto GetInstance() -> RenderBackendRegistry&;
 
-    auto RegisterWindowFactory(std::string_view id, WindowFactory factory) -> bool;
+        auto RegisterBackendFactory(std::string_view id, BackendFactory factory) -> bool;
 
-    [[nodiscard]] auto CreateWindow(std::string_view id) const -> std::unique_ptr<IRenderWindow>;
-    [[nodiscard]] auto ContainsWindowBackend(std::string_view id) const -> bool;
+        [[nodiscard]] auto CreateBackend(std::string_view id) const -> std::unique_ptr<render::IRenderBackend>;
+        [[nodiscard]] auto ContainsBackend(std::string_view id) const -> bool;
 
-private:
-    static auto NormalizeId(std::string_view id) -> std::string;
+    private:
+        static auto NormalizeId(std::string_view id) -> std::string;
 
-    std::unordered_map<std::string, WindowFactory> window_backends_;
+        std::unordered_map<std::string, BackendFactory> backends_;
 };
 
-} // namespace atom
+} // namespace atom::backend
 
 #endif // ATOM_BACKEND_REGISTRY_RENDER_BACKEND_REGISTRY_HPP
