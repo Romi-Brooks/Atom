@@ -84,7 +84,21 @@ debugger.Attach(atom::RenderWindow::GetInstance());
 ```
 
 - 用户**不要**直接 `#include <imgui.h>` 或任何 `Backend/*` 头文件；`Overlay.hpp` 是唯一入口。
-- 当前一个进程只允许一个活动的 SDL_GPU ImGui `Debugger`；第二次 `Attach()` 会失败并记录 ERROR。多个 ImGui 面板要等窗口级共享上下文（ARCH-113）；非 ImGui 扩展仍可通过监听器并存。
+- 一个 `RenderWindow` 由窗口级 `OverlayManager` 维护一份 ImGui context/backend，多个 Debugger 可以独立 attach：
+
+```cpp
+MyDebugger game_debugger{};
+game_debugger.Attach(window);
+game_debugger.SetLoggerEnabled(true);
+
+// 隐藏/重新显示内置 Log Debugger；隐藏期间仍会继续缓存日志。
+game_debugger.SetLoggerEnabled(false);
+game_debugger.SetLoggerEnabled(true);
+```
+
+- 每个 Debugger 应在 `OnDrawOverlay()` 中使用不同的 `ImGui::Begin()` 窗口名。
+- `SetLoggerEnabled(true)` 会挂载内置 `LogDebugger`，默认保留最近 10,000 条记录，支持级别、已注册 channel 下拉多选、消息文本过滤和清空。
+- 这里的“多个窗口”指同一 ImGui context 内的多个 ImGui window；如果需要拖出为原生 SDL 窗口，还需要额外实现 multi-viewports。
 
 ### 窗口扩展监听器
 
@@ -313,4 +327,4 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 | `SFXPlayer` | `SFXPlayer(clips, mixer)` | 默认使用全局音频后端 |
 | `MusicCrossfade` | `MusicCrossfade(music)` | 帧驱动音乐过渡 |
 | `AudioMetadataReader` | `AudioMetadataReader::Read(path)` | 读取音频标签与属性（基于 TagLib） |
-| `Debugger` | 普通实例 + `Attach` | ImGui 调试覆盖层（include `<Window/Overlay.hpp>`；一个窗口建议一个 ImGui Debugger） |
+| `Debugger` | 普通实例 + `Attach` + `SetLoggerEnabled` | ImGui 调试覆盖层和可选 Log Debugger（include `<Window/Overlay.hpp>`） |

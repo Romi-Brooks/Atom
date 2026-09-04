@@ -206,6 +206,7 @@ auto main() -> int {
 
     PackedMusicDebugger debugger{music, memoryFiles, kPackPath, pack_status};
     debugger.Attach(window);
+    debugger.SetLoggerEnabled(true);
 
     window.Run();
     return 0;

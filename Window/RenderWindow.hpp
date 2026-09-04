@@ -27,6 +27,7 @@
 #include <Backend/Contracts/Window/IWindow.hpp>
 #include <Backend/Registry/RenderBackendRegistry.hpp>
 #include <Window/Manager/ScreenManager.hpp>
+#include <Window/OverlayManager.hpp>
 
 namespace atom {
 
@@ -68,6 +69,7 @@ class ListenerConnection {
 class RenderWindow {
     private:
         std::unique_ptr<atom::render::IRenderBackend> backend_;
+        std::unique_ptr<atom::debugger::OverlayManager> overlay_manager_;
         std::string backend_id_{};
         unsigned int fps_ = 60;
         bool shutdown_notified_ = false;
@@ -123,7 +125,7 @@ class RenderWindow {
         auto ProcessEvents(const ScreenManager& screenManager) -> void;
 
         RenderWindow() = default;
-        ~RenderWindow() = default;
+        ~RenderWindow();
 
     public:
         RenderWindow(const RenderWindow&) = delete;
@@ -167,6 +169,10 @@ class RenderWindow {
         [[nodiscard]] auto GetIWindow() -> atom::window::IWindow*;
         [[nodiscard]] auto GetRenderDevice() -> atom::render::IRenderDevice*;
         [[nodiscard]] auto GetBackendId() const -> const std::string&;
+
+        // Window-owned shared ImGui lifecycle. Individual Debugger instances
+        // register panels here instead of creating separate ImGui contexts.
+        [[nodiscard]] auto GetOverlayManager() -> atom::debugger::OverlayManager&;
 };
 
 } // namespace atom

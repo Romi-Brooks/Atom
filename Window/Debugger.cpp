@@ -1,68 +1,51 @@
 /**
   * @file           : Debugger.cpp
-  * @author         : Romi Brooks
-  * @brief          : Debug overlay implementation (backend-agnostic)
-  * @date           : 2026/6/6
-  Copyright (c) 2026 Romi Brooks, All rights reserved.
-**/
+  * @brief          : Shared ImGui debug panel registration.
+  */
 
 #include "Debugger.hpp"
 
-// Engine Headers
-#include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
-#include <Backend/Registry/DebugImGuiBackendRegistry.hpp>
 #include <Log/LogSystem.hpp>
+#include <Window/LogDebugger.hpp>
+#include <Window/OverlayManager.hpp>
 #include <Window/RenderWindow.hpp>
 
 namespace atom {
 
 Debugger::~Debugger() {
-    if (attached_) {
+    if (attached_)
         Detach();
-    }
 }
 
 auto Debugger::Attach(RenderWindow& window) -> void {
     if (attached_)
         return;
 
-    imgui_shutdown_ = false;
     target_window_ = &window;
-
-    auto* platformWindow = window.GetIWindow();
-    auto* renderDevice = window.GetRenderDevice();
-    if (!platformWindow || !renderDevice) {
+    if (!window.GetIWindow() || !window.GetRenderDevice()) {
         LOG_WARNING(atom::debugger::LogChannel::IMGUI,
                     "Debugger attach requires an initialized render window and device");
         target_window_ = nullptr;
         return;
     }
 
-    // Select the ImGui backend through the contract registry (registered by
-    // the runtime layer for the window's backend id). No SDL3/ImGui types
-    // appear in this file: all coupling belongs to the selected backend adapter.
-    imgui_backend_ = atom::debugger::DebugImGuiBackendRegistry::GetInstance().Create(window.GetBackendId(),
-                                                                                     *platformWindow, *renderDevice);
-    if (!imgui_backend_ || !imgui_backend_->Initialize()) {
+    auto& overlay_manager = window.GetOverlayManager();
+    overlay_connection_ = std::make_unique<atom::debugger::OverlayConnection>(
+        overlay_manager.AddPanel([this] {
+            if (enabled_)
+                OnDrawOverlay();
+        }));
+    if (!overlay_connection_->IsConnected()) {
         LOG_ERROR(atom::debugger::LogChannel::IMGUI,
                   "Debugger attach failed for render backend '" + window.GetBackendId() + "'");
-        imgui_backend_.reset();
+        overlay_connection_.reset();
         target_window_ = nullptr;
         return;
     }
 
-    // Register listeners with RAII connections. Each connection removes only
-    // this debugger's own listener on destruction / Detach(); other listeners
-    // (other debuggers, user overlays) are never touched.
-    raw_event_connection_ = std::make_unique<ListenerConnection>(
-        window.AddRawEventListener([this](const void* rawEvent) { imgui_backend_->ProcessRawEvent(rawEvent); }));
-
-    update_connection_ = std::make_unique<ListenerConnection>(window.AddUpdateListener([this](float deltaTime) {
-        imgui_backend_->NewFrame();
-
-        // Track FPS
+    update_connection_ = std::make_unique<ListenerConnection>(window.AddUpdateListener([this](float delta_time) {
         frame_count_++;
-        fps_accumulator_ += deltaTime;
+        fps_accumulator_ += delta_time;
         if (fps_accumulator_ >= 1.0f) {
             fps_display_ = static_cast<float>(frame_count_) / fps_accumulator_;
             frame_count_ = 0;
@@ -70,21 +53,12 @@ auto Debugger::Attach(RenderWindow& window) -> void {
         }
     }));
 
-    overlay_connection_ = std::make_unique<ListenerConnection>(window.AddOverlayListener([this]() {
-        OnDrawOverlay();
-        imgui_backend_->Render();
-    }));
-
-    // Hook shutdown (single-shot, invoked by RenderWindow::Shutdown)
-    shutdown_connection_ = std::make_unique<ListenerConnection>(window.AddShutdownListener([this]() {
-        if (imgui_backend_) {
-            imgui_backend_->Shutdown();
-            imgui_backend_.reset();
-        }
-        imgui_shutdown_ = true;
-    }));
-
+    enabled_ = true;
     attached_ = true;
+    if (logger_enabled_) {
+        log_debugger_ = std::make_unique<LogDebugger>();
+        log_debugger_->Attach(window);
+    }
     LOG_INFO(atom::debugger::LogChannel::IMGUI, "Debugger attached to render backend '" + window.GetBackendId() + "'");
 }
 
@@ -92,21 +66,28 @@ auto Debugger::Detach() -> void {
     if (!attached_ || !target_window_)
         return;
 
-    // Remove only this debugger's own listeners; other listeners stay intact.
-    raw_event_connection_.reset();
+    if (log_debugger_)
+        log_debugger_->Detach();
     update_connection_.reset();
     overlay_connection_.reset();
-    shutdown_connection_.reset();
-
-    // Shutdown ImGui backend (skip if already done by the shutdown listener)
-    if (!imgui_shutdown_ && imgui_backend_) {
-        imgui_backend_->Shutdown();
-    }
-    imgui_backend_.reset();
 
     target_window_ = nullptr;
     attached_ = false;
     LOG_INFO(atom::debugger::LogChannel::IMGUI, "Debugger detached");
+}
+
+auto Debugger::SetLoggerEnabled(const bool enabled) -> void {
+    logger_enabled_ = enabled;
+    if (!attached_ || !target_window_)
+        return;
+
+    if (enabled) {
+        if (!log_debugger_)
+            log_debugger_ = std::make_unique<LogDebugger>();
+        log_debugger_->Attach(*target_window_);
+    } else if (log_debugger_) {
+        log_debugger_->Detach();
+    }
 }
 
 } // namespace atom

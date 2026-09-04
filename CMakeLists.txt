@@ -292,6 +292,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Window/Screen.hpp
             Window/Manager/ScreenManager.cpp
             Window/Manager/ScreenManager.hpp
+            Window/OverlayManager.hpp
+            Window/OverlayManager.cpp
     )
     target_include_directories(Atom_Window PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Window PUBLIC
@@ -305,6 +307,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     add_library(Atom_Debugger STATIC
             Window/Debugger.hpp
             Window/Debugger.cpp
+            Window/LogDebugger.hpp
+            Window/LogDebugger.cpp
             Window/Debugger/ImGui/ImGuiFontLoader.hpp
             Window/Debugger/ImGui/ImGuiFontLoader.cpp
             Window/Overlay.hpp

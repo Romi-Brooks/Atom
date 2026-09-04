@@ -15,6 +15,24 @@
 #include <iterator>
 #include <string_view>
 
+#ifdef ATOM_LOGSYSTEM_HPP
+namespace atom {
+
+// Runtime metadata registration used by the debugger. This declaration is
+// intentionally ImGui-free; the implementation lives in Atom_Log.
+auto RegisterLogChannelDomain(std::string_view prefix, const std::string_view* names, std::size_t count) -> void;
+
+} // namespace atom
+
+#define ATOM_CHANNEL_RUNTIME_REGISTRATION(EnumName, DomainPrefix)                                                     \
+    inline const bool k##EnumName##Registered = [] {                                                               \
+        ::atom::RegisterLogChannelDomain(DomainPrefix, k##EnumName##Names, std::size(k##EnumName##Names));          \
+        return true;                                                                                               \
+    }();
+#else
+#define ATOM_CHANNEL_RUNTIME_REGISTRATION(EnumName, DomainPrefix)
+#endif
+
 // Channel-domain definition machinery (ATOM_DEFINE_CHANNELS and the FOR_EACH
 // infrastructure underneath).
 // Design and usage: see Log/Doc/LogSystem.md.
@@ -119,6 +137,7 @@
     inline constexpr std::string_view k##EnumName##Names[] = {                                                         \
         ATOM_FOR_EACH(ATOM_CHANNEL_NAME_ENTRY, __VA_ARGS__)                                                            \
     };                                                                                                                 \
+    ATOM_CHANNEL_RUNTIME_REGISTRATION(EnumName, DomainPrefix)                                                         \
     [[nodiscard]] constexpr auto GetChannelName(const EnumName channel) -> std::string_view {                          \
         if (static_cast<std::size_t>(channel) >= std::size(k##EnumName##Names)) {                                      \
             return "Unknown";                                                                                          \

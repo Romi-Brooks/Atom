@@ -135,6 +135,7 @@ auto main() -> int {
 
     MusicDebugger debugger{music, music_fade};
     debugger.Attach(window);
+    debugger.SetLoggerEnabled(true);
 
     window.Run();
 }

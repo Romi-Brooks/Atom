@@ -15,6 +15,12 @@
 
 namespace atom {
 
+RenderWindow::~RenderWindow() {
+    // OverlayManager owns RAII callbacks into RenderWindow's listener
+    // storage. Release it while that storage is still alive.
+    overlay_manager_.reset();
+}
+
 auto RenderWindow::GetInstance() -> RenderWindow& {
     static RenderWindow instance;
     return instance;
@@ -69,6 +75,9 @@ auto RenderWindow::Initialize(const std::string& title, atom::algo::Vec2 resolut
         return;
     }
     backend_->Window().SetFPS(fps_);
+
+    if (overlay_manager_)
+        overlay_manager_->OnRenderWindowInitialized();
 
     // Forward the facade's raw-event listeners into the backend. The lambda
     // reads the listener list at call time, so listeners registered after
@@ -201,6 +210,12 @@ auto RenderWindow::AddShutdownListener(ShutdownListener listener) -> ListenerCon
 
 auto RenderWindow::GetBackendId() const -> const std::string& {
     return backend_id_;
+}
+
+auto RenderWindow::GetOverlayManager() -> atom::debugger::OverlayManager& {
+    if (!overlay_manager_)
+        overlay_manager_ = std::make_unique<atom::debugger::OverlayManager>(*this);
+    return *overlay_manager_;
 }
 
 } // namespace atom

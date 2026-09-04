@@ -71,6 +71,7 @@ auto main() -> int {
 
     ExampleDebugger debugger{};
     debugger.Attach(window);
+    debugger.SetLoggerEnabled(true);
 
     window.Run();
 }

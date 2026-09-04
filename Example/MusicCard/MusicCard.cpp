@@ -1483,6 +1483,7 @@ auto main(int argc, char** argv) -> int {
 
     MusicCardDebugger debugger{*screen_pointer};
     debugger.Attach(window);
+    debugger.SetLoggerEnabled(true);
     auto renderer_shutdown = window.AddShutdownListener([screen_pointer] { screen_pointer->ShutdownRenderer(); });
     screen_pointer->LoadInterfaceFont();
 

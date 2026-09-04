@@ -79,22 +79,29 @@
 ### ARCH-112：扩展回调由单槽改为 Listener Registry
 
 - [x] Event、Update、Overlay、Shutdown 使用 token/RAII Connection 注册。（已落地：`RenderWindow` 提供 `Add*Listener` + `ListenerConnection`，见 2026-08-16。）
-- [x] Debugger、Profiler、Console 和用户 Overlay 可以并存。（监听器层已可并存；ImGui 层限制见 ARCH-113。）
+- [x] Debugger、Profiler、Console 和用户 Overlay 可以并存。（共享 ImGui context 已落地，见 ARCH-113。）
 - [x] 注销一个监听器不得清空其他监听器。（已落地：按 id 独立注销。）
 - 约束：监听器不得在自身被分发期间注销。
 
 ### ARCH-113：多个 ImGui Overlay 需要共享上下文
 
-- [ ] 由窗口级 OverlayManager 共享一份 ImGui 上下文；Debugger/Profiler/Console 只贡献 `OnDrawOverlay` 内容。
+- [x] 由窗口级 `OverlayManager` 共享一份 ImGui 上下文；Debugger/LogDebugger/未来的 Profiler/Console 只贡献 panel 内容。
 - [x] 旧 SDL_Renderer ImGui 适配器已退出 Atom target，SDL_GPU 的 `imgui_impl_sdlgpu3` 已注册并通过单 Debugger 验收。
-- 当前限制：ImGui backend 本身是全局状态，Atom 会拒绝第二个同时活动的 SDL_GPU Debugger 并记录 ERROR，避免上下文互相破坏。
-- 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。
+- [x] `Log` 提供线程安全的 RAII subscription；`Debugger` 可通过 `SetLoggerEnabled()` 挂载 LogDebugger，使用独立缓冲区和主线程 ImGui 绘制。
+- 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。（已通过共享 Debugger + LogDebugger 示例构建验收。）
 
 ### ARCH-114：Packager 路径与编码加固
 
 - [x] 跨盘打包导致包内文件名为空 → 已修复：`fs::relative` 跨盘返回空路径（libstdc++）或抛异常（MSVC），`GenerateInternalFilename` 现在 fallback 到裸文件名。（2026-08-16 实测 + 修复）
 - [ ] 路径统一走宽字符转换（复用 `Utf8ToWide`/`Utf8FromWide`）：`std::filesystem` 窄字符串按实现定义的字符集解释（MinGW 按 UTF-8 透传、MSVC 按 ANSI 代码页），保证中文/非 ASCII 文件名跨编译器稳定。当前 MinGW 下 UTF-8 输入全链路正常（实测通过）。
 - [ ] `packager_tool` 交互输入：中文 Windows 控制台 stdin 为 GBK 字节，与文件系统的 UTF-8 语义冲突（实测报 `Illegal byte sequence`）；读入后按 UTF-8 期望或显式转码。
+
+### ARCH-115：ImGui 原生 Multi-Viewport
+
+- [ ] 启用 `ImGuiConfigFlags_ViewportsEnable`，并补齐 SDL3 platform backend 的 viewport 创建、销毁、移动和输入路由。
+- [ ] 为 SDL_GPU renderer backend 实现每个 viewport 的 swapchain/render target 和 draw-data 提交。
+- [ ] 在主帧之外调用 platform window update/render 生命周期，并验证资源同步、resize、DPI 和 shutdown。
+- 这不是 ARCH-113 的“共享一个 ImGui context”本身；ARCH-113 解决同一主窗口内的多个 ImGui window，ARCH-115 才是可拖出为原生 SDL 窗口。
 
 ## 4. 音频后续事项
 

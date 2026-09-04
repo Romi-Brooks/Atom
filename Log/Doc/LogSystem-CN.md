@@ -182,6 +182,17 @@ atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING);
 
 ## TODO / 后续规划
 
+日志也支持运行时订阅，调试 UI 可以通过 RAII connection 接收完整日志流：
+
+```cpp
+auto connection = atom::Log::Subscribe([](const atom::LogRecord& record) {
+    // 不要在日志线程直接调用 ImGui；放入线程安全队列，在主线程消费。
+});
+```
+
+`LogDebugger` 已使用这个接口，并独立于控制台的 `SetViewLogLevel` 进行过滤。
+由 `ATOM_DEFINE_CHANNELS` 定义的引擎/游戏 channel 会自动注册到运行时列表，LogDebugger 使用下拉多选；临时字符串 channel 也会在首次出现后加入列表。
+
 域筛选是下一个规划中的功能集
 
 - [ ] **运行时按域过滤** —— 如 `atom::Log::SetChannelFilter("Atom.Audio.", false)`，按域（或单通道）静音/保留，无需 grep 即可把 `Game.` 日志与引擎噪音分开

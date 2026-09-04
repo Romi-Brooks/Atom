@@ -15,6 +15,7 @@
 
 #include <imgui.h>
 #include <Window/Debugger.hpp>
+#include <Window/LogDebugger.hpp>
 #include <Window/Debugger/ImGui/ImGuiFontLoader.hpp>
 
 #endif // ATOM_WINDOW_OVERLAY_HPP

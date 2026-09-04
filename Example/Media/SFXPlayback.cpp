@@ -111,6 +111,7 @@ auto main() -> int {
 
     SFXDebugger debugger{sfx};
     debugger.Attach(window);
+    debugger.SetLoggerEnabled(true);
 
     window.Run();
 }
