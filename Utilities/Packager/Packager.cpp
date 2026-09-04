@@ -5,11 +5,9 @@
 #include <algorithm>
 #include <iostream>
 
-// Third party Library
-#include <utf8.h>
-
 // Engine Headers
 #include <Log/LogSystem.hpp>
+#include <Utilities/Utf8/Utf8.hpp>
 
 namespace atom::tools {
 Packager::Config::Config() : compress(false), verbose(false), preserveStructure(true), overwrite(true) {}
@@ -28,20 +26,17 @@ auto Packager::NormalizePath(const std::string& path) -> std::string {
 }
 
 auto Packager::IsValidUTF8(const std::string& str) -> bool {
-    try {
-        return utf8::is_valid(str.begin(), str.end());
-    } catch (...) {
-        return false;
-    }
+    return atom::IsValidUtf8(str);
 }
 
 auto Packager::ToUTF8(const std::string& str) -> std::string {
+    if (!IsValidUTF8(str)) {
+        const auto sanitized = atom::ReplaceInvalidUtf8(str);
+        if (!sanitized.empty())
+            return sanitized;
+        return "invalid_encoding_file";
+    }
     try {
-        if (!IsValidUTF8(str)) {
-            std::string temp;
-            utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(temp));
-            return temp;
-        }
         return str;
     } catch (...) {
         return "invalid_encoding_file";
@@ -49,21 +44,21 @@ auto Packager::ToUTF8(const std::string& str) -> std::string {
 }
 
 auto Packager::SafePathToString(const fs::path& path) -> std::string {
-    try {
-        return path.string();
-    } catch (const std::exception& e) {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Path conversion error: " + std::to_string(*e.what()));
+    const auto result = atom::PathToUtf8(path);
+    if (result.empty() && !path.empty()) {
+        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Path conversion produced an empty UTF-8 path");
         return "unknown_path";
     }
+    return result;
 }
 
 auto Packager::SafeRelativePath(const fs::path& path) -> std::string {
     try {
-        return fs::relative(path).string();
+        return atom::PathToUtf8(fs::relative(path));
     } catch (const std::exception& e) {
         LOG_ERROR(atom::utilities::LogChannel::PACKAGER,
                   "Unable to obtain relative path: " + std::to_string(*e.what()));
-        return path.filename().string();
+        return atom::PathToUtf8(path.filename());
     }
 }
 
@@ -71,7 +66,7 @@ auto Packager::CollectFiles(const std::vector<std::string>& resourcePaths, std::
                             const Config& config) -> bool {
     for (const auto& path_str : resourcePaths) {
         try {
-            fs::path path(path_str);
+            fs::path path = atom::PathFromUtf8(path_str);
             if (!fs::exists(path)) {
                 LOG_WARNING(atom::utilities::LogChannel::PACKAGER, "Path does not exist: " + path_str);
                 continue;
@@ -147,7 +142,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         return Result::ERROR_EMPTY_PACKAGE;
     }
 
-    std::ofstream output(outputFile, std::ios::binary);
+    std::ofstream output(atom::PathFromUtf8(outputFile), std::ios::binary);
     if (!output.is_open()) {
         return Result::ERROR_OPEN_OUTPUT;
     }

@@ -282,7 +282,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Utilities/Packager/Packager.hpp
     )
     target_include_directories(Atom_Packager PUBLIC Utilities/Packager)
-    target_link_libraries(Atom_Packager PUBLIC Atom_3rd_UtfCpp Atom_Log)
+    target_link_libraries(Atom_Packager PUBLIC Atom_UTF8 Atom_Log)
 
 # 10. Windows
     add_library(Atom_Window STATIC

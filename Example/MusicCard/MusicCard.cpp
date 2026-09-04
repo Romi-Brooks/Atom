@@ -44,6 +44,7 @@
 #include <Media/Image/ImageDecoder.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <Render/Text/Font.hpp>
+#include <Utilities/Utf8/Utf8.hpp>
 #include <Window/Debugger/ImGui/ImGuiFontLoader.hpp>
 #include <Window/Manager/ScreenManager.hpp>
 #include <Window/Overlay.hpp>
@@ -64,7 +65,7 @@ namespace {
 constexpr auto MusicPath = R"(E:\Music\)";
 // Optional presentation background for the example. If this developer-local
 // asset is unavailable, the procedural gradient remains the fallback.
-constexpr auto WallpaperPath = R"(C:\Users\xxx\Pictures\Wallpapper\3177905.jpg)";
+constexpr auto WallpaperPath = R"(C:\Users\Romi\Pictures\Wallpapper\3177905.jpg)";
 
 struct FloatRect {
         float x = 0.0f;
@@ -335,6 +336,17 @@ class MusicCardScreen final : public atom::Screen {
             }
             if (animation_state_ == AnimationState::Hidden) {
                 RestartEntrance();
+            }
+        }
+
+        auto TogglePlayback() -> void {
+            if (tracks_.empty()) {
+                return;
+            }
+            if (is_playing_) {
+                PauseCurrentTrack();
+            } else {
+                Play();
             }
         }
 
@@ -631,6 +643,7 @@ class MusicCardScreen final : public atom::Screen {
 
         auto Update(const float delta_time) -> void override {
             effect_time_ += std::max(0.0f, delta_time);
+            HandlePlaybackCompletion();
             TryStartAfterLoad();
             switch (animation_state_) {
             case AnimationState::Entering:
@@ -1126,15 +1139,48 @@ class MusicCardScreen final : public atom::Screen {
             }
         }
 
-        auto TogglePlayback() -> void {
-            if (tracks_.empty()) {
+        auto HandlePlaybackCompletion() -> void {
+            if (!is_playing_ || current_track_ >= tracks_.size()) {
                 return;
             }
-            if (is_playing_) {
-                Stop();
-            } else {
-                Play();
+            std::string id;
+            std::string title;
+            {
+                std::lock_guard lock{tracks_mutex_};
+                id = tracks_[current_track_].id;
+                title = tracks_[current_track_].title;
             }
+            const auto playback_state = music_.GetState(id);
+            if (playback_state == atom::audio::AudioSourceState::Playing ||
+                playback_state == atom::audio::AudioSourceState::Paused) {
+                return;
+            }
+
+            // IsFinished() distinguishes natural EOF from an unexpected
+            // backend stop. Both clear the stale card state; only EOF advances.
+            const auto finished = music_.IsFinished(id);
+            is_playing_ = false;
+            if (finished) {
+                LOG_INFO(atom::audio::LogChannel::MUSIC,
+                         "Music card reached EOF; advancing from track: " + title);
+                RequestRelativeTrack(1);
+            } else {
+                LOG_WARNING(atom::audio::LogChannel::MUSIC,
+                            "Music card playback stopped before EOF: " + title);
+            }
+        }
+
+        auto PauseCurrentTrack() -> void {
+            std::string id;
+            {
+                std::lock_guard lock{tracks_mutex_};
+                if (current_track_ >= tracks_.size()) {
+                    return;
+                }
+                id = tracks_[current_track_].id;
+            }
+            music_.Pause(id);
+            is_playing_ = false;
         }
 
         auto StartCurrentTrack() -> void {
@@ -1361,6 +1407,10 @@ class MusicCardDebugger final : public atom::Debugger {
             if (ImGui::Button("Next")) {
                 screen_.Next();
             }
+            ImGui::SameLine();
+            if (ImGui::Button(screen_.IsPlaying() ? "Pause" : "Resume")) {
+                screen_.TogglePlayback();
+            }
 
             if (ImGui::Button("Switch corner")) {
                 screen_.ToggleCorner();
@@ -1395,30 +1445,6 @@ class MusicCardDebugger final : public atom::Debugger {
         bool reported_frame_pacing_ = false;
 };
 
-// On Windows std::filesystem::path::string() converts through the ANSI code
-// page, which corrupts non-ASCII (e.g. Chinese) filenames. Go through the
-// wide representation and convert to UTF-8 explicitly so that downstream
-// readers (TagLib, audio decoders) receive valid UTF-8 paths.
-[[nodiscard]] auto PathToUtf8(const std::filesystem::path& path) -> std::string {
-#ifdef _WIN32
-    const auto& wide = path.wstring();
-    if (wide.empty()) {
-        return {};
-    }
-    const auto size =
-        ::WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), static_cast<int>(wide.size()), nullptr, 0, nullptr, nullptr);
-    if (size <= 0) {
-        return {};
-    }
-    std::string utf8;
-    utf8.resize(static_cast<std::size_t>(size));
-    ::WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), static_cast<int>(wide.size()), utf8.data(), size, nullptr, nullptr);
-    return utf8;
-#else
-    return path.string();
-#endif
-}
-
 // Discovers audio files under the configured directory. Metadata and decoder
 // work are deferred to the background prefetch loader so startup remains
 // responsive and open file handles stay bounded.
@@ -1426,7 +1452,7 @@ class MusicCardDebugger final : public atom::Debugger {
     constexpr std::array audio_extensions{".mp3", ".wav", ".flac", ".ogg",  ".m4a",
                                           ".aac", ".wma", ".opus", ".aiff", ".aif"};
     auto paths = std::vector<std::string>{};
-    const auto music_dir = std::filesystem::path{music_root};
+    const auto music_dir = atom::PathFromUtf8(music_root);
     std::error_code ec;
     if (!std::filesystem::is_directory(music_dir, ec)) {
         LOG_ERROR(atom::audio::LogChannel::MUSIC, "Music path is not a directory: " + music_root);
@@ -1444,7 +1470,7 @@ class MusicCardDebugger final : public atom::Debugger {
         std::ranges::transform(ext, ext.begin(),
                                [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (std::ranges::find(audio_extensions, ext) != audio_extensions.end()) {
-            paths.push_back(PathToUtf8(entry.path()));
+            paths.push_back(atom::PathToUtf8(entry.path()));
         }
     }
     if (ec) {
@@ -1465,7 +1491,7 @@ auto main(int argc, char** argv) -> int {
     // but a generous ceiling prevents EMFILE surprises during metadata reads.
     _setmaxstdio(512);
 #endif // _WIN32
-    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
+    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
     atom::AudioMixer mixer;
     atom::MusicPlayer music{mixer};
     const std::string music_root = argc > 1 ? std::string{argv[1]} : std::string{MusicPath};

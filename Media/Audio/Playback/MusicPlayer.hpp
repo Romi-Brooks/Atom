@@ -41,7 +41,9 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
 
         auto Play(const std::string& id) -> void;
         auto Play(const std::string& id, float volume) -> void;
+        auto Pause(const std::string& id) -> void;
         auto Stop(const std::string& id) -> void;
+        [[nodiscard]] auto GetState(const std::string& id) const -> atom::audio::AudioSourceState;
         auto Reset() -> void;
         auto SetVolume(const std::string& id, float volume) -> void;
         auto SetMusicVolume(float volume) -> void;
@@ -50,6 +52,9 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
         [[nodiscard]] auto GetNowPlaying() const -> std::string;
         [[nodiscard]] auto IsLoaded(const std::string& id) const -> bool;
         [[nodiscard]] auto IsNowPlaying(const std::string& id) const -> bool;
+        // Returns true only when the source reached EOF naturally. When this
+        // happens, the stale now-playing id is cleared as part of the poll.
+        [[nodiscard]] auto IsFinished(const std::string& id) const -> bool;
         auto ClearNowPlaying() -> void;
 
         auto OnAudioBackendChanging() -> void override;
@@ -64,8 +69,10 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
         AudioMixer& mixer_;
         atom::backend::BackendRuntime* runtime_ = nullptr;
         std::unordered_map<std::string, Track> tracks_;
-        std::string current_playing_id_;
+        mutable std::string current_playing_id_;
         mutable std::mutex mutex_;
+
+        auto RefreshNowPlayingLocked() const -> void;
 };
 
 } // namespace atom

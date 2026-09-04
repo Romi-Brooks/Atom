@@ -4,8 +4,7 @@
 // Standard Library
 #include <iostream>
 
-// Third party Library
-#include <utf8.h>
+#include <Utilities/Utf8/Utf8.hpp>
 
 namespace fs = std::filesystem;
 
@@ -61,17 +60,17 @@ auto Unpackager::CreateDirectory(const fs::path& dir_path) -> bool {
 }
 
 auto Unpackager::SafePathToString(const fs::path& path) -> std::string {
-    try {
-        return path.string();
-    } catch (const std::exception& e) {
-        std::cout << "Warning: path conversion error: " << e.what() << std::endl;
+    const auto result = atom::PathToUtf8(path);
+    if (result.empty() && !path.empty()) {
+        std::cout << "Warning: path conversion produced an empty UTF-8 path" << std::endl;
         return "unknown_path";
     }
+    return result;
 }
 
 auto Unpackager::GetFileSize(const std::string& filename) -> uint64_t {
     try {
-        return static_cast<uint64_t>(fs::file_size(filename));
+        return static_cast<uint64_t>(fs::file_size(atom::PathFromUtf8(filename)));
     } catch (...) {
         return 0;
     }
@@ -79,7 +78,7 @@ auto Unpackager::GetFileSize(const std::string& filename) -> uint64_t {
 
 auto Unpackager::ReadFileData(const FileEntry& entry, std::vector<char>& buffer) -> Result {
     if (!package_stream_.is_open()) {
-        package_stream_.open(package_path_, std::ios::binary);
+        package_stream_.open(atom::PathFromUtf8(package_path_), std::ios::binary);
         if (!package_stream_.is_open()) {
             return Result::ERROR_OPEN_FILE;
         }
@@ -102,19 +101,20 @@ auto Unpackager::ReadFileData(const FileEntry& entry, std::vector<char>& buffer)
 }
 
 auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
-    package_path_ = packageFile;
+    const auto package_path = atom::PathFromUtf8(packageFile);
+    package_path_ = atom::PathToUtf8(package_path);
 
     if (package_stream_.is_open()) {
         package_stream_.close();
     }
 
-    if (!fs::exists(packageFile)) {
+    if (!fs::exists(package_path)) {
         if (verbose)
             std::cout << "Error: package file does not exist: " << packageFile << std::endl;
         return Result::ERROR_OPEN_FILE;
     }
 
-    uint64_t package_size = GetFileSize(packageFile);
+    uint64_t package_size = GetFileSize(package_path_);
     if (verbose)
         std::cout << "Package file size: " << package_size << " bytes" << std::endl;
 
@@ -124,7 +124,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         return Result::ERROR_INVALID_FORMAT;
     }
 
-    std::ifstream input(packageFile, std::ios::binary);
+    std::ifstream input(package_path, std::ios::binary);
     if (!input.is_open()) {
         if (verbose)
             std::cout << "Error: cannot open package file" << std::endl;
@@ -247,13 +247,13 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
             input.read(name_buffer.data(), name_length);
             if (input) {
                 entry.filename = std::string(name_buffer.data(), name_length);
-                if (!utf8::is_valid(entry.filename.begin(), entry.filename.end())) {
+                if (!atom::IsValidUtf8(entry.filename)) {
                     entry.filename = "file_" + std::to_string(i);
                 }
             }
         }
 
-        const fs::path internal_path(entry.filename);
+        const fs::path internal_path = atom::PathFromUtf8(entry.filename);
         if (internal_path.is_absolute() || internal_path.has_root_name()) {
             return Result::ERROR_CORRUPTED_PACKAGE;
         }
@@ -291,7 +291,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
             input.read(type_buffer.data(), type_length);
             if (input) {
                 entry.type = std::string(type_buffer.data(), type_length);
-                if (!utf8::is_valid(entry.type.begin(), entry.type.end())) {
+                if (!atom::IsValidUtf8(entry.type)) {
                     entry.type = ".dat";
                 }
             } else
@@ -442,11 +442,11 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
     // Build output path
     fs::path output_path;
     try {
-        output_path = config.outputDir;
+        output_path = atom::PathFromUtf8(config.outputDir);
         if (config.preserveStructure) {
-            output_path /= filename;
+            output_path /= atom::PathFromUtf8(filename);
         } else {
-            fs::path file_path(filename);
+            const fs::path file_path = atom::PathFromUtf8(filename);
             output_path /= file_path.filename();
         }
     } catch (const std::exception& e) {
