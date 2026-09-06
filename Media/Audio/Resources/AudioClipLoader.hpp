@@ -8,7 +8,7 @@
 
 #include <Backend/Contracts/Audio/AudioTypes.hpp>
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
-#include <Backend/Registry/AudioDecoderRegistry.hpp>
+#include <Backend/Extension/AudioDecoderRegistry.hpp>
 
 namespace atom {
 class AudioClipLoader final {

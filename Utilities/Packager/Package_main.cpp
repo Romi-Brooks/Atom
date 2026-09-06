@@ -7,10 +7,6 @@
 #include <sstream>
 #include <algorithm>
 
-#ifdef _WIN32
-#include "windows.h"
-#endif // _WIN32
-
 // Engine Headers
 #include <Log/LogSystem.hpp>
 
@@ -23,13 +19,13 @@ using atom::tools::Packager;
 using atom::tools::Unpackager;
 
 // Clear input buffer
-auto ClearInputBuffer() -> void {
+static auto ClearInputBuffer() -> void {
     std::cin.clear(); // Clear error state
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
 
 // Recursively traverse a single directory, collecting all file paths
-auto TraverseSingleDirectory(const std::string& dir_path) -> std::vector<std::string> {
+static auto TraverseSingleDirectory(const std::string& dir_path) -> std::vector<std::string> {
     std::vector<std::string> file_paths;
     try {
         if (!fs::exists(dir_path)) {
@@ -55,7 +51,7 @@ auto TraverseSingleDirectory(const std::string& dir_path) -> std::vector<std::st
 }
 
 // Traverse multiple directories, collecting all file paths
-auto TraverseMultipleDirectories(const std::vector<std::string>& dir_paths) -> std::vector<std::string> {
+static auto TraverseMultipleDirectories(const std::vector<std::string>& dir_paths) -> std::vector<std::string> {
     std::vector<std::string> all_file_paths;
     for (const auto& dir : dir_paths) {
         auto single_dir_files = TraverseSingleDirectory(dir);
@@ -66,7 +62,7 @@ auto TraverseMultipleDirectories(const std::vector<std::string>& dir_paths) -> s
 }
 
 // Parse user input for multiple directories
-auto ParseMultiDirectories(const std::string& input) -> std::vector<std::string> {
+static auto ParseMultiDirectories(const std::string& input) -> std::vector<std::string> {
     std::vector<std::string> dir_paths;
     std::stringstream ss(input);
     std::string dir;
@@ -86,7 +82,7 @@ auto ParseMultiDirectories(const std::string& input) -> std::vector<std::string>
 }
 
 // Packing function
-auto PackFiles(const std::string& packName, const std::vector<std::string>& resourcePath) -> bool {
+static auto PackFiles(const std::string& packName, const std::vector<std::string>& resourcePath) -> bool {
     Packager packer;
     Packager::Config config;
     config.verbose = true;
@@ -106,7 +102,7 @@ auto PackFiles(const std::string& packName, const std::vector<std::string>& reso
 }
 
 // Original unpacking function
-auto UnpackAllToFolder(const std::string& packName) -> bool {
+static auto UnpackAllToFolder(const std::string& packName) -> bool {
     Unpackager unpacker;
     if (unpacker.Load(packName) == Unpackager::Result::SUCCESS) {
         unpacker.PrintPackageInfo();
@@ -129,10 +125,7 @@ auto UnpackAllToFolder(const std::string& packName) -> bool {
 }
 
 auto main() -> int {
-#ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
-#endif // _WIN32
-
+    atom::Log::SetConsoleOutputUtf8();
     std::cout << "================================================" << std::endl;
     std::cout << "Atom Resource Package / Unpackage Tools v1.0  " << std::endl;
     std::cout << "================================================" << std::endl;

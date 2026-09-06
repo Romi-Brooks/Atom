@@ -17,7 +17,7 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 - [x] `SDL3Window::PollEvent()` 只做原始事件 hook 与单次转换，`RenderWindow::ProcessEvents()` 负责唯一一次引擎分发。
 - [x] 未映射的 SDL 事件不再以 `EventType::None` 发送给 Screen。
 - [x] `SDL_EVENT_QUIT` 与 `SDL_EVENT_WINDOW_CLOSE_REQUESTED` 都转换为关闭事件。
-- [x] 原始 SDL 事件仅通过 `IWindow::SetRawEventHook` 提供给平台适配器；普通业务只消费 `IEvent`。 。
+- [x] 平台事件在 SDL3 后端转换为规范化 `IEvent`；普通业务与 ImGui 桥接层均不接收原始 SDL 指针。
 
 ### ARCH-005：Lua 错误处理与空指针保护
 
@@ -153,8 +153,8 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 - [x] `IWindow`、`IRenderDevice`、`IRenderBackend` 已拆分；`RenderWindow` 只持有组合后的抽象后端。
 - [x] 上层不再拥有或包含具体 `SDL3RenderWindow`；默认后端由 `RenderBackendRuntime` 注册为 `sdl_gpu`。
-- [ ] 正式 GPU 资源只能由所属 RenderDevice 创建和消费；当前验证场景仍是 SDL_GPU 内部实现，不属于公共 RHI。
-- [x] Native handle 只存在于 `ISDL3WindowExtensions` 和 SDL_GPU 后端内部，不进入公共窗口/RHI 契约。
+- [ ] 正式 GPU 资源只能由所属 RenderDevice 创建和消费；当前验证场景位于 SDL_GPU 内部 smoke target，不属于公共 RHI。
+- [x] Native handle 仅存在于 SDL3 与 SDL_GPU 后端实现内部，不进入公共窗口/RHI 契约。
 
 ### RENDER-002：统一 RHI 与 2D/基础 3D Renderer
 
@@ -187,7 +187,7 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 ### RENDER-004：跨平台图片解码与纹理上传
 
 - [x] TagLib 元数据字节、`Atom_Image` RGBA 解码和 Renderer2D GPU 上传已拆成独立阶段；MusicCard 不再使用 WIC/SDL_Texture。
-- [x] 选择 vendored stb_image 2.30，版本、许可证、哈希、实现宏所有权、格式覆盖和失败日志记录在 `ThirdParty/stb/README.md` 与 `ImageDecoder` API 中。
+- [x] 使用固定 commit 的 stb 子模块；实现宏所有权、格式覆盖和失败日志记录在 `ImageDecoder` API 中，锁定提交记录在 `ThirdParty/README.md`。
 - [ ] Windows、Linux 使用同一份 JPEG/PNG 输入做一致性测试，并覆盖损坏数据、超大尺寸、空封面和不支持格式；WebP 不在 stb_image 支持范围，需要单独 codec adapter。
 - [ ] `DecodeImageFile(std::string)` 在 Windows 的非 ASCII 路径仍依赖 C runtime 窄路径行为；资产/VFS 应优先读入字节并调用 `DecodeImageMemory`，后续补 filesystem/IO adapter。
 
@@ -245,7 +245,7 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 ### CORE-003：目录与命名收敛
 
 - [ ] 继续清理空目录和错误命名；本轮已删除 `Render/Shader/TODO` 空占位文件。
-- [ ] 将 `Config` 中的 C++ 组件类型迁回领域目录；Config 只保留配置数据。
+- [x] 已删除早期 `Config` 目录；引擎配置应归属于各自的模块，而非新的通用目录。
 - [ ] 明确 Public/Internal/Backend 的头文件边界。
 
 ### CORE-004：统一错误模型

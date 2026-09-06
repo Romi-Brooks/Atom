@@ -19,9 +19,11 @@ auto Camera2D::ViewMatrix() const -> Mat3 {
     return Mat3::Translation(viewport_size * 0.5f) * Mat3::Scale({zoom, zoom}) * Mat3::Rotation(-rotation) *
            Mat3::Translation(-position);
 }
+
 auto Camera2D::WorldToScreen(const Vec2& point) const -> Vec2 {
     return ViewMatrix().TransformPoint(point);
 }
+
 auto Camera2D::ScreenToWorld(const Vec2& point) const -> Vec2 {
     const auto inverse = ViewMatrix().Inverse();
     if (!inverse)

@@ -127,6 +127,9 @@ class Log {
 
         static auto LogOut(std::string_view channelPrefix, std::string_view channelName, LogLevel level,
                            const std::string& logMessage) -> void;
+        // Configures the process console for UTF-8 text output. This is a
+        // no-op outside Windows and must be called explicitly by the host.
+        static auto SetConsoleOutputUtf8() -> void;
         static auto SetViewLogLevel(LogLevel viewLogLevel) -> void;
         using Listener = std::function<void(const LogRecord&)>;
         [[nodiscard]] static auto Subscribe(Listener listener) -> LogConnection;

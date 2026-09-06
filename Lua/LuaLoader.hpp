@@ -17,15 +17,10 @@
 // Third Party Library
 #include "lua.hpp"
 
-// Engine Headers
-#include <ECS/Components/Entities/Entity.hpp>
-
 // Forward declarations for Lua binding registration functions
-auto RegisterEntityToLua(lua_State* L) -> void;
 auto RegisterMusicToLua(lua_State* L) -> void;
 auto RegisterSFXToLua(lua_State* L) -> void;
 auto RegisterVolumeToLua(lua_State* L) -> void;
-auto PushEntityToLua(lua_State* L, atom::Entity* entity, const std::string& luaVarName) -> void;
 
 // Set Lua bridge instances
 // 设置 Lua 桥接实例
@@ -79,10 +74,6 @@ class LuaLoader {
         // Call a global Lua function
         // 调用Lua中的全局函数
         auto CallLuaFunction(const std::string& funcName) const -> bool;
-
-        // Register an Entity to the Lua environment
-        // 注册Entity到Lua环境
-        auto RegisterEntity(atom::Entity* entity, const std::string& luaVarName) const -> void;
 
         // Get the Lua state machine (use with caution; prefer encapsulated interfaces)
         // 获取Lua状态机（谨慎使用，尽量通过封装接口操作）

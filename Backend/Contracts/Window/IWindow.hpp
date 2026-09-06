@@ -11,12 +11,12 @@
 #define ATOM_BACKEND_CONTRACTS_WINDOW_IWINDOW_HPP
 
 #include <cstdint>
-#include <functional>
 #include <optional>
 #include <string>
 #include <variant>
 
 #include <Algorithm/Vector/Vec2.hpp>
+#include <Event/Input.hpp>
 
 namespace atom::window {
 
@@ -28,23 +28,34 @@ enum class EventType {
     MouseMoved,
     MouseButtonPressed,
     MouseButtonReleased,
+    MouseWheel,
+    TextInput,
+    FocusChanged,
     Resized
 };
 
-struct KeyEvent {
-        int32_t scancode = 0, keycode = 0;
-        bool alt = false, ctrl = false, shift = false;
-};
+// Input payloads are declared by Event, rather than by a window backend.
+// Aliases preserve the window event API while keeping key identity portable.
+using KeyEvent = event::KeyEvent;
 struct MouseEvent {
         float x = 0, y = 0;
-        int32_t button = 0;
+        event::MouseButton button = event::MouseButton::Unknown;
+};
+struct MouseWheelEvent {
+        float x = 0, y = 0;
+};
+struct TextInputEvent {
+        std::string text;
+};
+struct FocusEvent {
+        bool focused = false;
 };
 struct ResizeEvent {
         uint32_t width = 0, height = 0;
 };
 struct IEvent {
         EventType type = EventType::None;
-        std::variant<KeyEvent, MouseEvent, ResizeEvent> data{};
+        std::variant<KeyEvent, MouseEvent, MouseWheelEvent, TextInputEvent, FocusEvent, ResizeEvent> data{};
 };
 
 class IWindow {
@@ -58,7 +69,6 @@ class IWindow {
         [[nodiscard]] virtual auto GetFPS() const -> uint32_t = 0;
         [[nodiscard]] virtual auto GetTimeSeconds() const -> double = 0;
         virtual auto WaitForNextFrame() -> void = 0;
-        virtual auto SetRawEventHook(std::function<void(const void*)> hook) -> void = 0;
         [[nodiscard]] virtual auto GetSize() const -> algo::Vec2 = 0;
 };
 

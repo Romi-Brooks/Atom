@@ -180,6 +180,21 @@ atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING);
 
 ---
 
+## Windows 控制台 UTF-8
+
+Windows 程序需要向控制台输出 UTF-8 文本时，在 `main` 的最开始、任何控制台或日志输出
+之前调用一次：
+
+```cpp
+atom::Log::SetConsoleOutputUtf8();
+```
+
+Windows 上它封装 `SetConsoleOutputCP(CP_UTF8)`；其他平台为空操作。因此游戏代码不需要
+平台条件编译，也不需要包含 `windows.h`。该设置只影响控制台输出，不改变控制台输入，
+也不能替代终端中缺失的字体。
+
+---
+
 ## TODO / 后续规划
 
 日志也支持运行时订阅，调试 UI 可以通过 RAII connection 接收完整日志流：

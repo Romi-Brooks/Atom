@@ -12,11 +12,11 @@
 
 #include <memory>
 
-namespace atom::window {
-class IWindow;
-}
 namespace atom::render {
 class IRenderDevice;
+}
+namespace atom::window {
+class IWindow;
 }
 namespace atom::debugger {
 class IDebugImGuiBackend;
@@ -24,10 +24,8 @@ class IDebugImGuiBackend;
 
 namespace atom::backend::sdlgpu {
 
-// Creates the SDL_GPU ImGui platform/render backend if the window is an SDL3
-// window and the device is a SDLGPUDevice; otherwise returns nullptr. This is
-// the debug-layer backend selection seam for the "sdl_gpu" render backend;
-// the render runtime registers it into DebugImGuiBackendRegistry.
+// Creates the SDL_GPU ImGui render backend if the device is a SDLGPUDevice;
+// input, size, and time are supplied by the backend-neutral IWindow contract.
 auto CreateSDLGPUImGuiBackend(window::IWindow& window, render::IRenderDevice& device)
     -> std::unique_ptr<debugger::IDebugImGuiBackend>;
 

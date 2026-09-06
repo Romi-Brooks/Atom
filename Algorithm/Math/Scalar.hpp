@@ -27,6 +27,9 @@ inline constexpr float Pi = std::numbers::pi_v<float>;
 [[nodiscard]] constexpr auto Clamp(float value, float minimum, float maximum) -> float {
     return std::clamp(value, minimum, maximum);
 }
+[[nodiscard]] constexpr auto Saturate(float value) -> float {
+    return Clamp(value, 0.0f, 1.0f);
+}
 [[nodiscard]] constexpr auto Lerp(float from, float to, float amount) -> float {
     return from + (to - from) * amount;
 }

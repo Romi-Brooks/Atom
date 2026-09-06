@@ -8,7 +8,7 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Event/Input.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Media/Audio/Transitions/MusicCrossfade.hpp>
@@ -18,10 +18,6 @@
 #include <Window/Overlay.hpp>
 
 #include <Log/LogSystem.hpp>
-
-#ifdef _WIN32
-#include "windows.h"
-#endif // _WIN32
 
 namespace {
 // replace it
@@ -91,7 +87,7 @@ class MusicScreen final : public atom::Screen {
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
-                if (key.scancode == 41) { // SDL_SCANCODE_ESCAPE
+                if (key.key == atom::event::Key::Escape) {
                     atom::RenderWindow::GetInstance().Shutdown();
                     return true;
                 }
@@ -109,10 +105,7 @@ class MusicScreen final : public atom::Screen {
 } // namespace
 
 auto main() -> int {
-#ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
-#endif // _WIN32
-
+    atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
     atom::AudioMixer mixer;

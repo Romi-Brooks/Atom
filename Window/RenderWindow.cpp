@@ -9,7 +9,7 @@
 
 #include "RenderWindow.hpp"
 
-#include <Backend/Registry/RenderBackendRegistry.hpp>
+#include <Backend/Extension/RenderBackendRegistry.hpp>
 #include <Backend/Runtime/RenderBackendRuntime.hpp>
 #include <Log/LogSystem.hpp>
 
@@ -79,15 +79,6 @@ auto RenderWindow::Initialize(const std::string& title, atom::algo::Vec2 resolut
     if (overlay_manager_)
         overlay_manager_->OnRenderWindowInitialized();
 
-    // Forward the facade's raw-event listeners into the backend. The lambda
-    // reads the listener list at call time, so listeners registered after
-    // Initialize() (e.g. Debugger::Attach) take effect immediately. All other
-    // hooks are invoked by the facade itself and need no backend forwarding.
-    backend_->Window().SetRawEventHook([this](const void* rawEvent) {
-        for (const auto& entry : raw_event_listeners_) {
-            entry.fn(rawEvent);
-        }
-    });
 }
 
 auto RenderWindow::Run() -> void {
@@ -184,10 +175,6 @@ auto RenderWindow::Shutdown() -> void {
 }
 
 // ── Listener registry ───────────────────────────────────────────────
-auto RenderWindow::AddRawEventListener(RawEventListener listener) -> ListenerConnection {
-    return AddListener(raw_event_listeners_, std::move(listener));
-}
-
 auto RenderWindow::AddEventListener(EventListener listener) -> ListenerConnection {
     return AddListener(event_listeners_, std::move(listener));
 }

@@ -154,10 +154,10 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
                                      static_cast<int>(width));
         const auto top = std::clamp(static_cast<int>(std::floor(region.y - postprocess_params_.feather)), 0,
                                     static_cast<int>(height));
-        const auto right = std::clamp(static_cast<int>(std::ceil(region.x + region.w + postprocess_params_.feather)),
+        const auto right = std::clamp(static_cast<int>(std::ceil(region.x + region.width + postprocess_params_.feather)),
                                       left, static_cast<int>(width));
         const auto bottom =
-            std::clamp(static_cast<int>(std::ceil(region.y + region.h + postprocess_params_.feather)), top,
+            std::clamp(static_cast<int>(std::ceil(region.y + region.height + postprocess_params_.feather)), top,
                        static_cast<int>(height));
         scissor = {left, top, right - left, bottom - top};
     }
@@ -203,8 +203,8 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
         blur.feather = postprocess_params_.feather;
         blur.region_x = static_cast<float>(postprocess_params_.region.x) / static_cast<float>(width);
         blur.region_y = static_cast<float>(postprocess_params_.region.y) / static_cast<float>(height);
-        blur.region_w = static_cast<float>(postprocess_params_.region.w) / static_cast<float>(width);
-        blur.region_h = static_cast<float>(postprocess_params_.region.h) / static_cast<float>(height);
+        blur.region_w = static_cast<float>(postprocess_params_.region.width) / static_cast<float>(width);
+        blur.region_h = static_cast<float>(postprocess_params_.region.height) / static_cast<float>(height);
         SDL_PushGPUFragmentUniformData(command_buffer_, 0, &blur, sizeof(blur));
         SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
         SDL_EndGPURenderPass(pass);
@@ -214,8 +214,8 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
     if (postprocess_params_.has_region) {
         params.region_x = static_cast<float>(region.x) / static_cast<float>(width);
         params.region_y = static_cast<float>(region.y) / static_cast<float>(height);
-        params.region_w = static_cast<float>(region.w) / static_cast<float>(width);
-        params.region_h = static_cast<float>(region.h) / static_cast<float>(height);
+        params.region_w = static_cast<float>(region.width) / static_cast<float>(width);
+        params.region_h = static_cast<float>(region.height) / static_cast<float>(height);
     } else {
         params.region_x = 0.0f;
         params.region_y = 0.0f;

@@ -20,17 +20,13 @@ foreach(dependency_file IN ITEMS
         "${ATOM_TAGLIB_DIR}/CMakeLists.txt"
         "${ATOM_UTFCPP_DIR}/CMakeLists.txt"
         "${ATOM_MINIMP3_DIR}/minimp3.h"
+        "${ATOM_STB_DIR}/stb_image.h"
+        "${ATOM_STB_DIR}/stb_truetype.h"
         "${ATOM_YOGA_DIR}/yoga/CMakeLists.txt")
     if(NOT EXISTS "${dependency_file}")
         message(FATAL_ERROR
             "Missing third-party dependency content: ${dependency_file}\n"
             "Run: git submodule update --init")
-    endif()
-endforeach()
-
-foreach(stb_header IN ITEMS "${ATOM_STB_DIR}/stb_image.h" "${ATOM_STB_DIR}/stb_truetype.h")
-    if(NOT EXISTS "${stb_header}")
-        message(FATAL_ERROR "Missing vendored stb header: ${stb_header}")
     endif()
 endforeach()
 
@@ -237,7 +233,7 @@ add_library(Atom_3rd_Minimp3 INTERFACE)
 target_include_directories(Atom_3rd_Minimp3 INTERFACE "${ATOM_MINIMP3_DIR}")
 
 # --------------------------------------------------------------------------
-# stb (vendored dual-licensed single-header image/font utilities)
+# stb (pinned header-only image/font utilities)
 # --------------------------------------------------------------------------
 add_library(Atom_3rd_Stb INTERFACE)
 target_include_directories(Atom_3rd_Stb INTERFACE "${ATOM_STB_DIR}")

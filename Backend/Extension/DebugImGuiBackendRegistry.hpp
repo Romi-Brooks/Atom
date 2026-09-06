@@ -7,11 +7,11 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace atom::window {
-class IWindow;
-}
 namespace atom::render {
 class IRenderDevice;
+}
+namespace atom::window {
+class IWindow;
 }
 
 namespace atom::debugger {
@@ -30,8 +30,8 @@ class DebugImGuiBackendRegistry final {
 
         auto Register(std::string_view renderBackendId, Factory factory) -> bool;
 
-        [[nodiscard]] auto Create(std::string_view renderBackendId, window::IWindow& window,
-                                  render::IRenderDevice& device) const -> std::unique_ptr<IDebugImGuiBackend>;
+        [[nodiscard]] auto Create(std::string_view renderBackendId, window::IWindow& window, render::IRenderDevice& device) const
+            -> std::unique_ptr<IDebugImGuiBackend>;
         [[nodiscard]] auto Contains(std::string_view renderBackendId) const -> bool;
 
     private:

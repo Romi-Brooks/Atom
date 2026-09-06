@@ -12,6 +12,20 @@
 #include <sstream>
 #include <utility>
 
+#ifdef _WIN32
+// This implementation file is the only Atom source that needs this API.
+// windows.h is never exposed through LogSystem.hpp or included by callers.
+// WIN32_LEAN_AND_MEAN provides less macro exposure
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+// NOMINMAX means the min/max macros will not be exposed.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif // _WIN32
+
 using atom::Log;
 using atom::LogLevel;
 
@@ -69,7 +83,7 @@ static auto GetLogLevel(const LogLevel& logLevel) -> std::string {
     return "UNKNOWN";
 }
 
-static auto GetCurrentTime() -> std::string {
+static auto FormatCurrentTimestamp() -> std::string {
     const auto time = std::chrono::system_clock::now();
     const auto time_t = std::chrono::system_clock::to_time_t(time);
     std::stringstream time_string;
@@ -80,6 +94,13 @@ static auto GetCurrentTime() -> std::string {
 auto Log::GetLogInstance() -> Log& {
     static Log instance;
     return instance;
+}
+
+auto Log::SetConsoleOutputUtf8() -> void {
+#ifdef _WIN32
+    constexpr unsigned int utf8_code_page = 65001; // Win32 CP_UTF8
+    SetConsoleOutputCP(utf8_code_page);
+#endif // _WIN32
 }
 
 auto Log::Subscribe(Listener listener) -> atom::LogConnection {
@@ -119,7 +140,7 @@ auto Log::LogOut(const std::string_view channelPrefix, const std::string_view ch
 
         // Subscribers receive every record. The console view level is only a
         // console concern, so LogDebugger can apply its own filters.
-        record.timestamp = GetCurrentTime();
+        record.timestamp = FormatCurrentTimestamp();
         record.channel_prefix = channelPrefix;
         record.channel_name = channelName;
         record.level = level;

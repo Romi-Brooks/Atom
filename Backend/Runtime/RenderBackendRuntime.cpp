@@ -1,8 +1,8 @@
 #include "RenderBackendRuntime.hpp"
 
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
-#include <Backend/Registry/DebugImGuiBackendRegistry.hpp>
-#include <Backend/Registry/RenderBackendRegistry.hpp>
+#include <Backend/Extension/DebugImGuiBackendRegistry.hpp>
+#include <Backend/Extension/RenderBackendRegistry.hpp>
 #include <Backend/SDLGPU/Debug/SDLGPUImGuiBackend.hpp>
 #include <Backend/SDLGPU/Device/SDLGPUBackend.hpp>
 

@@ -29,7 +29,8 @@ auto DebugImGuiBackendRegistry::Register(const std::string_view renderBackendId,
 }
 
 auto DebugImGuiBackendRegistry::Create(const std::string_view renderBackendId, window::IWindow& window,
-                                       render::IRenderDevice& device) const -> std::unique_ptr<IDebugImGuiBackend> {
+                                       render::IRenderDevice& device) const
+    -> std::unique_ptr<IDebugImGuiBackend> {
     const auto it = debug_backends_.find(NormalizeId(renderBackendId));
     return it == debug_backends_.end() ? nullptr : it->second(window, device);
 }

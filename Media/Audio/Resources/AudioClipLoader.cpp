@@ -6,7 +6,7 @@
 #include <vector>
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
-#include <Backend/Registry/AudioDecoderRegistry.hpp>
+#include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom {

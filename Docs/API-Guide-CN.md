@@ -52,15 +52,17 @@ window.Run();
 上层不直接选择这些原生 API。自定义后端通过 `RenderBackendRegistry` 注册后即可选用：
 
 ```cpp
-#include <Backend/Registry/RenderBackendRegistry.hpp>
+#include <Backend/Extension/RenderBackendRegistry.hpp>
 
 atom::backend::RenderBackendRegistry::GetInstance().RegisterBackendFactory(
     "my_backend", [] { return std::make_unique<MyRenderBackend>(); });
 // window.Initialize("My Game", atom::algo::Vec2{1280, 720}, "my_backend");
 ```
 
-具体后端实现（`Backend/SDL3/*` 等）由引擎运行时内部注册与持有，普通用户只使用
-`Backend/Contracts/*` 接口，不直接包含后端头文件。
+具体后端实现（`Backend/SDL3/*` 等）由引擎运行时内部注册与持有；普通用户通过
+`Window/*`、`Render/*`、`Media/*` 和 `Event/*` 编程，不直接包含具体后端头文件。
+`Backend/Contracts/*` 是实现这些门面所需的稳定抽象类型，只有实现 Screen、渲染插件等
+底层扩展时才应直接使用；`Backend/Extension/*` 同样只面向显式注册自定义后端的扩展作者。
 
 ### 调试覆盖层（ImGui）
 

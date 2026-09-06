@@ -87,7 +87,7 @@ class OverlayManager final {
 
         RenderWindow& window_;
         std::unique_ptr<IDebugImGuiBackend> backend_;
-        std::unique_ptr<ListenerConnection> raw_event_connection_;
+        std::unique_ptr<ListenerConnection> event_connection_;
         std::unique_ptr<ListenerConnection> update_connection_;
         std::unique_ptr<ListenerConnection> overlay_connection_;
         std::unique_ptr<ListenerConnection> shutdown_connection_;

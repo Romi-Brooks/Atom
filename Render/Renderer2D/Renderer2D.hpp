@@ -160,8 +160,8 @@ class Renderer2D {
                 uint32_t page = 0;
                 uint32_t u = 0;
                 uint32_t v = 0;
-                uint32_t w = 0;
-                uint32_t h = 0;
+                uint32_t width = 0;
+                uint32_t height = 0;
                 int offset_x = 0;
                 int offset_y = 0;
                 float advance = 0.0f;

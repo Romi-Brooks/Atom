@@ -1,13 +1,27 @@
+/**
+ * @file            : MusicCrossfade.cpp
+  * @author         : Romi Brooks
+  * @brief          :
+  * @attention      :
+  * @date           : 2026/6/6
+  Copyright (c) 2026 Romi Brooks, All rights reserved.
+**/
+
 #include "MusicCrossfade.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <utility>
+
+#include <Algorithm/Interpolation/Easing.hpp>
+#include <Algorithm/Math/Scalar.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
+
 namespace atom::audio {
+
 namespace {
-constexpr float kHalfPi = 1.57079632679489661923f;
 auto CurveName(const FadeCurve curve) -> const char* {
     switch (curve) {
     case FadeCurve::Linear:
@@ -19,12 +33,14 @@ auto CurveName(const FadeCurve curve) -> const char* {
     }
     return "Unknown";
 }
+
 auto FormatSeconds(const float seconds) -> std::string {
     char buffer[32]{};
     std::snprintf(buffer, sizeof(buffer), "%.2f", seconds);
     return buffer;
 }
 }
+
 auto MusicCrossfade::Start(const std::string& target, const MusicCrossfadeConfig& config) -> bool {
     if (!player_.IsLoaded(target) || config.fade_out_duration < 0.0f || config.fade_in_duration < 0.0f) {
         LOG_ERROR(atom::audio::LogChannel::PLUG_MUSICFADE,
@@ -66,10 +82,12 @@ auto MusicCrossfade::Start(const std::string& target, const MusicCrossfadeConfig
     Update(0.0f);
     return true;
 }
+
 auto MusicCrossfade::Switch(const std::string& target, const float duration) -> bool {
     const auto phase = std::max(0.0f, duration * 0.5f);
     return Start(target, MusicCrossfadeConfig{phase, phase});
 }
+
 auto MusicCrossfade::Update(float delta_time) -> void {
     if (IsRunning() && !player_.IsLoaded(to_id_)) {
         LOG_ERROR(atom::audio::LogChannel::PLUG_MUSICFADE,
@@ -105,6 +123,7 @@ auto MusicCrossfade::Update(float delta_time) -> void {
         }
     }
 }
+
 auto MusicCrossfade::Cancel() -> void {
     if (!IsRunning())
         return;
@@ -115,6 +134,7 @@ auto MusicCrossfade::Cancel() -> void {
               "MusicCrossfade: fade cancelled '" + from_id_ + "' -> '" + to_id_ + "'");
     EnterState(MusicTransitionState::Cancelled);
 }
+
 auto MusicCrossfade::Reset() -> void {
     if (IsRunning())
         Cancel();
@@ -123,23 +143,25 @@ auto MusicCrossfade::Reset() -> void {
     to_id_.clear();
     elapsed_ = 0.0f;
 }
+
 auto MusicCrossfade::SetCallback(Callback callback) -> void {
     callback_ = std::move(callback);
 }
+
 auto MusicCrossfade::EvaluateCurve(float progress, const FadeCurve curve, const bool fade_in) -> float {
-    progress = std::clamp(progress, 0.0f, 1.0f);
+    progress = atom::algo::Saturate(progress);
     switch (curve) {
     case FadeCurve::Linear:
         return fade_in ? progress : 1.0f - progress;
-    case FadeCurve::SmoothStep: {
-        const auto smooth = progress * progress * (3.0f - 2.0f * progress);
-        return fade_in ? smooth : 1.0f - smooth;
-    }
+    case FadeCurve::SmoothStep:
+        return fade_in ? atom::algo::SmoothStep(0.0f, 1.0f, progress)
+                       : 1.0f - atom::algo::SmoothStep(0.0f, 1.0f, progress);
     case FadeCurve::EqualPower:
-        return fade_in ? std::sin(progress * kHalfPi) : std::cos(progress * kHalfPi);
+        return fade_in ? atom::algo::easing::OutSine(progress) : 1.0f - atom::algo::easing::InSine(progress);
     }
     return fade_in ? progress : 1.0f - progress;
 }
+
 auto MusicCrossfade::EnterState(const MusicTransitionState state) -> void {
     state_ = state;
     auto callback = callback_;
@@ -148,12 +170,15 @@ auto MusicCrossfade::EnterState(const MusicTransitionState state) -> void {
     if (callback)
         callback(state, from, to);
 }
+
 auto MusicCrossfade::Complete() -> void {
     EnterState(MusicTransitionState::Completed);
 }
+
 auto MusicCrossfade::GetState() const -> MusicTransitionState {
     return state_;
 }
+
 auto MusicCrossfade::GetProgress() const -> float {
     if (state_ == MusicTransitionState::Completed)
         return 1.0f;
@@ -164,15 +189,19 @@ auto MusicCrossfade::GetProgress() const -> float {
     const auto phase = duration <= 0.0f ? 1.0f : std::clamp(elapsed_ / duration, 0.0f, 1.0f);
     return state_ == MusicTransitionState::FadingOut ? phase * 0.5f : 0.5f + phase * 0.5f;
 }
+
 auto MusicCrossfade::GetFromId() const -> const std::string& {
     return from_id_;
 }
+
 auto MusicCrossfade::GetToId() const -> const std::string& {
     return to_id_;
 }
+
 auto MusicCrossfade::GetDuration() const -> float {
     return config_.fade_out_duration + config_.fade_in_duration;
 }
+
 auto MusicCrossfade::IsRunning() const -> bool {
     return state_ == MusicTransitionState::FadingOut || state_ == MusicTransitionState::FadingIn;
 }

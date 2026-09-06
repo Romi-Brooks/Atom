@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
-#include <Backend/Registry/DebugImGuiBackendRegistry.hpp>
+#include <Backend/Extension/DebugImGuiBackendRegistry.hpp>
 #include <Log/LogSystem.hpp>
 #include <Window/RenderWindow.hpp>
 
@@ -11,7 +11,7 @@ namespace atom::debugger {
 OverlayManager::OverlayManager(RenderWindow& window) : window_(window) {}
 
 OverlayManager::~OverlayManager() {
-    raw_event_connection_.reset();
+    event_connection_.reset();
     update_connection_.reset();
     overlay_connection_.reset();
     shutdown_connection_.reset();
@@ -38,10 +38,10 @@ auto OverlayManager::EnsureInitialized() -> bool {
         return false;
     }
 
-    raw_event_connection_ = std::make_unique<ListenerConnection>(
-        window_.AddRawEventListener([this](const void* raw_event) {
+    event_connection_ = std::make_unique<ListenerConnection>(
+        window_.AddEventListener([this](window::IEvent& event) {
             if (backend_)
-                backend_->ProcessRawEvent(raw_event);
+                backend_->ProcessEvent(event);
         }));
     update_connection_ = std::make_unique<ListenerConnection>(window_.AddUpdateListener([this](float) {
         if (backend_)

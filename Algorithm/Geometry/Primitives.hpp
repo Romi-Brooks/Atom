@@ -18,7 +18,9 @@
 
 namespace atom::algo {
 
-struct Rect2 {
+// A two-dimensional axis-aligned bounding box. This is spatial geometry for
+// containment/overlap queries, not a UI rectangle or a render command.
+struct Aabb2 {
         Vec2 min = Vec2::Zero();
         Vec2 max = Vec2::Zero();
 
@@ -32,7 +34,7 @@ struct Rect2 {
             return point.GetX() >= min.GetX() && point.GetX() <= max.GetX() && point.GetY() >= min.GetY() &&
                    point.GetY() <= max.GetY();
         }
-        [[nodiscard]] constexpr auto Intersects(const Rect2& other) const -> bool {
+        [[nodiscard]] constexpr auto Intersects(const Aabb2& other) const -> bool {
             return min.GetX() <= other.max.GetX() && max.GetX() >= other.min.GetX() && min.GetY() <= other.max.GetY() &&
                    max.GetY() >= other.min.GetY();
         }

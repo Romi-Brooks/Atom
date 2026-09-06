@@ -13,7 +13,7 @@
 #include <cstdint>
 #include <filesystem>
 
-#include <Backend/Contracts/Render/RenderTypes.hpp>
+#include <Backend/Contracts/Render/IRenderTypes.hpp>
 
 #include <cstddef>
 
