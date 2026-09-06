@@ -21,8 +21,25 @@ struct Camera2D {
         float rotation = 0.0f;
         float zoom = 1.0f;
 
+        /**
+         * @brief Returns the combined View‑Projection 3x3 matrix.
+         * @attention This returns View‑Projection matrix, not pure view matrix.
+         * @return View‑Projection 3x3 matrix
+         */
         [[nodiscard]] auto ViewMatrix() const -> Mat3;
+
+        /**
+         * @brief Converts a point from world‑space to screen pixel space.
+         * @param point Point Input point in world‑space.
+         * @return Corresponding point in screen pixel coordinates.
+         */
         [[nodiscard]] auto WorldToScreen(const Vec2& point) const -> Vec2;
+
+        /**
+         * @brief Converts a point from screen pixel space back to world‑space.
+         * @param point point Input point in screen pixel coordinates.
+         * @return Corresponding point in world‑space.
+         */
         [[nodiscard]] auto ScreenToWorld(const Vec2& point) const -> Vec2;
 };
 

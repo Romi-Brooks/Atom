@@ -1,26 +1,21 @@
-// Copyright (c) 2026 Romi Brooks
-// SPDX-License-Identifier: MIT
-
 /**
- * @file MusicCard.cpp
- * @brief Yoga + Renderer2D music HUD card (ported from the retired
- *        SDL_Renderer painter; phase C migration).
- * @author Romi Brooks
- * @date 2026/09/01
- * @attention Temporary widgets and animation helpers intentionally live only
- *            in this example.
- */
-
-#include <SDL3/SDL.h>
+ * @file           : SimpleWindow.cpp
+  * @author         : Romi Brooks
+  * @brief          : Simple single-window rendering example using Atom Engine
+  *                   API.
+  * @attention      :
+  * @date           : 2026/6/6
+  Copyright (c) 2026 Romi Brooks, All rights reserved.
+**/
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -34,28 +29,28 @@
 #include <utility>
 #include <vector>
 
-#include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Event/ActionMap.hpp>
+#include <Algorithm/Interpolation/Easing.hpp>
+#include <Algorithm/Geometry/Rect.hpp>
 #include <Layout/LayoutTree.hpp>
 #include <Layout/LayoutTypes.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Metadata/AudioMetadataReader.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
+#include <Media/Image/Analysis/ColorStatistics.hpp>
 #include <Media/Image/ImageDecoder.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
+#include <Color/ColorMath.hpp>
+#include <Render/Conversion/GeometryConversions.hpp>
+#include <Render/Resources/ImageTexture.hpp>
 #include <Render/Text/Font.hpp>
+#include <Utilities/Utf8/Utf8.hpp>
 #include <Window/Debugger/ImGui/ImGuiFontLoader.hpp>
 #include <Window/Manager/ScreenManager.hpp>
 #include <Window/Overlay.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
-
-#ifdef _WIN32
-#include <windows.h>
-#ifdef DrawText
-#undef DrawText
-#endif
-#endif // _WIN32
 
 namespace {
 
@@ -64,16 +59,28 @@ namespace {
 constexpr auto MusicPath = R"(E:\Music\)";
 // Optional presentation background for the example. If this developer-local
 // asset is unavailable, the procedural gradient remains the fallback.
-constexpr auto WallpaperPath = R"(C:\Users\xxx\Pictures\Wallpapper\3177905.jpg)";
+constexpr auto WallpaperPath = R"(C:\Users\Romi\Pictures\Wallpapper\3177905.jpg)";
 
-struct FloatRect {
-        float x = 0.0f;
-        float y = 0.0f;
-        float width = 0.0f;
-        float height = 0.0f;
-};
+enum class MusicCardAction { Quit, Previous, Next, TogglePlayback, ToggleCorner, ToggleVisibility };
 
-struct Palette {
+auto GetMusicCardBindings() -> const atom::event::ActionMap<MusicCardAction>& {
+    static const auto bindings = [] {
+        atom::event::ActionMap<MusicCardAction> result;
+        result.Bind({atom::event::Key::Escape}, MusicCardAction::Quit);
+        result.Bind({atom::event::Key::Left}, MusicCardAction::Previous);
+        result.Bind({atom::event::Key::Right}, MusicCardAction::Next);
+        result.Bind({atom::event::Key::Space}, MusicCardAction::TogglePlayback);
+        result.Bind({atom::event::Key::C}, MusicCardAction::ToggleCorner);
+        result.Bind({atom::event::Key::H}, MusicCardAction::ToggleVisibility);
+        return result;
+    }();
+    return bindings;
+}
+
+// This is presentation policy for this sample, not a reusable image-analysis
+// result. It turns neutral ColorStatistics into the three colors the card UI
+// chooses to render.
+struct MusicCardTheme {
         atom::render::Color primary;
         atom::render::Color secondary;
         atom::render::Color accent;
@@ -82,7 +89,7 @@ struct Palette {
 struct Track {
         std::string id;
         std::string path;
-        Palette palette;
+        MusicCardTheme theme;
         // Lazy-loaded fields (protected by MusicCardScreen::tracks_mutex_).
         // metadata_loaded is set to true only after all fields below are written.
         bool metadata_loaded = false;
@@ -97,124 +104,31 @@ enum class CardCorner { BottomLeft, TopRight };
 
 enum class AnimationState { Entering, Visible, Exiting, Hidden };
 
-[[nodiscard]] auto Clamp01(const float value) -> float {
-    return std::clamp(value, 0.0f, 1.0f);
-}
-
-[[nodiscard]] auto EaseOutCubic(const float value) -> float {
-    const auto inverse = 1.0f - Clamp01(value);
-    return 1.0f - inverse * inverse * inverse;
-}
-
-[[nodiscard]] auto EaseInCubic(const float value) -> float {
-    const auto clamped = Clamp01(value);
-    return clamped * clamped * clamped;
-}
-
-[[nodiscard]] auto EaseOutBack(const float value) -> float {
-    constexpr auto overshoot = 1.70158f;
-    const auto shifted = Clamp01(value) - 1.0f;
-    return 1.0f + (overshoot + 1.0f) * shifted * shifted * shifted + overshoot * shifted * shifted;
-}
-
-[[nodiscard]] auto Stagger(const float progress, const float start, const float end) -> float {
-    return Clamp01((progress - start) / (end - start));
-}
-
-[[nodiscard]] auto WithAlpha(atom::render::Color color, const float opacity) -> atom::render::Color {
-    color.a = static_cast<uint8_t>(static_cast<float>(color.a) * Clamp01(opacity));
-    return color;
-}
-
-[[nodiscard]] auto MixColor(const atom::render::Color a, const atom::render::Color b, const float amount)
-    -> atom::render::Color {
-    const auto t = Clamp01(amount);
-    return {static_cast<uint8_t>(a.r + (b.r - a.r) * t), static_cast<uint8_t>(a.g + (b.g - a.g) * t),
-            static_cast<uint8_t>(a.b + (b.b - a.b) * t), static_cast<uint8_t>(a.a + (b.a - a.a) * t)};
-}
-
-[[nodiscard]] auto ExtractPaletteFromRgba(const std::vector<uint8_t>& rgba) -> std::optional<Palette> {
-    if (rgba.size() < 4 || rgba.size() % 4 != 0)
+[[nodiscard]] auto BuildMusicCardTheme(const atom::image::DecodedImage& artwork) -> std::optional<MusicCardTheme> {
+    const auto extracted = atom::image::CalculateColorStatistics(artwork);
+    if (!extracted.has_value())
         return std::nullopt;
-    uint64_t sum_r = 0, sum_g = 0, sum_b = 0, count = 0;
-    uint8_t accent_r = 132, accent_g = 219, accent_b = 214;
-    float best_accent_score = -1.0f;
-    // Sampling every fourth pixel is sufficient for a 640x640 cover and
-    // avoids doing work proportional to the full image on the render thread.
-    for (std::size_t i = 0; i + 3 < rgba.size(); i += 16) {
-        const auto alpha = rgba[i + 3];
-        if (alpha < 32)
-            continue;
-        const auto r = rgba[i];
-        const auto g = rgba[i + 1];
-        const auto b = rgba[i + 2];
-        sum_r += r;
-        sum_g += g;
-        sum_b += b;
-        ++count;
-        const auto high = static_cast<float>(std::max({r, g, b}));
-        const auto low = static_cast<float>(std::min({r, g, b}));
-        const auto saturation = (high - low) / std::max(high, 1.0f);
-        const auto score = saturation * (high / 255.0f);
-        if (score > best_accent_score) {
-            best_accent_score = score;
-            accent_r = r;
-            accent_g = g;
-            accent_b = b;
-        }
-    }
-    if (count == 0)
-        return std::nullopt;
-    const auto average = atom::render::Color{static_cast<uint8_t>(sum_r / count),
-                                              static_cast<uint8_t>(sum_g / count),
-                                              static_cast<uint8_t>(sum_b / count), 255};
-    const auto primary = atom::render::Color{static_cast<uint8_t>(average.r * 0.52f),
-                                              static_cast<uint8_t>(average.g * 0.52f),
-                                              static_cast<uint8_t>(average.b * 0.52f), 255};
-    const auto secondary = MixColor(average, atom::render::Color::White(), 0.12f);
-    const auto accent = atom::render::Color{accent_r, accent_g, accent_b, 255};
-    return Palette{primary, secondary, accent};
+    // The extractor returns neutral image statistics. This sample's darker
+    // panel and brighter secondary color remain a presentation/theme policy.
+    return MusicCardTheme{atom::color::Blend(extracted->average, atom::render::Color::Black(), 0.48f),
+                   atom::color::Blend(extracted->average, atom::render::Color::White(), 0.12f), extracted->maximum};
 }
 
-[[nodiscard]] auto ToRect(const FloatRect& rect) -> atom::render::Rect {
-    return {rect.x, rect.y, rect.width, rect.height};
-}
-
-[[nodiscard]] auto OffsetRect(const FloatRect& rect, const float x, const float y) -> FloatRect {
-    return {rect.x + x, rect.y + y, rect.width, rect.height};
-}
-
-[[nodiscard]] auto ScaleRectFromCenter(const FloatRect& rect, const float scale) -> FloatRect {
-    const auto width = rect.width * scale;
-    const auto height = rect.height * scale;
-    return {rect.x + (rect.width - width) * 0.5f, rect.y + (rect.height - height) * 0.5f, width, height};
-}
-
-[[nodiscard]] auto Contains(const FloatRect& rect, const float x, const float y) -> bool {
-    return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
-}
-
-// Decodes the embedded cover art through the backend-agnostic Atom_Image
-// module and hands the RGBA pixels to Renderer2D (CPU decode and GPU upload
-// stay separate). Returns nullptr when no artwork is available.
-[[nodiscard]] auto CreateArtworkTexture(atom::render::Renderer2D& renderer, const std::vector<uint8_t>& encoded_image)
+// Atom's backend-agnostic ImageTexture API handles decoding and GPU upload.
+// This sample wrapper only supplies MusicCard-specific diagnostics and uses
+// nullptr to select its procedural-cover fallback.
+[[nodiscard]] auto LoadArtworkTexture(atom::render::Renderer2D& renderer, const std::vector<uint8_t>& encoded_image)
     -> atom::render::Renderer2D::Texture* {
     if (encoded_image.empty()) {
         LOG_DEBUG(atom::audio::LogChannel::METADATA, "No embedded artwork bytes; using the generated cover fallback");
         return nullptr;
     }
     const auto bytes = std::as_bytes(std::span{encoded_image});
-    auto decoded = atom::image::DecodeImageMemory(bytes);
-    if (!decoded.IsValid()) {
-        LOG_ERROR(atom::audio::LogChannel::METADATA,
-                  "Failed to decode embedded artwork (bytes=" + std::to_string(encoded_image.size()) + ")");
-        return nullptr;
-    }
-    auto* texture = renderer.CreateTexture(decoded.width, decoded.height, decoded.rgba.data());
+    auto* texture = atom::render::resources::LoadTextureMemory(renderer, bytes);
     if (texture != nullptr) {
         LOG_INFO(atom::audio::LogChannel::METADATA,
-                 "Decoded embedded artwork into a Renderer2D texture (" + std::to_string(decoded.width) + "x" +
-                     std::to_string(decoded.height) + ", bytes=" + std::to_string(encoded_image.size()) + ")");
+                 "Decoded embedded artwork into a Renderer2D texture (" + std::to_string(texture->GetWidth()) + "x" +
+                     std::to_string(texture->GetHeight()) + ", bytes=" + std::to_string(encoded_image.size()) + ")");
     } else {
         LOG_ERROR(atom::audio::LogChannel::METADATA, "Failed to create Renderer2D texture for decoded artwork");
     }
@@ -228,11 +142,11 @@ class CardPainter {
     public:
         explicit CardPainter(atom::render::Renderer2D& renderer) : renderer_{renderer} {}
 
-        auto FillRect(const FloatRect& rect, const atom::render::Color color) -> void {
-            renderer_.DrawRect(ToRect(rect), color);
+        auto FillRect(const atom::algo::Rect& rect, const atom::render::Color color) -> void {
+            renderer_.DrawRect(atom::render::ToRect(rect), color);
         }
 
-        auto FillRoundedRect(const FloatRect& rect, const float radius, const atom::render::Color color) -> void {
+        auto FillRoundedRect(const atom::algo::Rect& rect, const float radius, const atom::render::Color color) -> void {
             const auto safe_radius = std::min({radius, rect.width * 0.5f, rect.height * 0.5f});
             if (safe_radius <= 0.0f) {
                 FillRect(rect, color);
@@ -241,10 +155,10 @@ class CardPainter {
             // Cross body + quarter discs at each corner (clipped to the corner
             // squares) reproduces the original rounded-rect look.
             renderer_.DrawRect(
-                ToRect(FloatRect{rect.x + safe_radius, rect.y, rect.width - safe_radius * 2.0f, rect.height}), color);
+                atom::render::ToRect(atom::algo::Rect{rect.x + safe_radius, rect.y, rect.width - safe_radius * 2.0f, rect.height}), color);
             renderer_.DrawRect(
-                ToRect(FloatRect{rect.x, rect.y + safe_radius, rect.width, rect.height - safe_radius * 2.0f}), color);
-            const std::array<FloatRect, 4> corners{{
+                atom::render::ToRect(atom::algo::Rect{rect.x, rect.y + safe_radius, rect.width, rect.height - safe_radius * 2.0f}), color);
+            const std::array<atom::algo::Rect, 4> corners{{
                 {rect.x, rect.y, safe_radius, safe_radius},
                 {rect.x + rect.width - safe_radius, rect.y, safe_radius, safe_radius},
                 {rect.x, rect.y + rect.height - safe_radius, safe_radius, safe_radius},
@@ -257,7 +171,7 @@ class CardPainter {
                 {rect.x + rect.width, rect.y + rect.height},
             }};
             for (std::size_t i = 0; i < corners.size(); ++i) {
-                renderer_.PushClip(ToRect(corners[i]));
+                renderer_.PushClip(atom::render::ToRect(corners[i]));
                 renderer_.DrawCircle(centers[i].first, centers[i].second, safe_radius, color);
                 renderer_.PopClip();
             }
@@ -273,9 +187,10 @@ class CardPainter {
             renderer_.DrawLine(x0, y0, x1, y1, color, thickness);
         }
 
-        auto DrawTexture(atom::render::Renderer2D::Texture& texture, const FloatRect& rect, const float opacity)
+        auto DrawTexture(atom::render::Renderer2D::Texture& texture, const atom::algo::Rect& rect, const float opacity)
             -> void {
-            renderer_.DrawTexture(texture, ToRect(rect), WithAlpha(atom::render::Color::White(), opacity), nullptr);
+            renderer_.DrawTexture(texture, atom::render::ToRect(rect),
+                                  atom::color::ApplyOpacity(atom::render::Color::White(), opacity), nullptr);
         }
 
     private:
@@ -335,6 +250,17 @@ class MusicCardScreen final : public atom::Screen {
             }
             if (animation_state_ == AnimationState::Hidden) {
                 RestartEntrance();
+            }
+        }
+
+        auto TogglePlayback() -> void {
+            if (tracks_.empty()) {
+                return;
+            }
+            if (is_playing_) {
+                PauseCurrentTrack();
+            } else {
+                Play();
             }
         }
 
@@ -523,7 +449,7 @@ class MusicCardScreen final : public atom::Screen {
                 atom::render::PostProcess2DParams blur{};
                 blur.effect = atom::render::PostProcess2DEffect::GaussianBlur;
                 blur.has_region = true;
-                blur.region = ToRect(current_card_bounds_);
+                blur.region = atom::render::ToRect(current_card_bounds_);
                 blur.corner_radius = 24.0f;
                 blur.feather = 8.0f;
                 blur.amount = 16.0f;
@@ -546,7 +472,7 @@ class MusicCardScreen final : public atom::Screen {
             atom::render::PostProcess2DParams postprocess{};
             postprocess.time = effect_time_;
             postprocess.has_region = true;
-            postprocess.region = ToRect(current_card_rect_);
+            postprocess.region = atom::render::ToRect(current_card_rect_);
             postprocess.corner_radius = 24.0f;
             postprocess.feather = 16.0f;
             if (animation_state_ == AnimationState::Entering || animation_state_ == AnimationState::Exiting) {
@@ -584,44 +510,45 @@ class MusicCardScreen final : public atom::Screen {
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
-                switch (key.scancode) {
-                case SDL_SCANCODE_ESCAPE:
+                const auto action = GetMusicCardBindings().FindAction(key);
+                if (!action)
+                    return false;
+                switch (*action) {
+                case MusicCardAction::Quit:
                     atom::RenderWindow::GetInstance().Shutdown();
                     return true;
-                case SDL_SCANCODE_LEFT:
+                case MusicCardAction::Previous:
                     Previous();
                     return true;
-                case SDL_SCANCODE_RIGHT:
+                case MusicCardAction::Next:
                     Next();
                     return true;
-                case SDL_SCANCODE_SPACE:
+                case MusicCardAction::TogglePlayback:
                     TogglePlayback();
                     return true;
-                case SDL_SCANCODE_C:
+                case MusicCardAction::ToggleCorner:
                     ToggleCorner();
                     return true;
-                case SDL_SCANCODE_H:
+                case MusicCardAction::ToggleVisibility:
                     ToggleCardVisibility();
                     return true;
-                default:
-                    break;
                 }
             }
 
             if (event.type == atom::window::EventType::MouseButtonPressed) {
                 const auto& mouse = std::get<atom::window::MouseEvent>(event.data);
-                if (mouse.button != SDL_BUTTON_LEFT) {
+                if (mouse.button != atom::event::MouseButton::Left) {
                     return false;
                 }
-                if (Contains(previous_hitbox_, mouse.x, mouse.y)) {
+                if (previous_hitbox_.Contains(mouse.x, mouse.y)) {
                     Previous();
                     return true;
                 }
-                if (Contains(play_hitbox_, mouse.x, mouse.y)) {
+                if (play_hitbox_.Contains(mouse.x, mouse.y)) {
                     TogglePlayback();
                     return true;
                 }
-                if (Contains(next_hitbox_, mouse.x, mouse.y)) {
+                if (next_hitbox_.Contains(mouse.x, mouse.y)) {
                     Next();
                     return true;
                 }
@@ -631,6 +558,7 @@ class MusicCardScreen final : public atom::Screen {
 
         auto Update(const float delta_time) -> void override {
             effect_time_ += std::max(0.0f, delta_time);
+            HandlePlaybackCompletion();
             TryStartAfterLoad();
             switch (animation_state_) {
             case AnimationState::Entering:
@@ -767,8 +695,8 @@ class MusicCardScreen final : public atom::Screen {
             }
         }
 
-        [[nodiscard]] auto GlobalRect(const atom::layout::LayoutTree::NodeId node, const FloatRect& parent) const
-            -> FloatRect {
+        [[nodiscard]] auto GlobalRect(const atom::layout::LayoutTree::NodeId node, const atom::algo::Rect& parent) const
+            -> atom::algo::Rect {
             const auto layout = layout_tree_.GetLayout(node).value_or(atom::layout::Rect{});
             return {parent.x + layout.left, parent.y + layout.top, layout.width, layout.height};
         }
@@ -779,7 +707,7 @@ class MusicCardScreen final : public atom::Screen {
                 const auto texture_height = static_cast<float>(background_texture_->GetHeight());
                 const auto window_aspect = window_width_ / std::max(window_height_, 1.0f);
                 const auto texture_aspect = texture_width / std::max(texture_height, 1.0f);
-                FloatRect source{0.0f, 0.0f, texture_width, texture_height};
+                atom::algo::Rect source{0.0f, 0.0f, texture_width, texture_height};
                 if (texture_aspect > window_aspect) {
                     source.width = texture_height * window_aspect;
                     source.x = (texture_width - source.width) * 0.5f;
@@ -787,7 +715,7 @@ class MusicCardScreen final : public atom::Screen {
                     source.height = texture_width / window_aspect;
                     source.y = (texture_height - source.height) * 0.5f;
                 }
-                const auto source_rect = ToRect(source);
+                const auto source_rect = atom::render::ToRect(source);
                 renderer_.DrawTexture(*background_texture_, {0.0f, 0.0f, window_width_, window_height_},
                                       atom::render::Color{255, 255, 255, 255}, &source_rect);
                 // Dark glass tint keeps the foreground card and debugger
@@ -816,12 +744,13 @@ class MusicCardScreen final : public atom::Screen {
                                atom::render::Color{21, 87, 96, 25});
         }
 
-        [[nodiscard]] auto ComputeAnimatedCardRect() const -> FloatRect {
+        [[nodiscard]] auto ComputeAnimatedCardRect() const -> atom::algo::Rect {
             const auto layout = layout_tree_.GetLayout(card_).value_or(atom::layout::Rect{});
-            const auto final_card = FloatRect{layout.left, layout.top, layout.width, layout.height};
+            const auto final_card = atom::algo::Rect{layout.left, layout.top, layout.width, layout.height};
             const auto direction = corner_ == CardCorner::BottomLeft ? -1.0f : 1.0f;
-            const auto panel_progress = EaseOutCubic(Stagger(animation_progress_, 0.0f, 0.62f));
-            return OffsetRect(final_card, direction * (1.0f - panel_progress) * 86.0f, 0.0f);
+            const auto panel_progress = atom::algo::easing::OutCubic(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
+            return final_card.Translated(direction * (1.0f - panel_progress) * 86.0f, 0.0f);
         }
 
         auto UpdateCardPostProcessRegion() -> void {
@@ -844,34 +773,40 @@ class MusicCardScreen final : public atom::Screen {
             }
 
             const auto card_layout = layout_tree_.GetLayout(card_).value_or(atom::layout::Rect{});
-            const auto final_card = FloatRect{card_layout.left, card_layout.top, card_layout.width, card_layout.height};
+            const auto final_card = atom::algo::Rect{card_layout.left, card_layout.top, card_layout.width, card_layout.height};
             const auto direction = corner_ == CardCorner::BottomLeft ? -1.0f : 1.0f;
-            const auto panel_progress = EaseOutCubic(Stagger(animation_progress_, 0.0f, 0.62f));
-            const auto cover_progress = EaseOutBack(Stagger(animation_progress_, 0.10f, 0.72f));
-            const auto title_progress = EaseOutCubic(Stagger(animation_progress_, 0.28f, 0.78f));
-            const auto author_progress = EaseOutCubic(Stagger(animation_progress_, 0.38f, 0.86f));
-            const auto controls_progress = EaseOutBack(Stagger(animation_progress_, 0.48f, 1.0f));
+            const auto panel_progress = atom::algo::easing::OutCubic(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
+            const auto cover_progress = atom::algo::easing::OutBack(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.10f, 0.72f));
+            const auto title_progress = atom::algo::easing::OutCubic(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.28f, 0.78f));
+            const auto author_progress = atom::algo::easing::OutCubic(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.38f, 0.86f));
+            const auto controls_progress = atom::algo::easing::OutBack(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.48f, 1.0f));
             const auto exit_softening = animation_state_ == AnimationState::Exiting
-                                            ? 1.0f - 0.12f * EaseInCubic(1.0f - animation_progress_)
+                                            ? 1.0f - 0.12f * atom::algo::easing::InCubic(1.0f - animation_progress_)
                                             : 1.0f;
 
-            const auto card = OffsetRect(final_card, direction * (1.0f - panel_progress) * 86.0f, 0.0f);
+            const auto card = final_card.Translated(direction * (1.0f - panel_progress) * 86.0f, 0.0f);
             const auto panel_opacity = panel_progress * exit_softening;
             for (auto layer = 3; layer >= 1; --layer) {
                 const auto offset = static_cast<float>(layer) * 4.0f;
-                painter.FillRoundedRect(OffsetRect(card, 0.0f, offset), 24.0f,
+                painter.FillRoundedRect(card.Translated(0.0f, offset), 24.0f,
                                         atom::render::Color{0, 0, 0, static_cast<uint8_t>(18 * layer * panel_opacity)});
             }
             // Semi-transparent themed glass layer; the backdrop remains
             // visible and is no longer hidden by an opaque panel color.
-            painter.FillRoundedRect(card, 24.0f, WithAlpha(atom::render::Color{38, 46, 78, 78}, panel_opacity));
+            painter.FillRoundedRect(card, 24.0f,
+                                    atom::color::ApplyOpacity(atom::render::Color{38, 46, 78, 78}, panel_opacity));
             painter.FillRoundedRect({card.x + 1.0f, card.y + 1.0f, card.width - 2.0f, 1.0f}, 1.0f,
-                                    WithAlpha(atom::render::Color{255, 255, 255, 38}, panel_opacity));
+                                    atom::color::ApplyOpacity(atom::render::Color{255, 255, 255, 38}, panel_opacity));
 
             const auto cover_final = GlobalRect(cover_, card);
             const auto cover_offset = direction * (1.0f - cover_progress) * 54.0f;
             const auto cover_rect =
-                ScaleRectFromCenter(OffsetRect(cover_final, cover_offset, 0.0f), 0.76f + cover_progress * 0.24f);
+                cover_final.Translated(cover_offset, 0.0f).ScaledAboutCenter(0.76f + cover_progress * 0.24f);
             DrawAlbumCover(painter, cover_rect, cover_progress * panel_opacity);
 
             const auto details_final = GlobalRect(details_, card);
@@ -881,24 +816,24 @@ class MusicCardScreen final : public atom::Screen {
             const auto title_x = title_final.x + direction * (1.0f - title_progress) * 28.0f;
             const auto author_x = author_final.x + direction * (1.0f - author_progress) * 34.0f;
             const auto display = GetCurrentDisplay();
-            const auto& palette = tracks_[current_track_].palette;
+            const auto& theme = tracks_[current_track_].theme;
             const auto title_text = display.metadata_loaded ? display.title : std::string{"Loading..."};
             const auto artist_text = display.metadata_loaded ? display.artist : std::string{"resolving metadata"};
 
             if (draw_text) {
                 DrawInterfaceText({title_x, title_final.y, title_final.width, title_final.height}, title_text, 21.0f,
-                                  MixColor(palette.accent, atom::render::Color::White(), 0.58f));
+                                  atom::color::Blend(theme.accent, atom::render::Color::White(), 0.58f));
                 DrawInterfaceText({author_x, author_final.y, author_final.width, author_final.height}, artist_text,
-                                  14.0f, MixColor(palette.secondary, atom::render::Color::White(), 0.38f));
+                                  14.0f, atom::color::Blend(theme.secondary, atom::render::Color::White(), 0.38f));
             }
 
             const auto previous_final = GlobalRect(previous_button_, controls_final);
             const auto play_final = GlobalRect(play_button_, controls_final);
             const auto next_final = GlobalRect(next_button_, controls_final);
             const auto controls_y = (1.0f - controls_progress) * 18.0f;
-            previous_hitbox_ = OffsetRect(previous_final, 0.0f, controls_y);
-            play_hitbox_ = OffsetRect(play_final, 0.0f, controls_y);
-            next_hitbox_ = OffsetRect(next_final, 0.0f, controls_y);
+            previous_hitbox_ = previous_final.Translated(0.0f, controls_y);
+            play_hitbox_ = play_final.Translated(0.0f, controls_y);
+            next_hitbox_ = next_final.Translated(0.0f, controls_y);
             DrawControls(painter, controls_progress * panel_opacity);
         }
 
@@ -906,30 +841,33 @@ class MusicCardScreen final : public atom::Screen {
             if (animation_state_ == AnimationState::Hidden || tracks_.empty() || interface_font_ == nullptr)
                 return;
             const auto card_layout = layout_tree_.GetLayout(card_).value_or(atom::layout::Rect{});
-            const auto final_card = FloatRect{card_layout.left, card_layout.top, card_layout.width, card_layout.height};
+            const auto final_card = atom::algo::Rect{card_layout.left, card_layout.top, card_layout.width, card_layout.height};
             const auto direction = corner_ == CardCorner::BottomLeft ? -1.0f : 1.0f;
-            const auto title_progress = EaseOutCubic(Stagger(animation_progress_, 0.28f, 0.78f));
-            const auto author_progress = EaseOutCubic(Stagger(animation_progress_, 0.38f, 0.86f));
-            const auto panel_progress = EaseOutCubic(Stagger(animation_progress_, 0.0f, 0.62f));
-            const auto card = OffsetRect(final_card, direction * (1.0f - panel_progress) * 86.0f, 0.0f);
+            const auto title_progress = atom::algo::easing::OutCubic(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.28f, 0.78f));
+            const auto author_progress = atom::algo::easing::OutCubic(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.38f, 0.86f));
+            const auto panel_progress = atom::algo::easing::OutCubic(
+                atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
+            const auto card = final_card.Translated(direction * (1.0f - panel_progress) * 86.0f, 0.0f);
             const auto details_final = GlobalRect(details_, card);
             const auto title_final = GlobalRect(title_, details_final);
             const auto author_final = GlobalRect(author_, details_final);
             const auto title_x = title_final.x + direction * (1.0f - title_progress) * 28.0f;
             const auto author_x = author_final.x + direction * (1.0f - author_progress) * 34.0f;
             const auto display = GetCurrentDisplay();
-            const auto& palette = tracks_[current_track_].palette;
+            const auto& theme = tracks_[current_track_].theme;
             const auto title_text = display.metadata_loaded ? display.title : std::string{"Loading..."};
             const auto artist_text = display.metadata_loaded ? display.artist : std::string{"resolving metadata"};
             DrawInterfaceText({title_x, title_final.y, title_final.width, title_final.height}, title_text, 21.0f,
-                              MixColor(palette.accent, atom::render::Color::White(), 0.58f));
+                              atom::color::Blend(theme.accent, atom::render::Color::White(), 0.58f));
             DrawInterfaceText({author_x, author_final.y, author_final.width, author_final.height}, artist_text, 14.0f,
-                              MixColor(palette.secondary, atom::render::Color::White(), 0.38f));
+                              atom::color::Blend(theme.secondary, atom::render::Color::White(), 0.38f));
         }
 
         // On-card title/author text is production scene content and therefore
         // goes through Renderer2D. ImGui remains an optional debugger overlay.
-        auto DrawInterfaceText(const FloatRect& rect, const std::string& text, const float font_size,
+        auto DrawInterfaceText(const atom::algo::Rect& rect, const std::string& text, const float font_size,
                                atom::render::Color color) -> void {
             if (interface_font_ == nullptr || text.empty()) {
                 return;
@@ -938,7 +876,7 @@ class MusicCardScreen final : public atom::Screen {
             // partially transparent glyphs become soft against bright
             // wallpaper, especially after post-process compositing.
             color.a = 255;
-            renderer_.PushClip(ToRect(rect));
+            renderer_.PushClip(atom::render::ToRect(rect));
             auto shadow = atom::render::Color::Black();
             shadow.a = 210;
             renderer_.DrawText(*interface_font_, text, rect.x + 1.2f, rect.y + 1.2f, shadow, font_size, rect.width);
@@ -946,8 +884,8 @@ class MusicCardScreen final : public atom::Screen {
             renderer_.PopClip();
         }
 
-        auto DrawAlbumCover(CardPainter& painter, const FloatRect& rect, const float opacity) -> void {
-            const auto& palette = tracks_[current_track_].palette;
+        auto DrawAlbumCover(CardPainter& painter, const atom::algo::Rect& rect, const float opacity) -> void {
+            const auto& theme = tracks_[current_track_].theme;
             // Only attempt artwork texture creation once the background loader
             // has resolved metadata for this track. Before that we keep the
             // generated-cover fallback and leave artwork_texture_attempted_
@@ -961,23 +899,23 @@ class MusicCardScreen final : public atom::Screen {
                         std::lock_guard lock{tracks_mutex_};
                         artwork_data = tracks_[current_track_].artwork_data;
                     }
-                    if (const auto extracted = ExtractPaletteFromRgba(atom::image::DecodeImageMemory(
-                            std::as_bytes(std::span{artwork_data}), false).rgba);
+                    if (const auto extracted = BuildMusicCardTheme(atom::image::DecodeImageMemory(
+                            std::as_bytes(std::span{artwork_data}), false));
                         extracted.has_value()) {
                         std::lock_guard lock{tracks_mutex_};
-                        tracks_[current_track_].palette = *extracted;
+                        tracks_[current_track_].theme = *extracted;
                         LOG_INFO(atom::audio::LogChannel::METADATA,
-                                 "Extracted MusicCard palette from embedded artwork for track " +
+                                 "Built MusicCard theme from embedded artwork for track " +
                                      std::to_string(current_track_));
                     }
-                    artwork_textures_[current_track_] = CreateArtworkTexture(renderer_, artwork_data);
+                    artwork_textures_[current_track_] = LoadArtworkTexture(renderer_, artwork_data);
                 }
             }
             if (artwork_textures_[current_track_] != nullptr) {
-                const auto image_rect = FloatRect{rect.x + 2.0f, rect.y + 2.0f, rect.width - 4.0f, rect.height - 4.0f};
+                const auto image_rect = atom::algo::Rect{rect.x + 2.0f, rect.y + 2.0f, rect.width - 4.0f, rect.height - 4.0f};
                 painter.DrawTexture(*artwork_textures_[current_track_], image_rect, opacity);
                 painter.FillRoundedRect({rect.x, rect.y, rect.width, 2.0f}, 1.0f,
-                                        WithAlpha(atom::render::Color{255, 255, 255, 70}, opacity));
+                                        atom::color::ApplyOpacity(atom::render::Color{255, 255, 255, 70}, opacity));
                 return;
             }
 
@@ -987,24 +925,24 @@ class MusicCardScreen final : public atom::Screen {
                 const auto stripe_opacity = stripe % 2 == 0 ? 0.22f : 0.10f;
                 painter.FillRect(
                     {rect.x, rect.y + stripe_height * static_cast<float>(stripe), rect.width, stripe_height + 1.0f},
-                    WithAlpha(palette.secondary, opacity * stripe_opacity));
+                    atom::color::ApplyOpacity(theme.secondary, opacity * stripe_opacity));
             }
 
             painter.FillCircle(rect.x + rect.width * 0.68f, rect.y + rect.height * 0.34f, rect.width * 0.31f,
-                               WithAlpha(palette.accent, opacity * 0.78f));
+                               atom::color::ApplyOpacity(theme.accent, opacity * 0.78f));
             painter.FillCircle(rect.x + rect.width * 0.30f, rect.y + rect.height * 0.73f, rect.width * 0.23f,
-                               WithAlpha(atom::render::Color{255, 255, 255, 110}, opacity));
+                               atom::color::ApplyOpacity(atom::render::Color{255, 255, 255, 110}, opacity));
             painter.FillCircle(rect.x + rect.width * 0.68f, rect.y + rect.height * 0.34f, rect.width * 0.065f,
-                               WithAlpha(atom::render::Color{24, 27, 39, 235}, opacity));
+                               atom::color::ApplyOpacity(atom::render::Color{24, 27, 39, 235}, opacity));
         }
 
         auto DrawControls(CardPainter& painter, const float opacity) const -> void {
-            const auto secondary = WithAlpha(atom::render::Color{189, 195, 214, 255}, opacity);
-            const auto primary = WithAlpha(tracks_[current_track_].palette.accent, opacity);
+            const auto secondary = atom::color::ApplyOpacity(atom::render::Color{189, 195, 214, 255}, opacity);
+            const auto primary = atom::color::ApplyOpacity(tracks_[current_track_].theme.accent, opacity);
             painter.FillCircle(play_hitbox_.x + play_hitbox_.width * 0.5f, play_hitbox_.y + play_hitbox_.height * 0.5f,
                                play_hitbox_.width * 0.5f, primary);
 
-            const auto button_alpha = WithAlpha(atom::render::Color{255, 255, 255, 255}, opacity);
+            const auto button_alpha = atom::color::ApplyOpacity(atom::render::Color{255, 255, 255, 255}, opacity);
             // Previous / play / next glyphs drawn as simple shapes (no text in
             // CardPainter; textual glyphs come from the ImGui overlay).
             DrawTriangleGlyph(painter, previous_hitbox_, false, secondary);
@@ -1012,7 +950,7 @@ class MusicCardScreen final : public atom::Screen {
             DrawPlayPauseGlyph(painter, button_alpha);
         }
 
-        auto DrawTriangleGlyph(CardPainter& painter, const FloatRect& box, const bool points_right,
+        auto DrawTriangleGlyph(CardPainter& painter, const atom::algo::Rect& box, const bool points_right,
                                const atom::render::Color color) const -> void {
             const float cx = box.x + box.width * 0.5f;
             const float cy = box.y + box.height * 0.5f;
@@ -1126,15 +1064,48 @@ class MusicCardScreen final : public atom::Screen {
             }
         }
 
-        auto TogglePlayback() -> void {
-            if (tracks_.empty()) {
+        auto HandlePlaybackCompletion() -> void {
+            if (!is_playing_ || current_track_ >= tracks_.size()) {
                 return;
             }
-            if (is_playing_) {
-                Stop();
-            } else {
-                Play();
+            std::string id;
+            std::string title;
+            {
+                std::lock_guard lock{tracks_mutex_};
+                id = tracks_[current_track_].id;
+                title = tracks_[current_track_].title;
             }
+            const auto playback_state = music_.GetState(id);
+            if (playback_state == atom::audio::AudioSourceState::Playing ||
+                playback_state == atom::audio::AudioSourceState::Paused) {
+                return;
+            }
+
+            // IsFinished() distinguishes natural EOF from an unexpected
+            // backend stop. Both clear the stale card state; only EOF advances.
+            const auto finished = music_.IsFinished(id);
+            is_playing_ = false;
+            if (finished) {
+                LOG_INFO(atom::audio::LogChannel::MUSIC,
+                         "Music card reached EOF; advancing from track: " + title);
+                RequestRelativeTrack(1);
+            } else {
+                LOG_WARNING(atom::audio::LogChannel::MUSIC,
+                            "Music card playback stopped before EOF: " + title);
+            }
+        }
+
+        auto PauseCurrentTrack() -> void {
+            std::string id;
+            {
+                std::lock_guard lock{tracks_mutex_};
+                if (current_track_ >= tracks_.size()) {
+                    return;
+                }
+                id = tracks_[current_track_].id;
+            }
+            music_.Pause(id);
+            is_playing_ = false;
         }
 
         auto StartCurrentTrack() -> void {
@@ -1183,17 +1154,17 @@ class MusicCardScreen final : public atom::Screen {
             is_playing_ = false;
         }
 
-        // Creates Track stubs (id + path + palette) from discovered file paths.
+        // Creates Track stubs (id + path + theme) from discovered file paths.
         // No metadata or audio is loaded here; that happens lazily.
         auto BuildTrackStubs(std::vector<std::string> paths) -> void {
-            constexpr std::array palettes{
-                Palette{{52, 45, 111, 255}, {92, 74, 168, 255}, {132, 219, 214, 255}},
-                Palette{{24, 82, 96, 255}, {39, 134, 139, 255}, {245, 188, 111, 255}},
+            constexpr std::array themes{
+                MusicCardTheme{{52, 45, 111, 255}, {92, 74, 168, 255}, {132, 219, 214, 255}},
+                MusicCardTheme{{24, 82, 96, 255}, {39, 134, 139, 255}, {245, 188, 111, 255}},
             };
             tracks_.reserve(paths.size());
             for (auto i = std::size_t{0}; i < paths.size(); ++i) {
                 tracks_.push_back(
-                    {"music_card_track_" + std::to_string(i), std::move(paths[i]), palettes[i % palettes.size()]});
+                    {"music_card_track_" + std::to_string(i), std::move(paths[i]), themes[i % themes.size()]});
             }
         }
 
@@ -1283,7 +1254,7 @@ class MusicCardScreen final : public atom::Screen {
         bool start_after_load_ = false;
         // Lazy-loading state. tracks_mutex_ protects every mutable field of
         // Track (title, artist, is_loaded, artwork_*, metadata_loaded); id,
-        // path and palette are immutable after construction.
+        // path and theme are immutable after construction.
         mutable std::mutex tracks_mutex_;
         std::condition_variable_any loader_cv_;
         std::jthread loader_thread_;
@@ -1296,8 +1267,8 @@ class MusicCardScreen final : public atom::Screen {
         float glitch_direction_ = 1.0f;
         float window_width_ = 0.0f;
         float window_height_ = 0.0f;
-        FloatRect current_card_rect_{};
-        FloatRect current_card_bounds_{};
+        atom::algo::Rect current_card_rect_{};
+        atom::algo::Rect current_card_bounds_{};
         float reported_layout_width_ = -1.0f;
         float reported_layout_height_ = -1.0f;
 
@@ -1324,9 +1295,9 @@ class MusicCardScreen final : public atom::Screen {
         atom::layout::LayoutTree::NodeId play_button_ = atom::layout::LayoutTree::kInvalidNode;
         atom::layout::LayoutTree::NodeId next_button_ = atom::layout::LayoutTree::kInvalidNode;
 
-        FloatRect previous_hitbox_;
-        FloatRect play_hitbox_;
-        FloatRect next_hitbox_;
+        atom::algo::Rect previous_hitbox_;
+        atom::algo::Rect play_hitbox_;
+        atom::algo::Rect next_hitbox_;
 };
 
 class MusicCardDebugger final : public atom::Debugger {
@@ -1360,6 +1331,10 @@ class MusicCardDebugger final : public atom::Debugger {
             ImGui::SameLine();
             if (ImGui::Button("Next")) {
                 screen_.Next();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(screen_.IsPlaying() ? "Pause" : "Resume")) {
+                screen_.TogglePlayback();
             }
 
             if (ImGui::Button("Switch corner")) {
@@ -1395,30 +1370,6 @@ class MusicCardDebugger final : public atom::Debugger {
         bool reported_frame_pacing_ = false;
 };
 
-// On Windows std::filesystem::path::string() converts through the ANSI code
-// page, which corrupts non-ASCII (e.g. Chinese) filenames. Go through the
-// wide representation and convert to UTF-8 explicitly so that downstream
-// readers (TagLib, audio decoders) receive valid UTF-8 paths.
-[[nodiscard]] auto PathToUtf8(const std::filesystem::path& path) -> std::string {
-#ifdef _WIN32
-    const auto& wide = path.wstring();
-    if (wide.empty()) {
-        return {};
-    }
-    const auto size =
-        ::WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), static_cast<int>(wide.size()), nullptr, 0, nullptr, nullptr);
-    if (size <= 0) {
-        return {};
-    }
-    std::string utf8;
-    utf8.resize(static_cast<std::size_t>(size));
-    ::WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), static_cast<int>(wide.size()), utf8.data(), size, nullptr, nullptr);
-    return utf8;
-#else
-    return path.string();
-#endif
-}
-
 // Discovers audio files under the configured directory. Metadata and decoder
 // work are deferred to the background prefetch loader so startup remains
 // responsive and open file handles stay bounded.
@@ -1426,7 +1377,7 @@ class MusicCardDebugger final : public atom::Debugger {
     constexpr std::array audio_extensions{".mp3", ".wav", ".flac", ".ogg",  ".m4a",
                                           ".aac", ".wma", ".opus", ".aiff", ".aif"};
     auto paths = std::vector<std::string>{};
-    const auto music_dir = std::filesystem::path{music_root};
+    const auto music_dir = atom::PathFromUtf8(music_root);
     std::error_code ec;
     if (!std::filesystem::is_directory(music_dir, ec)) {
         LOG_ERROR(atom::audio::LogChannel::MUSIC, "Music path is not a directory: " + music_root);
@@ -1444,7 +1395,7 @@ class MusicCardDebugger final : public atom::Debugger {
         std::ranges::transform(ext, ext.begin(),
                                [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (std::ranges::find(audio_extensions, ext) != audio_extensions.end()) {
-            paths.push_back(PathToUtf8(entry.path()));
+            paths.push_back(atom::PathToUtf8(entry.path()));
         }
     }
     if (ec) {
@@ -1458,14 +1409,14 @@ class MusicCardDebugger final : public atom::Debugger {
 } // namespace
 
 auto main(int argc, char** argv) -> int {
+    atom::Log::SetConsoleOutputUtf8();
 #ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
     // Raise the C runtime file-descriptor ceiling. Each streaming audio decoder
     // keeps its source file open; with lazy loading we keep ≤ 3 decoders alive,
     // but a generous ceiling prevents EMFILE surprises during metadata reads.
     _setmaxstdio(512);
 #endif // _WIN32
-    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
+    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
     atom::AudioMixer mixer;
     atom::MusicPlayer music{mixer};
     const std::string music_root = argc > 1 ? std::string{argv[1]} : std::string{MusicPath};
@@ -1483,6 +1434,7 @@ auto main(int argc, char** argv) -> int {
 
     MusicCardDebugger debugger{*screen_pointer};
     debugger.Attach(window);
+    debugger.SetLoggerEnabled(true);
     auto renderer_shutdown = window.AddShutdownListener([screen_pointer] { screen_pointer->ShutdownRenderer(); });
     screen_pointer->LoadInterfaceFont();
 

@@ -181,6 +181,22 @@ Priority order: `DEBUG < INFO < WARNING < ERROR`
 
 ---
 
+## Windows Console UTF-8
+
+If a Windows program writes UTF-8 text to its console, call this once at the
+start of `main`, before any console or log output:
+
+```cpp
+atom::Log::SetConsoleOutputUtf8();
+```
+
+On Windows this wraps `SetConsoleOutputCP(CP_UTF8)`. On other platforms it is
+a no-op, so cross-platform application code needs no platform preprocessor
+branches or `windows.h` include. The setting affects console output only; it
+does not change console input or supply a missing font.
+
+---
+
 ## TODO / Roadmap
 
 Domain-based filtering is the next planned feature set

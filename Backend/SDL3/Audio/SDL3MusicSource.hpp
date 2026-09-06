@@ -32,6 +32,7 @@ class SDL3MusicSource : public atom::audio::IAudioSource {
         [[nodiscard]] auto IsLooping() const -> bool override;
         auto SetPlayingOffset(float seconds) -> void override;
         [[nodiscard]] auto GetPlayingOffset() const -> float override;
+        [[nodiscard]] auto IsFinished() const -> bool override;
 
     private:
         SDL_AudioStream* stream_ = nullptr;
@@ -42,6 +43,7 @@ class SDL3MusicSource : public atom::audio::IAudioSource {
         std::atomic<atom::audio::AudioSourceState> state_{atom::audio::AudioSourceState::Stopped};
         std::atomic<float> volume_{100.0f};
         std::atomic<bool> loop_{false};
+        std::atomic<bool> finished_{false};
         std::atomic<uint64_t> play_cursor_{0};
 
         std::thread decode_thread_;

@@ -109,6 +109,11 @@ auto SDL3StreamingMusicSource::Play() -> void {
 }
 
 auto SDL3StreamingMusicSource::Stop() -> void {
+    if (state_.load() == atom::audio::AudioSourceState::Stopped && !thread_running_.load() &&
+        !decode_thread_.joinable()) {
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Stop() ignored: playback is already stopped");
+        return;
+    }
     LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Stop requested");
     state_.store(atom::audio::AudioSourceState::Stopped);
     thread_running_ = false;
@@ -124,6 +129,8 @@ auto SDL3StreamingMusicSource::Stop() -> void {
 
     read_idx_ = 0;
     write_idx_ = 0;
+    eof_ = false;
+    decode_error_ = false;
     LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback stopped");
 }
 
@@ -134,6 +141,11 @@ auto SDL3StreamingMusicSource::Pause() -> void {
     thread_running_ = false;
     if (stream_) {
         SDL_PauseAudioStreamDevice(stream_);
+    }
+    // Wait for DecodeLoop to leave before returning. This makes a subsequent
+    // Play() deterministic: it can always start a fresh worker for resume.
+    if (decode_thread_.joinable()) {
+        decode_thread_.join();
     }
     LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Playback paused");
 }
@@ -202,6 +214,14 @@ auto SDL3StreamingMusicSource::GetPlayingOffset() const -> float {
     return static_cast<float>(played_frames) / static_cast<float>(info.sample_rate);
 }
 
+auto SDL3StreamingMusicSource::IsFinished() const -> bool {
+    // EOF is distinct from Stop(): Stop() only changes the source state, while
+    // natural completion leaves eof_ set after both the ring buffer and SDL's
+    // device queue have drained. Decode failures are not reported as EOF.
+    return eof_.load() && !decode_error_.load() &&
+           state_.load() == atom::audio::AudioSourceState::Stopped && ReadableBytes() == 0;
+}
+
 auto SDL3StreamingMusicSource::DecodeLoop() -> void {
     SDL_SetAudioStreamGain(stream_, volume_.load() / 100.0f);
     SDL_ResumeAudioStreamDevice(stream_);
@@ -243,6 +263,14 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                     } else {
                         eof_ = true;
                         LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO, "Decoder EOF reached");
+                        // SDL queues input bytes separately from converted
+                        // output. Flush the converter so its final resampler
+                        // tail becomes available and EOF can reach Stopped.
+                        if (stream_ && !SDL_FlushAudioStream(stream_)) {
+                            decode_error_ = true;
+                            LOG_ERROR(atom::backend::sdl3::LogChannel::AUDIO,
+                                      "SDL_FlushAudioStream failed: " + std::string(SDL_GetError()));
+                        }
                     }
                 }
             }
@@ -286,8 +314,13 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                           std::to_string(ReadableBytes()) + " eof=" + std::to_string(eof_.load() ? 1 : 0));
         }
 
-        // Phase 3: handle EOF / loop / stop
-        if (eof_.load() && ReadableBytes() == 0 && SDL_GetAudioStreamQueued(stream_) == 0) {
+        // Phase 3: handle EOF / loop / stop. SDL_GetAudioStreamQueued()
+        // reports input bytes, while SDL_GetAudioStreamAvailable() reports
+        // converted output bytes. A flushed stream can retain a small input
+        // tail that cannot produce another output frame, so completion must
+        // be based on output availability rather than queued input bytes.
+        const auto available_after_push = SDL_GetAudioStreamAvailable(stream_);
+        if (eof_.load() && ReadableBytes() == 0 && available_after_push == 0) {
             if (loop_.load()) {
                 LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO, "Looping: rewinding decoder");
                 if (decoder_->Rewind()) {
@@ -301,8 +334,11 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                 LOG_ERROR(atom::backend::sdl3::LogChannel::AUDIO, "Decoder rewind failed during loop");
             }
             // Drain SDL stream before stopping
-            while (SDL_GetAudioStreamAvailable(stream_) > 0) {
+            while (thread_running_.load() && SDL_GetAudioStreamAvailable(stream_) > 0) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            if (!thread_running_.load() || state_.load() != atom::audio::AudioSourceState::Playing) {
+                break;
             }
             state_.store(atom::audio::AudioSourceState::Stopped);
             LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback completed (end of data)");

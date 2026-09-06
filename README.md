@@ -83,8 +83,7 @@ cmake --build build --parallel
 Third-party source dependencies are built from `ThirdParty/` with the same compiler. If the
 submodules were not downloaded, run `git submodule update --init` before CMake.
 
-SDL3, TagLib, Dear ImGui, Lua, utfcpp and minimp3 are pinned Git submodules;
-the two small stb headers are vendored with recorded versions and hashes.
+SDL3, TagLib, Dear ImGui, Lua, utfcpp, minimp3 and stb are pinned Git submodules.
 CMake builds the source dependencies with the same compiler and ABI as Atom. If the
 repository was cloned without the dependencies, run `git submodule update --init`
 before configuring CMake.
@@ -104,8 +103,6 @@ Ready-to-run examples are located in [`Example/`](Example/).
 |---------|-------------|
 | `Example_Simple_Window` | Minimal SDL3 + SDL_GPU window |
 | `Example_Simple_Window_Debug` | SDL_GPU-backed ImGui debugger overlay |
-| `Example_SDL_GPU_Clear_Smoke` | Custom shaders, textured 2D quad, and depth-tested 3D mesh |
-| `Example_Renderer2D_Smoke` | Batched primitives, atlas/source rects, decoded PNG, clipping, layers, and camera |
 | `Example_MusicCard` | Yoga music card using Renderer2D, stb image/font data, and an ImGui debugger; scans `E:\Music` by default (optional directory argument) |
 | `Example_Audio_Playback` | Music playback with fade switching |
 | `Example_SFX_Playback` | SFX playback with voice pool (overlapping) |
@@ -132,8 +129,8 @@ Atom provides a resource packaging tool for packing/unpacking game assets into t
 ## Engine Dependencies
 
 Atom uses **SDL3** as its multimedia abstraction layer. Third-party source
-dependencies are pinned as submodules or vendored files and are built by
-`ThirdParty/CMakeLists.txt` before the engine targets that use them.
+dependencies are pinned as submodules and are built by `ThirdParty/CMakeLists.txt`
+before the engine targets that use them.
 The exact upstream URLs and locked commits are recorded in
 [`ThirdParty/README.md`](ThirdParty/README.md).
 
@@ -147,7 +144,7 @@ The exact upstream URLs and locked commits are recorded in
 | [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | Audio metadata reading |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 validation and conversion |
 | [minimp3](https://github.com/lieff/minimp3) | master `ea99364` | `ThirdParty/minimp3/` | MP3 decoding (header-only) |
-| [stb](https://github.com/nothings/stb) | image 2.30 / truetype 1.26 | `ThirdParty/stb/` | Image decoding and trusted-font rasterization |
+| [stb](https://github.com/nothings/stb) | `2c980bb` | `ThirdParty/stb/` | Image decoding and trusted-font rasterization |
 
 ### Dependency Builds
 

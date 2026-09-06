@@ -42,6 +42,7 @@ class SDL3StreamingMusicSource final : public atom::audio::IAudioSource {
         [[nodiscard]] auto IsLooping() const -> bool override;
         auto SetPlayingOffset(float seconds) -> void override;
         [[nodiscard]] auto GetPlayingOffset() const -> float override;
+        [[nodiscard]] auto IsFinished() const -> bool override;
 
     private:
         static constexpr std::size_t kRingBufferCapacity = 4 * 1024 * 1024; // 4 MiB

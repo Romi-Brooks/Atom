@@ -1,17 +1,15 @@
-#include <iostream>
-
 #include "Log/LogSystem.hpp"
 
 auto main() -> int {
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
 
-    std::cout << R"(
+    LOG_INFO(atom::core::LogChannel::MAIN, R"(
     +=============================================================+
     |                         ATOM ENGINE                         |
     |                                          Beta Insider build |
     |                                                     by romi |
-    +=============================================================+
-    )" << std::endl;
+    +=============================================================+)"
+    );
 
     LOG_INFO(atom::core::LogChannel::MAIN, "Atom engine finished up :)");
 }

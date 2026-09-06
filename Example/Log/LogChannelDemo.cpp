@@ -22,10 +22,6 @@
 
 #include "GameChannels.hpp"
 
-#ifdef _WIN32
-#include "windows.h"
-#endif // _WIN32
-
 namespace {
 // Print every channel of a domain: "prefix + shortName"
 template <typename TChannel> auto PrintAllChannels(const char* title) -> void {
@@ -38,10 +34,7 @@ template <typename TChannel> auto PrintAllChannels(const char* title) -> void {
 } // namespace
 
 auto main() -> int {
-#ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
-#endif // _WIN32
-
+    atom::Log::SetConsoleOutputUtf8();
     // Set the log level first
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 

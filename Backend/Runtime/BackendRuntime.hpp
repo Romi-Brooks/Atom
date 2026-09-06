@@ -6,8 +6,8 @@
 #include <string_view>
 #include <vector>
 
-#include <Backend/Registry/AudioDecoderRegistry.hpp>
-#include <Backend/Registry/BackendRegistry.hpp>
+#include <Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Backend/Extension/BackendRegistry.hpp>
 
 namespace atom::audio {
 class IAudioBackend;

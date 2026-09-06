@@ -14,7 +14,7 @@
 #include <string>
 
 #include <Algorithm/Vector/Vec2.hpp>
-#include <Backend/Contracts/Render/RenderTypes.hpp>
+#include <Backend/Contracts/Render/IRenderTypes.hpp>
 
 namespace atom::render {
 

@@ -1,4 +1,4 @@
-# Atom 未完成工作统一清单
+D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 > 状态：唯一有效的架构整改与后续规划文档
 > 更新日期：2026-09-04
@@ -17,7 +17,7 @@
 - [x] `SDL3Window::PollEvent()` 只做原始事件 hook 与单次转换，`RenderWindow::ProcessEvents()` 负责唯一一次引擎分发。
 - [x] 未映射的 SDL 事件不再以 `EventType::None` 发送给 Screen。
 - [x] `SDL_EVENT_QUIT` 与 `SDL_EVENT_WINDOW_CLOSE_REQUESTED` 都转换为关闭事件。
-- [x] 原始 SDL 事件仅通过 `IWindow::SetRawEventHook` 提供给平台适配器；普通业务只消费 `IEvent`。 。
+- [x] 平台事件在 SDL3 后端转换为规范化 `IEvent`；普通业务与 ImGui 桥接层均不接收原始 SDL 指针。
 
 ### ARCH-005：Lua 错误处理与空指针保护
 
@@ -79,22 +79,29 @@
 ### ARCH-112：扩展回调由单槽改为 Listener Registry
 
 - [x] Event、Update、Overlay、Shutdown 使用 token/RAII Connection 注册。（已落地：`RenderWindow` 提供 `Add*Listener` + `ListenerConnection`，见 2026-08-16。）
-- [x] Debugger、Profiler、Console 和用户 Overlay 可以并存。（监听器层已可并存；ImGui 层限制见 ARCH-113。）
+- [x] Debugger、Profiler、Console 和用户 Overlay 可以并存。（共享 ImGui context 已落地，见 ARCH-113。）
 - [x] 注销一个监听器不得清空其他监听器。（已落地：按 id 独立注销。）
 - 约束：监听器不得在自身被分发期间注销。
 
 ### ARCH-113：多个 ImGui Overlay 需要共享上下文
 
-- [ ] 由窗口级 OverlayManager 共享一份 ImGui 上下文；Debugger/Profiler/Console 只贡献 `OnDrawOverlay` 内容。
+- [x] 由窗口级 `OverlayManager` 共享一份 ImGui 上下文；Debugger/LogDebugger/未来的 Profiler/Console 只贡献 panel 内容。
 - [x] 旧 SDL_Renderer ImGui 适配器已退出 Atom target，SDL_GPU 的 `imgui_impl_sdlgpu3` 已注册并通过单 Debugger 验收。
-- 当前限制：ImGui backend 本身是全局状态，Atom 会拒绝第二个同时活动的 SDL_GPU Debugger 并记录 ERROR，避免上下文互相破坏。
-- 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。
+- [x] `Log` 提供线程安全的 RAII subscription；`Debugger` 可通过 `SetLoggerEnabled()` 挂载 LogDebugger，使用独立缓冲区和主线程 ImGui 绘制。
+- 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。（已通过共享 Debugger + LogDebugger 示例构建验收。）
 
 ### ARCH-114：Packager 路径与编码加固
 
 - [x] 跨盘打包导致包内文件名为空 → 已修复：`fs::relative` 跨盘返回空路径（libstdc++）或抛异常（MSVC），`GenerateInternalFilename` 现在 fallback 到裸文件名。（2026-08-16 实测 + 修复）
-- [ ] 路径统一走宽字符转换（复用 `Utf8ToWide`/`Utf8FromWide`）：`std::filesystem` 窄字符串按实现定义的字符集解释（MinGW 按 UTF-8 透传、MSVC 按 ANSI 代码页），保证中文/非 ASCII 文件名跨编译器稳定。当前 MinGW 下 UTF-8 输入全链路正常（实测通过）。
+- [x] 路径统一走宽字符转换（复用 `Utf8ToWide`/`Utf8FromWide`）：`Atom_UTF8` 现提供 `PathFromUtf8`/`PathToUtf8`，MusicCard、Packager、Unpackager 的路径字符串边界统一转换（2026-09-04）。
 - [ ] `packager_tool` 交互输入：中文 Windows 控制台 stdin 为 GBK 字节，与文件系统的 UTF-8 语义冲突（实测报 `Illegal byte sequence`）；读入后按 UTF-8 期望或显式转码。
+
+### ARCH-115：ImGui 原生 Multi-Viewport
+
+- [ ] 启用 `ImGuiConfigFlags_ViewportsEnable`，并补齐 SDL3 platform backend 的 viewport 创建、销毁、移动和输入路由。
+- [ ] 为 SDL_GPU renderer backend 实现每个 viewport 的 swapchain/render target 和 draw-data 提交。
+- [ ] 在主帧之外调用 platform window update/render 生命周期，并验证资源同步、resize、DPI 和 shutdown。
+- 这不是 ARCH-113 的“共享一个 ImGui context”本身；ARCH-113 解决同一主窗口内的多个 ImGui window，ARCH-115 才是可拖出为原生 SDL 窗口。
 
 ## 4. 音频后续事项
 
@@ -146,8 +153,8 @@
 
 - [x] `IWindow`、`IRenderDevice`、`IRenderBackend` 已拆分；`RenderWindow` 只持有组合后的抽象后端。
 - [x] 上层不再拥有或包含具体 `SDL3RenderWindow`；默认后端由 `RenderBackendRuntime` 注册为 `sdl_gpu`。
-- [ ] 正式 GPU 资源只能由所属 RenderDevice 创建和消费；当前验证场景仍是 SDL_GPU 内部实现，不属于公共 RHI。
-- [x] Native handle 只存在于 `ISDL3WindowExtensions` 和 SDL_GPU 后端内部，不进入公共窗口/RHI 契约。
+- [ ] 正式 GPU 资源只能由所属 RenderDevice 创建和消费；当前验证场景位于 SDL_GPU 内部 smoke target，不属于公共 RHI。
+- [x] Native handle 仅存在于 SDL3 与 SDL_GPU 后端实现内部，不进入公共窗口/RHI 契约。
 
 ### RENDER-002：统一 RHI 与 2D/基础 3D Renderer
 
@@ -180,7 +187,7 @@
 ### RENDER-004：跨平台图片解码与纹理上传
 
 - [x] TagLib 元数据字节、`Atom_Image` RGBA 解码和 Renderer2D GPU 上传已拆成独立阶段；MusicCard 不再使用 WIC/SDL_Texture。
-- [x] 选择 vendored stb_image 2.30，版本、许可证、哈希、实现宏所有权、格式覆盖和失败日志记录在 `ThirdParty/stb/README.md` 与 `ImageDecoder` API 中。
+- [x] 使用固定 commit 的 stb 子模块；实现宏所有权、格式覆盖和失败日志记录在 `ImageDecoder` API 中，锁定提交记录在 `ThirdParty/README.md`。
 - [ ] Windows、Linux 使用同一份 JPEG/PNG 输入做一致性测试，并覆盖损坏数据、超大尺寸、空封面和不支持格式；WebP 不在 stb_image 支持范围，需要单独 codec adapter。
 - [ ] `DecodeImageFile(std::string)` 在 Windows 的非 ASCII 路径仍依赖 C runtime 窄路径行为；资产/VFS 应优先读入字节并调用 `DecodeImageMemory`，后续补 filesystem/IO adapter。
 
@@ -238,7 +245,7 @@
 ### CORE-003：目录与命名收敛
 
 - [ ] 继续清理空目录和错误命名；本轮已删除 `Render/Shader/TODO` 空占位文件。
-- [ ] 将 `Config` 中的 C++ 组件类型迁回领域目录；Config 只保留配置数据。
+- [x] 已删除早期 `Config` 目录；引擎配置应归属于各自的模块，而非新的通用目录。
 - [ ] 明确 Public/Internal/Backend 的头文件边界。
 
 ### CORE-004：统一错误模型

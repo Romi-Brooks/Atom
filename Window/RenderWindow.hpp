@@ -2,7 +2,7 @@
   * @file           : RenderWindow.hpp
   * @author         : Romi Brooks
   * @brief          : Main render window singleton (Engine Core)
-  * @attention      : Wraps an atom::render::IRenderBackend (created via atom::backend::RenderBackendRegistry)
+ * @attention      : Wraps an atom::render::IRenderBackend selected by the engine runtime.
   *                   behind a stable singleton API. Never depends on a concrete
   *                   backend type; pick one with the backendId argument.
   *                   Overlay/event hooks are multi-slot listeners registered
@@ -25,8 +25,8 @@
 #include <Backend/Contracts/Render/IRenderBackend.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
-#include <Backend/Registry/RenderBackendRegistry.hpp>
 #include <Window/Manager/ScreenManager.hpp>
+#include <Window/OverlayManager.hpp>
 
 namespace atom {
 
@@ -68,16 +68,12 @@ class ListenerConnection {
 class RenderWindow {
     private:
         std::unique_ptr<atom::render::IRenderBackend> backend_;
+        std::unique_ptr<atom::debugger::OverlayManager> overlay_manager_;
         std::string backend_id_{};
         unsigned int fps_ = 60;
         bool shutdown_notified_ = false;
 
         // --- Listener registry storage (multi-slot) ---
-        struct RawEventListenerEntry {
-                uint64_t id;
-                std::function<void(const void*)> fn;
-                using ListenerFn = std::function<void(const void*)>;
-        };
         struct EventListenerEntry {
                 uint64_t id;
                 std::function<void(atom::window::IEvent&)> fn;
@@ -104,7 +100,6 @@ class RenderWindow {
                 using ListenerFn = std::function<void()>;
         };
 
-        std::vector<RawEventListenerEntry> raw_event_listeners_;
         std::vector<EventListenerEntry> event_listeners_;
         std::vector<UpdateListenerEntry> update_listeners_;
         std::vector<OverlayListenerEntry> overlay_listeners_;
@@ -123,7 +118,7 @@ class RenderWindow {
         auto ProcessEvents(const ScreenManager& screenManager) -> void;
 
         RenderWindow() = default;
-        ~RenderWindow() = default;
+        ~RenderWindow();
 
     public:
         RenderWindow(const RenderWindow&) = delete;
@@ -135,15 +130,12 @@ class RenderWindow {
         // never clears the others). Listeners must not unregister themselves while
         // being dispatched. ---
 
-        using RawEventListener =
-            std::function<void(const void*)>; // raw backend event, before translation (platform adapters only)
         using EventListener = std::function<void(atom::window::IEvent&)>; // translated engine event
         using UpdateListener = std::function<void(float)>;                // per frame, before rendering
         using OverlayListener = std::function<void()>;                    // per frame, after scene render
         using ResizeListener = std::function<void(uint32_t, uint32_t)>;   // after backend HandleResize
         using ShutdownListener = std::function<void()>;                   // once, on Shutdown
 
-        [[nodiscard]] auto AddRawEventListener(RawEventListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddEventListener(EventListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddUpdateListener(UpdateListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddOverlayListener(OverlayListener listener) -> ListenerConnection;
@@ -154,7 +146,7 @@ class RenderWindow {
         // backendId selects the render backend (e.g. "sdl_gpu", or a custom backend
         // registered in atom::backend::RenderBackendRegistry). Defaults to the engine default.
         auto Initialize(const std::string& title, algo::Vec2 resolution,
-                        std::string_view backendId = atom::backend::RenderBackendRegistry::kDefaultBackendId) -> void;
+                        std::string_view backendId = "sdl_gpu") -> void;
         auto Run() -> void;
         auto SetFPS(unsigned int fps) -> void;
         [[nodiscard]] auto GetFPS() const -> unsigned;
@@ -167,6 +159,10 @@ class RenderWindow {
         [[nodiscard]] auto GetIWindow() -> atom::window::IWindow*;
         [[nodiscard]] auto GetRenderDevice() -> atom::render::IRenderDevice*;
         [[nodiscard]] auto GetBackendId() const -> const std::string&;
+
+        // Window-owned shared ImGui lifecycle. Individual Debugger instances
+        // register panels here instead of creating separate ImGui contexts.
+        [[nodiscard]] auto GetOverlayManager() -> atom::debugger::OverlayManager&;
 };
 
 } // namespace atom

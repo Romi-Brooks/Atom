@@ -30,7 +30,7 @@ constexpr int kGlyphPadding = 2; // transparent border between glyphs
 constexpr float kTwoPi = 6.28318530717958647692f;
 
 auto SameClip(const Rect& a, const Rect& b) -> bool {
-    return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
+    return a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height;
 }
 
 auto NextCodepoint(std::string_view text, std::size_t& index) -> uint32_t {
@@ -286,8 +286,8 @@ auto Renderer2D::EndFrame() -> bool {
             if (clipEnabled) {
                 item.clip_x = clip.x;
                 item.clip_y = clip.y;
-                item.clip_w = clip.w;
-                item.clip_h = clip.h;
+                item.clip_w = clip.width;
+                item.clip_h = clip.height;
             }
             lastTexture = texture;
             lastSampler = sampler;
@@ -303,8 +303,8 @@ auto Renderer2D::EndFrame() -> bool {
                 const float th = static_cast<float>(texture->GetHeight());
                 uv0u = op.source.x / tw;
                 uv0v = op.source.y / th;
-                uv1u = (op.source.x + op.source.w) / tw;
-                uv1v = (op.source.y + op.source.h) / th;
+                uv1u = (op.source.x + op.source.width) / tw;
+                uv1v = (op.source.y + op.source.height) / th;
             }
 
             ensureRoom(4, 6);
@@ -324,8 +324,8 @@ auto Renderer2D::EndFrame() -> bool {
             } else {
                 const float x0 = TransformX(op.dst.x);
                 const float y0 = TransformY(op.dst.y);
-                const float x1 = TransformX(op.dst.x + op.dst.w);
-                const float y1 = TransformY(op.dst.y + op.dst.h);
+                const float x1 = TransformX(op.dst.x + op.dst.width);
+                const float y1 = TransformY(op.dst.y + op.dst.height);
                 chunk.vertices.push_back(Vertex2D{c[0], c[1], c[2], c[3], x0, y0, uv0u, uv0v});
                 chunk.vertices.push_back(Vertex2D{c[0], c[1], c[2], c[3], x1, y0, uv1u, uv0v});
                 chunk.vertices.push_back(Vertex2D{c[0], c[1], c[2], c[3], x1, y1, uv1u, uv1v});
@@ -426,8 +426,8 @@ auto Renderer2D::SetPostProcess(const PostProcess2DParams& params) -> void {
     postprocess_params_ = params;
     if (postprocess_params_.has_region &&
         (!std::isfinite(postprocess_params_.region.x) || !std::isfinite(postprocess_params_.region.y) ||
-         !std::isfinite(postprocess_params_.region.w) || !std::isfinite(postprocess_params_.region.h) ||
-         postprocess_params_.region.w <= 0.0f || postprocess_params_.region.h <= 0.0f)) {
+         !std::isfinite(postprocess_params_.region.width) || !std::isfinite(postprocess_params_.region.height) ||
+         postprocess_params_.region.width <= 0.0f || postprocess_params_.region.height <= 0.0f)) {
         postprocess_params_.has_region = false;
     }
     if (!std::isfinite(postprocess_params_.amount))
@@ -576,10 +576,10 @@ auto Renderer2D::DrawRectOutline(const Rect& rect, const Color& color, const flo
     const float t = std::max(thickness, 0.0f);
     if (t <= 0.0f)
         return;
-    DrawRect(Rect{rect.x, rect.y, rect.w, t}, color);
-    DrawRect(Rect{rect.x, rect.y + rect.h - t, rect.w, t}, color);
-    DrawRect(Rect{rect.x, rect.y + t, t, std::max(rect.h - 2.0f * t, 0.0f)}, color);
-    DrawRect(Rect{rect.x + rect.w - t, rect.y + t, t, std::max(rect.h - 2.0f * t, 0.0f)}, color);
+    DrawRect(Rect{rect.x, rect.y, rect.width, t}, color);
+    DrawRect(Rect{rect.x, rect.y + rect.height - t, rect.width, t}, color);
+    DrawRect(Rect{rect.x, rect.y + t, t, std::max(rect.height - 2.0f * t, 0.0f)}, color);
+    DrawRect(Rect{rect.x + rect.width - t, rect.y + t, t, std::max(rect.height - 2.0f * t, 0.0f)}, color);
 }
 
 auto Renderer2D::DrawCircle(const float center_x, const float center_y, const float radius, const Color& color,
@@ -657,8 +657,8 @@ auto Renderer2D::PushClip(const Rect& rect) -> void {
     const auto& parent = clip_stack_.back();
     const float left = std::max(parent.x, rect.x);
     const float top = std::max(parent.y, rect.y);
-    const float right = std::min(parent.x + parent.w, rect.x + rect.w);
-    const float bottom = std::min(parent.y + parent.h, rect.y + rect.h);
+    const float right = std::min(parent.x + parent.width, rect.x + rect.width);
+    const float bottom = std::min(parent.y + parent.height, rect.y + rect.height);
     clip_stack_.push_back(Rect{left, top, std::max(right - left, 0.0f), std::max(bottom - top, 0.0f)});
 }
 auto Renderer2D::PopClip() -> void {
@@ -687,7 +687,7 @@ auto Renderer2D::TransformY(const float y) const -> float {
     return (y - origin_y_) * zoom_;
 }
 auto Renderer2D::TransformRect(const Rect& world) const -> Rect {
-    return Rect{TransformX(world.x), TransformY(world.y), world.w * zoom_, world.h * zoom_};
+    return Rect{TransformX(world.x), TransformY(world.y), world.width * zoom_, world.height * zoom_};
 }
 
 auto Renderer2D::BuildViewProjection(const float out_width, const float out_height) const -> std::array<float, 16> {
@@ -714,25 +714,25 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
     AtlasGlyph glyph{};
     glyph.advance = atlas.font ? atlas.font->Advance(codepoint, 0, atlas.scale) : 0.0f;
     if (!atlas.font || !atlas.font->IsValid() || !atlas.font->HasGlyph(codepoint)) {
-        glyph.w = 0;
-        glyph.h = 0;
+        glyph.width = 0;
+        glyph.height = 0;
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
     }
 
     RasterizedGlyph raster{};
     const bool rasterized = atlas.font->Rasterize(codepoint, atlas.scale, raster);
-    glyph.w = rasterized ? raster.width : 0;
-    glyph.h = rasterized ? raster.height : 0;
+    glyph.width = rasterized ? raster.width : 0;
+    glyph.height = rasterized ? raster.height : 0;
     glyph.offset_x = rasterized ? raster.offset_x : 0;
     glyph.offset_y = rasterized ? raster.offset_y : 0;
-    if (glyph.w == 0 || glyph.h == 0) {
+    if (glyph.width == 0 || glyph.height == 0) {
         glyph.u = 0;
         glyph.v = 0;
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
     }
 
-    const int gw = static_cast<int>(glyph.w) + kGlyphPadding;
-    const int gh = static_cast<int>(glyph.h) + kGlyphPadding;
+    const int gw = static_cast<int>(glyph.width) + kGlyphPadding;
+    const int gh = static_cast<int>(glyph.height) + kGlyphPadding;
     if (gw > static_cast<int>(kPageSize) || gh > static_cast<int>(kPageSize))
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
     std::size_t pageIndex = atlas.pages.size();
@@ -774,10 +774,10 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
 
     const auto* src = raster.rgba.data();
     const std::size_t rowBytes = static_cast<std::size_t>(page.size) * 4u;
-    for (uint32_t row = 0; row < glyph.h; ++row) {
+    for (uint32_t row = 0; row < glyph.height; ++row) {
         std::memcpy(page.rgba.data() + (static_cast<std::size_t>(page.cursor_y) + row) * rowBytes +
                         static_cast<std::size_t>(page.cursor_x) * 4u,
-                    src + static_cast<std::size_t>(row) * glyph.w * 4u, static_cast<std::size_t>(glyph.w) * 4u);
+                    src + static_cast<std::size_t>(row) * glyph.width * 4u, static_cast<std::size_t>(glyph.width) * 4u);
     }
     page.cursor_x += gw;
     page.row_height = std::max(page.row_height, gh);
@@ -842,7 +842,7 @@ auto Renderer2D::ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -
             continue;
         }
         const AtlasGlyph* glyph = EnsureGlyph(*atlas, codepoint);
-        if (!glyph || glyph->w == 0 || glyph->h == 0) {
+        if (!glyph || glyph->width == 0 || glyph->height == 0) {
             cursorX += baseAdvance;
             continue;
         }
@@ -857,13 +857,13 @@ auto Renderer2D::ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -
         quad.color = op.color;
         quad.texture = page.texture;
         quad.dst = Rect{cursorX + static_cast<float>(glyph->offset_x),
-                        cursorY + metrics.ascent + static_cast<float>(glyph->offset_y), static_cast<float>(glyph->w),
-                        static_cast<float>(glyph->h)};
+                        cursorY + metrics.ascent + static_cast<float>(glyph->offset_y), static_cast<float>(glyph->width),
+                        static_cast<float>(glyph->height)};
         // Half-texel inset keeps linear sampling away from the transparent
         // gutter between glyphs (avoids edge erosion / garbled small text).
         quad.source = Rect{static_cast<float>(glyph->u) + 0.5f, static_cast<float>(glyph->v) + 0.5f,
-                           std::max(static_cast<float>(glyph->w) - 1.0f, 1.0f),
-                           std::max(static_cast<float>(glyph->h) - 1.0f, 1.0f)};
+                           std::max(static_cast<float>(glyph->width) - 1.0f, 1.0f),
+                           std::max(static_cast<float>(glyph->height) - 1.0f, 1.0f)};
         quad.has_source = true;
         expanded.push_back(std::move(quad));
         cursorX += baseAdvance;

@@ -13,7 +13,7 @@
 #include <iterator>
 #include <vector>
 
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Event/Input.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Utilities/Packager/Packager.hpp>
@@ -24,10 +24,6 @@
 #include <Window/Overlay.hpp>
 
 #include <Log/LogSystem.hpp>
-
-#ifdef _WIN32
-#include "windows.h"
-#endif // _WIN32
 
 namespace {
 constexpr const char* kSourceFiles[] = {
@@ -116,7 +112,7 @@ class PackedMusicScreen final : public atom::Screen {
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
-                if (key.scancode == 41) { // SDL_SCANCODE_ESCAPE
+                if (key.key == atom::event::Key::Escape) {
                     atom::RenderWindow::GetInstance().Shutdown();
                     return true;
                 }
@@ -129,10 +125,7 @@ class PackedMusicScreen final : public atom::Screen {
 } // namespace
 
 auto main() -> int {
-#ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
-#endif // _WIN32
-
+    atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
     // pack the selected files into a resource pack
@@ -206,6 +199,7 @@ auto main() -> int {
 
     PackedMusicDebugger debugger{music, memoryFiles, kPackPath, pack_status};
     debugger.Attach(window);
+    debugger.SetLoggerEnabled(true);
 
     window.Run();
     return 0;

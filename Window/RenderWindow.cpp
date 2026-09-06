@@ -9,11 +9,17 @@
 
 #include "RenderWindow.hpp"
 
-#include <Backend/Registry/RenderBackendRegistry.hpp>
+#include <Backend/Extension/RenderBackendRegistry.hpp>
 #include <Backend/Runtime/RenderBackendRuntime.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom {
+
+RenderWindow::~RenderWindow() {
+    // OverlayManager owns RAII callbacks into RenderWindow's listener
+    // storage. Release it while that storage is still alive.
+    overlay_manager_.reset();
+}
 
 auto RenderWindow::GetInstance() -> RenderWindow& {
     static RenderWindow instance;
@@ -70,15 +76,9 @@ auto RenderWindow::Initialize(const std::string& title, atom::algo::Vec2 resolut
     }
     backend_->Window().SetFPS(fps_);
 
-    // Forward the facade's raw-event listeners into the backend. The lambda
-    // reads the listener list at call time, so listeners registered after
-    // Initialize() (e.g. Debugger::Attach) take effect immediately. All other
-    // hooks are invoked by the facade itself and need no backend forwarding.
-    backend_->Window().SetRawEventHook([this](const void* rawEvent) {
-        for (const auto& entry : raw_event_listeners_) {
-            entry.fn(rawEvent);
-        }
-    });
+    if (overlay_manager_)
+        overlay_manager_->OnRenderWindowInitialized();
+
 }
 
 auto RenderWindow::Run() -> void {
@@ -175,10 +175,6 @@ auto RenderWindow::Shutdown() -> void {
 }
 
 // ── Listener registry ───────────────────────────────────────────────
-auto RenderWindow::AddRawEventListener(RawEventListener listener) -> ListenerConnection {
-    return AddListener(raw_event_listeners_, std::move(listener));
-}
-
 auto RenderWindow::AddEventListener(EventListener listener) -> ListenerConnection {
     return AddListener(event_listeners_, std::move(listener));
 }
@@ -201,6 +197,12 @@ auto RenderWindow::AddShutdownListener(ShutdownListener listener) -> ListenerCon
 
 auto RenderWindow::GetBackendId() const -> const std::string& {
     return backend_id_;
+}
+
+auto RenderWindow::GetOverlayManager() -> atom::debugger::OverlayManager& {
+    if (!overlay_manager_)
+        overlay_manager_ = std::make_unique<atom::debugger::OverlayManager>(*this);
+    return *overlay_manager_;
 }
 
 } // namespace atom

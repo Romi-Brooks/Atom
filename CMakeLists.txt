@@ -27,17 +27,45 @@ include(Render/Shader/AtomShaders.cmake)
 # ============================================================================
 # Engine Libraries
 # ============================================================================
-# 0. Interfaces (header-only, no SFML/SDL3 dependency)
+# 0. Event primitives (header-only, no platform/backend dependency).
+    add_library(Atom_Event INTERFACE)
+    target_sources(Atom_Event INTERFACE
+        Event/Input.hpp
+        Event/ActionMap.hpp
+    )
+    target_include_directories(Atom_Event INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+# 0a. Shared color value and operations (header-only, no renderer dependency).
+    add_library(Atom_Color INTERFACE)
+    target_sources(Atom_Color INTERFACE
+        Color/Color.hpp
+        Color/ColorMath.hpp
+    )
+    target_include_directories(Atom_Color INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# 0b. Interfaces (header-only, no SDL3 dependency)
     add_library(Atom_Backend_Contracts INTERFACE)
     target_sources(Atom_Backend_Contracts INTERFACE
-        Backend/Contracts/Render/RenderTypes.hpp
-        Backend/Contracts/Render/IRenderDevice.hpp
+        Backend/Contracts/Audio/AudioTypes.hpp
+        Backend/Contracts/Audio/IAudioBackend.hpp
+        Backend/Contracts/Audio/IAudioDecoder.hpp
+        Backend/Contracts/Audio/IAudioSource.hpp
+        Backend/Contracts/Debug/IDebugImGuiBackend.hpp
         Backend/Contracts/Render/IRender2DContext.hpp
         Backend/Contracts/Render/IRenderBackend.hpp
+        Backend/Contracts/Render/IRenderDevice.hpp
+        Backend/Contracts/Render/IRenderTarget.hpp
+        Backend/Contracts/Render/IRenderTypes.hpp
+        Backend/Contracts/Render/ITexture.hpp
+        Backend/Contracts/Video/IVideoDecoder.hpp
+        Backend/Contracts/Window/IWindow.hpp
     )
     target_include_directories(Atom_Backend_Contracts INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
+    target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Color Atom_Event)
 
 # 1. Log
     add_library(Atom_Log STATIC
@@ -65,8 +93,10 @@ include(Render/Shader/AtomShaders.cmake)
             Algorithm/Transform/Transform2D.hpp
             Algorithm/Transform/Transform3D.cpp
             Algorithm/Transform/Transform3D.hpp
+            Algorithm/Interpolation/Easing.hpp
             Algorithm/Math/Scalar.hpp
             Algorithm/Geometry/Primitives.hpp
+            Algorithm/Geometry/Rect.hpp
             Algorithm/Camera/Camera2D.cpp
             Algorithm/Camera/Camera2D.hpp
             Algorithm/Camera/Camera3D.cpp
@@ -100,7 +130,6 @@ include(Render/Shader/AtomShaders.cmake)
     add_library(Atom_Backend_SDL3_Window STATIC
         Backend/SDL3/Window/SDL3Window.cpp
         Backend/SDL3/Window/SDL3Window.hpp
-        Backend/SDL3/Window/ISDL3WindowExtensions.hpp
     )
     target_include_directories(Atom_Backend_SDL3_Window PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Backend_SDL3_Window PUBLIC Atom_Backend_Contracts Atom_Backend_SDL3_Core Atom_Algorithm Atom_Log)
@@ -140,7 +169,7 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/Runtime/RenderBackendRuntime.hpp
     )
     target_include_directories(Atom_Backend_Render_Runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_Render_Runtime PUBLIC Atom_Backend_Registry Atom_Backend_SDL_GPU)
+    target_link_libraries(Atom_Backend_Render_Runtime PUBLIC Atom_Backend_Extension Atom_Backend_SDL_GPU)
     target_link_libraries(Atom_Backend_Render_Runtime PRIVATE Atom_Backend_SDLGPU_Debug)
 
 # 3e. Text — backend-neutral font provider and glyph rasterization service.
@@ -174,19 +203,27 @@ include(Render/Shader/AtomShaders.cmake)
     target_link_libraries(Atom_Renderer2D PUBLIC Atom_Backend_Contracts Atom_Render_Pipeline Atom_Render_Core Atom_Text)
     target_link_libraries(Atom_Renderer2D PRIVATE Atom_Log)
 
-# 4. Backend registry and engine audio decoders
-    add_library(Atom_Backend_Registry STATIC
-        Backend/Registry/AudioDecoderRegistry.hpp
-        Backend/Registry/AudioDecoderRegistry.cpp
-        Backend/Registry/BackendRegistry.hpp
-        Backend/Registry/BackendRegistry.cpp
-        Backend/Registry/RenderBackendRegistry.hpp
-        Backend/Registry/RenderBackendRegistry.cpp
-        Backend/Registry/DebugImGuiBackendRegistry.hpp
-        Backend/Registry/DebugImGuiBackendRegistry.cpp
+# 3i. Render resources — bridges decoded media assets into renderer-owned GPU resources.
+    add_library(Atom_Render_Resources STATIC
+        Render/Resources/ImageTexture.hpp
+        Render/Resources/ImageTexture.cpp
     )
-    target_include_directories(Atom_Backend_Registry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_Registry PUBLIC Atom_Backend_Contracts)
+    target_include_directories(Atom_Render_Resources PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Render_Resources PUBLIC Atom_Renderer2D Atom_Image)
+
+# 4. Backend extension registration and engine audio decoders
+    add_library(Atom_Backend_Extension STATIC
+        Backend/Extension/AudioDecoderRegistry.hpp
+        Backend/Extension/AudioDecoderRegistry.cpp
+        Backend/Extension/BackendRegistry.hpp
+        Backend/Extension/BackendRegistry.cpp
+        Backend/Extension/RenderBackendRegistry.hpp
+        Backend/Extension/RenderBackendRegistry.cpp
+        Backend/Extension/DebugImGuiBackendRegistry.hpp
+        Backend/Extension/DebugImGuiBackendRegistry.cpp
+    )
+    target_include_directories(Atom_Backend_Extension PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Backend_Extension PUBLIC Atom_Backend_Contracts)
 
     add_library(Atom_Backend_Audio STATIC
         Backend/Audio/Decoder/WavProf/RiffWaveReader.hpp
@@ -197,7 +234,7 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/Audio/Decoder/minimp3/Minimp3Decoder.cpp
     )
     target_include_directories(Atom_Backend_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Registry Atom_3rd_Minimp3 Atom_UTF8)
+    target_link_libraries(Atom_Backend_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_3rd_Minimp3 Atom_UTF8)
 
 # 5. SDL3 Audio Backend
     add_library(Atom_Backend_SDL3_Audio STATIC
@@ -211,7 +248,7 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/SDL3/Audio/SDL3StreamingMusicSource.hpp
     )
     target_include_directories(Atom_Backend_SDL3_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_SDL3_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Registry Atom_Backend_SDL3_Core Atom_Log)
+    target_link_libraries(Atom_Backend_SDL3_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_SDL3_Core Atom_Log)
 
     add_library(Atom_Backend_Runtime STATIC
         Backend/Runtime/BackendRuntime.hpp
@@ -221,20 +258,11 @@ include(Render/Shader/AtomShaders.cmake)
     target_include_directories(Atom_Backend_Runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Backend_Runtime PUBLIC
         Atom_Backend_Contracts
-        Atom_Backend_Registry
+        Atom_Backend_Extension
         Atom_Backend_Audio
         Atom_Backend_SDL3_Audio)
 
-# 6. Entities
-    add_library(Atom_Entities INTERFACE
-            ECS/Components/Entities/Entity.hpp
-            ECS/Components/Entities/NPC.hpp
-            ECS/Components/Entities/Player.hpp
-    )
-    target_include_directories(Atom_Entities INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Entities INTERFACE Atom_Backend_Contracts Atom_Algorithm)
-
-# 7. Media
+# 6. Media
     add_library(Atom_Media STATIC
         Media/Audio/Metadata/AudioMetadataReader.cpp
         Media/Audio/Metadata/AudioMetadataReader.hpp
@@ -256,9 +284,9 @@ include(Render/Shader/AtomShaders.cmake)
         Media/Video/Video.hpp
     )
     target_include_directories(Atom_Media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Media PUBLIC Atom_Backend_Contracts Atom_Backend_Registry Atom_Backend_Runtime Atom_Log Atom_UTF8 Atom_3rd_TagLib)
+    target_link_libraries(Atom_Media PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_Runtime Atom_Log Atom_UTF8 Atom_3rd_TagLib)
 
-# 8. UTF-8 encoding utilities
+# 7. UTF-8 encoding utilities
 add_library(Atom_UTF8 STATIC
     Utilities/Utf8/Utf8.hpp
     Utilities/Utf8/Utf8.cpp
@@ -266,15 +294,18 @@ add_library(Atom_UTF8 STATIC
 target_include_directories(Atom_UTF8 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_UTF8 PUBLIC Atom_Backend_Contracts Atom_3rd_UtfCpp)
 
-# 8a. Image decoding (CPU-side; GPU upload is a separate step via Renderer2D).
+# 7a. Image decoding (CPU-side; GPU upload is a separate step via Renderer2D).
 add_library(Atom_Image STATIC
     Media/Image/ImageDecoder.hpp
     Media/Image/ImageDecoder.cpp
+        Media/Image/Analysis/ColorStatistics.hpp
+        Media/Image/Analysis/ColorStatistics.cpp
 )
 target_include_directories(Atom_Image PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(Atom_Image PUBLIC Atom_Color)
 target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
 
-# 9. Packager
+# 8. Packager
     add_library(Atom_Packager STATIC
             Utilities/Packager/Unpackager.cpp
             Utilities/Packager/Unpackager.hpp
@@ -282,9 +313,9 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Utilities/Packager/Packager.hpp
     )
     target_include_directories(Atom_Packager PUBLIC Utilities/Packager)
-    target_link_libraries(Atom_Packager PUBLIC Atom_3rd_UtfCpp Atom_Log)
+    target_link_libraries(Atom_Packager PUBLIC Atom_UTF8 Atom_Log)
 
-# 10. Windows
+# 9. Windows
     add_library(Atom_Window STATIC
             Window/RenderWindow.hpp
             Window/RenderWindow.cpp
@@ -292,61 +323,59 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Window/Screen.hpp
             Window/Manager/ScreenManager.cpp
             Window/Manager/ScreenManager.hpp
+            Window/OverlayManager.hpp
+            Window/OverlayManager.cpp
     )
     target_include_directories(Atom_Window PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Window PUBLIC
         Atom_Backend_Contracts
-        Atom_Backend_Registry
-        Atom_Backend_Render_Runtime
         Atom_Log
         Atom_Algorithm)
+    target_link_libraries(Atom_Window PRIVATE
+        Atom_Backend_Extension
+        Atom_Backend_Render_Runtime)
 
-# 11. Debugger
+# 10. Debugger
     add_library(Atom_Debugger STATIC
             Window/Debugger.hpp
             Window/Debugger.cpp
+            Window/LogDebugger.hpp
+            Window/LogDebugger.cpp
             Window/Debugger/ImGui/ImGuiFontLoader.hpp
             Window/Debugger/ImGui/ImGuiFontLoader.cpp
             Window/Overlay.hpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3 Atom_Backend_SDLGPU_Debug)
+    target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3)
+    target_link_libraries(Atom_Debugger PRIVATE Atom_Backend_SDLGPU_Debug)
     if(WIN32)
         target_link_libraries(Atom_Debugger PUBLIC opengl32 gdi32)
     endif()
 
-# 12. Config
-    add_library(Atom_Config STATIC
-            Config/Components/Entities/NPC.hpp
-            Config/Movement/MoveEvent.hpp
-    )
-    target_link_libraries(Atom_Config PUBLIC Atom_Entities Atom_Log)
-
-# 13. Engine Core
+# 11. Engine Core
     add_library(Atom_Core INTERFACE)
     target_include_directories(Atom_Core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Core INTERFACE
             Atom_Algorithm
             Atom_Layout
-            Atom_Entities
             Atom_Media
             Atom_Packager
             Atom_Window
             Atom_Log
             Atom_Lua
-            Atom_Config
             Atom_UTF8
             Atom_Renderer2D
+            Atom_Render_Resources
             Atom_Image
     )
 
-# 14. Lua Binding
+# 12. Lua Binding
     add_library(Atom_Lua STATIC
+            Lua/lua.hpp
             Lua/LuaLoader.hpp
             Lua/LuaLoader.cpp
             Lua/LuaBinding/LuaMusic.cpp
             Lua/LuaBinding/LuaSFX.cpp
-            Lua/LuaBinding/LuaEntity.cpp
             Lua/LuaBinding/LuaVolume.cpp
     )
     target_include_directories(Atom_Lua
@@ -355,7 +384,6 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_link_libraries(Atom_Lua PUBLIC
             Atom_3rd_Lua
             Atom_Log
-            Atom_Config
             Atom_Media)
 
 # ============================================================================
@@ -394,34 +422,15 @@ target_link_libraries(Example_Packaged_Music PRIVATE
         Atom_Media Atom_Window Atom_Debugger Atom_Packager)
 
 # Log channel
-add_executable(Example_Log_Channel_Demo Example/Log/LogChannelDemo.cpp)
+add_executable(Example_Log_Channel_Demo Example/Log/LogChannelDemo.cpp Example/Log/GameChannels.hpp)
 target_link_libraries(Example_Log_Channel_Demo PRIVATE Atom_Log)
-
-add_executable(Example_SDL_GPU_Clear_Smoke
-    Example/Render/SDLGPUClearSmoke.cpp
-    Example/Render/SDLGPUValidationScene.cpp
-    Example/Render/SDLGPUValidationScene.hpp)
-target_link_libraries(Example_SDL_GPU_Clear_Smoke PRIVATE Atom_Backend_SDL_GPU Atom_Render_Core)
-target_compile_definitions(Example_SDL_GPU_Clear_Smoke PRIVATE
-    ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
-add_dependencies(Example_SDL_GPU_Clear_Smoke Atom_Shaders)
-
-# Renderer2D smoke scene (phase C): batched 2D primitives, decoded images,
-# atlas source rectangles, clipping, layers, and camera pan/zoom.
-add_executable(Example_Renderer2D_Smoke Example/Render/Renderer2DSmoke.cpp)
-target_link_libraries(Example_Renderer2D_Smoke PRIVATE
-    Atom_Renderer2D Atom_Backend_SDL_GPU Atom_Image)
-target_compile_definitions(Example_Renderer2D_Smoke PRIVATE
-    ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}"
-    ATOM_PROJECT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
-add_dependencies(Example_Renderer2D_Smoke Atom_Shaders)
 
 # MusicCard example — Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
 # and an optional ImGui overlay for debug controls.
-add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp)
+add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp Render/Conversion/GeometryConversions.hpp)
 target_link_libraries(Example_MusicCard PRIVATE
-    Atom_Media Atom_Window Atom_Debugger Atom_Layout Atom_Renderer2D Atom_Image)
+    Atom_Media Atom_Window Atom_Debugger Atom_Layout Atom_Renderer2D Atom_Render_Resources Atom_Image)
 target_compile_definitions(Example_MusicCard PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_MusicCard Atom_Shaders)
@@ -471,7 +480,6 @@ if(MINGW)
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
-                               Example_SDL_GPU_Clear_Smoke Example_Renderer2D_Smoke
                                Example_MusicCard Atom_Tool_Packager)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()

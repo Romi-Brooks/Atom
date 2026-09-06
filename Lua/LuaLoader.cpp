@@ -41,7 +41,6 @@ auto LuaLoader::Initialize() -> bool {
     // Open Lua standard libraries
     // 打开Lua标准库
     luaL_openlibs(L_);       // Load Lua standard libraries
-    RegisterEntityToLua(L_); // Register Entity bindings
     RegisterMusicToLua(L_);  // Register Music bindings
     RegisterSFXToLua(L_);    // Register SFXPlayer bindings
     RegisterVolumeToLua(L_); // Register AudioMixer bindings
@@ -113,13 +112,6 @@ auto LuaLoader::CallLuaFunction(const std::string& funcName) const -> bool {
     }
 
     return true;
-}
-
-auto LuaLoader::RegisterEntity(atom::Entity* entity, const std::string& luaVarName) const -> void {
-    if (L_ && entity) {
-        PushEntityToLua(L_, entity, luaVarName);
-        LOG_INFO(atom::core::LogChannel::LUA, "Registered Entity to Lua as: " + luaVarName);
-    }
 }
 
 auto LuaLoader::HandleError(int result) const -> void {

@@ -3,7 +3,7 @@
 #include <algorithm>
 
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
-#include <Backend/Registry/AudioDecoderRegistry.hpp>
+#include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
@@ -88,10 +88,42 @@ auto MusicPlayer::Play(const std::string& id, const float volume) -> void {
     if (it == tracks_.end() || !it->second.source) {
         return;
     }
+    if (it->second.source->GetState() == atom::audio::AudioSourceState::Playing) {
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Play() ignored: track is already playing: " + id);
+        return;
+    }
     it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
     it->second.source->Play();
+    const auto state = it->second.source->GetState();
+    if (state != atom::audio::AudioSourceState::Playing && state != atom::audio::AudioSourceState::Paused) {
+        LOG_WARNING(atom::audio::LogChannel::MUSIC, "Play() did not start track: " + id);
+        return;
+    }
     LOG_INFO(atom::audio::LogChannel::MUSIC, "Now Playing track: " + id);
     current_playing_id_ = id;
+}
+
+auto MusicPlayer::Pause(const std::string& id) -> void {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    if (it == tracks_.end() || !it->second.source) {
+        return;
+    }
+    if (it->second.source->GetState() != atom::audio::AudioSourceState::Playing) {
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Pause() ignored: track is not playing: " + id);
+        return;
+    }
+    it->second.source->Pause();
+    LOG_INFO(atom::audio::LogChannel::MUSIC, "Track paused: " + id);
+}
+
+auto MusicPlayer::GetState(const std::string& id) const -> atom::audio::AudioSourceState {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    if (it == tracks_.end() || !it->second.source) {
+        return atom::audio::AudioSourceState::Stopped;
+    }
+    return it->second.source->GetState();
 }
 
 auto MusicPlayer::Stop(const std::string& id) -> void {
@@ -100,8 +132,13 @@ auto MusicPlayer::Stop(const std::string& id) -> void {
     if (it == tracks_.end() || !it->second.source) {
         return;
     }
+    const auto was_active = it->second.source->GetState() != atom::audio::AudioSourceState::Stopped;
     it->second.source->Stop();
-    LOG_INFO(atom::audio::LogChannel::MUSIC, "Track Stopped: " + id);
+    if (was_active) {
+        LOG_INFO(atom::audio::LogChannel::MUSIC, "Track Stopped: " + id);
+    } else {
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Stop() ignored: track is already stopped: " + id);
+    }
     if (current_playing_id_ == id) {
         current_playing_id_.clear();
     }
@@ -144,6 +181,7 @@ auto MusicPlayer::SetNowPlaying(const std::string& id) -> void {
 
 auto MusicPlayer::GetNowPlaying() const -> std::string {
     std::lock_guard lock(mutex_);
+    RefreshNowPlayingLocked();
     return current_playing_id_;
 }
 
@@ -154,12 +192,36 @@ auto MusicPlayer::IsLoaded(const std::string& id) const -> bool {
 
 auto MusicPlayer::IsNowPlaying(const std::string& id) const -> bool {
     std::lock_guard lock(mutex_);
+    RefreshNowPlayingLocked();
     return current_playing_id_ == id;
+}
+
+auto MusicPlayer::IsFinished(const std::string& id) const -> bool {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    if (it == tracks_.end() || !it->second.source || !it->second.source->IsFinished()) {
+        return false;
+    }
+    if (current_playing_id_ == id) {
+        current_playing_id_.clear();
+    }
+    return true;
 }
 
 auto MusicPlayer::ClearNowPlaying() -> void {
     std::lock_guard lock(mutex_);
     current_playing_id_.clear();
+}
+
+auto MusicPlayer::RefreshNowPlayingLocked() const -> void {
+    if (current_playing_id_.empty()) {
+        return;
+    }
+    const auto it = tracks_.find(current_playing_id_);
+    if (it == tracks_.end() || !it->second.source ||
+        it->second.source->GetState() == atom::audio::AudioSourceState::Stopped) {
+        current_playing_id_.clear();
+    }
 }
 
 auto MusicPlayer::OnAudioBackendChanging() -> void {

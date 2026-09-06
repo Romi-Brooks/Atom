@@ -1,15 +1,7 @@
 /**
   * @file           : Debugger.hpp
-  * @author         : Romi Brooks
-  * @brief          : Abstract base class for debug overlays (ImGui)
-  * @attention      : Backend-agnostic: inherit this class and override
-  *                   OnDrawOverlay() to create custom debug content for any
-  *                   RenderWindow. The ImGui platform/render backend is
-  *                   selected internally through the window's backend
-  *                   extension; include <Window/Overlay.hpp> for the ImGui API.
-  * @date           : 2026/6/6
-  Copyright (c) 2026 Romi Brooks, All rights reserved.
-**/
+  * @brief          : Abstract base class for shared ImGui debug panels.
+  */
 
 #ifndef ATOM_DEBUGGER_HPP
 #define ATOM_DEBUGGER_HPP
@@ -17,28 +9,28 @@
 #include <cstddef>
 #include <memory>
 
-#include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
+namespace atom::debugger {
+class OverlayConnection;
+}
 
 namespace atom {
 
 class RenderWindow;
 class ListenerConnection;
+class LogDebugger;
 
-// Abstract base class for debug overlays.
-// Manages the ImGui lifecycle through atom::debugger::IDebugImGuiBackend; override
-// OnDrawOverlay() to supply content. Listens to RenderWindow through RAII
-// ListenerConnection members, so multiple debuggers/overlays can coexist and
-// Detach() only removes this debugger's own listeners.
+// Registers one panel with the RenderWindow-owned shared ImGui context.
+// Multiple debuggers/overlays can coexist and Detach() only removes this
+// debugger's own panel and update listener.
 class Debugger {
     private:
         bool attached_ = false;
         RenderWindow* target_window_ = nullptr;
-        std::unique_ptr<atom::debugger::IDebugImGuiBackend> imgui_backend_;
-        std::unique_ptr<ListenerConnection> raw_event_connection_;
+        std::unique_ptr<atom::debugger::OverlayConnection> overlay_connection_;
         std::unique_ptr<ListenerConnection> update_connection_;
-        std::unique_ptr<ListenerConnection> overlay_connection_;
-        std::unique_ptr<ListenerConnection> shutdown_connection_;
-        bool imgui_shutdown_ = false;
+        std::unique_ptr<LogDebugger> log_debugger_;
+        bool enabled_ = true;
+        bool logger_enabled_ = false;
 
         // FPS tracking
         std::size_t frame_count_ = 0;
@@ -52,14 +44,32 @@ class Debugger {
         Debugger(const Debugger&) = delete;
         auto operator=(const Debugger&) -> Debugger& = delete;
 
-        // Attach to a RenderWindow (selects the ImGui backend, hooks callbacks)
+        // Attach to a RenderWindow and register one panel in its shared ImGui
+        // context.
         auto Attach(RenderWindow& window) -> void;
 
-        // Detach from its RenderWindow (clears callbacks, shuts down backend)
+        // Detach only this panel; the shared ImGui backend remains alive while
+        // other panels are attached.
         auto Detach() -> void;
 
         [[nodiscard]] auto IsAttached() const -> bool {
             return attached_;
+        }
+
+        virtual auto SetEnabled(bool enabled) -> void {
+            enabled_ = enabled;
+        }
+
+        [[nodiscard]] auto IsEnabled() const -> bool {
+            return enabled_;
+        }
+
+        // Enables the built-in LogDebugger component. The component is
+        // attached to the same shared ImGui context as this Debugger.
+        auto SetLoggerEnabled(bool enabled) -> void;
+
+        [[nodiscard]] auto IsLoggerEnabled() const -> bool {
+            return logger_enabled_;
         }
 
         [[nodiscard]] auto GetFPS() const -> float {
@@ -67,8 +77,8 @@ class Debugger {
         }
 
     protected:
-        // Override this to draw your debug overlay content.
-        // Called every frame inside the overlay. Use ImGui::Begin/End here.
+        // Override this to draw the panel. Called inside the shared ImGui
+        // frame; use ImGui::Begin/End here.
         virtual auto OnDrawOverlay() -> void {}
 };
 

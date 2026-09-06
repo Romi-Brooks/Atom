@@ -19,3 +19,6 @@
 [submodule "ThirdParty/Yoga"]
 	path = ThirdParty/Yoga
 	url = https://github.com/facebook/yoga.git
+[submodule "ThirdParty/stb"]
+	path = ThirdParty/stb
+	url = https://github.com/nothings/stb.git

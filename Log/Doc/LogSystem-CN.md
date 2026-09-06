@@ -180,7 +180,33 @@ atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_WARNING);
 
 ---
 
+## Windows 控制台 UTF-8
+
+Windows 程序需要向控制台输出 UTF-8 文本时，在 `main` 的最开始、任何控制台或日志输出
+之前调用一次：
+
+```cpp
+atom::Log::SetConsoleOutputUtf8();
+```
+
+Windows 上它封装 `SetConsoleOutputCP(CP_UTF8)`；其他平台为空操作。因此游戏代码不需要
+平台条件编译，也不需要包含 `windows.h`。该设置只影响控制台输出，不改变控制台输入，
+也不能替代终端中缺失的字体。
+
+---
+
 ## TODO / 后续规划
+
+日志也支持运行时订阅，调试 UI 可以通过 RAII connection 接收完整日志流：
+
+```cpp
+auto connection = atom::Log::Subscribe([](const atom::LogRecord& record) {
+    // 不要在日志线程直接调用 ImGui；放入线程安全队列，在主线程消费。
+});
+```
+
+`LogDebugger` 已使用这个接口，并独立于控制台的 `SetViewLogLevel` 进行过滤。
+由 `ATOM_DEFINE_CHANNELS` 定义的引擎/游戏 channel 会自动注册到运行时列表，LogDebugger 使用下拉多选；临时字符串 channel 也会在首次出现后加入列表。
 
 域筛选是下一个规划中的功能集
 

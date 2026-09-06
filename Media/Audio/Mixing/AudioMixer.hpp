@@ -15,7 +15,7 @@ class AudioMixer final {
         [[nodiscard]] auto GetEffectiveMusicVolume() const -> float;
 
     private:
-        static auto ClampVolume(float volume) -> float;
+        inline static auto ClampVolume(float volume) -> float;
 
         float master_volume_ = 100.0f;
         float sfx_volume_ = 100.0f;

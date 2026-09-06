@@ -60,6 +60,18 @@ auto SDL3MusicSource::Play() -> void {
         return;
     }
 
+    if (state_.load() == atom::audio::AudioSourceState::Paused) {
+        state_ = atom::audio::AudioSourceState::Playing;
+        thread_running_ = true;
+        decode_thread_ = std::thread(&SDL3MusicSource::DecodeLoop, this);
+        if (!SDL_ResumeAudioStreamDevice(stream_)) {
+            LOG_ERROR(atom::audio::LogChannel::MUSIC,
+                      "SDL_ResumeAudioStreamDevice failed: " + std::string(SDL_GetError()));
+        }
+        LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback resumed");
+        return;
+    }
+
     atom::audio::AudioSourceState expected = atom::audio::AudioSourceState::Stopped;
     if (!state_.compare_exchange_strong(expected, atom::audio::AudioSourceState::Playing)) {
         LOG_DEBUG(atom::audio::LogChannel::MUSIC,
@@ -68,6 +80,7 @@ auto SDL3MusicSource::Play() -> void {
     }
 
     play_cursor_ = 0;
+    finished_ = false;
     thread_running_ = true;
     decode_thread_ = std::thread(&SDL3MusicSource::DecodeLoop, this);
 
@@ -78,6 +91,11 @@ auto SDL3MusicSource::Play() -> void {
 }
 
 auto SDL3MusicSource::Stop() -> void {
+    if (state_.load() == atom::audio::AudioSourceState::Stopped && !thread_running_.load() &&
+        !decode_thread_.joinable()) {
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Stop() ignored: playback is already stopped");
+        return;
+    }
     LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Stop requested");
     state_.store(atom::audio::AudioSourceState::Stopped);
     thread_running_ = false;
@@ -95,13 +113,22 @@ auto SDL3MusicSource::Stop() -> void {
     }
 
     play_cursor_ = 0;
+    finished_ = false;
     LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback stopped");
 }
 
 auto SDL3MusicSource::Pause() -> void {
-    state_.store(atom::audio::AudioSourceState::Paused);
+    atom::audio::AudioSourceState expected = atom::audio::AudioSourceState::Playing;
+    if (!state_.compare_exchange_strong(expected, atom::audio::AudioSourceState::Paused)) {
+        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Pause() ignored: playback is not active");
+        return;
+    }
+    thread_running_ = false;
     if (stream_) {
         SDL_PauseAudioStreamDevice(stream_);
+    }
+    if (decode_thread_.joinable()) {
+        decode_thread_.join();
     }
     LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Playback paused");
 }
@@ -144,6 +171,10 @@ auto SDL3MusicSource::GetPlayingOffset() const -> float {
     if (bytesPerFrame == 0)
         return 0.0f;
     return static_cast<float>(play_cursor_.load()) / (static_cast<float>(spec_.freq) * bytesPerFrame);
+}
+
+auto SDL3MusicSource::IsFinished() const -> bool {
+    return finished_.load() && state_.load() == atom::audio::AudioSourceState::Stopped;
 }
 
 auto SDL3MusicSource::DecodeLoop() -> void {
@@ -191,11 +222,21 @@ auto SDL3MusicSource::DecodeLoop() -> void {
                 LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO, "Looping: rewound cursor to 0");
                 continue;
             }
+            // SDL queues input bytes separately from converted output. Flush
+            // the converter so the final resampler tail is not stranded.
+            if (stream_ && !SDL_FlushAudioStream(stream_)) {
+                LOG_ERROR(atom::audio::LogChannel::MUSIC,
+                          "SDL_FlushAudioStream failed: " + std::string(SDL_GetError()));
+            }
             // Wait for the stream to drain before stopping
-            while (SDL_GetAudioStreamAvailable(stream_) > 0) {
+            while (thread_running_.load() && SDL_GetAudioStreamAvailable(stream_) > 0) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
+            if (!thread_running_.load() || state_.load() != atom::audio::AudioSourceState::Playing) {
+                break;
+            }
             state_.store(atom::audio::AudioSourceState::Stopped);
+            finished_ = true;
             LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback completed (end of data)");
             break;
         }

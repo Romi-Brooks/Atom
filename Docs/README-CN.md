@@ -80,9 +80,9 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --parallel
 ```
 
-SDL3、TagLib、Dear ImGui、Lua、utfcpp 和 minimp3 都是固定 commit 的 Git
-submodule；两个小型 stb 头文件采用 vendored 方式，并记录版本与哈希。如果没有使用
-`--recurse-submodules` 克隆，请在配置 CMake 前执行 `git submodule update --init`。
+SDL3、TagLib、Dear ImGui、Lua、utfcpp、minimp3 和 stb 都是固定 commit 的 Git
+submodule。如果没有使用 `--recurse-submodules` 克隆，请在配置 CMake 前执行
+`git submodule update --init`。
 
 相关文档：
 
@@ -99,8 +99,6 @@ submodule；两个小型 stb 头文件采用 vendored 方式，并记录版本�
 |------|------|
 | `Example_Simple_Window` | 最小 SDL3 + SDL_GPU 窗口 |
 | `Example_Simple_Window_Debug` | 基于 SDL_GPU 的 ImGui Debugger 覆盖层 |
-| `Example_SDL_GPU_Clear_Smoke` | 自定义 Shader、纹理 2D quad 与深度测试 3D mesh |
-| `Example_Renderer2D_Smoke` | 批处理图元、图集/source rect、PNG、裁剪、图层与相机 |
 | `Example_MusicCard` | Yoga + Renderer2D 音乐卡片及 ImGui 调试层；默认扫描 `E:\Music`，可传入目录参数 |
 | `Example_Audio_Playback` | 音乐播放 + 淡入淡出切换 |
 | `Example_SFX_Playback` | 音效播放（Voice Pool 重叠播放） |
@@ -128,8 +126,8 @@ Atom 提供了资源打包工具，用于将游戏资源打包/解包为 APKG �
 
 ## 引擎依赖
 
-Atom 使用 **SDL3** 作为其多媒体抽象层。第三方源码依赖以 submodule 或 vendored
-文件的形式固定版本，并由 `ThirdParty/CMakeLists.txt` 在 Atom 相关目标之前编译。
+Atom 使用 **SDL3** 作为其多媒体抽象层。第三方源码依赖以 submodule 形式固定版本，
+并由 `ThirdParty/CMakeLists.txt` 在 Atom 相关目标之前编译。
 各依赖的用途、上游 Git URL 和锁定 commit 记录在
 [`ThirdParty/README.md`](../ThirdParty/README.md)。
 
@@ -143,7 +141,7 @@ Atom 使用 **SDL3** 作为其多媒体抽象层。第三方源码依赖以 subm
 | [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | 音频元数据读取 |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 验证和编码转换 |
 | [minimp3](https://github.com/lieff/minimp3) | master `ea99364` | `ThirdParty/minimp3/` | MP3 解码（header-only） |
-| [stb](https://github.com/nothings/stb) | image 2.30 / truetype 1.26 | `ThirdParty/stb/` | 图片解码与可信字体栅格化 |
+| [stb](https://github.com/nothings/stb) | `2c980bb` | `ThirdParty/stb/` | 图片解码与可信字体栅格化 |
 
 ### 依赖编译
 
