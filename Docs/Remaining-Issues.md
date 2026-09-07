@@ -195,6 +195,12 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 - [-] Renderer2D 已增加独立于 ImGui 的内存 Font、UTF-8 解码、stb_truetype 栅格与多页 GlyphAtlas；CJK fallback、文件/VFS/DPI 策略和 HarfBuzz shaping 待实现。
 - [x] 字形栅格结果保持后端无关，由 RenderDevice 上传 atlas；公共 API 不暴露 ImGui、SDL 或平台字体类型。
+- [x] 图集页首次清零后，新增字形只上传合并后的脏矩形；不再为每个新增字形重传整张页。
+- [x] 英文 ASCII 单词按整体换行、tab 对齐至列停靠点、CRLF 的 `\r` 被忽略；缺字尝试显示当前字体的 `.notdef` glyph。
+- [ ] 完整 Unicode 换行（UAX #14）、词典断词、双向文本和 locale 规则不能继续堆在 `Renderer2D::ExpandTextOp`；应由 `TextLayout` 负责。
+- [ ] `.notdef` 不是 fallback：需要 `FontProvider` 管理字体族、覆盖范围与回退链，并保证度量、baseline 和缓存键与实际选中的字体一致。
+- [ ] atlas 尺号已量化到 0.5px，但图集/页面尚无内存预算与 LRU；淘汰必须与 GPU 延迟释放和正在录制的 draw packet 生命周期协同。
+- [ ] stb_truetype 仅提供简单轮廓栅格和 kern pair；连字、组合音标、阿拉伯文/Indic 重排、彩色 emoji、OpenType feature/variation/DPI 实例应由 FreeType + HarfBuzz 路径提供。
 - 当前 `atom::debugger::ImGuiFontLoader` 只修复 Debugger 的 ImGui font atlas，支持文件与内存字体；它不是 Atom Renderer 的字体实现，也不应被正式游戏 UI 依赖。
 - MusicCard 业务文字已使用 Renderer2D；ImGuiFontLoader 只给调试窗口提供字体。
 

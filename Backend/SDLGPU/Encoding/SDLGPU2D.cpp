@@ -262,6 +262,17 @@ auto SDLGPUDevice::CreateTexture2D(const uint32_t width, const uint32_t height) 
 auto SDLGPUDevice::UpdateTexture2D(const render::Texture2D texture, const void* pixels, const uint32_t pitch_bytes)
     -> bool {
     const auto it = textures_2d_.find(texture);
+    if (it == textures_2d_.end()) {
+        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER, "UpdateTexture2D rejected an invalid handle");
+        return false;
+    }
+    return UpdateTexture2DRegion(texture, 0, 0, it->second.width, it->second.height, pixels, pitch_bytes);
+}
+
+auto SDLGPUDevice::UpdateTexture2DRegion(const render::Texture2D texture, const uint32_t x, const uint32_t y,
+                                         const uint32_t width, const uint32_t height, const void* pixels,
+                                         const uint32_t source_pitch_bytes) -> bool {
+    const auto it = textures_2d_.find(texture);
     if (it == textures_2d_.end() || !pixels) {
         LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER,
                     "UpdateTexture2D rejected an invalid handle or null pixel buffer");
@@ -274,27 +285,32 @@ auto SDLGPUDevice::UpdateTexture2D(const render::Texture2D texture, const void* 
     auto* sdlTexture = it->second.texture;
     if (!sdlTexture)
         return false;
-    const uint32_t w = it->second.width;
-    const uint32_t h = it->second.height;
-    if (w > std::numeric_limits<uint32_t>::max() / 4u) {
+    const uint32_t textureWidth = it->second.width;
+    const uint32_t textureHeight = it->second.height;
+    if (width == 0 || height == 0 || x > textureWidth || y > textureHeight || width > textureWidth - x ||
+        height > textureHeight - y) {
+        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER, "UpdateTexture2DRegion rejected an out-of-bounds region");
+        return false;
+    }
+    if (width > std::numeric_limits<uint32_t>::max() / 4u) {
         LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
                   "UpdateTexture2D rejected a texture whose row size overflows");
         return false;
     }
-    const uint32_t rowBytes = w * 4;
-    if (h > std::numeric_limits<uint32_t>::max() / rowBytes) {
+    const uint32_t rowBytes = width * 4;
+    if (height > std::numeric_limits<uint32_t>::max() / rowBytes) {
         LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
                   "UpdateTexture2D rejected a texture whose upload size overflows");
         return false;
     }
-    if (pitch_bytes != 0 && pitch_bytes < rowBytes) {
+    if (source_pitch_bytes != 0 && source_pitch_bytes < rowBytes) {
         LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
                   "UpdateTexture2D rejected a source pitch smaller than one RGBA8 row");
         return false;
     }
     const auto* src = static_cast<const uint8_t*>(pixels);
 
-    SDL_GPUTransferBufferCreateInfo transferInfo{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, rowBytes * h, 0};
+    SDL_GPUTransferBufferCreateInfo transferInfo{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, rowBytes * height, 0};
     auto* transfer = SDL_CreateGPUTransferBuffer(device_, &transferInfo);
     if (!transfer) {
         LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
@@ -308,9 +324,9 @@ auto SDLGPUDevice::UpdateTexture2D(const render::Texture2D texture, const void* 
         SDL_ReleaseGPUTransferBuffer(device_, transfer);
         return false;
     }
-    const uint32_t sourceStride = pitch_bytes == 0 ? rowBytes : pitch_bytes;
-    for (uint32_t y = 0; y < h; ++y)
-        std::memcpy(mapped + y * rowBytes, src + y * sourceStride, rowBytes);
+    const uint32_t sourceStride = source_pitch_bytes == 0 ? rowBytes : source_pitch_bytes;
+    for (uint32_t row = 0; row < height; ++row)
+        std::memcpy(mapped + row * rowBytes, src + row * sourceStride, rowBytes);
     SDL_UnmapGPUTransferBuffer(device_, transfer);
 
     auto* copy = SDL_BeginGPUCopyPass(command_buffer_);
@@ -320,8 +336,8 @@ auto SDLGPUDevice::UpdateTexture2D(const render::Texture2D texture, const void* 
         SDL_ReleaseGPUTransferBuffer(device_, transfer);
         return false;
     }
-    SDL_GPUTextureTransferInfo source{transfer, 0, w, h};
-    SDL_GPUTextureRegion target{sdlTexture, 0, 0, 0, 0, 0, w, h, 1};
+    SDL_GPUTextureTransferInfo source{transfer, 0, width, height};
+    SDL_GPUTextureRegion target{sdlTexture, 0, 0, x, y, 0, width, height, 1};
     SDL_ClearError();
     SDL_UploadToGPUTexture(copy, &source, &target, true);
     {

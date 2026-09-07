@@ -42,7 +42,6 @@
 #include <Media/Image/ImageDecoder.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <Color/ColorMath.hpp>
-#include <Render/Conversion/GeometryConversions.hpp>
 #include <Render/Resources/ImageTexture.hpp>
 #include <Render/Text/Font.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
@@ -143,7 +142,7 @@ class CardPainter {
         explicit CardPainter(atom::render::Renderer2D& renderer) : renderer_{renderer} {}
 
         auto FillRect(const atom::algo::Rect& rect, const atom::render::Color color) -> void {
-            renderer_.DrawRect(atom::render::ToRect(rect), color);
+            renderer_.DrawRect(rect, color);
         }
 
         auto FillRoundedRect(const atom::algo::Rect& rect, const float radius, const atom::render::Color color) -> void {
@@ -155,9 +154,9 @@ class CardPainter {
             // Cross body + quarter discs at each corner (clipped to the corner
             // squares) reproduces the original rounded-rect look.
             renderer_.DrawRect(
-                atom::render::ToRect(atom::algo::Rect{rect.x + safe_radius, rect.y, rect.width - safe_radius * 2.0f, rect.height}), color);
+                atom::algo::Rect{rect.x + safe_radius, rect.y, rect.width - safe_radius * 2.0f, rect.height}, color);
             renderer_.DrawRect(
-                atom::render::ToRect(atom::algo::Rect{rect.x, rect.y + safe_radius, rect.width, rect.height - safe_radius * 2.0f}), color);
+                atom::algo::Rect{rect.x, rect.y + safe_radius, rect.width, rect.height - safe_radius * 2.0f}, color);
             const std::array<atom::algo::Rect, 4> corners{{
                 {rect.x, rect.y, safe_radius, safe_radius},
                 {rect.x + rect.width - safe_radius, rect.y, safe_radius, safe_radius},
@@ -171,7 +170,7 @@ class CardPainter {
                 {rect.x + rect.width, rect.y + rect.height},
             }};
             for (std::size_t i = 0; i < corners.size(); ++i) {
-                renderer_.PushClip(atom::render::ToRect(corners[i]));
+                renderer_.PushClip(corners[i]);
                 renderer_.DrawCircle(centers[i].first, centers[i].second, safe_radius, color);
                 renderer_.PopClip();
             }
@@ -189,7 +188,7 @@ class CardPainter {
 
         auto DrawTexture(atom::render::Renderer2D::Texture& texture, const atom::algo::Rect& rect, const float opacity)
             -> void {
-            renderer_.DrawTexture(texture, atom::render::ToRect(rect),
+            renderer_.DrawTexture(texture, rect,
                                   atom::color::ApplyOpacity(atom::render::Color::White(), opacity), nullptr);
         }
 
@@ -446,10 +445,10 @@ class MusicCardScreen final : public atom::Screen {
                     return;
                 }
                 DrawBackground(painter);
-                atom::render::PostProcess2DParams blur{};
+                atom::render::Renderer2D::PostProcessParams blur{};
                 blur.effect = atom::render::PostProcess2DEffect::GaussianBlur;
                 blur.has_region = true;
-                blur.region = atom::render::ToRect(current_card_bounds_);
+                blur.region = current_card_bounds_;
                 blur.corner_radius = 24.0f;
                 blur.feather = 8.0f;
                 blur.amount = 16.0f;
@@ -469,10 +468,10 @@ class MusicCardScreen final : public atom::Screen {
                 return;
             }
             DrawCard(painter, false);
-            atom::render::PostProcess2DParams postprocess{};
+            atom::render::Renderer2D::PostProcessParams postprocess{};
             postprocess.time = effect_time_;
             postprocess.has_region = true;
-            postprocess.region = atom::render::ToRect(current_card_rect_);
+            postprocess.region = current_card_rect_;
             postprocess.corner_radius = 24.0f;
             postprocess.feather = 16.0f;
             if (animation_state_ == AnimationState::Entering || animation_state_ == AnimationState::Exiting) {
@@ -715,7 +714,7 @@ class MusicCardScreen final : public atom::Screen {
                     source.height = texture_width / window_aspect;
                     source.y = (texture_height - source.height) * 0.5f;
                 }
-                const auto source_rect = atom::render::ToRect(source);
+                const auto source_rect = source;
                 renderer_.DrawTexture(*background_texture_, {0.0f, 0.0f, window_width_, window_height_},
                                       atom::render::Color{255, 255, 255, 255}, &source_rect);
                 // Dark glass tint keeps the foreground card and debugger
@@ -876,7 +875,7 @@ class MusicCardScreen final : public atom::Screen {
             // partially transparent glyphs become soft against bright
             // wallpaper, especially after post-process compositing.
             color.a = 255;
-            renderer_.PushClip(atom::render::ToRect(rect));
+            renderer_.PushClip(rect);
             auto shadow = atom::render::Color::Black();
             shadow.a = 210;
             renderer_.DrawText(*interface_font_, text, rect.x + 1.2f, rect.y + 1.2f, shadow, font_size, rect.width);

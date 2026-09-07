@@ -30,6 +30,8 @@ Renderer2D 不应解析 UTF-8、读取字体文件或直接调用 stb。
 
 ## FreeType + HarfBuzz 迁移
 
+具体的现状、目标数据模型、迁移阶段和引入门槛见 [TextLayout-Design-CN.md](TextLayout-Design-CN.md)。
+
 生产级多语言路径推荐 FreeType（解析、rasterization、hinting）+ HarfBuzz（复杂文字 shaping、kerning、组合字符和脚本规则），ICU 可作为更完整的 Unicode 分段和双向文字扩展。
 
 当前不立即替换的原因是仓库还没有 `TextShaper/TextLayout/fallback` 契约；直接把 stb 实现替换为 FreeType 只会增加包体和构建负担，无法解决 Renderer2D 过度承担文字职责的问题。完成这些接口后，新增 `FreeTypeFontProvider` 和 `HarfBuzzTextShaper` 即可替换，不需要改 SDL_GPU 后端。

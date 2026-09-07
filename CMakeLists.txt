@@ -428,7 +428,7 @@ target_link_libraries(Example_Log_Channel_Demo PRIVATE Atom_Log)
 # MusicCard example — Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
 # and an optional ImGui overlay for debug controls.
-add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp Render/Conversion/GeometryConversions.hpp)
+add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp)
 target_link_libraries(Example_MusicCard PRIVATE
     Atom_Media Atom_Window Atom_Debugger Atom_Layout Atom_Renderer2D Atom_Render_Resources Atom_Image)
 target_compile_definitions(Example_MusicCard PRIVATE

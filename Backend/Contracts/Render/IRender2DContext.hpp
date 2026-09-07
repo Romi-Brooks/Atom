@@ -125,6 +125,10 @@ class IRender2DContext {
         // Uploads RGBA8 pixels (pitch = bytes per row). Must be called between
         // IRenderDevice::BeginFrame() and EndFrame().
         virtual auto UpdateTexture2D(Texture2D texture, const void* pixels, uint32_t pitch_bytes) -> bool = 0;
+        // Uploads an RGBA8 sub-region. source_pitch_bytes is the source row
+        // stride; zero means width * 4. The region must lie within texture.
+        virtual auto UpdateTexture2DRegion(Texture2D texture, uint32_t x, uint32_t y, uint32_t width,
+                                           uint32_t height, const void* pixels, uint32_t source_pitch_bytes) -> bool = 0;
         virtual auto DestroyTexture2D(Texture2D texture) -> void = 0;
 
         virtual auto CreateSampler2D(const Sampler2DDesc& desc) -> Sampler2D = 0;

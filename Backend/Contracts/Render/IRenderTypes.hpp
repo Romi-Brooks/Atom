@@ -16,6 +16,9 @@ namespace atom::render {
 
 using Color = color::Color;
 
+// Render-record rectangle. This is deliberately separate from algo::Rect:
+// its coordinates may represent backend-facing world, texel, or framebuffer
+// data, while the public Renderer2D API accepts algo::Rect and converts it.
 struct Rect {
         float x = 0.0f;
         float y = 0.0f;

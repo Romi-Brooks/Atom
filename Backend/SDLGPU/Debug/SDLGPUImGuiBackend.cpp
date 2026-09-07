@@ -224,10 +224,10 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
             case window::EventType::KeyPressed:
             case window::EventType::KeyReleased: {
                 const auto& key_event = std::get<window::KeyEvent>(input_event.data);
-                io.AddKeyEvent(ImGuiMod_Ctrl, event::HasModifier(key_event.modifiers, event::KeyModifier::Control));
-                io.AddKeyEvent(ImGuiMod_Shift, event::HasModifier(key_event.modifiers, event::KeyModifier::Shift));
-                io.AddKeyEvent(ImGuiMod_Alt, event::HasModifier(key_event.modifiers, event::KeyModifier::Alt));
-                io.AddKeyEvent(ImGuiMod_Super, event::HasModifier(key_event.modifiers, event::KeyModifier::Super));
+                io.AddKeyEvent(ImGuiMod_Ctrl, event::HasModifier(key_event.modifiers, event::KeyModifiers::Control));
+                io.AddKeyEvent(ImGuiMod_Shift, event::HasModifier(key_event.modifiers, event::KeyModifiers::Shift));
+                io.AddKeyEvent(ImGuiMod_Alt, event::HasModifier(key_event.modifiers, event::KeyModifiers::Alt));
+                io.AddKeyEvent(ImGuiMod_Super, event::HasModifier(key_event.modifiers, event::KeyModifiers::Super));
                 const auto key = ToImGuiKey(key_event.key);
                 if (key != ImGuiKey_None)
                     io.AddKeyEvent(key, input_event.type == window::EventType::KeyPressed);

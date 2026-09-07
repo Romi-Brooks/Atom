@@ -172,13 +172,13 @@ auto TranslateKey(const SDL_Scancode scancode) -> event::Key {
 auto TranslateModifiers(const SDL_Keymod modifiers) -> event::KeyModifiers {
     auto result = event::KeyModifiers::None;
     if (modifiers & SDL_KMOD_ALT)
-        result = result | event::KeyModifier::Alt;
+        result = result | event::KeyModifiers::Alt;
     if (modifiers & SDL_KMOD_CTRL)
-        result = result | event::KeyModifier::Control;
+        result = result | event::KeyModifiers::Control;
     if (modifiers & SDL_KMOD_SHIFT)
-        result = result | event::KeyModifier::Shift;
+        result = result | event::KeyModifiers::Shift;
     if (modifiers & SDL_KMOD_GUI)
-        result = result | event::KeyModifier::Super;
+        result = result | event::KeyModifiers::Super;
     return result;
 }
 

@@ -70,7 +70,9 @@ auto Font::ScaleForPixelHeight(const float pixel_height) const -> float {
 
 auto Font::Rasterize(const uint32_t codepoint, const float scale, RasterizedGlyph& out) const -> bool {
     out = {};
-    if (!HasGlyph(codepoint) || !std::isfinite(scale) || scale <= 0.0f)
+    // Codepoint zero deliberately rasterizes the font's .notdef glyph. The
+    // renderer uses it as a visible fallback when a requested glyph is absent.
+    if (!IsValid() || (codepoint != 0 && !HasGlyph(codepoint)) || !std::isfinite(scale) || scale <= 0.0f)
         return false;
     int width = 0;
     int height = 0;
@@ -98,14 +100,10 @@ auto Font::Rasterize(const uint32_t codepoint, const float scale, RasterizedGlyp
             pixel[3] = value;
         }
     }
-    int advance_width = 0;
-    int left_side_bearing = 0;
-    stbtt_GetCodepointHMetrics(&impl_->info, static_cast<int>(codepoint), &advance_width, &left_side_bearing);
     out.width = static_cast<uint32_t>(width);
     out.height = static_cast<uint32_t>(height);
     out.offset_x = xoff;
     out.offset_y = yoff;
-    out.advance = static_cast<float>(advance_width) * scale;
     return true;
 }
 

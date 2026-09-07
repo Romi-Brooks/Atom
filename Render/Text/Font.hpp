@@ -31,7 +31,6 @@ struct RasterizedGlyph {
         uint32_t height = 0;
         int offset_x = 0;
         int offset_y = 0;
-        float advance = 0.0f;
 };
 
 // Lightweight stb_truetype provider. The API is provider-shaped so a future
