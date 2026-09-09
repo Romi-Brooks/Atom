@@ -294,6 +294,17 @@ add_library(Atom_UTF8 STATIC
 target_include_directories(Atom_UTF8 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_UTF8 PUBLIC Atom_Backend_Contracts Atom_3rd_UtfCpp)
 
+# 7b. Platform-independent virtual filesystem. Native implementation details
+# remain private; consumers use AssetPath and IFileSystem only.
+add_library(Atom_FS STATIC
+    Filesystem/AssetPath.hpp
+    Filesystem/AssetPath.cpp
+    Filesystem/FileSystem.hpp
+    Filesystem/FileSystem.cpp
+)
+target_include_directories(Atom_FS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
+
 # 7a. Image decoding (CPU-side; GPU upload is a separate step via Renderer2D).
 add_library(Atom_Image STATIC
     Media/Image/ImageDecoder.hpp
@@ -364,6 +375,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Atom_Log
             Atom_Lua
             Atom_UTF8
+            Atom_FS
             Atom_Renderer2D
             Atom_Render_Resources
             Atom_Image
@@ -444,6 +456,22 @@ add_executable(Atom_Tool_Packager
 set_target_properties(Atom_Tool_Packager PROPERTIES OUTPUT_NAME packager_tool)
 target_link_libraries(Atom_Tool_Packager PRIVATE Atom_Packager)
 
+include(CTest)
+# Third-party projects may force the generic BUILD_TESTING cache option off.
+# Atom-owned tests use an independent option so that project coverage is not
+# silently disabled by a dependency's configuration policy.
+option(ATOM_BUILD_TESTS "Build Atom-owned test targets" ON)
+if(ATOM_BUILD_TESTS)
+    enable_testing()
+    add_executable(Atom_FS_AssetPath_Tests Filesystem/Test/AssetPathTests.cpp)
+    target_link_libraries(Atom_FS_AssetPath_Tests PRIVATE Atom_FS)
+    add_test(NAME Atom_FS.AssetPath COMMAND Atom_FS_AssetPath_Tests)
+
+    add_executable(Atom_FS_NativeFileSystem_Tests Filesystem/Test/NativeFileSystemTests.cpp)
+    target_link_libraries(Atom_FS_NativeFileSystem_Tests PRIVATE Atom_FS)
+    add_test(NAME Atom_FS.NativeFileSystem COMMAND Atom_FS_NativeFileSystem_Tests)
+endif()
+
 # ============================================================================
 # Platforms Config
 # ============================================================================
@@ -480,9 +508,14 @@ if(MINGW)
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
-                               Example_MusicCard Atom_Tool_Packager)
+                                Example_MusicCard Atom_Tool_Packager)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()
+        if(ATOM_BUILD_TESTS)
+            foreach(atom_test IN ITEMS Atom_FS_AssetPath_Tests Atom_FS_NativeFileSystem_Tests)
+                add_dependencies(${atom_test} Atom_Mingw_Runtime_DLL)
+            endforeach()
+        endif()
     endif()
 endif()
 if(WIN32)

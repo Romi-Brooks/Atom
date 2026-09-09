@@ -50,6 +50,7 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 ### ARCH-107：统一资源系统与 VFS
 
+- [-] `Atom_FS` 第一阶段已建立：`AssetPath`、只读 `IFile`/`IFileSystem` 与根目录受限的 Native backend；完整设计见 `Docs/Filesystem-Design-CN.md`。
 - [ ] 设计 Resource ID、`ResourceHandle<T>`、Loader Registry 和统一缓存。
 - [ ] 支持目录与 APKG 的透明挂载。
 - [ ] 后续增加异步加载、热重载、依赖图和内存预算。
