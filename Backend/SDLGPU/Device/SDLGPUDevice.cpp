@@ -23,11 +23,11 @@ SDLGPUDevice::~SDLGPUDevice() {
 
 auto SDLGPUDevice::Initialize(SDL_Window* window) -> bool {
     if (!window) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER, "SDL_GPU initialization requires a valid SDL window");
+        LOG_ERROR(atom::log::backend::sdl3::Render, "SDL_GPU initialization requires a valid SDL window");
         return false;
     }
     if (device_) {
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER, "SDL_GPU device is already initialized");
+        LOG_WARNING(atom::log::backend::sdl3::Render, "SDL_GPU device is already initialized");
         return window_ == window;
     }
     constexpr auto formats = static_cast<SDL_GPUShaderFormat>(SDL_GPU_SHADERFORMAT_SPIRV
@@ -47,17 +47,17 @@ auto SDLGPUDevice::Initialize(SDL_Window* window) -> bool {
     // Useful for comparing backend behavior without recompiling.
     const char* forcedDriver = std::getenv("ATOM_GPU_DRIVER");
     if (forcedDriver && forcedDriver[0] != '\0') {
-        LOG_INFO(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_INFO(atom::log::backend::sdl3::Render,
                  "Forcing SDL_GPU driver via ATOM_GPU_DRIVER: " + std::string{forcedDriver});
     }
     device_ = SDL_CreateGPUDevice(formats, debugMode, forcedDriver);
     if (!device_) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_CreateGPUDevice failed: " + std::string{SDL_GetError()});
         return false;
     }
     if (!SDL_ClaimWindowForGPUDevice(device_, window)) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_ClaimWindowForGPUDevice failed: " + std::string{SDL_GetError()});
         SDL_DestroyGPUDevice(device_);
         device_ = nullptr;
@@ -70,7 +70,7 @@ auto SDLGPUDevice::Initialize(SDL_Window* window) -> bool {
     info_.driver = SDL_GetStringProperty(properties, SDL_PROP_GPU_DEVICE_DRIVER_NAME_STRING, "unknown");
     info_.shader_formats = static_cast<uint32_t>(SDL_GetGPUShaderFormats(device_));
     info_.swapchain_format = static_cast<uint32_t>(SDL_GetGPUSwapchainTextureFormat(device_, window_));
-    LOG_INFO(atom::backend::sdl3::LogChannel::RENDER,
+    LOG_INFO(atom::log::backend::sdl3::Render,
              "SDL_GPU initialized (api=" + info_.api + ", device=" + info_.device + ", driver=" + info_.driver +
                  ", shader_formats=" + std::to_string(info_.shader_formats) +
                  ", swapchain_format=" + std::to_string(info_.swapchain_format) + ")");
@@ -97,22 +97,22 @@ auto SDLGPUDevice::Shutdown() -> void {
 
 auto SDLGPUDevice::BeginFrame() -> bool {
     if (!device_) {
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER, "SDL_GPU BeginFrame called before initialization");
+        LOG_WARNING(atom::log::backend::sdl3::Render, "SDL_GPU BeginFrame called before initialization");
         return false;
     }
     if (command_buffer_) {
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER, "SDL_GPU BeginFrame called while another frame is active");
+        LOG_WARNING(atom::log::backend::sdl3::Render, "SDL_GPU BeginFrame called while another frame is active");
         return false;
     }
     command_buffer_ = SDL_AcquireGPUCommandBuffer(device_);
     if (!command_buffer_) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_AcquireGPUCommandBuffer failed: " + std::string{SDL_GetError()});
         return false;
     }
     if (!SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer_, window_, &swapchain_texture_, &frame_width_,
                                                &frame_height_)) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Failed to acquire SDL_GPU swapchain: " + std::string{SDL_GetError()});
         SDL_CancelGPUCommandBuffer(command_buffer_);
         command_buffer_ = nullptr;
@@ -150,12 +150,12 @@ auto SDLGPUDevice::EndFrame() -> void {
         if (auto* pass = SDL_BeginGPURenderPass(command_buffer_, &target, 1, nullptr)) {
             SDL_EndGPURenderPass(pass);
         } else {
-            LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+            LOG_ERROR(atom::log::backend::sdl3::Render,
                       "SDL_BeginGPURenderPass failed: " + std::string{SDL_GetError()});
         }
     }
     if (!SDL_SubmitGPUCommandBuffer(command_buffer_))
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_SubmitGPUCommandBuffer failed: " + std::string{SDL_GetError()});
     command_buffer_ = nullptr;
     swapchain_texture_ = nullptr;
@@ -171,13 +171,13 @@ auto SDLGPUDevice::EndFrame() -> void {
 }
 
 auto SDLGPUDevice::HandleResize(const uint32_t width, const uint32_t height) -> void {
-    LOG_DEBUG(atom::backend::sdl3::LogChannel::RENDER,
+    LOG_DEBUG(atom::log::backend::sdl3::Render,
               "SDL_GPU resize notification: " + std::to_string(width) + "x" + std::to_string(height) +
                   " (swapchain dimensions are acquired per frame)");
 }
 auto SDLGPUDevice::SetVSync(const bool enabled) -> bool {
     if (!device_ || !window_) {
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER, "SDL_GPU SetVSync called before initialization");
+        LOG_WARNING(atom::log::backend::sdl3::Render, "SDL_GPU SetVSync called before initialization");
         return false;
     }
     const auto mode = enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX;
@@ -185,25 +185,25 @@ auto SDLGPUDevice::SetVSync(const bool enabled) -> bool {
         if (!enabled && SDL_WindowSupportsGPUPresentMode(device_, window_, SDL_GPU_PRESENTMODE_IMMEDIATE)) {
             if (!SDL_SetGPUSwapchainParameters(device_, window_, SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
                                                SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-                LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+                LOG_ERROR(atom::log::backend::sdl3::Render,
                           "Failed to select SDL_GPU immediate present mode: " + std::string{SDL_GetError()});
                 return false;
             }
             vsync_enabled_ = false;
-            LOG_INFO(atom::backend::sdl3::LogChannel::RENDER, "SDL_GPU VSync disabled (immediate present mode)");
+            LOG_INFO(atom::log::backend::sdl3::Render, "SDL_GPU VSync disabled (immediate present mode)");
             return true;
         }
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_WARNING(atom::log::backend::sdl3::Render,
                     std::string{"Requested SDL_GPU present mode is unsupported (VSync="} + (enabled ? "on)" : "off)"));
         return false;
     }
     if (!SDL_SetGPUSwapchainParameters(device_, window_, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode)) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Failed to update SDL_GPU present mode: " + std::string{SDL_GetError()});
         return false;
     }
     vsync_enabled_ = enabled;
-    LOG_INFO(atom::backend::sdl3::LogChannel::RENDER,
+    LOG_INFO(atom::log::backend::sdl3::Render,
              std::string{"SDL_GPU VSync "} + (enabled ? "enabled" : "disabled (mailbox present mode)"));
     return true;
 }

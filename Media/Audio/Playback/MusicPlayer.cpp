@@ -29,25 +29,25 @@ MusicPlayer::~MusicPlayer() {
 auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     std::lock_guard lock(mutex_);
     if (tracks_.contains(id)) {
-        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Music track already loaded, skip: " + id);
+        LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
         return true;
     }
 
     AudioClipLoader loader{*decoders_};
     auto streaming = loader.OpenStreaming(file);
     if (!streaming) {
-        LOG_ERROR(atom::audio::LogChannel::MUSIC, "Failed to decode music: " + file);
+        LOG_ERROR(atom::log::audio::Music, "Failed to decode music: " + file);
         return false;
     }
     auto& backend = runtime_ ? runtime_->Audio() : *backend_;
     auto source = backend.CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
     if (!source) {
-        LOG_ERROR(atom::audio::LogChannel::MUSIC,
+        LOG_ERROR(atom::log::audio::Music,
                   "Failed to create streaming music source for track '" + id + "': " + file);
         return false;
     }
     tracks_.emplace(id, Track{std::move(source)});
-    LOG_INFO(atom::audio::LogChannel::MUSIC, "Music track loaded: " + id + " (" + file + ")");
+    LOG_INFO(atom::log::audio::Music, "Music track loaded: " + id + " (" + file + ")");
     return true;
 }
 
@@ -55,25 +55,25 @@ auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filen
                                  const std::size_t size) -> bool {
     std::lock_guard lock(mutex_);
     if (tracks_.contains(id)) {
-        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Music track already loaded, skip: " + id);
+        LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
         return true;
     }
 
     AudioClipLoader loader{*decoders_};
     auto streaming = loader.OpenStreamingFromMemory(filename, data, size);
     if (!streaming) {
-        LOG_ERROR(atom::audio::LogChannel::MUSIC, "Failed to decode music from memory: " + filename);
+        LOG_ERROR(atom::log::audio::Music, "Failed to decode music from memory: " + filename);
         return false;
     }
     auto& backend = runtime_ ? runtime_->Audio() : *backend_;
     auto source = backend.CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
     if (!source) {
-        LOG_ERROR(atom::audio::LogChannel::MUSIC,
+        LOG_ERROR(atom::log::audio::Music,
                   "Failed to create streaming music source for track '" + id + "': " + filename);
         return false;
     }
     tracks_.emplace(id, Track{std::move(source)});
-    LOG_INFO(atom::audio::LogChannel::MUSIC,
+    LOG_INFO(atom::log::audio::Music,
              "Music track loaded from memory: " + id + " (" + filename + ", " + std::to_string(size) + " bytes)");
     return true;
 }
@@ -89,17 +89,17 @@ auto MusicPlayer::Play(const std::string& id, const float volume) -> void {
         return;
     }
     if (it->second.source->GetState() == atom::audio::AudioSourceState::Playing) {
-        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Play() ignored: track is already playing: " + id);
+        LOG_DEBUG(atom::log::audio::Music, "Play() ignored: track is already playing: " + id);
         return;
     }
     it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
     it->second.source->Play();
     const auto state = it->second.source->GetState();
     if (state != atom::audio::AudioSourceState::Playing && state != atom::audio::AudioSourceState::Paused) {
-        LOG_WARNING(atom::audio::LogChannel::MUSIC, "Play() did not start track: " + id);
+        LOG_WARNING(atom::log::audio::Music, "Play() did not start track: " + id);
         return;
     }
-    LOG_INFO(atom::audio::LogChannel::MUSIC, "Now Playing track: " + id);
+    LOG_INFO(atom::log::audio::Music, "Now Playing track: " + id);
     current_playing_id_ = id;
 }
 
@@ -110,11 +110,11 @@ auto MusicPlayer::Pause(const std::string& id) -> void {
         return;
     }
     if (it->second.source->GetState() != atom::audio::AudioSourceState::Playing) {
-        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Pause() ignored: track is not playing: " + id);
+        LOG_DEBUG(atom::log::audio::Music, "Pause() ignored: track is not playing: " + id);
         return;
     }
     it->second.source->Pause();
-    LOG_INFO(atom::audio::LogChannel::MUSIC, "Track paused: " + id);
+    LOG_INFO(atom::log::audio::Music, "Track paused: " + id);
 }
 
 auto MusicPlayer::GetState(const std::string& id) const -> atom::audio::AudioSourceState {
@@ -135,9 +135,9 @@ auto MusicPlayer::Stop(const std::string& id) -> void {
     const auto was_active = it->second.source->GetState() != atom::audio::AudioSourceState::Stopped;
     it->second.source->Stop();
     if (was_active) {
-        LOG_INFO(atom::audio::LogChannel::MUSIC, "Track Stopped: " + id);
+        LOG_INFO(atom::log::audio::Music, "Track Stopped: " + id);
     } else {
-        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Stop() ignored: track is already stopped: " + id);
+        LOG_DEBUG(atom::log::audio::Music, "Stop() ignored: track is already stopped: " + id);
     }
     if (current_playing_id_ == id) {
         current_playing_id_.clear();

@@ -71,7 +71,7 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
     atom::window::IEvent settledEvent{};
     settledEvent.type = atom::window::EventType::ResizeSettled;
     settledEvent.data = atom::window::ResizeEvent{settled.width, settled.height};
-    LOG_INFO(atom::core::LogChannel::WINDOW,
+    LOG_INFO(atom::log::core::Window,
              "Window resize settled: " + std::to_string(settled.width) + "x" + std::to_string(settled.height));
     for (const auto& entry : event_listeners_) {
         entry.fn(settledEvent);
@@ -94,7 +94,7 @@ auto RenderWindow::Initialize(const std::string& title, atom::algo::Vec2 resolut
     auto& registry = atom::backend::RenderBackendRegistry::GetInstance();
     backend_ = registry.CreateBackend(backendId);
     if (!backend_) {
-        LOG_ERROR(atom::core::LogChannel::WINDOW, "Render backend '" + backend_id_ + "' is not registered");
+        LOG_ERROR(atom::log::core::Window, "Render backend '" + backend_id_ + "' is not registered");
         return;
     }
 

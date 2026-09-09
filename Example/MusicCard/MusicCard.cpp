@@ -119,17 +119,17 @@ enum class AnimationState { Entering, Visible, Exiting, Hidden };
 [[nodiscard]] auto LoadArtworkTexture(atom::render::Renderer2D& renderer, const std::vector<uint8_t>& encoded_image)
     -> atom::render::Renderer2D::Texture* {
     if (encoded_image.empty()) {
-        LOG_DEBUG(atom::audio::LogChannel::METADATA, "No embedded artwork bytes; using the generated cover fallback");
+        LOG_DEBUG(atom::log::audio::Metadata, "No embedded artwork bytes; using the generated cover fallback");
         return nullptr;
     }
     const auto bytes = std::as_bytes(std::span{encoded_image});
     auto* texture = atom::render::resources::LoadTextureMemory(renderer, bytes);
     if (texture != nullptr) {
-        LOG_INFO(atom::audio::LogChannel::METADATA,
+        LOG_INFO(atom::log::audio::Metadata,
                  "Decoded embedded artwork into a Renderer2D texture (" + std::to_string(texture->GetWidth()) + "x" +
                      std::to_string(texture->GetHeight()) + ", bytes=" + std::to_string(encoded_image.size()) + ")");
     } else {
-        LOG_ERROR(atom::audio::LogChannel::METADATA, "Failed to create Renderer2D texture for decoded artwork");
+        LOG_ERROR(atom::log::audio::Metadata, "Failed to create Renderer2D texture for decoded artwork");
     }
     return texture;
 }
@@ -226,7 +226,7 @@ class MusicCardScreen final : public atom::Screen {
                 prefetch_requested_ = true;
             }
             loader_thread_ = std::jthread{[this](std::stop_token st) { LoaderLoop(st); }};
-            LOG_INFO(atom::core::LogChannel::SCREEN, "Music card initialized with " + std::to_string(tracks_.size()) +
+            LOG_INFO(atom::log::core::Screen, "Music card initialized with " + std::to_string(tracks_.size()) +
                                                          " track path(s); lazy metadata + audio loading enabled");
         }
 
@@ -277,7 +277,7 @@ class MusicCardScreen final : public atom::Screen {
 
         auto ToggleCorner() -> void {
             corner_ = corner_ == CardCorner::BottomLeft ? CardCorner::TopRight : CardCorner::BottomLeft;
-            LOG_INFO(atom::core::LogChannel::SCREEN, "Music card corner changed to " + std::string{GetCornerName()});
+            LOG_INFO(atom::log::core::Screen, "Music card corner changed to " + std::string{GetCornerName()});
             if (animation_state_ != AnimationState::Hidden) {
                 RestartEntrance();
             }
@@ -290,7 +290,7 @@ class MusicCardScreen final : public atom::Screen {
             } else {
                 animation_state_ = AnimationState::Exiting;
             }
-            LOG_DEBUG(atom::core::LogChannel::SCREEN,
+            LOG_DEBUG(atom::log::core::Screen,
                       "Music card visibility transition requested; state=" + std::string{GetAnimationStateName()});
         }
 
@@ -371,12 +371,12 @@ class MusicCardScreen final : public atom::Screen {
                                 .glyph_preset = atom::debugger::ImGuiGlyphPreset::ChineseFull,
                                 .set_as_default = true});
                 if (!debug_font)
-                    LOG_WARNING(atom::debugger::LogChannel::IMGUI,
+                    LOG_WARNING(atom::log::debugger::ImGui,
                                 "CJK font loaded for Renderer2D, but not for the ImGui debugger");
-                LOG_INFO(atom::core::LogChannel::SCREEN, "Music card loaded interface font: " + std::string{font_path});
+                LOG_INFO(atom::log::core::Screen, "Music card loaded interface font: " + std::string{font_path});
                 return true;
             }
-            LOG_WARNING(atom::core::LogChannel::SCREEN,
+            LOG_WARNING(atom::log::core::Screen,
                         "No suitable CJK interface font was loaded; on-card text will be hidden");
             return false;
         }
@@ -402,7 +402,7 @@ class MusicCardScreen final : public atom::Screen {
         auto Render(atom::render::IRenderDevice& device) -> void override {
             if (!renderer_.IsInitialized() && !renderer_.Initialize(device, ATOM_SHADER_OUTPUT_DIR)) {
                 if (!renderer_initialization_failed_) {
-                    LOG_ERROR(atom::core::LogChannel::SCREEN, "Music card: Renderer2D initialization failed");
+                    LOG_ERROR(atom::log::core::Screen, "Music card: Renderer2D initialization failed");
                     renderer_initialization_failed_ = true;
                 }
                 return;
@@ -411,7 +411,7 @@ class MusicCardScreen final : public atom::Screen {
                 interface_font_attempted_ = true;
                 interface_font_ = renderer_.LoadFontFromMemory(interface_font_data_);
                 if (!interface_font_)
-                    LOG_ERROR(atom::core::LogChannel::SCREEN,
+                    LOG_ERROR(atom::log::core::Screen,
                               "Music card: Renderer2D rejected the selected interface font");
             }
             EnsureBackgroundTexture();
@@ -431,7 +431,7 @@ class MusicCardScreen final : public atom::Screen {
             DrawBackground(painter);
             renderer_.SetPostProcess({});
             if (!renderer_.EndFrame() && !renderer_frame_failed_) {
-                LOG_ERROR(atom::core::LogChannel::SCREEN, "Music card: background frame submission failed");
+                LOG_ERROR(atom::log::core::Screen, "Music card: background frame submission failed");
                 renderer_frame_failed_ = true;
             }
 
@@ -454,7 +454,7 @@ class MusicCardScreen final : public atom::Screen {
                 blur.amount = 16.0f;
                 renderer_.SetPostProcess(blur);
                 if (!renderer_.EndFrame() && !renderer_frame_failed_) {
-                    LOG_ERROR(atom::core::LogChannel::SCREEN, "Music card: backdrop blur submission failed");
+                    LOG_ERROR(atom::log::core::Screen, "Music card: backdrop blur submission failed");
                     renderer_frame_failed_ = true;
                 }
             }
@@ -487,7 +487,7 @@ class MusicCardScreen final : public atom::Screen {
             }
             renderer_.SetPostProcess(postprocess);
             if (!renderer_.EndFrame() && !renderer_frame_failed_) {
-                LOG_ERROR(atom::core::LogChannel::SCREEN, "Music card: Renderer2D frame submission failed");
+                LOG_ERROR(atom::log::core::Screen, "Music card: Renderer2D frame submission failed");
                 renderer_frame_failed_ = true;
             }
             // Text is intentionally submitted after the card post-process.
@@ -500,7 +500,7 @@ class MusicCardScreen final : public atom::Screen {
                 DrawCardText();
                 renderer_.SetPostProcess({});
                 if (!renderer_.EndFrame() && !renderer_frame_failed_) {
-                    LOG_ERROR(atom::core::LogChannel::SCREEN, "Music card: text frame submission failed");
+                    LOG_ERROR(atom::log::core::Screen, "Music card: text frame submission failed");
                     renderer_frame_failed_ = true;
                 }
             }
@@ -589,17 +589,17 @@ class MusicCardScreen final : public atom::Screen {
             const std::string wallpaper_path = override_path && *override_path ? override_path : WallpaperPath;
             const auto decoded = atom::image::DecodeImageFile(wallpaper_path, false);
             if (!decoded.IsValid()) {
-                LOG_WARNING(atom::core::LogChannel::SCREEN,
+                LOG_WARNING(atom::log::core::Screen,
                             "Music card wallpaper unavailable; using procedural background: " + wallpaper_path);
                 return;
             }
             background_texture_ = renderer_.CreateTexture(decoded.width, decoded.height, decoded.rgba.data());
             if (!background_texture_) {
-                LOG_ERROR(atom::core::LogChannel::SCREEN,
+                LOG_ERROR(atom::log::core::Screen,
                           "Music card failed to upload wallpaper texture: " + wallpaper_path);
                 return;
             }
-            LOG_INFO(atom::core::LogChannel::SCREEN,
+            LOG_INFO(atom::log::core::Screen,
                      "Music card wallpaper loaded (" + std::to_string(decoded.width) + "x" +
                          std::to_string(decoded.height) + "): " + wallpaper_path);
         }
@@ -684,7 +684,7 @@ class MusicCardScreen final : public atom::Screen {
             layout_tree_.Calculate();
             if (window_width_ != reported_layout_width_ || window_height_ != reported_layout_height_) {
                 const auto resolved = layout_tree_.GetLayout(card_).value_or(atom::layout::Rect{});
-                LOG_DEBUG(atom::core::LogChannel::SCREEN,
+                LOG_DEBUG(atom::log::core::Screen,
                           "Music card layout resolved: viewport=" + std::to_string(window_width_) + "x" +
                               std::to_string(window_height_) + ", card=" + std::to_string(resolved.left) + "," +
                               std::to_string(resolved.top) + " " + std::to_string(resolved.width) + "x" +
@@ -903,7 +903,7 @@ class MusicCardScreen final : public atom::Screen {
                         extracted.has_value()) {
                         std::lock_guard lock{tracks_mutex_};
                         tracks_[current_track_].theme = *extracted;
-                        LOG_INFO(atom::audio::LogChannel::METADATA,
+                        LOG_INFO(atom::log::audio::Metadata,
                                  "Built MusicCard theme from embedded artwork for track " +
                                      std::to_string(current_track_));
                     }
@@ -1004,7 +1004,7 @@ class MusicCardScreen final : public atom::Screen {
                 pending_track_ = requested_track;
             }
             glitch_direction_ = offset >= 0 ? 1.0f : -1.0f;
-            LOG_DEBUG(atom::core::LogChannel::SCREEN,
+            LOG_DEBUG(atom::log::core::Screen,
                       "Music card track transition requested: " + std::to_string(current_track_) + " -> " +
                           std::to_string(pending_track_));
             // Wake the background loader immediately so it starts resolving
@@ -1058,7 +1058,7 @@ class MusicCardScreen final : public atom::Screen {
             if (loaded) {
                 start_after_load_ = false;
                 StartCurrentTrack();
-                LOG_DEBUG(atom::core::LogChannel::SCREEN,
+                LOG_DEBUG(atom::log::core::Screen,
                           "Music card deferred track start completed without blocking the render thread");
             }
         }
@@ -1085,11 +1085,11 @@ class MusicCardScreen final : public atom::Screen {
             const auto finished = music_.IsFinished(id);
             is_playing_ = false;
             if (finished) {
-                LOG_INFO(atom::audio::LogChannel::MUSIC,
+                LOG_INFO(atom::log::audio::Music,
                          "Music card reached EOF; advancing from track: " + title);
                 RequestRelativeTrack(1);
             } else {
-                LOG_WARNING(atom::audio::LogChannel::MUSIC,
+                LOG_WARNING(atom::log::audio::Music,
                             "Music card playback stopped before EOF: " + title);
             }
         }
@@ -1122,11 +1122,11 @@ class MusicCardScreen final : public atom::Screen {
             }
             if (is_loaded) {
                 is_playing_ = true;
-                LOG_INFO(atom::audio::LogChannel::MUSIC, "Music card playing track: " + title);
+                LOG_INFO(atom::log::audio::Music, "Music card playing track: " + title);
                 music_.Play(id);
             } else {
                 is_playing_ = false;
-                LOG_WARNING(atom::audio::LogChannel::MUSIC,
+                LOG_WARNING(atom::log::audio::Music,
                             "Music card cannot play track (audio not loaded yet): " + title);
             }
         }
@@ -1147,7 +1147,7 @@ class MusicCardScreen final : public atom::Screen {
                 title = tracks_[current_track_].title;
             }
             if (is_loaded) {
-                LOG_INFO(atom::audio::LogChannel::MUSIC, "Music card stopping track: " + title);
+                LOG_INFO(atom::log::audio::Music, "Music card stopping track: " + title);
                 music_.Stop(id);
             }
             is_playing_ = false;
@@ -1184,7 +1184,7 @@ class MusicCardScreen final : public atom::Screen {
             const std::string path = tracks_[index].path;
             const std::string id = tracks_[index].id;
 
-            LOG_DEBUG(atom::audio::LogChannel::METADATA, "Lazy-loading track " + std::to_string(index) + ": " + path);
+            LOG_DEBUG(atom::log::audio::Metadata, "Lazy-loading track " + std::to_string(index) + ": " + path);
             auto metadata = atom::audio::AudioMetadataReader::Read(path);
             auto title =
                 metadata && !metadata->title.empty() ? metadata->title : std::filesystem::path{path}.stem().string();
@@ -1203,7 +1203,7 @@ class MusicCardScreen final : public atom::Screen {
                 t.artwork_data = std::move(artwork_data);
                 t.metadata_loaded = true;
             }
-            LOG_INFO(atom::audio::LogChannel::METADATA, "Resolved track " + std::to_string(index) + " (audio=" +
+            LOG_INFO(atom::log::audio::Metadata, "Resolved track " + std::to_string(index) + " (audio=" +
                                                             std::string{is_loaded ? "loaded" : "unavailable"} + ")");
         }
 
@@ -1212,7 +1212,7 @@ class MusicCardScreen final : public atom::Screen {
         // the number of simultaneously-open audio decoders small (≤ 3) while
         // making adjacent-track switches instant.
         auto LoaderLoop(std::stop_token stop) -> void {
-            LOG_DEBUG(atom::core::LogChannel::SCREEN, "Music card background loader started");
+            LOG_DEBUG(atom::log::core::Screen, "Music card background loader started");
             while (!stop.stop_requested()) {
                 std::size_t target;
                 {
@@ -1242,7 +1242,7 @@ class MusicCardScreen final : public atom::Screen {
                     LoadTrackMetadata(idx);
                 }
             }
-            LOG_DEBUG(atom::core::LogChannel::SCREEN, "Music card background loader stopped");
+            LOG_DEBUG(atom::log::core::Screen, "Music card background loader stopped");
         }
 
         atom::MusicPlayer& music_;
@@ -1309,7 +1309,7 @@ class MusicCardDebugger final : public atom::Debugger {
             ImGui::Text("FPS: %.1f", static_cast<double>(GetFPS()));
             ImGui::Text("VSync: %s", atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off");
             if (!reported_frame_pacing_ && GetFPS() > 0.0f) {
-                LOG_INFO(atom::core::LogChannel::WINDOW,
+                LOG_INFO(atom::log::core::Window,
                          "Music card frame pacing: " + std::to_string(GetFPS()) + " FPS, VSync " +
                              (atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off"));
                 reported_frame_pacing_ = true;
@@ -1379,7 +1379,7 @@ class MusicCardDebugger final : public atom::Debugger {
     const auto music_dir = atom::PathFromUtf8(music_root);
     std::error_code ec;
     if (!std::filesystem::is_directory(music_dir, ec)) {
-        LOG_ERROR(atom::audio::LogChannel::MUSIC, "Music path is not a directory: " + music_root);
+        LOG_ERROR(atom::log::audio::Music, "Music path is not a directory: " + music_root);
         return paths;
     }
     for (const auto& entry : std::filesystem::directory_iterator(music_dir, ec)) {
@@ -1398,10 +1398,10 @@ class MusicCardDebugger final : public atom::Debugger {
         }
     }
     if (ec) {
-        LOG_WARNING(atom::audio::LogChannel::MUSIC, "Directory iteration error: " + ec.message());
+        LOG_WARNING(atom::log::audio::Music, "Directory iteration error: " + ec.message());
     }
     std::ranges::sort(paths);
-    LOG_INFO(atom::audio::LogChannel::MUSIC, "Discovered " + std::to_string(paths.size()) + " audio file(s) in " +
+    LOG_INFO(atom::log::audio::Music, "Discovered " + std::to_string(paths.size()) + " audio file(s) in " +
                                                  music_root + " (metadata deferred to lazy loader)");
     return paths;
 }

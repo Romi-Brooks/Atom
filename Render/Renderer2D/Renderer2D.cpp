@@ -100,14 +100,14 @@ Renderer2D::~Renderer2D() {
 auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& shader_root) -> bool {
     if (initialized_) {
         if (device_ != &device) {
-            LOG_ERROR(atom::render::LogChannel::RENDERER2D, "Renderer2D cannot switch devices without Shutdown");
+            LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D cannot switch devices without Shutdown");
             return false;
         }
         return true;
     }
     context_ = dynamic_cast<IRender2DContext*>(&device);
     if (!context_ || !context_->Initialize2D(shader_root)) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D,
+        LOG_ERROR(atom::log::render::Renderer2D,
                   "Renderer2D: the active device has no usable 2D context (shader root: " + shader_root.string() + ")");
         context_ = nullptr;
         return false;
@@ -116,20 +116,20 @@ auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& 
     sampler_ = context_->CreateSampler2D(
         {Filter2D::Linear, Filter2D::Linear, AddressMode2D::ClampToEdge, AddressMode2D::ClampToEdge});
     if (sampler_ == render::kInvalidSampler2D) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D, "Renderer2D failed to create its default sampler");
+        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D failed to create its default sampler");
         Shutdown();
         return false;
     }
     white_texture_ = CreateTexture(1, 1, nullptr);
     if (!white_texture_) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D, "Renderer2D failed to create its white fallback texture");
+        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D failed to create its white fallback texture");
         Shutdown();
         return false;
     }
     constexpr uint8_t kWhitePixel[4] = {255, 255, 255, 255};
     UpdateTexture(*white_texture_, kWhitePixel);
     initialized_ = true;
-    LOG_INFO(atom::render::LogChannel::RENDERER2D,
+    LOG_INFO(atom::log::render::Renderer2D,
              "Renderer2D initialized (shader root: " + shader_root.string() + ")");
     return true;
 }
@@ -140,7 +140,7 @@ auto Renderer2D::IsInitialized() const -> bool {
 
 auto Renderer2D::Shutdown() -> void {
     if (in_frame_)
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D shutdown discarded an unfinished frame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D shutdown discarded an unfinished frame");
     pending_uploads_.clear();
     atlases_.clear();
     fonts_.clear();
@@ -167,15 +167,15 @@ auto Renderer2D::Shutdown() -> void {
 
 auto Renderer2D::BeginFrame(const float origin_x, const float origin_y, const float zoom) -> bool {
     if (!initialized_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::BeginFrame called before initialization");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::BeginFrame called before initialization");
         return false;
     }
     if (in_frame_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::BeginFrame called twice without EndFrame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::BeginFrame called twice without EndFrame");
         return false;
     }
     if (!std::isfinite(origin_x) || !std::isfinite(origin_y) || !std::isfinite(zoom) || zoom <= 0.0f) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "Renderer2D::BeginFrame rejected non-finite origin or non-positive zoom");
         return false;
     }
@@ -196,12 +196,12 @@ auto Renderer2D::IsInFrame() const -> bool {
 
 auto Renderer2D::EndFrame() -> bool {
     if (!initialized_ || !in_frame_ || !device_ || !context_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::EndFrame called without a valid active frame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::EndFrame called without a valid active frame");
         return false;
     }
     in_frame_ = false;
     if (!clip_stack_.empty() || !layer_stack_.empty())
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "Renderer2D frame ended with an unbalanced clip or layer stack");
     const auto size = device_->GetOutputSize();
     output_width_ = size.GetX();
@@ -420,7 +420,7 @@ auto Renderer2D::EndFrame() -> bool {
                                             data.pitch_bytes)) {
             upload = pending_uploads_.erase(upload);
         } else {
-            LOG_ERROR(atom::render::LogChannel::RENDERER2D,
+            LOG_ERROR(atom::log::render::Renderer2D,
                       "Renderer2D failed to upload texture handle " + std::to_string(upload->first));
             success = false;
             ++upload;
@@ -513,7 +513,7 @@ auto Renderer2D::CreateTexture(const uint32_t width, const uint32_t height, cons
     const auto max = std::numeric_limits<std::size_t>::max();
     if (static_cast<std::size_t>(height) > max / static_cast<std::size_t>(width) ||
         static_cast<std::size_t>(width) * static_cast<std::size_t>(height) > max / 4u) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D,
+        LOG_ERROR(atom::log::render::Renderer2D,
                   "Renderer2D rejected a texture whose CPU upload size overflows");
         return nullptr;
     }
@@ -528,7 +528,7 @@ auto Renderer2D::CreateTexture(const uint32_t width, const uint32_t height, cons
     textures_.push_back(std::move(texture));
     if (rgba)
         UpdateTexture(*result, rgba);
-    LOG_DEBUG(atom::render::LogChannel::RENDERER2D,
+    LOG_DEBUG(atom::log::render::Renderer2D,
               "Renderer2D created texture " + std::to_string(width) + "x" + std::to_string(height));
     return result;
 }
@@ -549,11 +549,11 @@ auto Renderer2D::UpdateTexture(Texture& texture, const void* rgba) -> void {
 
 auto Renderer2D::DestroyTexture(Texture& texture) -> void {
     if (in_frame_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::DestroyTexture ignored during an active frame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::DestroyTexture ignored during an active frame");
         return;
     }
     if (texture.owner_ != this) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "Renderer2D refused to destroy a texture owned by another renderer");
         return;
     }
@@ -571,13 +571,13 @@ auto Renderer2D::DestroyTexture(Texture& texture) -> void {
 auto Renderer2D::LoadFontFromMemory(std::span<const std::byte> font_data) -> Font* {
     auto font = Font::CreateFromMemory(font_data);
     if (!font) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "Renderer2D rejected empty, invalid, or unsupported font data");
         return nullptr;
     }
     auto* result = font.get();
     fonts_.push_back(std::move(font));
-    LOG_INFO(atom::render::LogChannel::RENDERER2D,
+    LOG_INFO(atom::log::render::Renderer2D,
              "Renderer2D loaded font data (bytes=" + std::to_string(font_data.size()) + ")");
     return result;
 }
@@ -586,7 +586,7 @@ auto Renderer2D::DestroyFont(Font* font) -> void {
     if (!font)
         return;
     if (in_frame_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::DestroyFont ignored during an active frame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::DestroyFont ignored during an active frame");
         return;
     }
     for (const auto& atlas : atlases_) {
@@ -610,7 +610,7 @@ auto Renderer2D::GetWhiteTexture() const -> Texture* {
 auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint,
                              const algo::Rect* source) -> void {
     if (!in_frame_ || texture.owner_ != this || texture.handle_ == render::kInvalidTexture2D) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "DrawTexture rejected: in_frame=" + std::to_string(in_frame_) +
                         " owner_match=" + std::to_string(texture.owner_ == this) +
                         " valid_handle=" + std::to_string(texture.handle_ != render::kInvalidTexture2D));
@@ -789,7 +789,7 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
 
     const bool hasGlyph = atlas.font->HasGlyph(codepoint);
     if (!hasGlyph) {
-        LOG_DEBUG(atom::render::LogChannel::RENDERER2D,
+        LOG_DEBUG(atom::log::render::Renderer2D,
                   "Glyph U+" + std::to_string(codepoint) + " is unavailable; using the font .notdef glyph");
     }
 
@@ -808,7 +808,7 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
     const int gw = static_cast<int>(glyph.width) + kGlyphPadding;
     const int gh = static_cast<int>(glyph.height) + kGlyphPadding;
     if (gw > static_cast<int>(kPageSize) || gh > static_cast<int>(kPageSize)) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "Glyph U+" + std::to_string(codepoint) + " at atlas size " + std::to_string(atlas.size_px) +
                         " exceeds the " + std::to_string(kPageSize) + "px atlas page");
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
@@ -844,7 +844,7 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
         page.row_height = 0;
     }
     if (page.cursor_y + gh > static_cast<int>(page.size)) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "Glyph U+" + std::to_string(codepoint) + " could not be packed into a " +
                         std::to_string(page.size) + "px atlas page");
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;

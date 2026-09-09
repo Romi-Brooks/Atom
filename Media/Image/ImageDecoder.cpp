@@ -49,7 +49,7 @@ auto WrapResult(int width, int height, unsigned char* pixels, bool flip) -> Deco
 
 auto DecodeImageMemory(std::span<const std::byte> data, const bool flip_vertically) -> DecodedImage {
     if (data.empty() || data.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-        LOG_WARNING(atom::image::LogChannel::DECODER, "Image memory input is empty or exceeds stb_image limits");
+        LOG_WARNING(atom::log::image::Decoder, "Image memory input is empty or exceeds stb_image limits");
         return {};
     }
     int width = 0;
@@ -59,7 +59,7 @@ auto DecodeImageMemory(std::span<const std::byte> data, const bool flip_vertical
                                              static_cast<int>(data.size()), &width, &height, &channels, STBI_rgb_alpha);
     if (!raw_pixels) {
         const char* reason = stbi_failure_reason();
-        LOG_WARNING(atom::image::LogChannel::DECODER,
+        LOG_WARNING(atom::log::image::Decoder,
                     "Image memory decode failed: " + std::string{reason ? reason : "unknown stb_image error"});
         return {};
     }
@@ -67,14 +67,14 @@ auto DecodeImageMemory(std::span<const std::byte> data, const bool flip_vertical
     const std::unique_ptr<stbi_uc, decltype(deleter)> pixels{raw_pixels, deleter};
     DecodedImage result = WrapResult(width, height, pixels.get(), flip_vertically);
     if (result.IsValid())
-        LOG_DEBUG(atom::image::LogChannel::DECODER, "Decoded image from memory (" + std::to_string(result.width) + "x" +
+        LOG_DEBUG(atom::log::image::Decoder, "Decoded image from memory (" + std::to_string(result.width) + "x" +
                                                         std::to_string(result.height) + ")");
     return result;
 }
 
 auto DecodeImageFile(const std::string& path, const bool flip_vertically) -> DecodedImage {
     if (path.empty()) {
-        LOG_WARNING(atom::image::LogChannel::DECODER, "Image file decode rejected an empty path");
+        LOG_WARNING(atom::log::image::Decoder, "Image file decode rejected an empty path");
         return {};
     }
     int width = 0;
@@ -83,7 +83,7 @@ auto DecodeImageFile(const std::string& path, const bool flip_vertically) -> Dec
     auto* raw_pixels = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (!raw_pixels) {
         const char* reason = stbi_failure_reason();
-        LOG_WARNING(atom::image::LogChannel::DECODER, "Image file decode failed ('" + path + "'): " +
+        LOG_WARNING(atom::log::image::Decoder, "Image file decode failed ('" + path + "'): " +
                                                           std::string{reason ? reason : "unknown stb_image error"});
         return {};
     }
@@ -91,7 +91,7 @@ auto DecodeImageFile(const std::string& path, const bool flip_vertically) -> Dec
     const std::unique_ptr<stbi_uc, decltype(deleter)> pixels{raw_pixels, deleter};
     DecodedImage result = WrapResult(width, height, pixels.get(), flip_vertically);
     if (result.IsValid())
-        LOG_DEBUG(atom::image::LogChannel::DECODER, "Decoded image file '" + path + "' (" +
+        LOG_DEBUG(atom::log::image::Decoder, "Decoded image file '" + path + "' (" +
                                                         std::to_string(result.width) + "x" +
                                                         std::to_string(result.height) + ")");
     return result;

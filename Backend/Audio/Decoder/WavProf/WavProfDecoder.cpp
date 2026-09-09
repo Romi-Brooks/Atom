@@ -19,7 +19,7 @@ namespace atom::backend::audio_decoder {
 auto WavProfDecoder::Open(const std::string& path) -> bool {
     Close();
     if (!reader_.Open(path)) {
-        LOG_ERROR(atom::audio::LogChannel::WAVPROF, "WavProf: failed to open WAV file: " + path);
+        LOG_ERROR(atom::log::audio::WavProf, "WavProf: failed to open WAV file: " + path);
         return false;
     }
     return SetupInfo(path);
@@ -28,7 +28,7 @@ auto WavProfDecoder::Open(const std::string& path) -> bool {
 auto WavProfDecoder::OpenFromMemory(const void* data, const std::size_t size) -> bool {
     Close();
     if (!reader_.OpenFromMemory(data, size)) {
-        LOG_ERROR(atom::audio::LogChannel::WAVPROF, "WavProf: failed to open WAV from memory buffer");
+        LOG_ERROR(atom::log::audio::WavProf, "WavProf: failed to open WAV from memory buffer");
         return false;
     }
     return SetupInfo("(memory)");
@@ -48,11 +48,11 @@ auto WavProfDecoder::SetupInfo(const std::string& source_label) -> bool {
     const auto bytes_per_frame = static_cast<uint64_t>(info_.channels) * (source_bits_per_sample_ / 8u);
     info_.total_pcm_frames = bytes_per_frame == 0 ? 0 : reader_.GetTotalPCMBytes() / bytes_per_frame;
     if (info_.total_pcm_frames == 0) {
-        LOG_ERROR(atom::audio::LogChannel::WAVPROF, "WavProf: WAV stream has no PCM data: " + source_label);
+        LOG_ERROR(atom::log::audio::WavProf, "WavProf: WAV stream has no PCM data: " + source_label);
         return false;
     }
 
-    LOG_DEBUG(atom::audio::LogChannel::WAVPROF, "WavProf: WAV stream opened: " + source_label +
+    LOG_DEBUG(atom::log::audio::WavProf, "WavProf: WAV stream opened: " + source_label +
                                                     " (sample_rate=" + std::to_string(info_.sample_rate) +
                                                     ", channels=" + std::to_string(info_.channels) +
                                                     ", bits_per_sample=" + std::to_string(info_.bits_per_sample) + ")");

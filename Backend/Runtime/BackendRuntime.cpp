@@ -70,23 +70,23 @@ auto BackendRuntime::Registry() -> BackendRegistry& {
 auto BackendRuntime::SetAudioBackend(const std::string_view id) -> bool {
     const auto normalized_id = NormalizeBackendId(id);
     if (normalized_id == audio_backend_id_) {
-        LOG_DEBUG(atom::backend::LogChannel::RUNTIME,
+        LOG_DEBUG(atom::log::backend::Runtime,
                   "Audio backend '" + normalized_id + "' is already active, no switch needed");
         return true;
     }
     if (!registry_.ContainsAudioBackend(normalized_id)) {
-        LOG_ERROR(atom::backend::LogChannel::RUNTIME, "Audio backend '" + normalized_id + "' is not registered");
+        LOG_ERROR(atom::log::backend::Runtime, "Audio backend '" + normalized_id + "' is not registered");
         return false;
     }
 
     const auto previous_id = audio_backend_id_;
-    LOG_INFO(atom::backend::LogChannel::RUNTIME,
+    LOG_INFO(atom::log::backend::Runtime,
              "Switching audio backend from '" + previous_id + "' to '" + normalized_id + "'");
     NotifyAudioBackendChanging();
     audio_backend_.reset();
     auto replacement = registry_.CreateAudioBackend(normalized_id);
     if (!replacement) {
-        LOG_ERROR(atom::backend::LogChannel::RUNTIME, "Failed to create audio backend '" + normalized_id +
+        LOG_ERROR(atom::log::backend::Runtime, "Failed to create audio backend '" + normalized_id +
                                                           "', restoring previous backend '" + previous_id + "'");
         audio_backend_ = registry_.CreateAudioBackend(previous_id);
         if (!audio_backend_) {
@@ -96,7 +96,7 @@ auto BackendRuntime::SetAudioBackend(const std::string_view id) -> bool {
     }
     audio_backend_ = std::move(replacement);
     audio_backend_id_ = normalized_id;
-    LOG_INFO(atom::backend::LogChannel::RUNTIME, "Audio backend switched to '" + normalized_id + "'");
+    LOG_INFO(atom::log::backend::Runtime, "Audio backend switched to '" + normalized_id + "'");
     return true;
 }
 

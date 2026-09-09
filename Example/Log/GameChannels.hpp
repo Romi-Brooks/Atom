@@ -13,20 +13,20 @@
 #include <Log/LogSystem.hpp>
 
 // Level-1
-ATOM_DEFINE_CHANNELS(game, GameLogChannel, "Game.",
-    (GAME_NPC, "NPC"),
-    (GAME_PLAYER, "Player"),
-    (GAME_MAIN, "Main")
+ATOM_DEFINE_CHANNELS(game::log, Channel, "Game.",
+    (Npc, "NPC"),
+    (Player, "Player"),
+    (Main, "Main")
 )
 
 // Level-2
-ATOM_DEFINE_CHANNELS(game::npc, LogChannel, "Game.NPC.",
-    (DIALOG, "Dialog"),
-    (AI, "AI")
+ATOM_DEFINE_CHANNELS(game::log::npc, Channel, "Game.NPC.",
+    (Dialog, "Dialog"),
+    (Ai, "AI")
 )
 
 // Level-3
-ATOM_DEFINE_CHANNELS(game::npc::ai, LogChannel, "Game.NPC.AI.",
-    (PATHFINDING, "Pathfinding"),
-    (BEHAVIOR, "Behavior")
+ATOM_DEFINE_CHANNELS(game::log::npc::ai, Channel, "Game.NPC.AI.",
+    (Pathfinding, "Pathfinding"),
+    (Behavior, "Behavior")
 )

@@ -259,7 +259,7 @@ auto SDL3Window::Initialize(const std::string& title, const algo::Vec2 resolutio
     window_ = SDL_CreateWindow(title.c_str(), static_cast<int>(resolution.GetX()), static_cast<int>(resolution.GetY()),
                                SDL_WINDOW_RESIZABLE);
     if (!window_) {
-        LOG_ERROR(LogChannel::WINDOW, "SDL_CreateWindow failed: " + std::string{SDL_GetError()});
+        LOG_ERROR(atom::log::backend::sdl3::Window, "SDL_CreateWindow failed: " + std::string{SDL_GetError()});
         return false;
     }
     performance_frequency_ = SDL_GetPerformanceFrequency();

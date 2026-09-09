@@ -25,14 +25,14 @@ auto OverlayManager::EnsureInitialized() -> bool {
     auto* platform_window = window_.GetIWindow();
     auto* render_device = window_.GetRenderDevice();
     if (!platform_window || !render_device) {
-        LOG_WARNING(atom::debugger::LogChannel::IMGUI,
+        LOG_WARNING(atom::log::debugger::ImGui,
                     "Overlay manager requires an initialized render window and device");
         return false;
     }
 
     backend_ = DebugImGuiBackendRegistry::GetInstance().Create(window_.GetBackendId(), *platform_window, *render_device);
     if (!backend_ || !backend_->Initialize()) {
-        LOG_ERROR(atom::debugger::LogChannel::IMGUI,
+        LOG_ERROR(atom::log::debugger::ImGui,
                   "Overlay manager initialization failed for render backend '" + window_.GetBackendId() + "'");
         backend_.reset();
         return false;

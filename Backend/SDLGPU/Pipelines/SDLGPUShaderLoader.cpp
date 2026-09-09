@@ -74,7 +74,7 @@ auto LoadSDLGPUShader(SDL_GPUDevice* device, const std::filesystem::path& root, 
         const auto path = root / candidate.directory / (std::string{name} + candidate.extension);
         auto code = ReadBinary(path);
         if (code.empty()) {
-            LOG_DEBUG(atom::backend::sdl3::LogChannel::RENDER,
+            LOG_DEBUG(atom::log::backend::sdl3::Render,
                       "SDL_GPU shader variant missing: " + path.string());
             continue;
         }
@@ -90,14 +90,14 @@ auto LoadSDLGPUShader(SDL_GPUDevice* device, const std::filesystem::path& root, 
         info.num_uniform_buffers = uniform_buffers;
         info.num_samplers = samplers;
         if (auto* shader = SDL_CreateGPUShader(device, &info)) {
-            LOG_INFO(atom::backend::sdl3::LogChannel::RENDER,
+            LOG_INFO(atom::log::backend::sdl3::Render,
                      "SDL_GPU loaded shader " + std::string{name} + " from " + path.string());
             return shader;
         }
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_WARNING(atom::log::backend::sdl3::Render,
                     "SDL_GPU shader creation failed for " + path.string() + ": " + SDL_GetError());
     }
-    LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+    LOG_ERROR(atom::log::backend::sdl3::Render,
               "SDL_GPU could not load shader " + std::string{name} + " (formats=" + std::to_string(supported) + ")");
     return nullptr;
 }

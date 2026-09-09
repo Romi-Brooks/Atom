@@ -122,25 +122,24 @@ include 按以下分组顺序排列，每组空一行：
 
 ### 3.1.1 日志通道命名
 
-通道是**按层级域分组**的枚举——每个域是一个 `ATOM_DEFINE_CHANNELS` 块
-（引擎通道在 `Log/AtomLogChannels.hpp`，游戏域在游戏项目里）。一个域拥有
-一个命名空间、一个枚举和一个显示前缀：
+通道是按日志命名空间分组的**枚举支持值**——每个域是一个
+`ATOM_DEFINE_CHANNELS` 块（引擎通道在 `Log/AtomLogChannels.hpp`，游戏域在游戏项目里）。
+一个域拥有命名空间、内部 `Channel` 枚举和显示前缀：
 
 | 域 | 前缀 | 示例 |
 |---|---|---|
-| `atom::core::LogChannel` | `Atom.` | `atom::core::LogChannel::MAIN` |
-| `atom::audio::LogChannel` | `Atom.Audio.` | `atom::audio::LogChannel::MUSIC` |
-| `atom::render::LogChannel` | `Atom.Render.` | `atom::render::LogChannel::RENDERER2D` |
-| `atom::image::LogChannel` | `Atom.Image.` | `atom::image::LogChannel::DECODER` |
-| `atom::backend::sdl3::LogChannel` | `Atom.SDL3.Backend.` | `atom::backend::sdl3::LogChannel::AUDIO` |
-| `game::GameLogChannel` | `Game.` | `game::GameLogChannel::GAME_NPC` |
+| `atom::log::core` | `Atom.` | `atom::log::core::Main` |
+| `atom::log::audio` | `Atom.Audio.` | `atom::log::audio::Music` |
+| `atom::log::render` | `Atom.Render.` | `atom::log::render::Renderer2D` |
+| `atom::log::image` | `Atom.Image.` | `atom::log::image::Decoder` |
+| `atom::log::backend::sdl3` | `Atom.SDL3.Backend.` | `atom::log::backend::sdl3::Audio` |
+| `game::log` | `Game.` | `game::log::Npc` |
 
-- 枚举名使用 `UPPER_SNAKE_CASE`（`SCREEN_MANAGER`、`PLUG_MUSICFADE`）；游戏域可保留
-  简短分类前缀（`GAME_NPC`）
+- 通道值使用 `PascalCase`（`ScreenManager`、`PlugMusicFade`）
 - 显示名使用 `.` 分隔的 PascalCase（`Atom.Entity.NPC ->`）
-- 调用处一律直接写域的枚举值（如 `atom::audio::LogChannel::MUSIC`），不要定义局部别名
-  （如 `const auto& kLogChannel = atom::audio::LogChannel::MUSIC;`）——别名虽然让调用
-  更短，但会给接手的人增加一层间接跳转，收益有限。
+- 调用处一律通过日志域直接写通道值（如 `atom::log::audio::Music`），不要定义局部别名
+  （如 `const auto& kMusicLogChannel = atom::log::audio::Music;`）——别名虽然让调用更短，
+  但会给接手的人增加一层间接跳转，收益有限。
 
 ### 3.2 详细规则
 

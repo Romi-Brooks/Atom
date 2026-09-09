@@ -54,10 +54,10 @@ auto CreatePostProcessPipeline(SDL_GPUDevice* device, SDL_GPUTextureFormat targe
 
     auto* pipeline = SDL_CreateGPUGraphicsPipeline(device, &info);
     if (!pipeline) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   std::string{"Failed to create SDL_GPU post-process pipeline "} + label + ": " + SDL_GetError());
     } else {
-        LOG_INFO(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_INFO(atom::log::backend::sdl3::Render,
                  std::string{"Created SDL_GPU post-process pipeline: "} + label);
     }
     return pipeline;
@@ -75,7 +75,7 @@ auto CreateSDLGPU2DPipelineSet(SDL_GPUDevice* device, const SDL_GPUTextureFormat
     auto* primitive_fragment =
         LoadSDLGPUShader(device, shader_root, "Primitive2D.frag.glsl", SDL_GPU_SHADERSTAGE_FRAGMENT, 0, 1);
     if (!primitive_vertex || !primitive_fragment) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_GPU 2D pipeline: required Primitive2D shader variant is missing");
         if (primitive_vertex)
             SDL_ReleaseGPUShader(device, primitive_vertex);
@@ -110,11 +110,11 @@ auto CreateSDLGPU2DPipelineSet(SDL_GPUDevice* device, const SDL_GPUTextureFormat
     SDL_ReleaseGPUShader(device, primitive_vertex);
     SDL_ReleaseGPUShader(device, primitive_fragment);
     if (!out.primitive) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_GPU Renderer2D pipeline creation failed: " + std::string{SDL_GetError()});
         return false;
     }
-    LOG_INFO(atom::backend::sdl3::LogChannel::RENDER, "SDL_GPU Renderer2D primitive pipeline initialized");
+    LOG_INFO(atom::log::backend::sdl3::Render, "SDL_GPU Renderer2D primitive pipeline initialized");
 
     auto* post_vertex = LoadSDLGPUShader(device, shader_root, "PostProcess.vert.glsl", SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
     auto* chromatic =
@@ -125,7 +125,7 @@ auto CreateSDLGPU2DPipelineSet(SDL_GPUDevice* device, const SDL_GPUTextureFormat
     out.glitch = CreatePostProcessPipeline(device, target_format, post_vertex, glitch, "Glitch");
     out.gaussian_blur = CreatePostProcessPipeline(device, target_format, post_vertex, blur, "GaussianBlur");
     if (!out.chromatic_aberration || !out.glitch || !out.gaussian_blur)
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_WARNING(atom::log::backend::sdl3::Render,
                     "One or more SDL_GPU post-process pipelines are unavailable");
     if (post_vertex)
         SDL_ReleaseGPUShader(device, post_vertex);

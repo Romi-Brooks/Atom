@@ -34,7 +34,7 @@ auto LuaLoader::Initialize() -> bool {
     // 创建Lua状态机
     L_ = luaL_newstate();
     if (!L_) {
-        LOG_ERROR(atom::core::LogChannel::LUA, "Failed to create Lua state!");
+        LOG_ERROR(atom::log::core::Lua, "Failed to create Lua state!");
         return false;
     }
 
@@ -50,7 +50,7 @@ auto LuaLoader::Initialize() -> bool {
 
 auto LuaLoader::LoadScript(const std::string& scriptPath) -> bool {
     if (!L_ || !fs::exists(scriptPath)) {
-        LOG_ERROR(atom::core::LogChannel::LUA, "Script file not found: " + scriptPath);
+        LOG_ERROR(atom::log::core::Lua, "Script file not found: " + scriptPath);
         return false;
     }
 
@@ -65,13 +65,13 @@ auto LuaLoader::LoadScript(const std::string& scriptPath) -> bool {
         return false;
     }
 
-    LOG_INFO(atom::core::LogChannel::LUA, "Successfully loaded script: " + scriptPath);
+    LOG_INFO(atom::log::core::Lua, "Successfully loaded script: " + scriptPath);
     return true;
 }
 
 auto LuaLoader::ReloadScript(const std::string& scriptPath) -> bool {
     if (!loaded_scripts_.contains(scriptPath)) {
-        LOG_ERROR(atom::core::LogChannel::LUA, "Script not loaded: " + scriptPath);
+        LOG_ERROR(atom::log::core::Lua, "Script not loaded: " + scriptPath);
         return false;
     }
 
@@ -99,7 +99,7 @@ auto LuaLoader::CallLuaFunction(const std::string& funcName) const -> bool {
     // Check if it is a function
     // 检查是否是函数
     if (!lua_isfunction(L_, -1)) {
-        LOG_ERROR(atom::core::LogChannel::LUA, "Lua function not found: " + funcName);
+        LOG_ERROR(atom::log::core::Lua, "Lua function not found: " + funcName);
         lua_pop(L_, 1);
         return false;
     }
@@ -116,6 +116,6 @@ auto LuaLoader::CallLuaFunction(const std::string& funcName) const -> bool {
 
 auto LuaLoader::HandleError(int result) const -> void {
     const char* errorMsg = lua_tostring(L_, -1);
-    LOG_ERROR(atom::core::LogChannel::LUA, "Lua error: " + std::to_string(*errorMsg));
+    LOG_ERROR(atom::log::core::Lua, "Lua error: " + std::to_string(*errorMsg));
     lua_pop(L_, 1); // Clean up the stack
 }

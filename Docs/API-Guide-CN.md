@@ -12,9 +12,9 @@
 ```cpp
 #include <Log/LogSystem.hpp>
 
-LOG_INFO(atom::core::LogChannel::MAIN, "Engine started");
-LOG_WARNING(atom::core::LogChannel::FILESYSTEM, "File not found");
-LOG_ERROR(atom::core::LogChannel::LUA, "Script error");
+LOG_INFO(atom::log::core::Main, "Engine started");
+LOG_WARNING(atom::log::core::Filesystem, "File not found");
+LOG_ERROR(atom::log::core::Lua, "Script error");
 
 atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 ```

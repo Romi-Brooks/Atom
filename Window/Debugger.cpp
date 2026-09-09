@@ -23,7 +23,7 @@ auto Debugger::Attach(RenderWindow& window) -> void {
 
     target_window_ = &window;
     if (!window.GetIWindow() || !window.GetRenderDevice()) {
-        LOG_WARNING(atom::debugger::LogChannel::IMGUI,
+        LOG_WARNING(atom::log::debugger::ImGui,
                     "Debugger attach requires an initialized render window and device");
         target_window_ = nullptr;
         return;
@@ -36,7 +36,7 @@ auto Debugger::Attach(RenderWindow& window) -> void {
                 OnDrawOverlay();
         }));
     if (!overlay_connection_->IsConnected()) {
-        LOG_ERROR(atom::debugger::LogChannel::IMGUI,
+        LOG_ERROR(atom::log::debugger::ImGui,
                   "Debugger attach failed for render backend '" + window.GetBackendId() + "'");
         overlay_connection_.reset();
         target_window_ = nullptr;
@@ -59,7 +59,7 @@ auto Debugger::Attach(RenderWindow& window) -> void {
         log_debugger_ = std::make_unique<LogDebugger>();
         log_debugger_->Attach(window);
     }
-    LOG_INFO(atom::debugger::LogChannel::IMGUI, "Debugger attached to render backend '" + window.GetBackendId() + "'");
+    LOG_INFO(atom::log::debugger::ImGui, "Debugger attached to render backend '" + window.GetBackendId() + "'");
 }
 
 auto Debugger::Detach() -> void {
@@ -73,7 +73,7 @@ auto Debugger::Detach() -> void {
 
     target_window_ = nullptr;
     attached_ = false;
-    LOG_INFO(atom::debugger::LogChannel::IMGUI, "Debugger detached");
+    LOG_INFO(atom::log::debugger::ImGui, "Debugger detached");
 }
 
 auto Debugger::SetLoggerEnabled(const bool enabled) -> void {

@@ -29,11 +29,11 @@ static auto TraverseSingleDirectory(const std::string& dir_path) -> std::vector<
     std::vector<std::string> file_paths;
     try {
         if (!fs::exists(dir_path)) {
-            LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Directory does not exist:" + dir_path);
+            LOG_ERROR(atom::log::utilities::Packager, "Directory does not exist:" + dir_path);
             return file_paths;
         }
         if (!fs::is_directory(dir_path)) {
-            LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Not a valid directory:" + dir_path);
+            LOG_ERROR(atom::log::utilities::Packager, "Not a valid directory:" + dir_path);
             return file_paths;
         }
 
@@ -44,7 +44,7 @@ static auto TraverseSingleDirectory(const std::string& dir_path) -> std::vector<
             }
         }
     } catch (const fs::filesystem_error& e) {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER,
+        LOG_ERROR(atom::log::utilities::Packager,
                   "Directory traversal failed:" + dir_path + " -> " + e.what());
     }
     return file_paths;
@@ -87,16 +87,16 @@ static auto PackFiles(const std::string& packName, const std::vector<std::string
     Packager::Config config;
     config.verbose = true;
 
-    LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+    LOG_INFO(atom::log::utilities::Packager,
              "Commencing packing... Total number of files awaiting packing:" + std::to_string(resourcePath.size()));
     const auto result = packer.Pack(resourcePath, packName, config);
 
     if (result == Packager::Result::SUCCESS) {
-        LOG_INFO(atom::utilities::LogChannel::PACKAGER, "Packing successful!");
+        LOG_INFO(atom::log::utilities::Packager, "Packing successful!");
         packer.PrintPackageInfo();
         return true;
     } else {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Packing failed!");
+        LOG_ERROR(atom::log::utilities::Packager, "Packing failed!");
         return false;
     }
 }
@@ -113,13 +113,13 @@ static auto UnpackAllToFolder(const std::string& packName) -> bool {
         unpackConfig.preserveStructure = true;
         const auto result = unpacker.UnpackAll(unpackConfig);
         if (result == Unpackager::Result::SUCCESS) {
-            LOG_INFO(atom::utilities::LogChannel::PACKAGER, "Unpacking successful!");
+            LOG_INFO(atom::log::utilities::Packager, "Unpacking successful!");
             return true;
         }
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Unpacking failed while extracting files!");
+        LOG_ERROR(atom::log::utilities::Packager, "Unpacking failed while extracting files!");
         return false;
     } else {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Unpacking failed!");
+        LOG_ERROR(atom::log::utilities::Packager, "Unpacking failed!");
         return false;
     }
 }
@@ -142,7 +142,7 @@ auto main() -> int {
         // Handle user input
         if (!(std::cin >> choice)) {
             ClearInputBuffer();
-            LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Please enter a valid number (0-2)!");
+            LOG_ERROR(atom::log::utilities::Packager, "Please enter a valid number (0-2)!");
             continue;
         }
         ClearInputBuffer(); // Clear buffer to avoid affecting subsequent string input
@@ -161,16 +161,16 @@ auto main() -> int {
             // 1. Parse user input for multiple directories
             std::vector<std::string> dir_paths = ParseMultiDirectories(dir_input);
             if (dir_paths.empty()) {
-                LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Error: No valid directories entered!");
+                LOG_ERROR(atom::log::utilities::Packager, "Error: No valid directories entered!");
                 break;
             }
-            LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+            LOG_INFO(atom::log::utilities::Packager,
                      "Successfully parsed " + std::to_string(dir_paths.size()) + " directories to pack.");
 
             // 2. Traverse multiple directories, collecting all file paths
             std::vector<std::string> all_files = TraverseMultipleDirectories(dir_paths);
             if (all_files.empty()) {
-                LOG_ERROR(atom::utilities::LogChannel::PACKAGER,
+                LOG_ERROR(atom::log::utilities::Packager,
                           "Error: No files found in the entered directories!");
                 break;
             }
@@ -181,18 +181,18 @@ auto main() -> int {
         }
         case 2: {
             std::string pack_name;
-            LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+            LOG_INFO(atom::log::utilities::Packager,
                      "\nPlease enter the name of the package file to be unpacked (e.g., media_res.dat):");
             std::getline(std::cin, pack_name);
             UnpackAllToFolder(pack_name);
             break;
         }
         case 0: {
-            LOG_INFO(atom::utilities::LogChannel::PACKAGER, "\nExited. Goodbye!");
+            LOG_INFO(atom::log::utilities::Packager, "\nExited. Goodbye!");
             return 0;
         }
         default:
-            LOG_ERROR(atom::utilities::LogChannel::PACKAGER,
+            LOG_ERROR(atom::log::utilities::Packager,
                       "Invalid option, please enter a number between 0 and 2!");
             break;
         }

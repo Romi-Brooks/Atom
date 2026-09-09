@@ -166,7 +166,7 @@ auto Log::LogOut(const std::string_view channelPrefix, const std::string_view ch
 }
 
 auto Log::SetViewLogLevel(const LogLevel viewLogLevel) -> void {
-    LOG_INFO(atom::core::LogChannel::LOGGER, "Set log level to " + GetLogLevel(viewLogLevel));
+    LOG_INFO(atom::log::core::Logger, "Set log level to " + GetLogLevel(viewLogLevel));
     auto& instance = GetLogInstance();
     std::lock_guard<std::mutex> lock(instance.log_mutex_);
     instance.view_log_level_ = viewLogLevel;
