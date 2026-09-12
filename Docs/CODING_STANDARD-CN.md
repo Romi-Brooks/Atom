@@ -132,10 +132,11 @@ include 按以下分组顺序排列，每组空一行：
 | `atom::log::audio` | `Atom.Audio.` | `atom::log::audio::Music` |
 | `atom::log::render` | `Atom.Render.` | `atom::log::render::Renderer2D` |
 | `atom::log::image` | `Atom.Image.` | `atom::log::image::Decoder` |
-| `atom::log::backend::sdl3` | `Atom.SDL3.Backend.` | `atom::log::backend::sdl3::Audio` |
+| `atom::log::backend::Audio` | `Atom.Backend.Audio.` | `atom::log::backend::Audio::sdl3` |
 | `game::log` | `Game.` | `game::log::Npc` |
 
-- 通道值使用 `PascalCase`（`ScreenManager`、`PlugMusicFade`）
+- 通道值使用 `PascalCase`（`ScreenManager`、`PlugMusicFade`）。后端实现标识是例外：
+  使用其规范的注册 ID（`sdl3`、`sdl3_mixer`），以保证日志通道和运行时后端 ID 一致。
 - 显示名使用 `.` 分隔的 PascalCase（`Atom.Entity.NPC ->`）
 - 调用处一律通过日志域直接写通道值（如 `atom::log::audio::Music`），不要定义局部别名
   （如 `const auto& kMusicLogChannel = atom::log::audio::Music;`）——别名虽然让调用更短，

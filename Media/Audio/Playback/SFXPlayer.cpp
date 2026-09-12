@@ -8,6 +8,13 @@
 
 namespace atom {
 
+namespace {
+// Borrowed (non-owning) shared_ptr for an explicitly injected backend.
+auto BorrowBackend(atom::audio::IAudioBackend* backend) -> std::shared_ptr<atom::audio::IAudioBackend> {
+    return std::shared_ptr<atom::audio::IAudioBackend>{backend, [](atom::audio::IAudioBackend*) {}};
+}
+} // namespace
+
 SFXPlayer::SFXPlayer(AudioClipCache& clips, AudioMixer& mixer)
     : backend_(nullptr), clips_(clips), mixer_(mixer), runtime_(&atom::backend::BackendRuntime::GetInstance()) {
     runtime_->AddAudioListener(*this);
@@ -30,8 +37,14 @@ auto SFXPlayer::GetOrCreatePool(const std::string& id) -> VoicePool* {
     auto clip = clips_.Get(id);
     if (!clip)
         return nullptr;
-    auto& backend = runtime_ ? runtime_->Audio() : *backend_;
-    auto pool = std::make_unique<VoicePool>(backend, std::move(clip));
+    // AcquireAudioBackend() instead of Audio(): the runtime must never throw here,
+    // because a background loader thread calling this during a backend switch
+    // would turn the exception into std::terminate -- and holding the strong
+    // reference keeps the backend alive for the whole source creation.
+    auto backend = runtime_ ? runtime_->AcquireAudioBackend() : BorrowBackend(backend_);
+    if (!backend)
+        return nullptr;
+    auto pool = std::make_unique<VoicePool>(*backend, std::move(clip));
     auto* result = pool.get();
     pools_.emplace(id, std::move(pool));
     return result;

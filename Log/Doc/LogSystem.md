@@ -10,7 +10,7 @@
 
 Each domain is declared with a single macro (`ATOM_DEFINE_CHANNELS`) that generates, at compile time, an enum-backed value namespace, name mapping and display prefix:
 
-- **Engine domains**: `atom::log::core`, `atom::log::audio`, `atom::log::entity`, `atom::log::render`, `atom::log::image`, `atom::log::layout`, `atom::log::debugger`, `atom::log::backend`, `atom::log::backend::sdl3`, `atom::log::utilities` — output prefixed with `Atom.` / `Atom.Audio.` / `Atom.Render.` / ...
+- **Engine domains**: `atom::log::core`, `atom::log::audio`, `atom::log::entity`, `atom::log::render`, `atom::log::image`, `atom::log::layout`, `atom::log::debugger`, `atom::log::backend`, `atom::log::backend::Audio`, `atom::log::utilities` — output prefixed with `Atom.` / `Atom.Audio.` / `Atom.Render.` / ...
 - **Game domains**: e.g. `game::log` — output prefixed with `Game.` (the game creates its own)
 
 No runtime registration is needed — the `LOG_*` macros resolve any domain's enum automatically (ADL). Display prefixes make hierarchical filtering trivial.
@@ -38,9 +38,11 @@ ATOM_DEFINE_CHANNELS(atom::log::audio, Channel, "Atom.Audio.",
     // ...
 )
 
-// Level-3 domain: atom::log::backend::sdl3, prefix "Atom.SDL3.Backend."
-ATOM_DEFINE_CHANNELS(atom::log::backend::sdl3, Channel, "Atom.SDL3.Backend.",
-    (Audio, "Audio"),
+// Level-3 domain: atom::log::backend::Audio, prefix "Atom.Backend.Audio."
+// The channel value is the concrete backend ID.
+ATOM_DEFINE_CHANNELS(atom::log::backend::Audio, Channel, "Atom.Backend.Audio.",
+    (sdl3, "SDL3"),
+    (sdl3_mixer, "SDL3_mixer"),
     // ...
 )
 ```
@@ -74,19 +76,21 @@ Complete list of engine channels (grouped by domain):
 | `atom::log::audio::PlugMusicFade` | Atom.Audio.Plug.MusicFade |
 | `atom::log::audio::Minimp3` | Atom.Audio.Minimp3 |
 | `atom::log::audio::WavProf` | Atom.Audio.WavProf |
+| `atom::log::audio::SDL3Wav` | Atom.Audio.SDL3Wav |
 | `atom::log::audio::Metadata` | Atom.Audio.Metadata |
 | `atom::log::render::Renderer2D` | Atom.Render.Renderer2D |
 | `atom::log::image::Decoder` | Atom.Image.Decoder |
 | `atom::log::layout::Core` | Atom.Layout.Core |
 | `atom::log::debugger::ImGui` | Atom.Debugger.ImGui |
 | `atom::log::backend::Runtime` | Atom.Backend.Runtime |
-| `atom::log::backend::sdl3::Audio` | Atom.SDL3.Backend.Audio |
+| `atom::log::backend::Audio::sdl3` | Atom.Backend.Audio.SDL3 |
+| `atom::log::backend::Audio::sdl3_mixer` | Atom.Backend.Audio.SDL3_mixer |
 | `atom::log::backend::sdl3::Video` | Atom.SDL3.Backend.Video |
 | `atom::log::backend::sdl3::Render` | Atom.SDL3.Backend.Render |
 | `atom::log::backend::sdl3::Window` | Atom.SDL3.Backend.Window |
 | `atom::log::utilities::Packager` | Atom.Utilities.Packager |
 
-To add a channel, add one `(PascalCaseName, "Display.Name")` entry to the appropriate domain in `Log/AtomLogChannels.hpp`. Each domain supports up to 64 channels; you can nest domains arbitrarily deep (e.g. `atom::log::entity::npc`).
+To add a channel, add one `(PascalCaseName, "Display.Name")` entry to the appropriate domain in `Log/AtomLogChannels.hpp`. Each domain supports up to 64 channels; you can nest domains arbitrarily deep (e.g. `atom::log::entity::npc`). Backend implementation channels are the exception: use their canonical runtime IDs, such as `sdl3` and `sdl3_mixer`.
 
 ### Game Channels (Custom Domain)
 
@@ -139,7 +143,7 @@ Every log line starts with the domain prefix, so filtering works at any level:
 ```
 
 - Grep `"Game."` → only your game's logs
-- Grep `"Atom.Audio."` → only audio logs; `"Atom.SDL."` → only SDL backend logs
+- Grep `"Atom.Audio."` → audio-domain logs; `"Atom.Backend.Audio."` → audio backend logs
 - Grep `"Atom."` → all engine logs
 
 ---

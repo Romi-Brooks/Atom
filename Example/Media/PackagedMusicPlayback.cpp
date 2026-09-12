@@ -85,6 +85,22 @@ class PackedMusicDebugger final : public atom::Debugger {
             }
 
             ImGui::Text("Now playing: %s", music_.GetNowPlaying().c_str());
+            // In-memory tracks report their length and support the same seek API as
+            // file-backed tracks (the decoder is chosen by extension either way).
+            const auto now_playing = music_.GetNowPlaying();
+            if (!now_playing.empty()) {
+                auto position = music_.GetPlayingOffset(now_playing);
+                const auto duration = music_.GetDuration(now_playing);
+                if (duration > 0.0f) {
+                    ImGui::Text("Position: %.2f / %.2f s", static_cast<double>(position),
+                                static_cast<double>(duration));
+                    if (music_.IsSeekable(now_playing) &&
+                        ImGui::SliderFloat("Seek", &position, 0.0f, duration, "%.2f s"))
+                        music_.Seek(now_playing, position);
+                } else {
+                    ImGui::Text("Position: %.2f s (duration unknown)", static_cast<double>(position));
+                }
+            }
             ImGui::Separator();
 
             static float volume = music_.GetMusicVolume();

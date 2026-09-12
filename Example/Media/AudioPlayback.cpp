@@ -9,6 +9,7 @@
 **/
 
 #include <Event/Input.hpp>
+#include <Backend/Runtime/BackendRuntime.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Media/Audio/Transitions/MusicCrossfade.hpp>
@@ -54,7 +55,37 @@ class MusicDebugger final : public atom::Debugger {
             ImGui::Text("If one of them is playing, switch it to the aim song");
             ImGui::Separator();
 
-            ImGui::TextDisabled("Playback Backend: SDL3 (only registered playback backend)");
+            const auto& backend_id = atom::backend::BackendRuntime::GetInstance().GetAudioBackendId();
+            ImGui::TextDisabled("Active audio backend: %s", backend_id.c_str());
+            ImGui::Separator();
+
+            // Seek / position. Everything comes from the MusicPlayer API; the
+            // capability check keeps the UI honest on decoders that cannot seek.
+            const auto now_playing = music_.GetNowPlaying();
+            if (!now_playing.empty()) {
+                const auto duration = music_.GetDuration(now_playing);
+                auto position = music_.GetPlayingOffset(now_playing);
+                if (duration > 0.0f)
+                    ImGui::Text("Position: %.2f / %.2f s", static_cast<double>(position), static_cast<double>(duration));
+                else
+                    ImGui::Text("Position: %.2f s (duration unknown)", static_cast<double>(position));
+
+                if (music_.IsSeekable(now_playing)) {
+                    const auto slider_max = duration > 0.0f ? duration : position + 1.0f;
+                    if (ImGui::SliderFloat("Seek", &position, 0.0f, slider_max, "%.2f s"))
+                        music_.Seek(now_playing, position);
+                    ImGui::SameLine();
+                    if (ImGui::Button("-10s"))
+                        music_.Seek(now_playing, position - 10.0f);
+                    ImGui::SameLine();
+                    if (ImGui::Button("+10s"))
+                        music_.Seek(now_playing, position + 10.0f);
+                } else {
+                    ImGui::TextDisabled("The active decoder cannot seek this track");
+                }
+            } else {
+                ImGui::TextDisabled("Seek: nothing is playing");
+            }
             ImGui::Separator();
 
             ImGui::Text("this btm allows you play those file at the same time");

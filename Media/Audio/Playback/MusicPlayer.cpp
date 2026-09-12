@@ -11,6 +11,15 @@
 
 namespace atom {
 
+namespace {
+// Borrowed (non-owning) shared_ptr for an explicitly injected backend, so the
+// load path can use one type whether the backend comes from the runtime or from
+// the constructor.
+auto BorrowBackend(atom::audio::IAudioBackend* backend) -> std::shared_ptr<atom::audio::IAudioBackend> {
+    return std::shared_ptr<atom::audio::IAudioBackend>{backend, [](atom::audio::IAudioBackend*) {}};
+}
+} // namespace
+
 MusicPlayer::MusicPlayer(AudioMixer& mixer)
     : backend_(nullptr), decoders_(&atom::backend::BackendRuntime::GetInstance().AudioDecoders()), mixer_(mixer),
       runtime_(&atom::backend::BackendRuntime::GetInstance()) {
@@ -34,19 +43,36 @@ auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     }
 
     AudioClipLoader loader{*decoders_};
+    LOG_INFO(atom::log::audio::Music, "Initializing music decoder on backend '" +
+                                          (runtime_ ? runtime_->GetAudioBackendId() : std::string{"explicit"}) + "': " + file);
+    // Hold a strong reference for the whole load: it keeps the backend (and the
+    // platform subsystem it leases) alive even if another thread switches
+    // backends while this decoder is opening.
+    auto backend = runtime_ ? runtime_->AcquireAudioBackend() : BorrowBackend(backend_);
+    if (!backend) {
+        LOG_ERROR(atom::log::audio::Music, "No active audio backend, cannot load music: " + file);
+        return false;
+    }
     auto streaming = loader.OpenStreaming(file);
     if (!streaming) {
         LOG_ERROR(atom::log::audio::Music, "Failed to decode music: " + file);
         return false;
     }
-    auto& backend = runtime_ ? runtime_->Audio() : *backend_;
-    auto source = backend.CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
+    // Read what the seek/duration API needs before the decoder is moved into the
+    // source (the reference would dangle afterwards).
+    const auto& decoder_info = streaming->decoder->GetInfo();
+    const auto duration_seconds =
+        decoder_info.sample_rate > 0 && decoder_info.total_pcm_frames > 0
+            ? static_cast<float>(decoder_info.total_pcm_frames) / static_cast<float>(decoder_info.sample_rate)
+            : 0.0f;
+
+    auto source = backend->CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
     if (!source) {
         LOG_ERROR(atom::log::audio::Music,
                   "Failed to create streaming music source for track '" + id + "': " + file);
         return false;
     }
-    tracks_.emplace(id, Track{std::move(source)});
+    tracks_.emplace(id, Track{std::move(source), duration_seconds});
     LOG_INFO(atom::log::audio::Music, "Music track loaded: " + id + " (" + file + ")");
     return true;
 }
@@ -60,19 +86,34 @@ auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filen
     }
 
     AudioClipLoader loader{*decoders_};
+    LOG_INFO(atom::log::audio::Music, "Initializing in-memory music decoder on backend '" +
+                                          (runtime_ ? runtime_->GetAudioBackendId() : std::string{"explicit"}) + "': " + filename);
+    // Hold a strong reference for the whole load: it keeps the backend (and the
+    // platform subsystem it leases) alive even if another thread switches
+    // backends while this decoder is opening.
+    auto backend = runtime_ ? runtime_->AcquireAudioBackend() : BorrowBackend(backend_);
+    if (!backend) {
+        LOG_ERROR(atom::log::audio::Music, "No active audio backend, cannot load music from memory: " + filename);
+        return false;
+    }
     auto streaming = loader.OpenStreamingFromMemory(filename, data, size);
     if (!streaming) {
         LOG_ERROR(atom::log::audio::Music, "Failed to decode music from memory: " + filename);
         return false;
     }
-    auto& backend = runtime_ ? runtime_->Audio() : *backend_;
-    auto source = backend.CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
+    const auto& decoder_info = streaming->decoder->GetInfo();
+    const auto duration_seconds =
+        decoder_info.sample_rate > 0 && decoder_info.total_pcm_frames > 0
+            ? static_cast<float>(decoder_info.total_pcm_frames) / static_cast<float>(decoder_info.sample_rate)
+            : 0.0f;
+
+    auto source = backend->CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
     if (!source) {
         LOG_ERROR(atom::log::audio::Music,
                   "Failed to create streaming music source for track '" + id + "': " + filename);
         return false;
     }
-    tracks_.emplace(id, Track{std::move(source)});
+    tracks_.emplace(id, Track{std::move(source), duration_seconds});
     LOG_INFO(atom::log::audio::Music,
              "Music track loaded from memory: " + id + " (" + filename + ", " + std::to_string(size) + " bytes)");
     return true;
@@ -144,6 +185,47 @@ auto MusicPlayer::Stop(const std::string& id) -> void {
     }
 }
 
+auto MusicPlayer::Seek(const std::string& id, const float seconds) -> bool {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    if (it == tracks_.end() || !it->second.source) {
+        LOG_DEBUG(atom::log::audio::Music, "Seek() ignored: unknown track: " + id);
+        return false;
+    }
+    auto target = std::max(seconds, 0.0f);
+    if (it->second.duration_seconds > 0.0f)
+        target = std::min(target, it->second.duration_seconds);
+    if (!it->second.source->SetPlayingOffset(target)) {
+        LOG_WARNING(atom::log::audio::Music,
+                    "Seek() failed on the active playback backend: track " + id + " at " +
+                        std::to_string(static_cast<double>(target)) + "s");
+        return false;
+    }
+    LOG_INFO(atom::log::audio::Music,
+             "Track seeked: " + id + " -> " + std::to_string(static_cast<double>(target)) + "s");
+    return true;
+}
+
+auto MusicPlayer::GetPlayingOffset(const std::string& id) const -> float {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    if (it == tracks_.end() || !it->second.source)
+        return 0.0f;
+    return it->second.source->GetPlayingOffset();
+}
+
+auto MusicPlayer::GetDuration(const std::string& id) const -> float {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    return it == tracks_.end() ? 0.0f : it->second.duration_seconds;
+}
+
+auto MusicPlayer::IsSeekable(const std::string& id) const -> bool {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    return it != tracks_.end() && it->second.source && it->second.source->IsSeekable();
+}
+
 auto MusicPlayer::Reset() -> void {
     std::lock_guard lock(mutex_);
     for (auto& [_, track] : tracks_)
@@ -159,6 +241,19 @@ auto MusicPlayer::SetVolume(const std::string& id, const float volume) -> void {
     if (it != tracks_.end() && it->second.source) {
         it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
     }
+}
+
+auto MusicPlayer::SetLooping(const std::string& id, const bool loop) -> void {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    if (it != tracks_.end() && it->second.source)
+        it->second.source->SetLooping(loop);
+}
+
+auto MusicPlayer::IsLooping(const std::string& id) const -> bool {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    return it != tracks_.end() && it->second.source && it->second.source->IsLooping();
 }
 
 auto MusicPlayer::SetMusicVolume(const float volume) -> void {

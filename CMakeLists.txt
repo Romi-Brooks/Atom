@@ -49,9 +49,12 @@ include(Render/Shader/AtomShaders.cmake)
     add_library(Atom_Backend_Contracts INTERFACE)
     target_sources(Atom_Backend_Contracts INTERFACE
         Backend/Contracts/Audio/AudioTypes.hpp
+        Backend/Contracts/Audio/AudioExtensions.hpp
+        Backend/Contracts/Audio/AudioSourceRegistry.hpp
         Backend/Contracts/Audio/IAudioBackend.hpp
         Backend/Contracts/Audio/IAudioDecoder.hpp
         Backend/Contracts/Audio/IAudioSource.hpp
+        Backend/Contracts/Audio/NullAudioBackend.hpp
         Backend/Contracts/Debug/IDebugImGuiBackend.hpp
         Backend/Contracts/Render/IRender2DContext.hpp
         Backend/Contracts/Render/IRenderBackend.hpp
@@ -230,11 +233,13 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/Audio/Decoder/WavProf/RiffWaveReader.cpp
         Backend/Audio/Decoder/WavProf/WavProfDecoder.hpp
         Backend/Audio/Decoder/WavProf/WavProfDecoder.cpp
+        Backend/Audio/Decoder/SDL3Wav/SDL3WavDecoder.hpp
+        Backend/Audio/Decoder/SDL3Wav/SDL3WavDecoder.cpp
         Backend/Audio/Decoder/minimp3/Minimp3Decoder.hpp
         Backend/Audio/Decoder/minimp3/Minimp3Decoder.cpp
     )
     target_include_directories(Atom_Backend_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_3rd_Minimp3 Atom_UTF8)
+    target_link_libraries(Atom_Backend_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_3rd_Minimp3 Atom_UTF8 Atom_3rd_SDL3)
 
 # 5. SDL3 Audio Backend
     add_library(Atom_Backend_SDL3_Audio STATIC
@@ -250,6 +255,19 @@ include(Render/Shader/AtomShaders.cmake)
     target_include_directories(Atom_Backend_SDL3_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Backend_SDL3_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_SDL3_Core Atom_Log)
 
+    add_library(Atom_Backend_SDL3_Mixer_Audio STATIC
+        Backend/SDL3/Audio/SDL3MixerAudioBackend.cpp
+        Backend/SDL3/Audio/SDL3MixerAudioBackend.hpp
+        Backend/SDL3/Audio/SDL3MixerContext.cpp
+        Backend/SDL3/Audio/SDL3MixerContext.hpp
+        Backend/SDL3/Audio/SDL3MixerSource.cpp
+        Backend/SDL3/Audio/SDL3MixerSource.hpp
+        Backend/SDL3/Audio/SDL3MixerStreamingSource.cpp
+        Backend/SDL3/Audio/SDL3MixerStreamingSource.hpp
+    )
+    target_include_directories(Atom_Backend_SDL3_Mixer_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Backend_SDL3_Mixer_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_SDL3_Core Atom_Log Atom_3rd_SDL3_mixer)
+
     add_library(Atom_Backend_Runtime STATIC
         Backend/Runtime/BackendRuntime.hpp
         Backend/Runtime/BackendRuntime.cpp
@@ -260,12 +278,16 @@ include(Render/Shader/AtomShaders.cmake)
         Atom_Backend_Contracts
         Atom_Backend_Extension
         Atom_Backend_Audio
-        Atom_Backend_SDL3_Audio)
+        Atom_Backend_SDL3_Audio
+        Atom_Backend_SDL3_Mixer_Audio)
 
 # 6. Media
     add_library(Atom_Media STATIC
         Media/Audio/Metadata/AudioMetadataReader.cpp
         Media/Audio/Metadata/AudioMetadataReader.hpp
+        Media/Audio/Effects/IAudioEffect.hpp
+        Media/Audio/Effects/DopplerEffect.cpp
+        Media/Audio/Effects/DopplerEffect.hpp
         Media/Audio/Mixing/AudioMixer.cpp
         Media/Audio/Mixing/AudioMixer.hpp
         Media/Audio/Resources/AudioClipLoader.cpp
@@ -453,6 +475,9 @@ add_dependencies(Example_MusicCard Atom_Shaders)
 add_executable(Atom_Tool_Packager
         Utilities/Packager/Package_main.cpp
 )
+
+add_executable(Example_Spatial_Backend_Probe EXCLUDE_FROM_ALL Example/Audio/SpatialBackendProbe.cpp)
+target_link_libraries(Example_Spatial_Backend_Probe PRIVATE Atom_Media Atom_Window Atom_Debugger)
 set_target_properties(Atom_Tool_Packager PROPERTIES OUTPUT_NAME packager_tool)
 target_link_libraries(Atom_Tool_Packager PRIVATE Atom_Packager)
 

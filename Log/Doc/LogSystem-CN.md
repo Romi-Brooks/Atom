@@ -10,7 +10,7 @@
 
 每个域由一个宏（`ATOM_DEFINE_CHANNELS`）在编译期生成“枚举支持的值命名空间 + 名字映射 + 前缀”：
 
-- **引擎域**：`atom::log::core`、`atom::log::audio`、`atom::log::entity`、`atom::log::render`、`atom::log::image`、`atom::log::layout`、`atom::log::debugger`、`atom::log::backend`、`atom::log::backend::sdl3`、`atom::log::utilities` —— 输出前缀 `Atom.` / `Atom.Audio.` / `Atom.Render.` / ...
+- **引擎域**：`atom::log::core`、`atom::log::audio`、`atom::log::entity`、`atom::log::render`、`atom::log::image`、`atom::log::layout`、`atom::log::debugger`、`atom::log::backend`、`atom::log::backend::Audio`、`atom::log::utilities` —— 输出前缀 `Atom.` / `Atom.Audio.` / `Atom.Render.` / ...
 - **游戏域**：如 `game::log` —— 输出前缀 `Game.`（由游戏自己创建）
 
 不需要任何运行时注册 —— `LOG_*` 宏会自动解析任意域的通道枚举（ADL）。显示前缀天然支持按层级筛选。
@@ -38,9 +38,11 @@ ATOM_DEFINE_CHANNELS(atom::log::audio, Channel, "Atom.Audio.",
     // ...
 )
 
-// 三级域：atom::log::backend::sdl3，前缀 "Atom.SDL3.Backend."
-ATOM_DEFINE_CHANNELS(atom::log::backend::sdl3, Channel, "Atom.SDL3.Backend.",
-    (Audio, "Audio"),
+// 三级域：atom::log::backend::Audio，前缀 "Atom.Backend.Audio."
+// 通道值是具体后端 ID。
+ATOM_DEFINE_CHANNELS(atom::log::backend::Audio, Channel, "Atom.Backend.Audio.",
+    (sdl3, "SDL3"),
+    (sdl3_mixer, "SDL3_mixer"),
     // ...
 )
 ```
@@ -74,19 +76,21 @@ LOG_ERROR(atom::log::utilities::Packager, "Pack failed");
 | `atom::log::audio::PlugMusicFade` | Atom.Audio.Plug.MusicFade |
 | `atom::log::audio::Minimp3` | Atom.Audio.Minimp3 |
 | `atom::log::audio::WavProf` | Atom.Audio.WavProf |
+| `atom::log::audio::SDL3Wav` | Atom.Audio.SDL3Wav |
 | `atom::log::audio::Metadata` | Atom.Audio.Metadata |
 | `atom::log::render::Renderer2D` | Atom.Render.Renderer2D |
 | `atom::log::image::Decoder` | Atom.Image.Decoder |
 | `atom::log::layout::Core` | Atom.Layout.Core |
 | `atom::log::debugger::ImGui` | Atom.Debugger.ImGui |
 | `atom::log::backend::Runtime` | Atom.Backend.Runtime |
-| `atom::log::backend::sdl3::Audio` | Atom.SDL3.Backend.Audio |
+| `atom::log::backend::Audio::sdl3` | Atom.Backend.Audio.SDL3 |
+| `atom::log::backend::Audio::sdl3_mixer` | Atom.Backend.Audio.SDL3_mixer |
 | `atom::log::backend::sdl3::Video` | Atom.SDL3.Backend.Video |
 | `atom::log::backend::sdl3::Render` | Atom.SDL3.Backend.Render |
 | `atom::log::backend::sdl3::Window` | Atom.SDL3.Backend.Window |
 | `atom::log::utilities::Packager` | Atom.Utilities.Packager |
 
-新增通道只需在 `Log/AtomLogChannels.hpp` 对应域添加一项 `(PascalCaseName, "Display.Name")`。每个域最多 64 个通道；域可以无限嵌套（如 `atom::log::entity::npc`）。
+新增通道只需在 `Log/AtomLogChannels.hpp` 对应域添加一项 `(PascalCaseName, "Display.Name")`。每个域最多 64 个通道；域可以无限嵌套（如 `atom::log::entity::npc`）。后端实现通道是例外：使用运行时规范 ID，例如 `sdl3`、`sdl3_mixer`。
 
 ### 游戏自定义通道（独立域）
 
@@ -139,7 +143,7 @@ LOG_INFO("Debug.temp", "Just trying something");
 ```
 
 - 过滤 `"Game."` → 只看游戏的日志
-- 过滤 `"Atom.Audio."` → 只看音频日志；`"Atom.SDL."` → 只看 SDL 后端日志
+- 过滤 `"Atom.Audio."` → 查看音频业务域日志；`"Atom.Backend.Audio."` → 查看音频后端日志
 - 过滤 `"Atom."` → 所有引擎日志
 
 ---

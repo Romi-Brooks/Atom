@@ -1,5 +1,5 @@
 /**
- * @file           : SimpleWindow.cpp
+  * @file           : SimpleWindow.cpp
   * @author         : Romi Brooks
   * @brief          : Simple single-window rendering example using Atom Engine
   *                   API.
@@ -7,6 +7,8 @@
   * @date           : 2026/6/6
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
+
+
 
 #include <algorithm>
 #include <array>
@@ -50,6 +52,8 @@
 #include <Window/Overlay.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
+#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Backend/Runtime/IAudioBackendChangeListener.hpp>
 
 namespace {
 
@@ -196,7 +200,7 @@ class CardPainter {
         atom::render::Renderer2D& renderer_;
 };
 
-class MusicCardScreen final : public atom::Screen {
+class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioBackendChangeListener {
     public:
         MusicCardScreen(atom::MusicPlayer& music, std::vector<std::string> paths) : music_{music} {
             layout_tree_.SetPointScaleFactor(1.0f);
@@ -226,6 +230,11 @@ class MusicCardScreen final : public atom::Screen {
                 prefetch_requested_ = true;
             }
             loader_thread_ = std::jthread{[this](std::stop_token st) { LoaderLoop(st); }};
+            // MusicCard caches "resolved" state per track, so it must know when a
+            // backend switch invalidates everything it cached (see
+            // OnAudioBackendChanging). MusicPlayer is registered separately and
+            // drops the ids it owns.
+            atom::backend::BackendRuntime::GetInstance().AddAudioListener(*this);
             LOG_INFO(atom::log::core::Screen, "Music card initialized with " + std::to_string(tracks_.size()) +
                                                          " track path(s); lazy metadata + audio loading enabled");
         }
@@ -233,7 +242,47 @@ class MusicCardScreen final : public atom::Screen {
         ~MusicCardScreen() override {
             // loader_thread_ is a std::jthread: its destructor requests stop and
             // joins, so the worker exits before renderer_/tracks_ are torn down.
+            atom::backend::BackendRuntime::GetInstance().RemoveAudioListener(*this);
             renderer_.Shutdown();
+        }
+
+        // The runtime is about to destroy the backend that owns every source this
+        // screen resolved. Drop the whole per-track cache (ids, audio sources and
+        // metadata results are all backend-generation bound) and let the loader
+        // re-resolve the tracks against the new backend.
+        auto OnAudioBackendChanging() -> void override {
+            std::size_t invalidated = 0;
+            {
+                std::lock_guard lock{tracks_mutex_};
+                ++cache_generation_;
+                for (auto& track : tracks_) {
+                    if (track.metadata_loaded || track.is_loaded)
+                        ++invalidated;
+                    track.metadata_loaded = false;
+                    track.is_loaded = false;
+                }
+                prefetch_requested_ = true;
+            }
+            // Render-thread state: the audio is gone, so the card is not playing.
+            start_after_load_ = false;
+            is_playing_ = false;
+            loader_cv_.notify_one();
+            LOG_INFO(atom::log::audio::Music, "Audio backend changing: music card invalidated " +
+                                                  std::to_string(invalidated) +
+                                                  " cached track(s); reload will follow");
+        }
+
+        auto OnAudioBackendChanged() -> void override {
+            {
+                std::lock_guard lock{tracks_mutex_};
+                prefetch_requested_ = true;
+            }
+            loader_cv_.notify_one();
+            LOG_INFO(atom::log::audio::Music, "Audio backend changed (generation " +
+                                                  std::to_string(
+                                                      atom::backend::BackendRuntime::GetInstance()
+                                                          .GetAudioBackendGeneration()) +
+                                                  "); music card re-resolving tracks");
         }
 
         auto ShutdownRenderer() -> void {
@@ -331,6 +380,28 @@ class MusicCardScreen final : public atom::Screen {
 
         [[nodiscard]] auto IsCardVisible() const -> bool {
             return animation_state_ != AnimationState::Hidden && animation_state_ != AnimationState::Exiting;
+        }
+
+        // Playback progress for the debugger overlay. The card owns no audio state
+        // of its own: ids are private, so the lookup happens here.
+        [[nodiscard]] auto GetNowPlayingId() const -> std::string {
+            return music_.GetNowPlaying();
+        }
+
+        [[nodiscard]] auto GetPlaybackPosition(const std::string& id) const -> float {
+            return music_.GetPlayingOffset(id);
+        }
+
+        [[nodiscard]] auto GetPlaybackDuration(const std::string& id) const -> float {
+            return music_.GetDuration(id);
+        }
+
+        [[nodiscard]] auto CanSeek(const std::string& id) const -> bool {
+            return music_.IsSeekable(id);
+        }
+
+        auto Seek(const std::string& id, const float seconds) -> bool {
+            return music_.Seek(id, seconds);
         }
 
         auto LoadInterfaceFont() -> bool {
@@ -1121,9 +1192,20 @@ class MusicCardScreen final : public atom::Screen {
                 title = tracks_[current_track_].title;
             }
             if (is_loaded) {
-                is_playing_ = true;
                 LOG_INFO(atom::log::audio::Music, "Music card playing track: " + title);
                 music_.Play(id);
+                // Play() is a no-op when the id is not registered on the active
+                // backend (for example because a backend switch dropped it), so the
+                // card state must follow the source state instead of assuming the
+                // request succeeded.
+                const auto state = music_.GetState(id);
+                is_playing_ = state == atom::audio::AudioSourceState::Playing ||
+                              state == atom::audio::AudioSourceState::Paused;
+                if (!is_playing_) {
+                    LOG_WARNING(atom::log::audio::Music,
+                                "Music card could not start track (id not registered on the active audio backend): " +
+                                    title);
+                }
             } else {
                 is_playing_ = false;
                 LOG_WARNING(atom::log::audio::Music,
@@ -1169,16 +1251,22 @@ class MusicCardScreen final : public atom::Screen {
 
         // Resolves metadata + audio for a single track. Safe to call from any
         // thread; the slow operations (TagLib read, decoder open) run without
-        // holding tracks_mutex_, and only the final write is locked.
+        // holding tracks_mutex_, and only the final write is locked. Results that
+        // straddle a backend switch are discarded and retried: a source created by
+        // the old backend is registered in the MusicPlayer instance that has
+        // already been reset, so committing it would leave a dead "is_loaded" flag
+        // behind.
         auto LoadTrackMetadata(std::size_t index) -> void {
             if (index >= tracks_.size()) {
                 return;
             }
+            std::uint64_t generation = 0;
             {
                 std::lock_guard lock{tracks_mutex_};
                 if (tracks_[index].metadata_loaded) {
                     return;
                 }
+                generation = cache_generation_;
             }
             // Snapshot immutable fields outside the lock.
             const std::string path = tracks_[index].path;
@@ -1195,6 +1283,14 @@ class MusicCardScreen final : public atom::Screen {
 
             {
                 std::lock_guard lock{tracks_mutex_};
+                if (generation != cache_generation_) {
+                    LOG_INFO(atom::log::audio::Metadata,
+                             "Discarding track " + std::to_string(index) +
+                                 " resolved for a previous audio backend; it will be re-resolved");
+                    // Ask the loader for another pass once it comes back around.
+                    prefetch_requested_ = true;
+                    return;
+                }
                 auto& t = tracks_[index];
                 t.title = std::move(title);
                 t.artist = std::move(artist);
@@ -1255,6 +1351,9 @@ class MusicCardScreen final : public atom::Screen {
         // Track (title, artist, is_loaded, artwork_*, metadata_loaded); id,
         // path and theme are immutable after construction.
         mutable std::mutex tracks_mutex_;
+        // Incremented whenever an audio backend switch invalidates the cache, so a
+        // resolution that started before the switch can be recognised and dropped.
+        std::uint64_t cache_generation_ = 0;
         std::condition_variable_any loader_cv_;
         std::jthread loader_thread_;
         bool prefetch_requested_ = false;
@@ -1316,6 +1415,19 @@ class MusicCardDebugger final : public atom::Debugger {
             }
             ImGui::Separator();
 
+            auto& runtime = atom::backend::BackendRuntime::GetInstance();
+            ImGui::Text("Active backend: %s (generation %llu)", runtime.GetAudioBackendId().c_str(),
+                        static_cast<unsigned long long>(runtime.GetAudioBackendGeneration()));
+
+            if (ImGui::Button("Use native SDL3")) {
+                runtime.SetAudioBackend("sdl3");
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Use SDL3_mixer")) {
+                runtime.SetAudioBackend("sdl3_mixer");
+            }
+
             if (ImGui::Button("Previous")) {
                 screen_.Previous();
             }
@@ -1348,6 +1460,24 @@ class MusicCardDebugger final : public atom::Debugger {
             ImGui::Text("State: %s", screen_.GetAnimationStateName().data());
             ImGui::Text("Position: %s", screen_.GetCornerName().data());
             ImGui::Text("Playback: %s", screen_.IsPlaying() ? "playing" : "stopped");
+
+            // Seek / progress. The card only displays and forwards values; both the
+            // position and the duration come from MusicPlayer, and the capability
+            // query keeps the slider disabled for decoders that cannot seek.
+            const auto now_playing = screen_.GetNowPlayingId();
+            if (!now_playing.empty()) {
+                const auto duration = screen_.GetPlaybackDuration(now_playing);
+                auto position = screen_.GetPlaybackPosition(now_playing);
+                if (duration > 0.0f)
+                    ImGui::Text("Time: %.1f / %.1f s", static_cast<double>(position), static_cast<double>(duration));
+                else
+                    ImGui::Text("Time: %.1f s (duration unknown)", static_cast<double>(position));
+                if (screen_.CanSeek(now_playing)) {
+                    const auto slider_max = duration > 0.0f ? duration : position + 1.0f;
+                    if (ImGui::SliderFloat("Seek", &position, 0.0f, slider_max, "%.1f s"))
+                        screen_.Seek(now_playing, position);
+                }
+            }
             if (screen_.HasTracks()) {
                 const auto track = screen_.GetCurrentTrack();
                 ImGui::Text("Title: %s", track.title.c_str());
@@ -1372,6 +1502,9 @@ class MusicCardDebugger final : public atom::Debugger {
 // Discovers audio files under the configured directory. Metadata and decoder
 // work are deferred to the background prefetch loader so startup remains
 // responsive and open file handles stay bounded.
+//
+// Only files the decoder registry can actually decode are listed: an entry the
+// engine cannot open would otherwise show up on the card and then stay silent.
 [[nodiscard]] auto LoadTrackPaths(const std::string& music_root) -> std::vector<std::string> {
     constexpr std::array audio_extensions{".mp3", ".wav", ".flac", ".ogg",  ".m4a",
                                           ".aac", ".wma", ".opus", ".aiff", ".aif"};
@@ -1382,6 +1515,9 @@ class MusicCardDebugger final : public atom::Debugger {
         LOG_ERROR(atom::log::audio::Music, "Music path is not a directory: " + music_root);
         return paths;
     }
+    auto& decoders = atom::backend::BackendRuntime::GetInstance().AudioDecoders();
+    auto skipped_extensions = std::vector<std::string>{};
+    auto skipped_files = std::size_t{0};
     for (const auto& entry : std::filesystem::directory_iterator(music_dir, ec)) {
         if (ec) {
             break;
@@ -1393,15 +1529,32 @@ class MusicCardDebugger final : public atom::Debugger {
         auto ext = entry.path().extension().string();
         std::ranges::transform(ext, ext.begin(),
                                [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (std::ranges::find(audio_extensions, ext) != audio_extensions.end()) {
-            paths.push_back(atom::PathToUtf8(entry.path()));
+        if (std::ranges::find(audio_extensions, ext) == audio_extensions.end()) {
+            continue;
         }
+        if (!decoders.Contains(ext)) {
+            ++skipped_files;
+            if (std::ranges::find(skipped_extensions, ext) == skipped_extensions.end()) {
+                skipped_extensions.push_back(ext);
+            }
+            continue;
+        }
+        paths.push_back(atom::PathToUtf8(entry.path()));
     }
     if (ec) {
         LOG_WARNING(atom::log::audio::Music, "Directory iteration error: " + ec.message());
     }
+    if (skipped_files > 0) {
+        auto list = std::string{};
+        for (const auto& ext : skipped_extensions) {
+            list += (list.empty() ? "" : ", ") + ext;
+        }
+        LOG_WARNING(atom::log::audio::Music,
+                    "Skipped " + std::to_string(skipped_files) + " file(s) with no registered decoder (" + list +
+                        "); register a decoder in AudioDecoderRegistry to play them");
+    }
     std::ranges::sort(paths);
-    LOG_INFO(atom::log::audio::Music, "Discovered " + std::to_string(paths.size()) + " audio file(s) in " +
+    LOG_INFO(atom::log::audio::Music, "Discovered " + std::to_string(paths.size()) + " playable audio file(s) in " +
                                                  music_root + " (metadata deferred to lazy loader)");
     return paths;
 }

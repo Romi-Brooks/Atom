@@ -5,7 +5,7 @@
   *                   across domains; per-domain enumeration + level filtering):
   *                   - Level-1 domain: atom::log::core (prefix "Atom.")
   *                   - Level-2 domains: atom::log::audio / atom::log::entity
-  *                   - Level-3 domain: atom::log::backend::sdl3
+  *                   - Level-3 domain: atom::log::backend::Audio
   *                   - Game domain: game::log (prefix "Game."), nested
   *                     game::log::npc (Level-2) and game::log::npc::ai (Level-3)
   *                   - Ad-hoc string channels, per-domain enumeration,
@@ -47,8 +47,8 @@ auto main() -> int {
     std::cout << "===== Level-2 domain: atom::log::entity =====" << std::endl;
     LOG_ERROR(atom::log::entity::Player, "Player save failed");
 
-    std::cout << "===== Level-3 domain: atom::log::backend::sdl3 =====" << std::endl;
-    LOG_DEBUG(atom::log::backend::sdl3::Render, "SDL renderer created");
+    std::cout << "===== Level-3 domain: atom::log::backend::Audio =====" << std::endl;
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Audio backend initialized");
 
     std::cout << "===== Game domain: game::log =====" << std::endl;
     LOG_INFO(game::log::Npc, "NPC spawned");
@@ -65,7 +65,7 @@ auto main() -> int {
     PrintAllChannels<atom::log::core::Channel>("all atom::log::core channels");
     PrintAllChannels<atom::log::audio::Channel>("all atom::log::audio channels");
     PrintAllChannels<atom::log::entity::Channel>("all atom::log::entity channels");
-    PrintAllChannels<atom::log::backend::sdl3::Channel>("all atom::log::backend::sdl3 channels");
+    PrintAllChannels<atom::log::backend::Audio::Channel>("all atom::log::backend::Audio channels");
     PrintAllChannels<game::log::Channel>("all game::log channels");
     PrintAllChannels<game::log::npc::Channel>("all game::log::npc channels");
     PrintAllChannels<game::log::npc::ai::Channel>("all game::log::npc::ai channels");

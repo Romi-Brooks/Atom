@@ -5,9 +5,9 @@
 ## Layout
 
 - `Contracts/` contains backend-independent contracts and shared data types required by Atom.
-- `Extension/` stores the explicitly opt-in backend factories and audio decoder registry (extension → decoder factory).
-- `Runtime/` owns global backend selection, default registration, and audio backend switching; it also registers the engine's default format decoders (`.wav` → WavProfDecoder, `.mp3` → minimp3 decoder).
-- `Audio/` contains backend-independent audio adapters such as the WAV decoder (`WavProfDecoder` / RiffWaveReader) and the minimp3-based MP3 decoder (`Minimp3Decoder`).
+- `Extension/` stores the explicitly opt-in backend factories and audio decoder registry (extension → ordered decoder candidate chain).
+- `Runtime/` owns global backend selection, default registration, and audio backend switching (replace-then-release, `Quiesce()`, generation counter); it also registers the engine's default format decoders (`.wav` → WavProf first, SDL3Wav fallback; `.mp3` → minimp3 decoder).
+- `Audio/` contains backend-independent audio adapters: the streaming WAV decoder (`WavProfDecoder` / RiffWaveReader), the SDL3-loader WAV decoder (`SDL3WavDecoder`, used as the `.wav` fallback) and the minimp3-based MP3 decoder (`Minimp3Decoder`).
 - `SDL3/` contains SDL lifecycle, platform-window, audio playback, and SDL IO implementations.
 - `SDLGPU/` contains the SDL_GPU render device, backend composition, Renderer2D context, ImGui adapter, and SDL_GPU-specific pipeline/resource code.
 

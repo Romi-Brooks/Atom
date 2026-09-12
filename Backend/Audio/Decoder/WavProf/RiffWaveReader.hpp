@@ -16,6 +16,8 @@
 #include <cstdio>
 #include <string>
 
+#include <Backend/Contracts/Audio/IAudioDecoder.hpp>
+
 namespace atom::backend::audio_decoder {
 struct WavHeader {
         char chunk_id[4]{};         // "RIFF"
@@ -39,14 +41,15 @@ class RiffWaveReader {
         RiffWaveReader(const RiffWaveReader&) = delete;
         auto operator=(const RiffWaveReader&) -> RiffWaveReader& = delete;
 
-        // Open a WAV file. Returns false if the file is invalid or not
-        // uncompressed PCM / IEEE float WAV.
-        auto Open(const std::string& path) -> bool;
+        // Open a WAV file. The status distinguishes "this reader does not cover
+        // the encoding" (UnsupportedFormat) from broken data and I/O failures, so
+        // WavProfDecoder can report the same boundary upwards.
+        [[nodiscard]] auto Open(const std::string& path) -> atom::audio::DecoderOpenStatus;
 
         // Open a WAV stream from an in-memory buffer (e.g. an entry extracted
         // from a resource pack). The buffer is borrowed: the caller must keep it
         // alive until Close(). Returns false if the data is invalid.
-        auto OpenFromMemory(const void* data, std::size_t size) -> bool;
+        [[nodiscard]] auto OpenFromMemory(const void* data, std::size_t size) -> atom::audio::DecoderOpenStatus;
 
         // Close the file.
         auto Close() -> void;
@@ -56,6 +59,11 @@ class RiffWaveReader {
 
         // Seek to the beginning of PCM data (rewind).
         auto Rewind() -> bool;
+
+        // Seek to a byte offset inside the PCM data. The offset is clamped to the
+        // available data and aligned down to a whole frame, so a caller can pass
+        // frame_index * bytes_per_frame safely.
+        auto SeekToByte(std::size_t byte_offset) -> bool;
 
         // Queries
         [[nodiscard]] auto IsOpen() const -> bool {

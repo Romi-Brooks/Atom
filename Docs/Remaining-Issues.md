@@ -122,10 +122,29 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 ### AUDIO-006：Backend 热切换场景策略与测试
 
+- [x] 切换协议落地为"先建后换 + 通知 + Quiesce + 原子替换 + generation"：创建失败是真回滚，旧后端在替换后才释放，source 由 `IAudioBackend::Quiesce()` / `IAudioSource::Detach()` 统一失效（2026-09-12）。
+- [x] `Audio()` 不再抛异常（无活动后端时返回 `NullAudioBackend`），并提供 `TryAudio()` / `AcquireAudioBackend()`；后台加载线程不再因切换窗口 `std::terminate`（2026-09-12）。
+- [x] 实测通过：播放中切换不再崩溃（原先 0xC0000005 / 堆破坏）、caller-owned source 安全析构、并发 `Audio()` 调用无异常、切换后 ID 由 `GetAudioBackendGeneration()` 判定作废（2026-09-12）。
 - [ ] 在游戏处于正式 Gameplay 场景时禁止切换播放后端。
-- [ ] 主菜单/设置页面切换后，由页面或下一场景重新注册并播放所需 ID。
-- [ ] 增加切换成功、未知后端、初始化失败、旧后端恢复失败和多个 Player 同时注销的测试。
+- [ ] 主菜单/设置页面切换后，由页面或下一场景重新注册并播放所需 ID（示例 `MusicCard` 已给出监听 + generation 守卫的参考实现）。
+- [ ] 增加切换成功、未知后端、初始化失败和多个 Player 同时注销的**自动化**测试（当前为临时 harness 手工验证，已删除）。
 - [ ] 后续为 Lua 提供受控的 Backend 设置接口；脚本不得直接访问具体 SDL3/SFML 类型。
+
+### AUDIO-007：Music Seek 能力链
+
+- [x] 分层落地：`MusicPlayer::Seek/GetPlayingOffset/GetDuration/IsSeekable` → `IAudioSource::SetPlayingOffset()->bool` + `IsSeekable()` → `IAudioDecoder::SeekToFrame()/IsSeekable()`（2026-09-12）。
+- [x] 内置实现：WavProf（字节偏移）、SDL3Wav（内存游标）、Minimp3（`mp3dec_ex_seek`，采样级）；流式音源按"停线程 → 清缓冲 → 定位 → 重启"实现，buffered 音源直接移动播放游标。
+- [x] 实测通过：解码器级 seek 与"从头解码并丢弃"逐字节一致；两个后端上播放中 seek、停止后 seek 再播、越界钳制均正确。
+- [ ] 前向-only 解码器的回退策略：当前非 0 目标返回 `false`（只保留回起点），尚未提供"解码并丢弃"的近似实现。
+- [ ] 如需 24-bit 内存优化，评估 `AudioSampleFormat::Signed24` 作为解码侧载体 + 推送路径转换（原因与代价见 `Backend/Runtime/README-CN.md`）。
+
+### AUDIO-008：解码器注册链与职责边界
+
+- [x] `AudioDecoderRegistry` 支持具名候选链：`Register` 首选、`RegisterFallback` 兜底、`Replace` 替换整条链、`CandidatesForFile` 按优先级返回（2026-09-12）。
+- [x] 解码器用 `DecoderOpenStatus`（`Opened`/`UnsupportedFormat`/`InvalidData`/`IoError`）声明失败原因；`AudioClipLoader` 负责尝试循环、引擎格式校验与汇总诊断（全部失败才 `LOG_WARNING`）。
+- [x] `.wav` 接入 SDL3 自带解码器（`SDL_LoadWAV`）作为兜底，覆盖 MS ADPCM / IMA ADPCM / A-Law / µ-Law；纯 PCM 仍走流式 WavProf（34 MB PCM WAV：7.2 ms vs 12.9 ms）。
+- [ ] 补齐自研 WavProf 的压缩 WAV 支持后，移除或对调兜底顺序。
+- [ ] 评估为 `.mp3` / 未来格式增加候选（当前 `SDLMIXER_*` 格式解码器全部为 OFF，`MIX_LoadAudio` 在本构建中无法解码任何格式）。
 
 ### AUDIO-003：设备 Stream 数量与复用
 
@@ -135,8 +154,9 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 ### AUDIO-004：音频格式覆盖
 
 - [!] 后续版本实现 OGG、FLAC 等格式（MP3 已通过 minimp3 支持，见 `Backend/Audio/Decoder/minimp3/Minimp3Decoder`）。
-- [ ] 每种格式实现独立 `IAudioDecoder` 并显式注册到 `AudioDecoderRegistry`。
-- [ ] 选择依赖时记录许可证、错误模型和流式解码能力。
+- [x] 每种格式实现独立 `IAudioDecoder` 并显式注册到 `AudioDecoderRegistry`（`.wav` 双实现 + 候选链，见 AUDIO-008）。
+- [x] 队列/依赖说明：SDL3Wav 复用引擎已有的 SDL3 依赖，无新增第三方库与许可证（2026-09-12）。
+- [ ] 选择新的解码器依赖时记录许可证、错误模型和流式解码能力。
 
 ### AUDIO-005：Effects 与 Plugins
 

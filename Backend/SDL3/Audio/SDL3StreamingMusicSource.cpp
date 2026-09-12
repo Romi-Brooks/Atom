@@ -17,11 +17,24 @@ SDL3StreamingMusicSource::SDL3StreamingMusicSource(std::unique_ptr<atom::audio::
 }
 
 SDL3StreamingMusicSource::~SDL3StreamingMusicSource() {
-    Stop();
-    if (stream_)
-        SDL_DestroyAudioStream(stream_);
+    Detach();
     if (decoder_)
         decoder_->Close();
+}
+
+auto SDL3StreamingMusicSource::ReleaseBackendHandles() -> void {
+    Stop();
+    // Releasing the decoder makes every later Play() a no-op, so a detached
+    // source cannot reopen a stream on a backend that no longer owns it.
+    decoder_.reset();
+    if (stream_) {
+        SDL_DestroyAudioStream(stream_);
+        stream_ = nullptr;
+    }
+    read_idx_ = 0;
+    write_idx_ = 0;
+    eof_ = false;
+    decode_error_ = false;
 }
 
 auto SDL3StreamingMusicSource::ReadableBytes() const -> std::size_t {
@@ -41,18 +54,18 @@ auto SDL3StreamingMusicSource::EnsureStream() -> bool {
         return false;
     }
 
-    LOG_DEBUG(atom::log::backend::sdl3::Audio, "Opening streaming stream: fmt=" + std::to_string(spec_.format) +
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Opening streaming stream: fmt=" + std::to_string(spec_.format) +
                                                           " freq=" + std::to_string(spec_.freq) +
                                                           " ch=" + std::to_string(spec_.channels));
 
     stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, nullptr, nullptr);
     if (!stream_) {
-        LOG_ERROR(atom::log::backend::sdl3::Audio,
+        LOG_ERROR(atom::log::backend::Audio::sdl3,
                   "Failed to open audio stream: " + std::string(SDL_GetError()));
         return false;
     }
 
-    LOG_DEBUG(atom::log::backend::sdl3::Audio, "Streaming audio stream opened successfully");
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Streaming audio stream opened successfully");
     return true;
 }
 
@@ -76,61 +89,72 @@ auto SDL3StreamingMusicSource::Play() -> void {
         }
         return;
     }
-
-    atom::audio::AudioSourceState expected = atom::audio::AudioSourceState::Stopped;
-    if (!state_.compare_exchange_strong(expected, atom::audio::AudioSourceState::Playing)) {
-        LOG_DEBUG(atom::log::audio::Music,
-                  "Play() ignored: state is " + std::to_string(static_cast<int>(state_.load())));
+    if (state_.load() == atom::audio::AudioSourceState::Playing) {
+        LOG_DEBUG(atom::log::audio::Music, "Play() ignored: playback is already running");
         return;
     }
 
-    // Reset ring buffer and decoder state
-    read_idx_ = 0;
-    write_idx_ = 0;
-    if (decode_thread_.joinable())
-        decode_thread_.join();
-    SDL_ClearAudioStream(stream_);
-    frames_submitted_ = 0;
-    progress_logged_frames_ = 0;
-    eof_ = false;
-    decode_error_ = false;
-
-    if (!decoder_->Rewind()) {
-        LOG_WARNING(atom::log::audio::Music, "Play(): decoder rewind failed");
+    // A fresh start either honours the position set by SetPlayingOffset() or
+    // rewinds to the beginning.
+    if (decoder_positioned_.exchange(false)) {
+        LOG_DEBUG(atom::log::audio::Music, "Play(): starting from the position set by SetPlayingOffset()");
+    } else {
+        if (!decoder_->Rewind()) {
+            LOG_WARNING(atom::log::audio::Music, "Play(): decoder rewind failed");
+        }
+        position_base_frames_ = 0;
     }
 
-    thread_running_ = true;
-    decode_thread_ = std::thread(&SDL3StreamingMusicSource::DecodeLoop, this);
-
-    if (!SDL_ResumeAudioStreamDevice(stream_)) {
-        LOG_ERROR(atom::log::audio::Music, "SDL_ResumeAudioStreamDevice failed: " + std::string(SDL_GetError()));
-    }
+    BeginDecoding();
     LOG_INFO(atom::log::audio::Music, "Streaming playback started");
 }
 
-auto SDL3StreamingMusicSource::Stop() -> void {
-    if (state_.load() == atom::audio::AudioSourceState::Stopped && !thread_running_.load() &&
-        !decode_thread_.joinable()) {
-        LOG_DEBUG(atom::log::audio::Music, "Stop() ignored: playback is already stopped");
-        return;
-    }
-    LOG_DEBUG(atom::log::audio::Music, "Stop requested");
+auto SDL3StreamingMusicSource::HaltDecoding() -> void {
     state_.store(atom::audio::AudioSourceState::Stopped);
     thread_running_ = false;
-
     if (stream_) {
         SDL_ClearAudioStream(stream_);
         SDL_PauseAudioStreamDevice(stream_);
     }
-
     if (decode_thread_.joinable()) {
         decode_thread_.join();
     }
-
+    // Resetting these is only safe once the producer thread is gone.
     read_idx_ = 0;
     write_idx_ = 0;
+    frames_submitted_ = 0;
+    progress_logged_frames_ = 0;
     eof_ = false;
     decode_error_ = false;
+    decoder_positioned_ = false;
+}
+
+auto SDL3StreamingMusicSource::BeginDecoding() -> void {
+    if (decode_thread_.joinable())
+        decode_thread_.join();
+    read_idx_ = 0;
+    write_idx_ = 0;
+    frames_submitted_ = 0;
+    progress_logged_frames_ = 0;
+    eof_ = false;
+    decode_error_ = false;
+    state_ = atom::audio::AudioSourceState::Playing;
+    thread_running_ = true;
+    decode_thread_ = std::thread(&SDL3StreamingMusicSource::DecodeLoop, this);
+    if (!SDL_ResumeAudioStreamDevice(stream_)) {
+        LOG_ERROR(atom::log::audio::Music, "SDL_ResumeAudioStreamDevice failed: " + std::string(SDL_GetError()));
+    }
+}
+
+auto SDL3StreamingMusicSource::Stop() -> void {
+    if (state_.load() == atom::audio::AudioSourceState::Stopped && !thread_running_.load() &&
+        !decode_thread_.joinable() && !decoder_positioned_.load()) {
+        LOG_DEBUG(atom::log::audio::Music, "Stop() ignored: playback is already stopped");
+        return;
+    }
+    LOG_DEBUG(atom::log::audio::Music, "Stop requested");
+    HaltDecoding();
+    position_base_frames_ = 0;
     LOG_INFO(atom::log::audio::Music, "Playback stopped");
 }
 
@@ -173,27 +197,55 @@ auto SDL3StreamingMusicSource::IsLooping() const -> bool {
     return loop_.load();
 }
 
-auto SDL3StreamingMusicSource::SetPlayingOffset(float seconds) -> void {
-    if (!decoder_)
-        return;
+auto SDL3StreamingMusicSource::SetPlayingOffset(const float seconds) -> bool {
+    if (!decoder_ || !decoder_->IsOpen())
+        return false;
     const auto& info = decoder_->GetInfo();
     if (info.sample_rate == 0)
-        return;
-    const auto target_frame = static_cast<std::uint64_t>(seconds * static_cast<float>(info.sample_rate));
-    // The decoder contract currently only guarantees rewind. Do not touch it
-    // while the decode thread is active.
-    if (target_frame != 0 || state_.load() == atom::audio::AudioSourceState::Playing)
-        return;
-    if (!decoder_->Rewind())
-        return;
-    if (stream_)
-        SDL_ClearAudioStream(stream_);
-    frames_submitted_ = 0;
-    progress_logged_frames_ = 0;
-    read_idx_ = 0;
-    write_idx_ = 0;
-    eof_ = false;
-    decode_error_ = false;
+        return false;
+
+    const auto target_frame =
+        static_cast<std::uint64_t>(std::max(seconds, 0.0f) * static_cast<float>(info.sample_rate));
+
+    // "Back to the start" is always available (Rewind); anything else needs a
+    // decoder that can jump. Do not pretend to seek when it cannot.
+    if (target_frame != 0 && !decoder_->IsSeekable()) {
+        LOG_WARNING(atom::log::audio::Music,
+                    "SetPlayingOffset(" + std::to_string(seconds) + "s) ignored: the decoder only decodes forward");
+        return false;
+    }
+
+    const bool was_playing = state_.load() == atom::audio::AudioSourceState::Playing;
+
+    // The decode thread is the only writer of the ring buffer, so it must be gone
+    // before the decoder position and the buffers are moved.
+    HaltDecoding();
+
+    if (!decoder_->SeekToFrame(target_frame)) {
+        LOG_WARNING(atom::log::audio::Music, "SetPlayingOffset(" + std::to_string(seconds) +
+                                                 "s) failed: the decoder rejected the position");
+        return false;
+    }
+    position_base_frames_ = target_frame;
+
+    if (was_playing) {
+        if (!EnsureStream()) {
+            decoder_positioned_ = true;
+            return false;
+        }
+        BeginDecoding();
+    } else {
+        // A later Play() must start here instead of rewinding over the seek.
+        decoder_positioned_ = true;
+    }
+    LOG_INFO(atom::log::audio::Music,
+             "Streaming playback seek to " + std::to_string(static_cast<double>(seconds)) + "s (frame " +
+                 std::to_string(target_frame) + ")");
+    return true;
+}
+
+auto SDL3StreamingMusicSource::IsSeekable() const -> bool {
+    return decoder_ && decoder_->IsOpen() && decoder_->IsSeekable();
 }
 
 auto SDL3StreamingMusicSource::GetPlayingOffset() const -> float {
@@ -211,7 +263,10 @@ auto SDL3StreamingMusicSource::GetPlayingOffset() const -> float {
             played_frames = queued_frames < played_frames ? played_frames - queued_frames : 0;
         }
     }
-    return static_cast<float>(played_frames) / static_cast<float>(info.sample_rate);
+    // The current run starts at position_base_frames_ (0 unless a seek moved it),
+    // so the reported offset is absolute inside the track.
+    const auto absolute_frames = position_base_frames_.load() + played_frames;
+    return static_cast<float>(absolute_frames) / static_cast<float>(info.sample_rate);
 }
 
 auto SDL3StreamingMusicSource::IsFinished() const -> bool {
@@ -237,7 +292,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         std::max(stream_chunk, static_cast<std::size_t>(bytes_per_second * kSDLQueueTargetDuration));
     const auto progress_interval_frames = static_cast<std::uint64_t>(spec_.freq * kProgressLogIntervalSeconds);
 
-    LOG_DEBUG(atom::log::backend::sdl3::Audio,
+    LOG_DEBUG(atom::log::backend::Audio::sdl3,
               "DecodeLoop (streaming) started: chunk=" + std::to_string(stream_chunk) +
                   " watermark=" + std::to_string(watermark) + " loop=" + std::to_string(loop_.load()));
 
@@ -259,16 +314,16 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                     // 0 bytes returned = EOF or error
                     if (!decoder_->IsOpen()) {
                         decode_error_ = true;
-                        LOG_ERROR(atom::log::backend::sdl3::Audio, "Decoder error in DecodeLoop");
+                        LOG_ERROR(atom::log::backend::Audio::sdl3, "Decoder error in DecodeLoop");
                     } else {
                         eof_ = true;
-                        LOG_DEBUG(atom::log::backend::sdl3::Audio, "Decoder EOF reached");
+                        LOG_DEBUG(atom::log::backend::Audio::sdl3, "Decoder EOF reached");
                         // SDL queues input bytes separately from converted
                         // output. Flush the converter so its final resampler
                         // tail becomes available and EOF can reach Stopped.
                         if (stream_ && !SDL_FlushAudioStream(stream_)) {
                             decode_error_ = true;
-                            LOG_ERROR(atom::log::backend::sdl3::Audio,
+                            LOG_ERROR(atom::log::backend::Audio::sdl3,
                                       "SDL_FlushAudioStream failed: " + std::string(SDL_GetError()));
                         }
                     }
@@ -281,7 +336,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         const int queued_result = SDL_GetAudioStreamQueued(stream_);
         if (queued_result < 0) {
             decode_error_ = true;
-            LOG_ERROR(atom::log::backend::sdl3::Audio,
+            LOG_ERROR(atom::log::backend::Audio::sdl3,
                       "SDL_GetAudioStreamQueued failed: " + std::string(SDL_GetError()));
         }
         const auto queued = queued_result > 0 ? static_cast<std::size_t>(queued_result) : 0;
@@ -296,7 +351,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
             }
 
             if (!SDL_PutAudioStreamData(stream_, src, static_cast<int>(to_push))) {
-                LOG_ERROR(atom::log::backend::sdl3::Audio,
+                LOG_ERROR(atom::log::backend::Audio::sdl3,
                           "SDL_PutAudioStreamData failed: " + std::string(SDL_GetError()));
                 break;
             }
@@ -308,7 +363,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         const auto submitted_frames = frames_submitted_.load();
         if (submitted_frames - progress_logged_frames_ >= progress_interval_frames) {
             progress_logged_frames_ = submitted_frames;
-            LOG_DEBUG(atom::log::backend::sdl3::Audio,
+            LOG_DEBUG(atom::log::backend::Audio::sdl3,
                       "DecodeLoop (streaming) progress: played_frames=" + std::to_string(submitted_frames) +
                           " queued=" + std::to_string(SDL_GetAudioStreamQueued(stream_)) + " buffered=" +
                           std::to_string(ReadableBytes()) + " eof=" + std::to_string(eof_.load() ? 1 : 0));
@@ -322,7 +377,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         const auto available_after_push = SDL_GetAudioStreamAvailable(stream_);
         if (eof_.load() && ReadableBytes() == 0 && available_after_push == 0) {
             if (loop_.load()) {
-                LOG_DEBUG(atom::log::backend::sdl3::Audio, "Looping: rewinding decoder");
+                LOG_DEBUG(atom::log::backend::Audio::sdl3, "Looping: rewinding decoder");
                 if (decoder_->Rewind()) {
                     eof_ = false;
                     read_idx_ = 0;
@@ -331,7 +386,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                     progress_logged_frames_ = 0;
                     continue;
                 }
-                LOG_ERROR(atom::log::backend::sdl3::Audio, "Decoder rewind failed during loop");
+                LOG_ERROR(atom::log::backend::Audio::sdl3, "Decoder rewind failed during loop");
             }
             // Drain SDL stream before stopping
             while (thread_running_.load() && SDL_GetAudioStreamAvailable(stream_) > 0) {
@@ -356,7 +411,7 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
     }
 
     thread_running_ = false;
-    LOG_DEBUG(atom::log::backend::sdl3::Audio, "DecodeLoop (streaming) exited");
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "DecodeLoop (streaming) exited");
 }
 
 } // namespace atom::backend::sdl3

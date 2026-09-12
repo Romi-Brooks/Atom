@@ -123,10 +123,12 @@ a namespace, an internal `Channel` enum and a display prefix:
 | `atom::log::audio` | `Atom.Audio.` | `atom::log::audio::Music` |
 | `atom::log::render` | `Atom.Render.` | `atom::log::render::Renderer2D` |
 | `atom::log::image` | `Atom.Image.` | `atom::log::image::Decoder` |
-| `atom::log::backend::sdl3` | `Atom.SDL3.Backend.` | `atom::log::backend::sdl3::Audio` |
+| `atom::log::backend::Audio` | `Atom.Backend.Audio.` | `atom::log::backend::Audio::sdl3` |
 | `game::log` | `Game.` | `game::log::Npc` |
 
-- Channel values are `PascalCase` (`ScreenManager`, `PlugMusicFade`).
+- Channel values are `PascalCase` (`ScreenManager`, `PlugMusicFade`). Backend
+  implementation identifiers are the exception: use their canonical registry
+  IDs (`sdl3`, `sdl3_mixer`) so log channels and runtime backend IDs match.
 - Display names are dotted PascalCase components (`Atom.Entity.NPC ->`).
 - Always reference a channel through its logging domain at the call site
   (e.g. `atom::log::audio::Music`). Do not introduce local aliases such as

@@ -10,17 +10,14 @@
 
 #include <SDL3/SDL.h>
 
-#include <Backend/Contracts/Audio/IAudioSource.hpp>
+#include <Backend/Contracts/Audio/AudioSourceRegistry.hpp>
 
 namespace atom::backend::sdl3 {
 
-class SDL3MusicSource : public atom::audio::IAudioSource {
+class SDL3MusicSource final : public atom::audio::BackendOwnedSource {
     public:
         explicit SDL3MusicSource(std::vector<uint8_t> pcmData, const SDL_AudioSpec& spec);
         ~SDL3MusicSource() override;
-
-        SDL3MusicSource(const SDL3MusicSource&) = delete;
-        auto operator=(const SDL3MusicSource&) -> SDL3MusicSource& = delete;
 
         auto Play() -> void override;
         auto Stop() -> void override;
@@ -30,9 +27,13 @@ class SDL3MusicSource : public atom::audio::IAudioSource {
         [[nodiscard]] auto GetVolume() const -> float override;
         auto SetLooping(bool loop) -> void override;
         [[nodiscard]] auto IsLooping() const -> bool override;
-        auto SetPlayingOffset(float seconds) -> void override;
+        auto SetPlayingOffset(float seconds) -> bool override;
         [[nodiscard]] auto GetPlayingOffset() const -> float override;
+        [[nodiscard]] auto IsSeekable() const -> bool override;
         [[nodiscard]] auto IsFinished() const -> bool override;
+
+    protected:
+        auto ReleaseBackendHandles() -> void override;
 
     private:
         SDL_AudioStream* stream_ = nullptr;
