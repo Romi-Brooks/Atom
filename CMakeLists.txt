@@ -210,6 +210,8 @@ include(Render/Shader/AtomShaders.cmake)
     add_library(Atom_Render_Resources STATIC
         Render/Resources/ImageTexture.hpp
         Render/Resources/ImageTexture.cpp
+        Render/Resources/TextureCache.hpp
+        Render/Resources/TextureCache.cpp
     )
     target_include_directories(Atom_Render_Resources PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Render_Resources PUBLIC Atom_Renderer2D Atom_Image)
@@ -546,6 +548,10 @@ if(ATOM_BUILD_TESTS)
     add_executable(Atom_Assets_ConsumerLoader_Tests Asset/Test/ConsumerLoaderTests.cpp)
     target_link_libraries(Atom_Assets_ConsumerLoader_Tests PRIVATE Atom_Assets Atom_Image)
     add_test(NAME Atom_Assets.ConsumerLoader COMMAND Atom_Assets_ConsumerLoader_Tests)
+
+    add_executable(Atom_Render_Resources_TextureCache_Tests Render/Resources/Test/TextureCacheTests.cpp)
+    target_link_libraries(Atom_Render_Resources_TextureCache_Tests PRIVATE Atom_Render_Resources Atom_FS)
+    add_test(NAME Atom_Render_Resources.TextureCache COMMAND Atom_Render_Resources_TextureCache_Tests)
 endif()
 
 # ============================================================================
@@ -591,7 +597,8 @@ if(MINGW)
             foreach(atom_test IN ITEMS Atom_FS_AssetPath_Tests Atom_FS_NativeFileSystem_Tests
                                        Atom_FS_MemoryFileSystem_Tests Atom_FS_OverlayVfs_Tests
                                        Atom_FS_PackageFileSystem_Tests Atom_Assets_ResourceManager_Tests
-                                       Atom_Assets_ConsumerLoader_Tests)
+                                       Atom_Assets_ConsumerLoader_Tests
+                                       Atom_Render_Resources_TextureCache_Tests)
                 add_dependencies(${atom_test} Atom_Mingw_Runtime_DLL)
             endforeach()
         endif()

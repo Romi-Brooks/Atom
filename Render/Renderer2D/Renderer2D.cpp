@@ -129,8 +129,7 @@ auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& 
     constexpr uint8_t kWhitePixel[4] = {255, 255, 255, 255};
     UpdateTexture(*white_texture_, kWhitePixel);
     initialized_ = true;
-    LOG_INFO(atom::log::render::Renderer2D,
-             "Renderer2D initialized (shader root: " + shader_root.string() + ")");
+    LOG_INFO(atom::log::render::Renderer2D, "Renderer2D initialized (shader root: " + shader_root.string() + ")");
     return true;
 }
 
@@ -141,6 +140,7 @@ auto Renderer2D::IsInitialized() const -> bool {
 auto Renderer2D::Shutdown() -> void {
     if (in_frame_)
         LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D shutdown discarded an unfinished frame");
+    deferred_destroys_.clear();
     pending_uploads_.clear();
     atlases_.clear();
     fonts_.clear();
@@ -201,8 +201,7 @@ auto Renderer2D::EndFrame() -> bool {
     }
     in_frame_ = false;
     if (!clip_stack_.empty() || !layer_stack_.empty())
-        LOG_WARNING(atom::log::render::Renderer2D,
-                    "Renderer2D frame ended with an unbalanced clip or layer stack");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D frame ended with an unbalanced clip or layer stack");
     const auto size = device_->GetOutputSize();
     output_width_ = size.GetX();
     output_height_ = size.GetY();
@@ -308,8 +307,7 @@ auto Renderer2D::EndFrame() -> bool {
 
         const auto beginItem = [&]() {
             const bool same = itemOpen && texture == lastTexture && sampler == lastSampler &&
-                              clipEnabled == lastClipEnabled &&
-                              (!clipEnabled || SameClip(clip, lastClip));
+                              clipEnabled == lastClipEnabled && (!clipEnabled || SameClip(clip, lastClip));
             if (same)
                 return;
             itemOpen = true;
@@ -434,9 +432,8 @@ auto Renderer2D::EndFrame() -> bool {
         const auto* chunk = &chunks[chunk_index];
         if (chunk->vertices.empty() || chunk->indices.empty() || chunk->items.empty())
             continue;
-        draw_passes.push_back(graph.AddPass(
-            RenderPassDesc{"Renderer2D chunk " + std::to_string(chunk_index), {}},
-            [&, chunk]() {
+        draw_passes.push_back(
+            graph.AddPass(RenderPassDesc{"Renderer2D chunk " + std::to_string(chunk_index), {}}, [&, chunk]() {
                 Render2DFrame frame{};
                 frame.view_projection = mvp.data();
                 frame.vertices = chunk->vertices.data();
@@ -513,8 +510,7 @@ auto Renderer2D::CreateTexture(const uint32_t width, const uint32_t height, cons
     const auto max = std::numeric_limits<std::size_t>::max();
     if (static_cast<std::size_t>(height) > max / static_cast<std::size_t>(width) ||
         static_cast<std::size_t>(width) * static_cast<std::size_t>(height) > max / 4u) {
-        LOG_ERROR(atom::log::render::Renderer2D,
-                  "Renderer2D rejected a texture whose CPU upload size overflows");
+        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D rejected a texture whose CPU upload size overflows");
         return nullptr;
     }
     auto texture = std::make_unique<Texture>();
@@ -553,8 +549,7 @@ auto Renderer2D::DestroyTexture(Texture& texture) -> void {
         return;
     }
     if (texture.owner_ != this) {
-        LOG_WARNING(atom::log::render::Renderer2D,
-                    "Renderer2D refused to destroy a texture owned by another renderer");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D refused to destroy a texture owned by another renderer");
         return;
     }
     const bool wasWhiteTexture = white_texture_ == &texture;
@@ -564,15 +559,39 @@ auto Renderer2D::DestroyTexture(Texture& texture) -> void {
     texture.handle_ = render::kInvalidTexture2D;
     texture.owner_ = nullptr;
     std::erase_if(textures_, [&texture](const std::unique_ptr<Texture>& entry) { return entry.get() == &texture; });
+    std::erase(deferred_destroys_, &texture);
     if (wasWhiteTexture)
         white_texture_ = nullptr;
+}
+
+auto Renderer2D::EnqueueDeferredTextureDestroy(Texture* texture) -> void {
+    if (!texture || texture->owner_ != this)
+        return;
+    if (std::ranges::find(deferred_destroys_, texture) == deferred_destroys_.end())
+        deferred_destroys_.push_back(texture);
+}
+
+auto Renderer2D::FlushDeferredTextureDestroys() -> void {
+    if (deferred_destroys_.empty())
+        return;
+    if (in_frame_) {
+        LOG_WARNING(atom::log::render::Renderer2D,
+                    "Renderer2D::FlushDeferredTextureDestroys skipped during an active frame");
+        return;
+    }
+    // DestroyTexture mutates deferred_destroys_, so swap first.
+    std::vector<Texture*> pending{};
+    pending.swap(deferred_destroys_);
+    for (Texture* texture : pending) {
+        if (texture)
+            DestroyTexture(*texture);
+    }
 }
 
 auto Renderer2D::LoadFontFromMemory(std::span<const std::byte> font_data) -> Font* {
     auto font = Font::CreateFromMemory(font_data);
     if (!font) {
-        LOG_WARNING(atom::log::render::Renderer2D,
-                    "Renderer2D rejected empty, invalid, or unsupported font data");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D rejected empty, invalid, or unsupported font data");
         return nullptr;
     }
     auto* result = font.get();
@@ -607,8 +626,8 @@ auto Renderer2D::GetWhiteTexture() const -> Texture* {
 
 // --- recording ---------------------------------------------------------------
 
-auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint,
-                             const algo::Rect* source) -> void {
+auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint, const algo::Rect* source)
+    -> void {
     if (!in_frame_ || texture.owner_ != this || texture.handle_ == render::kInvalidTexture2D) {
         LOG_WARNING(atom::log::render::Renderer2D,
                     "DrawTexture rejected: in_frame=" + std::to_string(in_frame_) +
@@ -808,9 +827,9 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
     const int gw = static_cast<int>(glyph.width) + kGlyphPadding;
     const int gh = static_cast<int>(glyph.height) + kGlyphPadding;
     if (gw > static_cast<int>(kPageSize) || gh > static_cast<int>(kPageSize)) {
-        LOG_WARNING(atom::log::render::Renderer2D,
-                    "Glyph U+" + std::to_string(codepoint) + " at atlas size " + std::to_string(atlas.size_px) +
-                        " exceeds the " + std::to_string(kPageSize) + "px atlas page");
+        LOG_WARNING(atom::log::render::Renderer2D, "Glyph U+" + std::to_string(codepoint) + " at atlas size " +
+                                                       std::to_string(atlas.size_px) + " exceeds the " +
+                                                       std::to_string(kPageSize) + "px atlas page");
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
     }
     std::size_t pageIndex = atlas.pages.size();
@@ -844,9 +863,9 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
         page.row_height = 0;
     }
     if (page.cursor_y + gh > static_cast<int>(page.size)) {
-        LOG_WARNING(atom::log::render::Renderer2D,
-                    "Glyph U+" + std::to_string(codepoint) + " could not be packed into a " +
-                        std::to_string(page.size) + "px atlas page");
+        LOG_WARNING(atom::log::render::Renderer2D, "Glyph U+" + std::to_string(codepoint) +
+                                                       " could not be packed into a " + std::to_string(page.size) +
+                                                       "px atlas page");
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
     }
 

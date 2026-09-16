@@ -98,6 +98,8 @@ auto Vfs::Stat(const AssetPath& path, FileInfo& output) const -> Result {
             output = info;
             return Result::Success;
         }
+        if (result == Result::OutsideRoot)
+            return result;
         if (result != Result::NotFound && result != Result::InvalidPath)
             last = result;
     }
@@ -120,6 +122,8 @@ auto Vfs::OpenRead(const AssetPath& path, std::unique_ptr<IFile>& output) const 
             output = std::move(file);
             return Result::Success;
         }
+        if (result == Result::OutsideRoot)
+            return result;
         if (result != Result::NotFound && result != Result::InvalidPath)
             last = result;
     }

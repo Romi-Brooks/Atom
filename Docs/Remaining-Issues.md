@@ -53,8 +53,7 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 - [x] `Atom_FS` 第一阶段完成：`AssetPath`、只读 `IFile`（含 `Tell`/`Seek`/`ReadNext` 顺序游标）、`IFileSystem`、`NativeFileSystem`、`MemoryFileSystem`、`OverlayFileSystem`、`Vfs` 挂载表、`PackageFileSystem`（APKG v1 只读，`List` 由前缀合成目录）。完整设计见 `Docs/Filesystem-Design-CN.md`；CTest：`Atom_FS.AssetPath` / `NativeFileSystem` / `MemoryFileSystem` / `OverlayVfs` / `PackageFileSystem`。
 - [x] `Atom_Assets` 资源层（阶段 B）：`AssetKind`、`ResourceId`（path+kind+variant）、`ResourceHandle<T>`、`IResourceLoader`/`TypedResourceLoader`、`ResourceManager` 去重缓存与 `SetRecycleCallback`（最后句柄释放时回调，供 C1 帧边界回收）。CTest：`Atom_Assets.ResourceManager`。
 - [x] 阶段 C2 Script：`LuaLoader::LoadScript/ReloadScript(IFileSystem, AssetPath)` 走 `IFile` + `luaL_loadbuffer`；`LoadScriptSource` 支持执行已缓存源码；`ScriptSourceLoader` 产出可共享的 `std::string` 资源。旧裸磁盘路径 API 已移除。
-- [x] 阶段 C1 Texture 易完成部分：`DecodedImageLoader`（VFS → `DecodeImageMemory` → 可共享 `DecodedImage`）；`LoadTextureFileSystem` 经 VFS 读字节再上传 GPU。GPU 句柄/帧边界延迟销毁（D4）仍未做。
-- [ ] 阶段 C1 Texture 难完成部分：GPU 资源句柄 + `SetRecycleCallback` 接帧边界销毁（与 RENDER-009 对齐）。
+- [x] 阶段 C1 Texture：`DecodedImageLoader` + `LoadTextureFileSystem` + `TextureCache`/`TextureHandle`；GPU 销毁走 `Renderer2D::EnqueueDeferredTextureDestroy` + `FlushDeferredTextureDestroys`（帧外）。MusicCard 壁纸经 NativeFileSystem+Vfs，封面走 `AcquireFromEncodedMemory`。
 - [ ] 阶段 C3 Audio：解码器从路径改为 `IFile` 流（minimp3 回调 IO / RiffWave 流接口）。
 - [ ] 阶段 D 验收示例：目录与 APKG 同一 URI 加载 Texture + Script + Audio 并断言共享。
 - [ ] APKG v2 reader + `PackageBuilder`（另立任务，约 2–3k 行）。

@@ -38,6 +38,11 @@ auto OverlayFileSystem::Stat(const AssetPath& path, FileInfo& output) const -> R
             output = info;
             return Result::Success;
         }
+        // OutsideRoot is a trust-boundary violation for this backend; do not
+        // fall through to a lower-priority mount that might resolve the same
+        // virtual path more permissively.
+        if (result == Result::OutsideRoot)
+            return result;
         if (result != Result::NotFound && result != Result::InvalidPath)
             last = result;
     }
@@ -54,6 +59,8 @@ auto OverlayFileSystem::OpenRead(const AssetPath& path, std::unique_ptr<IFile>& 
             output = std::move(file);
             return Result::Success;
         }
+        if (result == Result::OutsideRoot)
+            return result;
         if (result != Result::NotFound && result != Result::InvalidPath)
             last = result;
     }

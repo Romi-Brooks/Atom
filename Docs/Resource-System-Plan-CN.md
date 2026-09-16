@@ -1,9 +1,9 @@
 # ATOM 资源系统与 VFS 实施计划（ARCH-107）
 
-> 状态：**阶段 A、B、C2、C1 易完成部分已落地**；C1 难完成部分、C3、D 未开工。
+> 状态：**阶段 A、B、C1、C2 已落地**；C3、D 未开工。
 > 关联：`Remaining-Issues.md` 的 ARCH-107、`Filesystem-Design-CN.md`（完整设计）。
 > 建立日期：2026-09-12
-> 进度更新：2026-09-16（C2 Script + C1 易完成部分）
+> 进度更新：2026-09-16（C1 TextureCache + 帧边界销毁 + MusicCard）
 
 ## 1. 当前状态
 
@@ -45,12 +45,14 @@
 | `LuaLoader::LoadScript/ReloadScript(IFileSystem, AssetPath)` | `Lua/LuaLoader.hpp/.cpp` | `IFile` + `luaL_loadbuffer`；旧路径 API 已移除 |
 | `LuaLoader::LoadScriptSource` | 同上 | 执行已缓存源码，chunk 名用于错误与重载 |
 | `DecodedImageLoader`：VFS → `DecodeImageMemory` → `DecodedImage` | `Media/Image/DecodedImageLoader.hpp/.cpp` | kind=Texture，CPU 侧可共享 |
-| `LoadTextureFileSystem` | `Render/Resources/ImageTexture.hpp/.cpp` | VFS 读字节再 GPU 上传；`LoadTextureFile` 仍保留给 MusicCard |
-| CTest | `Asset/Test/ConsumerLoaderTests.cpp` | `Atom_Assets.ConsumerLoader` |
+| `LoadTextureFileSystem` | `Render/Resources/ImageTexture.hpp/.cpp` | VFS 读字节再 GPU 上传 |
+| `TextureCache` / `TextureHandle` | `Render/Resources/TextureCache.hpp/.cpp` | 按 cache key 去重；最后句柄释放入 deferred 队列 |
+| `Renderer2D::EnqueueDeferredTextureDestroy` / `FlushDeferredTextureDestroys` | `Render/Renderer2D/` | 帧外销毁；Shutdown 排空 |
+| MusicCard 壁纸/封面 | `Example/MusicCard/MusicCard.cpp` | 壁纸 NativeFileSystem+Vfs；封面 `AcquireFromEncodedMemory`；每帧 Flush |
+| CTest | `Asset/Test/ConsumerLoaderTests.cpp`、`Render/Resources/Test/TextureCacheTests.cpp` | `Atom_Assets.ConsumerLoader`、`Atom_Render_Resources.TextureCache` |
 
 ### 完全缺失（下一阶段）
 
-- C1 难完成部分：GPU 句柄 + 帧边界延迟销毁（D4）
 - C3 Audio：解码器从路径改为 `IFile` 流
 - 阶段 D 验收示例
 - APKG v2（chunk / manifest / StringTable / `PackageBuilder`）
@@ -116,10 +118,9 @@
 ### 阶段 C：消费者迁移
 
 - **C2 Script — 已完成**：`LuaLoader` 走 `IFile` + `luaL_loadbuffer`；`ScriptSourceLoader` 提供可共享源码资源。
-- **C1 Texture 易完成部分 — 已完成**：`DecodedImageLoader` + `LoadTextureFileSystem`（读字节再解码/上传）。
-- **C1 Texture 难完成部分 — 未开始**：`Renderer2D::Texture*` 销毁权改为句柄 + `SetRecycleCallback` + 帧边界延迟回收（D4）。
+- **C1 Texture — 已完成**：`DecodedImageLoader` + `TextureCache`/`TextureHandle` + 帧边界 `FlushDeferredTextureDestroys`；MusicCard 已迁移。
 - **C3 Audio — 未开始**：解码器从"路径"改为"流"。方案见第 4 节 D3。
-- **退出标准**：三条链路都不再出现 `std::filesystem` 或裸路径字符串。（Script CPU 链路已满足；Texture 生产路径有 VFS API 但 MusicCard 仍旧；Audio 未动）
+- **退出标准**：三条链路都不再出现 `std::filesystem` 或裸路径字符串。（Script/C1 已满足生产路径；Audio 未动；Shader 仍后端内部路径）
 
 ### 阶段 D：验收与回归 — **未开始**
 
@@ -167,9 +168,9 @@
 
 按建议优先级排列；括号内为复杂度。
 
-1. **(中–高) C1 Texture 难的部分**：GPU 句柄 + 帧边界延迟销毁（D4），可用已有 `SetRecycleCallback`；可能与 RENDER-009 耦合；MusicCard 需改用 `LoadTextureFileSystem`/缓存句柄。
-2. **(高) C3 Audio**：解码器签名从路径改为流；独立提交、独立验收。
-3. **(低–中) 阶段 D 验收示例**：目录 + APKG 挂载下用同一 URI 加载并断言共享（Script/Texture CPU 已可测；Audio 需先做 C3）。
-4. **(高) APKG v2 + PackageBuilder**：另立任务；建议在 C 验收通过后再做。
-5. **(延后) 异步 / 热重载 / 依赖图 / 内存预算 / LRU**：依赖 Job System 与 CORE-001。
-6. **(低) 帧边界 API 收紧**：CORE-001 建立后，将 `Vfs` 挂载变更与 recycle 回调改为帧安全点语义。
+1. **(高) C3 Audio**：解码器签名从路径改为流；独立提交、独立验收。
+2. **(低–中) 阶段 D 验收示例**：目录 + APKG 挂载下用同一 URI 加载并断言共享（Script/Texture CPU 已可测；Audio 需先做 C3）。
+3. **(高) APKG v2 + PackageBuilder**：另立任务；建议在 C 验收通过后再做。
+4. **(延后) 异步 / 热重载 / 依赖图 / 内存预算 / LRU**：依赖 Job System 与 CORE-001。
+5. **(低) 帧边界 API 收紧**：CORE-001 建立后，将 `Vfs` 挂载变更与 TextureCache Flush 改为显式帧安全点。
+6. **(低) RENDER-009 对齐**：正式 RHI 的 Texture 契约落地后，复查 `TextureCache`/`GpuTextureRecord` 是否需要改绑 device。

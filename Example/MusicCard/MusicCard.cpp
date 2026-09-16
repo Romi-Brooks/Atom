@@ -8,8 +8,6 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-
-
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -34,6 +32,8 @@
 #include <Event/ActionMap.hpp>
 #include <Algorithm/Interpolation/Easing.hpp>
 #include <Algorithm/Geometry/Rect.hpp>
+#include <Filesystem/AssetPath.hpp>
+#include <Filesystem/FileSystem.hpp>
 #include <Layout/LayoutTree.hpp>
 #include <Layout/LayoutTypes.hpp>
 #include <Log/LogSystem.hpp>
@@ -44,7 +44,7 @@
 #include <Media/Image/ImageDecoder.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <Color/ColorMath.hpp>
-#include <Render/Resources/ImageTexture.hpp>
+#include <Render/Resources/TextureCache.hpp>
 #include <Render/Text/Font.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 #include <Window/Debugger/ImGui/ImGuiFontLoader.hpp>
@@ -114,28 +114,31 @@ enum class AnimationState { Entering, Visible, Exiting, Hidden };
     // The extractor returns neutral image statistics. This sample's darker
     // panel and brighter secondary color remain a presentation/theme policy.
     return MusicCardTheme{atom::color::Blend(extracted->average, atom::render::Color::Black(), 0.48f),
-                   atom::color::Blend(extracted->average, atom::render::Color::White(), 0.12f), extracted->maximum};
+                          atom::color::Blend(extracted->average, atom::render::Color::White(), 0.12f),
+                          extracted->maximum};
 }
 
-// Atom's backend-agnostic ImageTexture API handles decoding and GPU upload.
-// This sample wrapper only supplies MusicCard-specific diagnostics and uses
-// nullptr to select its procedural-cover fallback.
-[[nodiscard]] auto LoadArtworkTexture(atom::render::Renderer2D& renderer, const std::vector<uint8_t>& encoded_image)
-    -> atom::render::Renderer2D::Texture* {
+// Atom's TextureCache owns GPU textures with last-handle + frame-boundary
+// reclaim. This sample wrapper only supplies MusicCard-specific diagnostics
+// and treats an empty result as the procedural-cover fallback.
+[[nodiscard]] auto LoadArtworkTexture(atom::render::resources::TextureCache& cache, const std::string& cache_key,
+                                      const std::vector<uint8_t>& encoded_image)
+    -> atom::render::resources::TextureHandle {
     if (encoded_image.empty()) {
         LOG_DEBUG(atom::log::audio::Metadata, "No embedded artwork bytes; using the generated cover fallback");
-        return nullptr;
+        return {};
     }
     const auto bytes = std::as_bytes(std::span{encoded_image});
-    auto* texture = atom::render::resources::LoadTextureMemory(renderer, bytes);
-    if (texture != nullptr) {
-        LOG_INFO(atom::log::audio::Metadata,
-                 "Decoded embedded artwork into a Renderer2D texture (" + std::to_string(texture->GetWidth()) + "x" +
-                     std::to_string(texture->GetHeight()) + ", bytes=" + std::to_string(encoded_image.size()) + ")");
+    auto handle = cache.AcquireFromEncodedMemory(cache_key, bytes);
+    if (handle) {
+        LOG_INFO(atom::log::audio::Metadata, "Decoded embedded artwork into a cached Renderer2D texture (" +
+                                                 std::to_string(handle.GetWidth()) + "x" +
+                                                 std::to_string(handle.GetHeight()) +
+                                                 ", bytes=" + std::to_string(encoded_image.size()) + ")");
     } else {
         LOG_ERROR(atom::log::audio::Metadata, "Failed to create Renderer2D texture for decoded artwork");
     }
-    return texture;
+    return handle;
 }
 
 // Renderer2D-backed painter. All drawing stays in atom::render::Renderer2D
@@ -149,7 +152,8 @@ class CardPainter {
             renderer_.DrawRect(rect, color);
         }
 
-        auto FillRoundedRect(const atom::algo::Rect& rect, const float radius, const atom::render::Color color) -> void {
+        auto FillRoundedRect(const atom::algo::Rect& rect, const float radius, const atom::render::Color color)
+            -> void {
             const auto safe_radius = std::min({radius, rect.width * 0.5f, rect.height * 0.5f});
             if (safe_radius <= 0.0f) {
                 FillRect(rect, color);
@@ -192,8 +196,8 @@ class CardPainter {
 
         auto DrawTexture(atom::render::Renderer2D::Texture& texture, const atom::algo::Rect& rect, const float opacity)
             -> void {
-            renderer_.DrawTexture(texture, rect,
-                                  atom::color::ApplyOpacity(atom::render::Color::White(), opacity), nullptr);
+            renderer_.DrawTexture(texture, rect, atom::color::ApplyOpacity(atom::render::Color::White(), opacity),
+                                  nullptr);
         }
 
     private:
@@ -236,7 +240,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             // drops the ids it owns.
             atom::backend::BackendRuntime::GetInstance().AddAudioListener(*this);
             LOG_INFO(atom::log::core::Screen, "Music card initialized with " + std::to_string(tracks_.size()) +
-                                                         " track path(s); lazy metadata + audio loading enabled");
+                                                  " track path(s); lazy metadata + audio loading enabled");
         }
 
         ~MusicCardScreen() override {
@@ -268,8 +272,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             is_playing_ = false;
             loader_cv_.notify_one();
             LOG_INFO(atom::log::audio::Music, "Audio backend changing: music card invalidated " +
-                                                  std::to_string(invalidated) +
-                                                  " cached track(s); reload will follow");
+                                                  std::to_string(invalidated) + " cached track(s); reload will follow");
         }
 
         auto OnAudioBackendChanged() -> void override {
@@ -278,11 +281,10 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                 prefetch_requested_ = true;
             }
             loader_cv_.notify_one();
-            LOG_INFO(atom::log::audio::Music, "Audio backend changed (generation " +
-                                                  std::to_string(
-                                                      atom::backend::BackendRuntime::GetInstance()
-                                                          .GetAudioBackendGeneration()) +
-                                                  "); music card re-resolving tracks");
+            LOG_INFO(atom::log::audio::Music,
+                     "Audio backend changed (generation " +
+                         std::to_string(atom::backend::BackendRuntime::GetInstance().GetAudioBackendGeneration()) +
+                         "); music card re-resolving tracks");
         }
 
         auto ShutdownRenderer() -> void {
@@ -407,10 +409,10 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         auto LoadInterfaceFont() -> bool {
 #ifdef _WIN32
             constexpr std::array font_candidates{
-                "C:/Windows/Fonts/msyh.ttc",    "C:/Windows/Fonts/msyhbd.ttc",
-                "C:/Windows/Fonts/simhei.ttf",        "C:/Windows/Fonts/simsun.ttc",  "C:/Windows/Fonts/msgothic.ttc",
-                "C:/Windows/Fonts/meiryo.ttc",        "C:/Windows/Fonts/meiryob.ttc", "C:/Windows/Fonts/yugothib.ttf",
-                "C:/Windows/Fonts/yugothic.ttf",      "C:/Windows/Fonts/malgun.ttf",
+                "C:/Windows/Fonts/msyh.ttc",    "C:/Windows/Fonts/msyhbd.ttc",   "C:/Windows/Fonts/simhei.ttf",
+                "C:/Windows/Fonts/simsun.ttc",  "C:/Windows/Fonts/msgothic.ttc", "C:/Windows/Fonts/meiryo.ttc",
+                "C:/Windows/Fonts/meiryob.ttc", "C:/Windows/Fonts/yugothib.ttf", "C:/Windows/Fonts/yugothic.ttf",
+                "C:/Windows/Fonts/malgun.ttf",
             };
 #else
             constexpr std::array font_candidates{
@@ -482,10 +484,12 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                 interface_font_attempted_ = true;
                 interface_font_ = renderer_.LoadFontFromMemory(interface_font_data_);
                 if (!interface_font_)
-                    LOG_ERROR(atom::log::core::Screen,
-                              "Music card: Renderer2D rejected the selected interface font");
+                    LOG_ERROR(atom::log::core::Screen, "Music card: Renderer2D rejected the selected interface font");
             }
             EnsureBackgroundTexture();
+            // Reclaim GPU textures whose last handle was dropped since the
+            // previous frame. Must run outside BeginFrame/EndFrame.
+            texture_cache_.FlushDeferredDestroys();
             device.Clear(atom::render::Color{8, 10, 18, 255});
             const auto size = device.GetOutputSize();
             window_width_ = size.GetX();
@@ -653,26 +657,46 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
 
     private:
         auto EnsureBackgroundTexture() -> void {
-            if (background_texture_attempted_ || !renderer_.IsInitialized())
+            if (background_texture_ || background_texture_attempted_ || !renderer_.IsInitialized())
                 return;
             background_texture_attempted_ = true;
             const char* override_path = std::getenv("ATOM_MUSIC_CARD_WALLPAPER");
             const std::string wallpaper_path = override_path && *override_path ? override_path : WallpaperPath;
-            const auto decoded = atom::image::DecodeImageFile(wallpaper_path, false);
-            if (!decoded.IsValid()) {
+
+            // Mount the wallpaper directory as res:// so the load goes through
+            // the same VFS contract as packaged assets.
+            const auto native = atom::PathFromUtf8(wallpaper_path);
+            const auto parent = native.parent_path();
+            const auto filename = native.filename();
+            if (parent.empty() || filename.empty()) {
                 LOG_WARNING(atom::log::core::Screen,
-                            "Music card wallpaper unavailable; using procedural background: " + wallpaper_path);
+                            "Music card wallpaper path is not a file path; using procedural background: " +
+                                wallpaper_path);
                 return;
             }
-            background_texture_ = renderer_.CreateTexture(decoded.width, decoded.height, decoded.rgba.data());
+            std::unique_ptr<atom::fs::NativeFileSystem> filesystem{};
+            if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(parent), filesystem) !=
+                    atom::fs::Result::Success ||
+                !filesystem) {
+                LOG_WARNING(atom::log::core::Screen,
+                            "Music card wallpaper directory unavailable; using procedural background: " +
+                                wallpaper_path);
+                return;
+            }
+            atom::fs::AssetPath asset{};
+            if (!atom::fs::AssetPath::TryParse("res://" + atom::PathToUtf8(filename), asset)) {
+                LOG_WARNING(atom::log::core::Screen,
+                            "Music card wallpaper filename is not a valid AssetPath segment: " + wallpaper_path);
+                return;
+            }
+            background_texture_ = texture_cache_.AcquireFromFilesystem(*filesystem, asset);
             if (!background_texture_) {
-                LOG_ERROR(atom::log::core::Screen,
-                          "Music card failed to upload wallpaper texture: " + wallpaper_path);
+                LOG_ERROR(atom::log::core::Screen, "Music card failed to upload wallpaper texture: " + wallpaper_path);
                 return;
             }
             LOG_INFO(atom::log::core::Screen,
-                     "Music card wallpaper loaded (" + std::to_string(decoded.width) + "x" +
-                         std::to_string(decoded.height) + "): " + wallpaper_path);
+                     "Music card wallpaper loaded (" + std::to_string(background_texture_.GetWidth()) + "x" +
+                         std::to_string(background_texture_.GetHeight()) + "): " + wallpaper_path);
         }
 
         auto BuildLayoutTree() -> void {
@@ -772,9 +796,9 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         }
 
         auto DrawBackground(CardPainter& painter) -> void {
-            if (background_texture_ != nullptr) {
-                const auto texture_width = static_cast<float>(background_texture_->GetWidth());
-                const auto texture_height = static_cast<float>(background_texture_->GetHeight());
+            if (background_texture_) {
+                const auto texture_width = static_cast<float>(background_texture_.GetWidth());
+                const auto texture_height = static_cast<float>(background_texture_.GetHeight());
                 const auto window_aspect = window_width_ / std::max(window_height_, 1.0f);
                 const auto texture_aspect = texture_width / std::max(texture_height, 1.0f);
                 atom::algo::Rect source{0.0f, 0.0f, texture_width, texture_height};
@@ -786,12 +810,11 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                     source.y = (texture_height - source.height) * 0.5f;
                 }
                 const auto source_rect = source;
-                renderer_.DrawTexture(*background_texture_, {0.0f, 0.0f, window_width_, window_height_},
+                renderer_.DrawTexture(*background_texture_.Get(), {0.0f, 0.0f, window_width_, window_height_},
                                       atom::render::Color{255, 255, 255, 255}, &source_rect);
                 // Dark glass tint keeps the foreground card and debugger
                 // readable without routing the wallpaper through postprocess.
-                painter.FillRect({0.0f, 0.0f, window_width_, window_height_},
-                                 atom::render::Color{8, 10, 18, 28});
+                painter.FillRect({0.0f, 0.0f, window_width_, window_height_}, atom::render::Color{8, 10, 18, 28});
                 return;
             }
             constexpr auto band_count = 12;
@@ -818,8 +841,8 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             const auto layout = layout_tree_.GetLayout(card_).value_or(atom::layout::Rect{});
             const auto final_card = atom::algo::Rect{layout.left, layout.top, layout.width, layout.height};
             const auto direction = corner_ == CardCorner::BottomLeft ? -1.0f : 1.0f;
-            const auto panel_progress = atom::algo::easing::OutCubic(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
+            const auto panel_progress =
+                atom::algo::easing::OutCubic(atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
             return final_card.Translated(direction * (1.0f - panel_progress) * 86.0f, 0.0f);
         }
 
@@ -843,18 +866,19 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             }
 
             const auto card_layout = layout_tree_.GetLayout(card_).value_or(atom::layout::Rect{});
-            const auto final_card = atom::algo::Rect{card_layout.left, card_layout.top, card_layout.width, card_layout.height};
+            const auto final_card =
+                atom::algo::Rect{card_layout.left, card_layout.top, card_layout.width, card_layout.height};
             const auto direction = corner_ == CardCorner::BottomLeft ? -1.0f : 1.0f;
-            const auto panel_progress = atom::algo::easing::OutCubic(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
-            const auto cover_progress = atom::algo::easing::OutBack(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.10f, 0.72f));
-            const auto title_progress = atom::algo::easing::OutCubic(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.28f, 0.78f));
-            const auto author_progress = atom::algo::easing::OutCubic(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.38f, 0.86f));
-            const auto controls_progress = atom::algo::easing::OutBack(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.48f, 1.0f));
+            const auto panel_progress =
+                atom::algo::easing::OutCubic(atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
+            const auto cover_progress =
+                atom::algo::easing::OutBack(atom::algo::easing::IntervalProgress(animation_progress_, 0.10f, 0.72f));
+            const auto title_progress =
+                atom::algo::easing::OutCubic(atom::algo::easing::IntervalProgress(animation_progress_, 0.28f, 0.78f));
+            const auto author_progress =
+                atom::algo::easing::OutCubic(atom::algo::easing::IntervalProgress(animation_progress_, 0.38f, 0.86f));
+            const auto controls_progress =
+                atom::algo::easing::OutBack(atom::algo::easing::IntervalProgress(animation_progress_, 0.48f, 1.0f));
             const auto exit_softening = animation_state_ == AnimationState::Exiting
                                             ? 1.0f - 0.12f * atom::algo::easing::InCubic(1.0f - animation_progress_)
                                             : 1.0f;
@@ -911,14 +935,15 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             if (animation_state_ == AnimationState::Hidden || tracks_.empty() || interface_font_ == nullptr)
                 return;
             const auto card_layout = layout_tree_.GetLayout(card_).value_or(atom::layout::Rect{});
-            const auto final_card = atom::algo::Rect{card_layout.left, card_layout.top, card_layout.width, card_layout.height};
+            const auto final_card =
+                atom::algo::Rect{card_layout.left, card_layout.top, card_layout.width, card_layout.height};
             const auto direction = corner_ == CardCorner::BottomLeft ? -1.0f : 1.0f;
-            const auto title_progress = atom::algo::easing::OutCubic(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.28f, 0.78f));
-            const auto author_progress = atom::algo::easing::OutCubic(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.38f, 0.86f));
-            const auto panel_progress = atom::algo::easing::OutCubic(
-                atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
+            const auto title_progress =
+                atom::algo::easing::OutCubic(atom::algo::easing::IntervalProgress(animation_progress_, 0.28f, 0.78f));
+            const auto author_progress =
+                atom::algo::easing::OutCubic(atom::algo::easing::IntervalProgress(animation_progress_, 0.38f, 0.86f));
+            const auto panel_progress =
+                atom::algo::easing::OutCubic(atom::algo::easing::IntervalProgress(animation_progress_, 0.0f, 0.62f));
             const auto card = final_card.Translated(direction * (1.0f - panel_progress) * 86.0f, 0.0f);
             const auto details_final = GlobalRect(details_, card);
             const auto title_final = GlobalRect(title_, details_final);
@@ -969,21 +994,22 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                         std::lock_guard lock{tracks_mutex_};
                         artwork_data = tracks_[current_track_].artwork_data;
                     }
-                    if (const auto extracted = BuildMusicCardTheme(atom::image::DecodeImageMemory(
-                            std::as_bytes(std::span{artwork_data}), false));
+                    if (const auto extracted = BuildMusicCardTheme(
+                            atom::image::DecodeImageMemory(std::as_bytes(std::span{artwork_data}), false));
                         extracted.has_value()) {
                         std::lock_guard lock{tracks_mutex_};
                         tracks_[current_track_].theme = *extracted;
-                        LOG_INFO(atom::log::audio::Metadata,
-                                 "Built MusicCard theme from embedded artwork for track " +
-                                     std::to_string(current_track_));
+                        LOG_INFO(atom::log::audio::Metadata, "Built MusicCard theme from embedded artwork for track " +
+                                                                 std::to_string(current_track_));
                     }
-                    artwork_textures_[current_track_] = LoadArtworkTexture(renderer_, artwork_data);
+                    artwork_textures_[current_track_] =
+                        LoadArtworkTexture(texture_cache_, "artwork:" + std::to_string(current_track_), artwork_data);
                 }
             }
-            if (artwork_textures_[current_track_] != nullptr) {
-                const auto image_rect = atom::algo::Rect{rect.x + 2.0f, rect.y + 2.0f, rect.width - 4.0f, rect.height - 4.0f};
-                painter.DrawTexture(*artwork_textures_[current_track_], image_rect, opacity);
+            if (artwork_textures_[current_track_]) {
+                const auto image_rect =
+                    atom::algo::Rect{rect.x + 2.0f, rect.y + 2.0f, rect.width - 4.0f, rect.height - 4.0f};
+                painter.DrawTexture(*artwork_textures_[current_track_].Get(), image_rect, opacity);
                 painter.FillRoundedRect({rect.x, rect.y, rect.width, 2.0f}, 1.0f,
                                         atom::color::ApplyOpacity(atom::render::Color{255, 255, 255, 70}, opacity));
                 return;
@@ -1156,12 +1182,10 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             const auto finished = music_.IsFinished(id);
             is_playing_ = false;
             if (finished) {
-                LOG_INFO(atom::log::audio::Music,
-                         "Music card reached EOF; advancing from track: " + title);
+                LOG_INFO(atom::log::audio::Music, "Music card reached EOF; advancing from track: " + title);
                 RequestRelativeTrack(1);
             } else {
-                LOG_WARNING(atom::log::audio::Music,
-                            "Music card playback stopped before EOF: " + title);
+                LOG_WARNING(atom::log::audio::Music, "Music card playback stopped before EOF: " + title);
             }
         }
 
@@ -1199,8 +1223,8 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                 // card state must follow the source state instead of assuming the
                 // request succeeded.
                 const auto state = music_.GetState(id);
-                is_playing_ = state == atom::audio::AudioSourceState::Playing ||
-                              state == atom::audio::AudioSourceState::Paused;
+                is_playing_ =
+                    state == atom::audio::AudioSourceState::Playing || state == atom::audio::AudioSourceState::Paused;
                 if (!is_playing_) {
                     LOG_WARNING(atom::log::audio::Music,
                                 "Music card could not start track (id not registered on the active audio backend): " +
@@ -1208,8 +1232,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                 }
             } else {
                 is_playing_ = false;
-                LOG_WARNING(atom::log::audio::Music,
-                            "Music card cannot play track (audio not loaded yet): " + title);
+                LOG_WARNING(atom::log::audio::Music, "Music card cannot play track (audio not loaded yet): " + title);
             }
         }
 
@@ -1300,7 +1323,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                 t.metadata_loaded = true;
             }
             LOG_INFO(atom::log::audio::Metadata, "Resolved track " + std::to_string(index) + " (audio=" +
-                                                            std::string{is_loaded ? "loaded" : "unavailable"} + ")");
+                                                     std::string{is_loaded ? "loaded" : "unavailable"} + ")");
         }
 
         // Background worker: waits for a prefetch notification, then resolves
@@ -1371,14 +1394,15 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         float reported_layout_height_ = -1.0f;
 
         atom::render::Renderer2D renderer_;
+        atom::render::resources::TextureCache texture_cache_{renderer_};
         atom::render::Font* interface_font_ = nullptr;
         std::vector<std::byte> interface_font_data_{};
         bool interface_font_attempted_ = false;
         bool renderer_initialization_failed_ = false;
         bool renderer_frame_failed_ = false;
-        atom::render::Renderer2D::Texture* background_texture_ = nullptr;
+        atom::render::resources::TextureHandle background_texture_{};
         bool background_texture_attempted_ = false;
-        std::vector<atom::render::Renderer2D::Texture*> artwork_textures_;
+        std::vector<atom::render::resources::TextureHandle> artwork_textures_;
         std::vector<bool> artwork_texture_attempted_;
 
         atom::layout::LayoutTree layout_tree_;
@@ -1549,13 +1573,13 @@ class MusicCardDebugger final : public atom::Debugger {
         for (const auto& ext : skipped_extensions) {
             list += (list.empty() ? "" : ", ") + ext;
         }
-        LOG_WARNING(atom::log::audio::Music,
-                    "Skipped " + std::to_string(skipped_files) + " file(s) with no registered decoder (" + list +
-                        "); register a decoder in AudioDecoderRegistry to play them");
+        LOG_WARNING(atom::log::audio::Music, "Skipped " + std::to_string(skipped_files) +
+                                                 " file(s) with no registered decoder (" + list +
+                                                 "); register a decoder in AudioDecoderRegistry to play them");
     }
     std::ranges::sort(paths);
     LOG_INFO(atom::log::audio::Music, "Discovered " + std::to_string(paths.size()) + " playable audio file(s) in " +
-                                                 music_root + " (metadata deferred to lazy loader)");
+                                          music_root + " (metadata deferred to lazy loader)");
     return paths;
 }
 } // namespace

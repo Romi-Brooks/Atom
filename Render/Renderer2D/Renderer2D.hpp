@@ -101,6 +101,14 @@ class Renderer2D {
         auto UpdateTexture(Texture& texture, const void* rgba) -> void;
         auto DestroyTexture(Texture& texture) -> void;
 
+        // Deferred GPU reclaim (ARCH-107 / D4). Callers that drop the last
+        // reference to a texture while a frame may be active enqueue it here;
+        // the actual DestroyTexture2D runs in FlushDeferredTextureDestroys(),
+        // which must be called outside an active frame (typically once per
+        // frame, before BeginFrame). Shutdown also drains the queue.
+        auto EnqueueDeferredTextureDestroy(Texture* texture) -> void;
+        auto FlushDeferredTextureDestroys() -> void;
+
         // Creates a font from TTF/TTC bytes (kept alive by the renderer until
         // DestroyFont() / Shutdown()).
         auto LoadFontFromMemory(std::span<const std::byte> font_data) -> Font*;
@@ -274,6 +282,7 @@ class Renderer2D {
                 std::vector<uint8_t> rgba{};
         };
         std::unordered_map<render::Texture2D, PendingUpload> pending_uploads_{};
+        std::vector<Texture*> deferred_destroys_{};
         PostProcess2DParams postprocess_params_{};
 };
 
