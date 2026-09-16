@@ -1,6 +1,6 @@
 # ATOM 文件系统与资源包设计
 
-> 状态：第一阶段已开始。`Filesystem/` 提供 `AssetPath`、只读文件系统契约和受根目录约束的 Native 后端；APKG v1 继续只读兼容，APKG v2 尚未实现。
+> 状态：`Atom_FS` + `Atom_Assets` 已完成；C2 Script 与 C1 易完成部分（CPU 解码/共享）已落地。C1 GPU 所有权、C3 Audio 流式、APKG v2 未开始。完整进度见 `Docs/Resource-System-Plan-CN.md`。
 
 ## 目标与非目标
 
@@ -36,23 +36,23 @@ Atom_FS               AssetPath, IFile, IFileSystem, Vfs
  ├── NativeFileSystem  本地目录，根目录/符号链接越界保护
  ├── MemoryFileSystem  测试与动态生成资源
  ├── OverlayFileSystem 按优先级覆盖多个挂载
- └── PackageFileSystem APKG v1/v2
+ └── PackageFileSystem APKG v1（只读；v2 未实现）
      │
 Atom_Assets           ResourceId, LoaderRegistry, ResourceHandle<T>, cache
-     ├── Texture loader
-     ├── Audio loader
-     ├── Shader loader
-     ├── Config/script loader
-     └── Model/video/font loader
+     ├── DecodedImageLoader（VFS → DecodedImage，已接入）
+     ├── ScriptSourceLoader（VFS → 脚本源码，已接入）
+     ├── Audio loader（未接入，待 C3）
+     ├── Shader loader（未接入）
+     └── Model/video/font loader（未接入）
 ```
 
-`IFile` 提供 `Size()` 和 `ReadAt()`，而不是“读完整文件后返回 vector”。纹理与小配置可以一次读取；音频、视频和大模型可以按块读取。每个 `IFile` 只允许单调用者并发模型，异步 I/O 将在此同步契约稳定后作为独立扩展实现。
+`IFile` 提供 `Size()`、随机 `ReadAt()` 和顺序游标（`Tell`/`Seek`/`ReadNext`）。纹理与小配置可以一次读取；音频、视频和大模型可以按块读取。每个 `IFile` 只允许单调用者并发模型，异步 I/O 将在此同步契约稳定后作为独立扩展实现。
 
 Native 后端解析路径后必须 canonicalize，并验证目标仍在挂载根目录下。因此包内路径和通过符号链接间接到达的文件都不能越出受信根目录。
 
 ## VFS 挂载规则
 
-未来的 `Vfs` 持有按优先级排序的挂载：
+`Vfs` 持有按优先级排序的挂载：
 
 ```text
 res://  priority 200  DevelopmentDirectory   （开发覆盖）
@@ -60,7 +60,7 @@ res://  priority 100  game.apkg              （正式基础包）
 engine:// priority 100 engine.apkg
 ```
 
-`Open` 与 `Stat` 从最高优先级开始命中；`List` 合并目录条目，同名项由高优先级覆盖。挂载、卸载和热重载必须在帧边界或资源系统安全点生效，已打开的 `IFile` 保持有效直到调用者释放。
+`Open` 与 `Stat` 从最高优先级开始命中；`List` 合并目录条目，同名项由高优先级覆盖。挂载与卸载当前立即生效；帧边界/热重载安全点待 CORE-001 建立后再收紧。已打开的 `IFile` 保持有效直到调用者释放。
 
 ## APKG 演进
 
@@ -104,11 +104,11 @@ kind = "config"
 
 ## 迁移顺序与验收
 
-1. 完成 `Atom_FS`：AssetPath、Native/Memory/VFS，并加入路径、Unicode、根目录逃逸和目录顺序测试。
-2. 将 APKG v1 封装为 `PackageFileSystem`，使目录与旧包能透明挂载。
-3. 设计并实现 v2 reader、manifest、chunk 校验与流式读取；v1 只读兼容。
-4. 将 Packager 改为 manifest 驱动的 `PackageBuilder`，实现树、分类、重复检测、临时输出与原子替换。
-5. 迁移 Shader、Image/Texture、Audio、Config/Script、Font、Model loader，使其接收 `IFile` 或 `AssetPath`，不再接收裸磁盘路径。
-6. 在资源身份稳定后引入 `ResourceHandle<T>`、缓存、异步加载、热重载、依赖图和内存预算。
+1. [x] 完成 `Atom_FS`：AssetPath、Native/Memory/Overlay/Vfs/Package(v1)，并加入路径、Unicode、根目录逃逸、目录顺序、优先级覆盖和包内读取测试。
+2. [x] 将 APKG v1 封装为 `PackageFileSystem`，使目录与旧包能透明挂载（`List` 由路径前缀合成目录）。
+3. [ ] 设计并实现 v2 reader、manifest、chunk 校验与流式读取；v1 只读兼容。
+4. [ ] 将 Packager 改为 manifest 驱动的 `PackageBuilder`，实现树、分类、重复检测、临时输出与原子替换。
+5. [-] 迁移 loader：Script 已走 `IFile`/`AssetPath`；Texture 已有 VFS 路径与 `DecodedImage` 缓存（MusicCard 仍旧 API）；Audio/Shader/Font/Model 未迁。
+6. [x] 资源身份与共享：`ResourceId`、`ResourceHandle<T>`、`LoaderRegistry`、去重缓存与 recycle 回调已落地（`Atom_Assets`）；异步加载、热重载、依赖图和内存预算仍后续。
 
 验收标准：相同 manifest 在不同 CWD 和平台产生相同虚拟资源树；开发目录与 APKG 能以同一 URI 打开；非法路径和符号链接不能越过挂载根；损坏包、hash 不匹配、重复路径和不支持的 variant 都返回受控错误。

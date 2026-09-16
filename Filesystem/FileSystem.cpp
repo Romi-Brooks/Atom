@@ -64,17 +64,22 @@ class NativeFileSystem::Impl final {
 
 class NativeReadFile final : public IFile {
     public:
-        NativeReadFile(const native_fs::path& path, const uint64_t size) : stream_(path, std::ios::binary), size_(size) {}
+        NativeReadFile(const native_fs::path& path, const uint64_t size)
+            : stream_(path, std::ios::binary), size_(size) {}
 
-        [[nodiscard]] auto IsOpen() const -> bool { return stream_.is_open(); }
-        [[nodiscard]] auto Size() const -> uint64_t override { return size_; }
+        [[nodiscard]] auto IsOpen() const -> bool {
+            return stream_.is_open();
+        }
+        [[nodiscard]] auto Size() const -> uint64_t override {
+            return size_;
+        }
+        [[nodiscard]] auto Tell() const -> uint64_t override {
+            return position_;
+        }
 
         auto ReadAt(const uint64_t offset, const std::span<std::byte> destination) -> Result override {
-            if (offset > size_ || destination.size() > size_ - offset ||
-                offset > static_cast<uint64_t>(std::numeric_limits<std::streamoff>::max()) ||
-                destination.size() > static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
+            if (!RangeFits(offset, destination.size()))
                 return Result::OutOfRange;
-            }
             if (destination.empty())
                 return Result::Success;
 
@@ -86,10 +91,55 @@ class NativeReadFile final : public IFile {
             return stream_ ? Result::Success : Result::IoError;
         }
 
+        auto Seek(const uint64_t offset) -> Result override {
+            if (offset > size_)
+                return Result::OutOfRange;
+            position_ = offset;
+            return Result::Success;
+        }
+
+        auto ReadNext(std::span<std::byte> destination) -> Result override {
+            if (!RangeFits(position_, destination.size()))
+                return Result::OutOfRange;
+            if (destination.empty())
+                return Result::Success;
+
+            stream_.clear();
+            stream_.seekg(static_cast<std::streamoff>(position_), std::ios::beg);
+            if (!stream_)
+                return Result::IoError;
+            stream_.read(reinterpret_cast<char*>(destination.data()), static_cast<std::streamsize>(destination.size()));
+            if (!stream_)
+                return Result::IoError;
+            position_ += destination.size();
+            return Result::Success;
+        }
+
     private:
+        [[nodiscard]] auto RangeFits(const uint64_t offset, const std::size_t length) const -> bool {
+            return offset <= size_ && length <= size_ - offset &&
+                   offset <= static_cast<uint64_t>(std::numeric_limits<std::streamoff>::max()) &&
+                   length <= static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max());
+        }
+
         std::ifstream stream_{};
         uint64_t size_ = 0;
+        uint64_t position_ = 0;
 };
+
+auto ReadAll(IFile& file, std::vector<std::byte>& output) -> Result {
+    output.clear();
+    const uint64_t size = file.Size();
+    if (size > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()))
+        return Result::OutOfRange;
+    output.resize(static_cast<std::size_t>(size));
+    if (output.empty())
+        return file.Seek(0);
+    const Result result = file.ReadNext(output);
+    if (result != Result::Success)
+        output.clear();
+    return result;
+}
 
 NativeFileSystem::NativeFileSystem(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 NativeFileSystem::~NativeFileSystem() = default;

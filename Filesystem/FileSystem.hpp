@@ -21,14 +21,14 @@
 namespace atom::fs {
 
 enum class Result : uint8_t {
-        Success,
-        InvalidPath,
-        NotFound,
-        NotFile,
-        NotDirectory,
-        OutsideRoot,
-        OutOfRange,
-        IoError,
+    Success,
+    InvalidPath,
+    NotFound,
+    NotFile,
+    NotDirectory,
+    OutsideRoot,
+    OutOfRange,
+    IoError,
 };
 
 enum class EntryType : uint8_t { File, Directory };
@@ -45,12 +45,18 @@ struct DirectoryEntry {
 
 // A file is independent from its filesystem's directory iterator state. A
 // caller must not issue concurrent reads on the same IFile instance.
+//
+// Random access uses ReadAt. Sequential streaming uses a cursor that starts at
+// 0; ReadAt does not move the cursor. Seek/ReadNext operate on that cursor.
 class IFile {
     public:
         virtual ~IFile() = default;
 
         [[nodiscard]] virtual auto Size() const -> uint64_t = 0;
+        [[nodiscard]] virtual auto Tell() const -> uint64_t = 0;
+        virtual auto Seek(uint64_t offset) -> Result = 0;
         virtual auto ReadAt(uint64_t offset, std::span<std::byte> destination) -> Result = 0;
+        virtual auto ReadNext(std::span<std::byte> destination) -> Result = 0;
 };
 
 class IFileSystem {
@@ -61,6 +67,10 @@ class IFileSystem {
         virtual auto OpenRead(const AssetPath& path, std::unique_ptr<IFile>& output) const -> Result = 0;
         virtual auto List(const AssetPath& directory, std::vector<DirectoryEntry>& output) const -> Result = 0;
 };
+
+// Reads the remainder of the sequential cursor into output. Leaves output empty
+// on failure. Convenience for small assets such as config and script bytes.
+auto ReadAll(IFile& file, std::vector<std::byte>& output) -> Result;
 
 // Read-only filesystem rooted at one native directory. Every resolved asset
 // path is checked after canonicalization, preventing a virtual path or a

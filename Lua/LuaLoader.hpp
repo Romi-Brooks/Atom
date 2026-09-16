@@ -1,7 +1,7 @@
 /**
   * @file           : LuaLoader.hpp
   * @author         : Romi Brooks
-  * @brief          :
+  * @brief          : Lua state wrapper that loads scripts through the VFS.
   * @attention      :
   * @date           : 2025/10/11
   Copyright (c) 2025 Romi Brooks, All rights reserved.
@@ -12,10 +12,15 @@
 
 // Standard Library
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 // Third Party Library
 #include "lua.hpp"
+
+// Engine Headers
+#include <Filesystem/AssetPath.hpp>
+#include <Filesystem/FileSystem.hpp>
 
 // Forward declarations for Lua binding registration functions
 auto RegisterMusicToLua(lua_State* L) -> void;
@@ -42,7 +47,7 @@ class LuaLoader {
         // Lua state machine
         // Lua状态机
         lua_State* L_;
-        // Records loaded scripts for hot-reload
+        // Records loaded scripts for hot-reload (chunk name -> asset uri)
         // 记录已加载的脚本，用于热重载
         std::unordered_map<std::string, std::string> loaded_scripts_;
 
@@ -63,13 +68,18 @@ class LuaLoader {
         // 初始化Lua环境
         auto Initialize() -> bool;
 
-        // Load and execute a Lua script
-        // 加载并执行Lua脚本
-        auto LoadScript(const std::string& scriptPath) -> bool;
+        // Load and execute a Lua script from a virtual filesystem.
+        // 从虚拟文件系统加载并执行 Lua 脚本。
+        auto LoadScript(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path) -> bool;
+
+        // Execute source that is already in memory (e.g. a cached Script resource).
+        // chunk_name is used for error messages and reload bookkeeping.
+        // 执行已在内存中的脚本源码（例如缓存的 Script 资源）。
+        auto LoadScriptSource(std::string_view chunk_name, std::string_view source) -> bool;
 
         // Reload script (for hotfix)
         // 重新加载脚本（用于热修复）
-        auto ReloadScript(const std::string& scriptPath) -> bool;
+        auto ReloadScript(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path) -> bool;
 
         // Call a global Lua function
         // 调用Lua中的全局函数

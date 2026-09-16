@@ -16,8 +16,8 @@ class TemporaryDirectory final {
         [[nodiscard]] static auto Create(TemporaryDirectory& output) -> bool {
             std::error_code error;
             const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
-            const auto root = std::filesystem::temp_directory_path(error) /
-                              ("atom_fs_native_test_" + std::to_string(nonce));
+            const auto root =
+                std::filesystem::temp_directory_path(error) / ("atom_fs_native_test_" + std::to_string(nonce));
             if (error || std::filesystem::exists(root, error))
                 return false;
             if (!std::filesystem::create_directories(root / "textures", error) || error)
@@ -37,7 +37,9 @@ class TemporaryDirectory final {
         TemporaryDirectory(const TemporaryDirectory&) = delete;
         TemporaryDirectory& operator=(const TemporaryDirectory&) = delete;
 
-        [[nodiscard]] auto Root() const -> const std::filesystem::path& { return root_; }
+        [[nodiscard]] auto Root() const -> const std::filesystem::path& {
+            return root_;
+        }
 
     private:
         std::filesystem::path root_{};
@@ -96,6 +98,27 @@ auto main() -> int {
     }
     if (file->ReadAt(4, std::span<std::byte>{bytes}.first(1)) != atom::fs::Result::OutOfRange)
         return Fail("Out-of-range read was accepted");
+
+    if (file->Seek(0) != atom::fs::Result::Success || file->Tell() != 0)
+        return Fail("Seek/Tell failed");
+    std::array<std::byte, 2> head{};
+    if (file->ReadNext(head) != atom::fs::Result::Success ||
+        std::string{reinterpret_cast<const char*>(head.data()), head.size()} != "At" || file->Tell() != 2) {
+        return Fail("Sequential read failed");
+    }
+    if (file->ReadAt(0, std::span<std::byte>{bytes}.first(1)) != atom::fs::Result::Success || file->Tell() != 2)
+        return Fail("ReadAt must not move the sequential cursor");
+    std::array<std::byte, 2> tail{};
+    if (file->ReadNext(tail) != atom::fs::Result::Success ||
+        std::string{reinterpret_cast<const char*>(tail.data()), tail.size()} != "om") {
+        return Fail("Sequential read after ReadAt failed");
+    }
+
+    std::vector<std::byte> all{};
+    if (file->Seek(0) != atom::fs::Result::Success || atom::fs::ReadAll(*file, all) != atom::fs::Result::Success ||
+        std::string{reinterpret_cast<const char*>(all.data()), all.size()} != "Atom") {
+        return Fail("ReadAll failed");
+    }
 
     std::vector<atom::fs::DirectoryEntry> entries{};
     if (filesystem->List(directory, entries) != atom::fs::Result::Success || entries.size() != 1 ||

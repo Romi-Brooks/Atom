@@ -50,11 +50,17 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 ### ARCH-107：统一资源系统与 VFS
 
-- [-] `Atom_FS` 第一阶段已建立：`AssetPath`、只读 `IFile`/`IFileSystem` 与根目录受限的 Native backend；完整设计见 `Docs/Filesystem-Design-CN.md`。
-- [ ] 设计 Resource ID、`ResourceHandle<T>`、Loader Registry 和统一缓存。
-- [ ] 支持目录与 APKG 的透明挂载。
-- [ ] 后续增加异步加载、热重载、依赖图和内存预算。
-- 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源。
+- [x] `Atom_FS` 第一阶段完成：`AssetPath`、只读 `IFile`（含 `Tell`/`Seek`/`ReadNext` 顺序游标）、`IFileSystem`、`NativeFileSystem`、`MemoryFileSystem`、`OverlayFileSystem`、`Vfs` 挂载表、`PackageFileSystem`（APKG v1 只读，`List` 由前缀合成目录）。完整设计见 `Docs/Filesystem-Design-CN.md`；CTest：`Atom_FS.AssetPath` / `NativeFileSystem` / `MemoryFileSystem` / `OverlayVfs` / `PackageFileSystem`。
+- [x] `Atom_Assets` 资源层（阶段 B）：`AssetKind`、`ResourceId`（path+kind+variant）、`ResourceHandle<T>`、`IResourceLoader`/`TypedResourceLoader`、`ResourceManager` 去重缓存与 `SetRecycleCallback`（最后句柄释放时回调，供 C1 帧边界回收）。CTest：`Atom_Assets.ResourceManager`。
+- [x] 阶段 C2 Script：`LuaLoader::LoadScript/ReloadScript(IFileSystem, AssetPath)` 走 `IFile` + `luaL_loadbuffer`；`LoadScriptSource` 支持执行已缓存源码；`ScriptSourceLoader` 产出可共享的 `std::string` 资源。旧裸磁盘路径 API 已移除。
+- [x] 阶段 C1 Texture 易完成部分：`DecodedImageLoader`（VFS → `DecodeImageMemory` → 可共享 `DecodedImage`）；`LoadTextureFileSystem` 经 VFS 读字节再上传 GPU。GPU 句柄/帧边界延迟销毁（D4）仍未做。
+- [ ] 阶段 C1 Texture 难完成部分：GPU 资源句柄 + `SetRecycleCallback` 接帧边界销毁（与 RENDER-009 对齐）。
+- [ ] 阶段 C3 Audio：解码器从路径改为 `IFile` 流（minimp3 回调 IO / RiffWave 流接口）。
+- [ ] 阶段 D 验收示例：目录与 APKG 同一 URI 加载 Texture + Script + Audio 并断言共享。
+- [ ] APKG v2 reader + `PackageBuilder`（另立任务，约 2–3k 行）。
+- [ ] 后续增加异步加载、热重载、依赖图和内存预算（依赖 Job System 与 CORE-001）。
+- 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源（Script/Texture CPU 侧已可；Audio 与 GPU 所有权待 C1 难点/C3）。
+- 实施阶段划分（A/B/C/D）、待决问题与当前进度见 `Docs/Resource-System-Plan-CN.md`。
 
 ### ARCH-108：Entity 职责拆分
 
@@ -136,7 +142,7 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 - [x] 内置实现：WavProf（字节偏移）、SDL3Wav（内存游标）、Minimp3（`mp3dec_ex_seek`，采样级）；流式音源按"停线程 → 清缓冲 → 定位 → 重启"实现，buffered 音源直接移动播放游标。
 - [x] 实测通过：解码器级 seek 与"从头解码并丢弃"逐字节一致；两个后端上播放中 seek、停止后 seek 再播、越界钳制均正确。
 - [ ] 前向-only 解码器的回退策略：当前非 0 目标返回 `false`（只保留回起点），尚未提供"解码并丢弃"的近似实现。
-- [ ] 如需 24-bit 内存优化，评估 `AudioSampleFormat::Signed24` 作为解码侧载体 + 推送路径转换（原因与代价见 `Backend/Runtime/README-CN.md`）。
+- [ ] 如需 24-bit 内存优化，评估 `AudioSampleFormat::Signed24` 作为解码侧载体 + 推送路径转换（原因与代价见 `Backend/Runtime/README-CN.md`）。（目前不需要）
 
 ### AUDIO-008：解码器注册链与职责边界
 

@@ -323,9 +323,36 @@ add_library(Atom_FS STATIC
     Filesystem/AssetPath.cpp
     Filesystem/FileSystem.hpp
     Filesystem/FileSystem.cpp
+    Filesystem/MemoryFileSystem.hpp
+    Filesystem/MemoryFileSystem.cpp
+    Filesystem/OverlayFileSystem.hpp
+    Filesystem/OverlayFileSystem.cpp
+    Filesystem/Vfs.hpp
+    Filesystem/Vfs.cpp
+    Filesystem/PackageFileSystem.hpp
+    Filesystem/PackageFileSystem.cpp
 )
 target_include_directories(Atom_FS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
+# Render resources need AssetPath/IFileSystem for VFS-backed texture loads.
+target_link_libraries(Atom_Render_Resources PUBLIC Atom_FS)
+
+# 7c. Resource identity, handles, loader registry, and identity-keyed cache.
+add_library(Atom_Assets STATIC
+    Asset/AssetKind.hpp
+    Asset/AssetKind.cpp
+    Asset/ResourceId.hpp
+    Asset/ResourceId.cpp
+    Asset/ResourceHandle.hpp
+    Asset/IResourceLoader.hpp
+    Asset/IResourceLoader.cpp
+    Asset/ResourceManager.hpp
+    Asset/ResourceManager.cpp
+    Asset/ScriptSourceLoader.hpp
+    Asset/ScriptSourceLoader.cpp
+)
+target_include_directories(Atom_Assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(Atom_Assets PUBLIC Atom_FS)
 
 # 7a. Image decoding (CPU-side; GPU upload is a separate step via Renderer2D).
 add_library(Atom_Image STATIC
@@ -333,9 +360,11 @@ add_library(Atom_Image STATIC
     Media/Image/ImageDecoder.cpp
         Media/Image/Analysis/ColorStatistics.hpp
         Media/Image/Analysis/ColorStatistics.cpp
+    Media/Image/DecodedImageLoader.hpp
+    Media/Image/DecodedImageLoader.cpp
 )
 target_include_directories(Atom_Image PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Atom_Image PUBLIC Atom_Color)
+target_link_libraries(Atom_Image PUBLIC Atom_Color Atom_Assets)
 target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
 
 # 8. Packager
@@ -398,6 +427,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Atom_Lua
             Atom_UTF8
             Atom_FS
+            Atom_Assets
             Atom_Renderer2D
             Atom_Render_Resources
             Atom_Image
@@ -418,7 +448,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_link_libraries(Atom_Lua PUBLIC
             Atom_3rd_Lua
             Atom_Log
-            Atom_Media)
+            Atom_Media
+            Atom_FS)
 
 # ============================================================================
 # Executable
@@ -495,6 +526,26 @@ if(ATOM_BUILD_TESTS)
     add_executable(Atom_FS_NativeFileSystem_Tests Filesystem/Test/NativeFileSystemTests.cpp)
     target_link_libraries(Atom_FS_NativeFileSystem_Tests PRIVATE Atom_FS)
     add_test(NAME Atom_FS.NativeFileSystem COMMAND Atom_FS_NativeFileSystem_Tests)
+
+    add_executable(Atom_FS_MemoryFileSystem_Tests Filesystem/Test/MemoryFileSystemTests.cpp)
+    target_link_libraries(Atom_FS_MemoryFileSystem_Tests PRIVATE Atom_FS)
+    add_test(NAME Atom_FS.MemoryFileSystem COMMAND Atom_FS_MemoryFileSystem_Tests)
+
+    add_executable(Atom_FS_OverlayVfs_Tests Filesystem/Test/OverlayVfsTests.cpp)
+    target_link_libraries(Atom_FS_OverlayVfs_Tests PRIVATE Atom_FS)
+    add_test(NAME Atom_FS.OverlayVfs COMMAND Atom_FS_OverlayVfs_Tests)
+
+    add_executable(Atom_FS_PackageFileSystem_Tests Filesystem/Test/PackageFileSystemTests.cpp)
+    target_link_libraries(Atom_FS_PackageFileSystem_Tests PRIVATE Atom_FS)
+    add_test(NAME Atom_FS.PackageFileSystem COMMAND Atom_FS_PackageFileSystem_Tests)
+
+    add_executable(Atom_Assets_ResourceManager_Tests Asset/Test/ResourceManagerTests.cpp)
+    target_link_libraries(Atom_Assets_ResourceManager_Tests PRIVATE Atom_Assets)
+    add_test(NAME Atom_Assets.ResourceManager COMMAND Atom_Assets_ResourceManager_Tests)
+
+    add_executable(Atom_Assets_ConsumerLoader_Tests Asset/Test/ConsumerLoaderTests.cpp)
+    target_link_libraries(Atom_Assets_ConsumerLoader_Tests PRIVATE Atom_Assets Atom_Image)
+    add_test(NAME Atom_Assets.ConsumerLoader COMMAND Atom_Assets_ConsumerLoader_Tests)
 endif()
 
 # ============================================================================
@@ -537,7 +588,10 @@ if(MINGW)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()
         if(ATOM_BUILD_TESTS)
-            foreach(atom_test IN ITEMS Atom_FS_AssetPath_Tests Atom_FS_NativeFileSystem_Tests)
+            foreach(atom_test IN ITEMS Atom_FS_AssetPath_Tests Atom_FS_NativeFileSystem_Tests
+                                       Atom_FS_MemoryFileSystem_Tests Atom_FS_OverlayVfs_Tests
+                                       Atom_FS_PackageFileSystem_Tests Atom_Assets_ResourceManager_Tests
+                                       Atom_Assets_ConsumerLoader_Tests)
                 add_dependencies(${atom_test} Atom_Mingw_Runtime_DLL)
             endforeach()
         endif()

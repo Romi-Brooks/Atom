@@ -5,6 +5,8 @@
 
 #include "ImageTexture.hpp"
 
+#include <vector>
+
 #include <Render/Renderer2D/Renderer2D.hpp>
 
 namespace atom::render::resources {
@@ -21,6 +23,17 @@ auto LoadTextureFile(Renderer2D& renderer, const std::string& path) -> Renderer2
 
 auto LoadTextureMemory(Renderer2D& renderer, const std::span<const std::byte> encoded_image) -> Renderer2D::Texture* {
     return CreateTexture(renderer, image::DecodeImageMemory(encoded_image));
+}
+
+auto LoadTextureFileSystem(Renderer2D& renderer, const fs::IFileSystem& filesystem, const fs::AssetPath& path)
+    -> Renderer2D::Texture* {
+    std::unique_ptr<fs::IFile> file{};
+    if (filesystem.OpenRead(path, file) != fs::Result::Success || !file)
+        return nullptr;
+    std::vector<std::byte> bytes{};
+    if (fs::ReadAll(*file, bytes) != fs::Result::Success)
+        return nullptr;
+    return LoadTextureMemory(renderer, bytes);
 }
 
 } // namespace atom::render::resources
