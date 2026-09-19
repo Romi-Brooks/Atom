@@ -10,7 +10,7 @@
 
 #include <SDL3/SDL.h>
 
-#include <Backend/Contracts/Audio/IAudioSource.hpp>
+#include <Backend/Contracts/Audio/AudioSourceRegistry.hpp>
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 
 namespace atom::backend::sdl3 {
@@ -24,13 +24,10 @@ namespace atom::backend::sdl3 {
 /// Ring buffer: fixed ~4 MiB circular buffer with separate read/write cursors.
 /// The decode thread fills the buffer from the decoder and a separate push
 /// path drains it into the SDL audio stream.
-class SDL3StreamingMusicSource final : public atom::audio::IAudioSource {
+class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
     public:
         SDL3StreamingMusicSource(std::unique_ptr<atom::audio::IAudioDecoder> decoder, const SDL_AudioSpec& spec);
         ~SDL3StreamingMusicSource() override;
-
-        SDL3StreamingMusicSource(const SDL3StreamingMusicSource&) = delete;
-        auto operator=(const SDL3StreamingMusicSource&) -> SDL3StreamingMusicSource& = delete;
 
         auto Play() -> void override;
         auto Stop() -> void override;
@@ -40,9 +37,13 @@ class SDL3StreamingMusicSource final : public atom::audio::IAudioSource {
         [[nodiscard]] auto GetVolume() const -> float override;
         auto SetLooping(bool loop) -> void override;
         [[nodiscard]] auto IsLooping() const -> bool override;
-        auto SetPlayingOffset(float seconds) -> void override;
+        auto SetPlayingOffset(float seconds) -> bool override;
         [[nodiscard]] auto GetPlayingOffset() const -> float override;
+        [[nodiscard]] auto IsSeekable() const -> bool override;
         [[nodiscard]] auto IsFinished() const -> bool override;
+
+    protected:
+        auto ReleaseBackendHandles() -> void override;
 
     private:
         static constexpr std::size_t kRingBufferCapacity = 4 * 1024 * 1024; // 4 MiB
@@ -76,11 +77,24 @@ class SDL3StreamingMusicSource final : public atom::audio::IAudioSource {
         std::atomic<bool> eof_{false};
         std::atomic<bool> decode_error_{false};
 
+        // Absolute frame the current decoding run starts at (the last seek
+        // target), so GetPlayingOffset() reports the position in the file rather
+        // than the position inside the current run.
+        std::atomic<std::uint64_t> position_base_frames_{0};
+        // True while the decoder sits at a position set by SetPlayingOffset() and
+        // the next Play() must not rewind over it.
+        std::atomic<bool> decoder_positioned_{false};
+
         [[nodiscard]] auto ReadableBytes() const -> std::size_t;
         [[nodiscard]] auto WritableBytes() const -> std::size_t;
 
         auto EnsureStream() -> bool;
         auto DecodeLoop() -> void;
+        // Stops the producer thread and drops everything buffered, leaving the
+        // decoder untouched at its current position.
+        auto HaltDecoding() -> void;
+        // Starts the producer thread from the decoder's current position.
+        auto BeginDecoding() -> void;
 };
 
 } // namespace atom::backend::sdl3

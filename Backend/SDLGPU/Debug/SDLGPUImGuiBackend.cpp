@@ -141,16 +141,16 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
             if (initialized_)
                 return true;
             if (active_backend && active_backend != this) {
-                LOG_ERROR(atom::debugger::LogChannel::IMGUI, "Only one SDL_GPU ImGui debugger can be active at a time");
+                LOG_ERROR(atom::log::debugger::ImGui, "Only one SDL_GPU ImGui debugger can be active at a time");
                 return false;
             }
             if (!device_.GetNativeDevice()) {
-                LOG_ERROR(atom::debugger::LogChannel::IMGUI,
+                LOG_ERROR(atom::log::debugger::ImGui,
                           "SDL_GPU ImGui initialization requires a valid window and device");
                 return false;
             }
             if (!ImGui::CreateContext()) {
-                LOG_ERROR(atom::debugger::LogChannel::IMGUI, "ImGui::CreateContext failed");
+                LOG_ERROR(atom::log::debugger::ImGui, "ImGui::CreateContext failed");
                 return false;
             }
             ImGui_ImplSDLGPU3_InitInfo info{};
@@ -160,13 +160,13 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
             info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
             info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
             if (!ImGui_ImplSDLGPU3_Init(&info)) {
-                LOG_ERROR(atom::debugger::LogChannel::IMGUI, "ImGui SDL_GPU renderer backend initialization failed");
+                LOG_ERROR(atom::log::debugger::ImGui, "ImGui SDL_GPU renderer backend initialization failed");
                 ImGui::DestroyContext();
                 return false;
             }
             initialized_ = true;
             active_backend = this;
-            LOG_INFO(atom::debugger::LogChannel::IMGUI, "SDL_GPU ImGui overlay initialized");
+            LOG_INFO(atom::log::debugger::ImGui, "SDL_GPU ImGui overlay initialized");
             return true;
         }
 
@@ -207,7 +207,7 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
 
             auto* pass = SDL_BeginGPURenderPass(command, &target, 1, nullptr);
             if (!pass) {
-                LOG_ERROR(atom::debugger::LogChannel::IMGUI,
+                LOG_ERROR(atom::log::debugger::ImGui,
                           "SDL_GPU ImGui failed to begin render pass: " + std::string{SDL_GetError()});
                 return;
             }
@@ -224,10 +224,10 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
             case window::EventType::KeyPressed:
             case window::EventType::KeyReleased: {
                 const auto& key_event = std::get<window::KeyEvent>(input_event.data);
-                io.AddKeyEvent(ImGuiMod_Ctrl, event::HasModifier(key_event.modifiers, event::KeyModifier::Control));
-                io.AddKeyEvent(ImGuiMod_Shift, event::HasModifier(key_event.modifiers, event::KeyModifier::Shift));
-                io.AddKeyEvent(ImGuiMod_Alt, event::HasModifier(key_event.modifiers, event::KeyModifier::Alt));
-                io.AddKeyEvent(ImGuiMod_Super, event::HasModifier(key_event.modifiers, event::KeyModifier::Super));
+                io.AddKeyEvent(ImGuiMod_Ctrl, event::HasModifier(key_event.modifiers, event::KeyModifiers::Control));
+                io.AddKeyEvent(ImGuiMod_Shift, event::HasModifier(key_event.modifiers, event::KeyModifiers::Shift));
+                io.AddKeyEvent(ImGuiMod_Alt, event::HasModifier(key_event.modifiers, event::KeyModifiers::Alt));
+                io.AddKeyEvent(ImGuiMod_Super, event::HasModifier(key_event.modifiers, event::KeyModifiers::Super));
                 const auto key = ToImGuiKey(key_event.key);
                 if (key != ImGuiKey_None)
                     io.AddKeyEvent(key, input_event.type == window::EventType::KeyPressed);
@@ -270,7 +270,7 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
             initialized_ = false;
             if (active_backend == this)
                 active_backend = nullptr;
-            LOG_INFO(atom::debugger::LogChannel::IMGUI, "SDL_GPU ImGui overlay shut down");
+            LOG_INFO(atom::log::debugger::ImGui, "SDL_GPU ImGui overlay shut down");
         }
 
     private:

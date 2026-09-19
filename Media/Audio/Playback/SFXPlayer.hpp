@@ -50,7 +50,6 @@ class SFXPlayer final : public atom::backend::IAudioBackendChangeListener {
         std::unordered_map<std::string, std::unique_ptr<VoicePool>> pools_;
 };
 
-using SFX = SFXPlayer;
 } // namespace atom
 
 #endif

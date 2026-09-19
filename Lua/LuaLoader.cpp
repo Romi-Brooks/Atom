@@ -1,7 +1,7 @@
 /**
   * @file           : LuaLoader.cpp
   * @author         : Romi Brooks
-  * @brief          :
+  * @brief          : Lua state wrapper that loads scripts through the VFS.
   * @attention      :
   * @date           : 2025/10/11
   Copyright (c) 2025 Romi Brooks, All rights reserved.
@@ -11,14 +11,10 @@
 #include "LuaLoader.hpp"
 
 // Standard Library
-#include <iostream>
-#include <fstream>
-#include <filesystem>
+#include <vector>
 
 // Engine Headers
 #include <Log/LogSystem.hpp>
-
-namespace fs = std::filesystem;
 
 LuaLoader::LuaLoader() : L_(nullptr) {}
 
@@ -34,7 +30,7 @@ auto LuaLoader::Initialize() -> bool {
     // 创建Lua状态机
     L_ = luaL_newstate();
     if (!L_) {
-        LOG_ERROR(atom::core::LogChannel::LUA, "Failed to create Lua state!");
+        LOG_ERROR(atom::log::core::Lua, "Failed to create Lua state!");
         return false;
     }
 
@@ -48,30 +44,57 @@ auto LuaLoader::Initialize() -> bool {
     return true;
 }
 
-auto LuaLoader::LoadScript(const std::string& scriptPath) -> bool {
-    if (!L_ || !fs::exists(scriptPath)) {
-        LOG_ERROR(atom::core::LogChannel::LUA, "Script file not found: " + scriptPath);
+auto LuaLoader::LoadScript(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path) -> bool {
+    if (!L_ || !path.IsValid()) {
+        LOG_ERROR(atom::log::core::Lua, "LoadScript called without a Lua state or with an invalid path");
         return false;
     }
 
-    // Record script path for hot-reload
-    // 记录脚本路径，用于热重载
-    loaded_scripts_[scriptPath] = scriptPath;
-
-    // Load and execute the script
-    // 加载并执行脚本
-    if (const int result = luaL_dofile(L_, scriptPath.c_str()); result != LUA_OK) {
-        HandleError(result);
+    std::unique_ptr<atom::fs::IFile> file{};
+    if (filesystem.OpenRead(path, file) != atom::fs::Result::Success || !file) {
+        LOG_ERROR(atom::log::core::Lua, "Script not found: " + std::string{path.String()});
         return false;
     }
 
-    LOG_INFO(atom::core::LogChannel::LUA, "Successfully loaded script: " + scriptPath);
+    std::vector<std::byte> bytes{};
+    if (atom::fs::ReadAll(*file, bytes) != atom::fs::Result::Success) {
+        LOG_ERROR(atom::log::core::Lua, "Failed to read script: " + std::string{path.String()});
+        return false;
+    }
+
+    const std::string_view source{reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+    return LoadScriptSource(path.String(), source);
+}
+
+auto LuaLoader::LoadScriptSource(const std::string_view chunk_name, const std::string_view source) -> bool {
+    if (!L_)
+        return false;
+
+    const std::string chunk{chunk_name};
+    // Record script identity for hot-reload
+    // 记录脚本身份，用于热重载
+    loaded_scripts_[chunk] = chunk;
+
+    if (luaL_loadbuffer(L_, source.data(), source.size(), chunk.c_str()) != LUA_OK) {
+        HandleError(LUA_ERRSYNTAX);
+        return false;
+    }
+    if (lua_pcall(L_, 0, 0, 0) != LUA_OK) {
+        HandleError(LUA_ERRRUN);
+        return false;
+    }
+
+    LOG_INFO(atom::log::core::Lua, "Successfully loaded script: " + chunk);
     return true;
 }
 
-auto LuaLoader::ReloadScript(const std::string& scriptPath) -> bool {
-    if (!loaded_scripts_.contains(scriptPath)) {
-        LOG_ERROR(atom::core::LogChannel::LUA, "Script not loaded: " + scriptPath);
+auto LuaLoader::ReloadScript(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path) -> bool {
+    if (!L_ || !path.IsValid())
+        return false;
+
+    const std::string chunk{path.String()};
+    if (!loaded_scripts_.contains(chunk)) {
+        LOG_ERROR(atom::log::core::Lua, "Script not loaded: " + chunk);
         return false;
     }
 
@@ -80,12 +103,10 @@ auto LuaLoader::ReloadScript(const std::string& scriptPath) -> bool {
     lua_getglobal(L_, "package");
     lua_getfield(L_, -1, "loaded");
     lua_pushnil(L_);
-    lua_setfield(L_, -2, scriptPath.c_str());
+    lua_setfield(L_, -2, chunk.c_str());
     lua_pop(L_, 2);
 
-    // Reload
-    // 重新加载
-    return LoadScript(scriptPath);
+    return LoadScript(filesystem, path);
 }
 
 auto LuaLoader::CallLuaFunction(const std::string& funcName) const -> bool {
@@ -99,7 +120,7 @@ auto LuaLoader::CallLuaFunction(const std::string& funcName) const -> bool {
     // Check if it is a function
     // 检查是否是函数
     if (!lua_isfunction(L_, -1)) {
-        LOG_ERROR(atom::core::LogChannel::LUA, "Lua function not found: " + funcName);
+        LOG_ERROR(atom::log::core::Lua, "Lua function not found: " + funcName);
         lua_pop(L_, 1);
         return false;
     }
@@ -114,8 +135,9 @@ auto LuaLoader::CallLuaFunction(const std::string& funcName) const -> bool {
     return true;
 }
 
-auto LuaLoader::HandleError(int result) const -> void {
+auto LuaLoader::HandleError(int /*result*/) const -> void {
     const char* errorMsg = lua_tostring(L_, -1);
-    LOG_ERROR(atom::core::LogChannel::LUA, "Lua error: " + std::to_string(*errorMsg));
+    const std::string message = errorMsg ? std::string{errorMsg} : std::string{"unknown Lua error"};
+    LOG_ERROR(atom::log::core::Lua, "Lua error: " + message);
     lua_pop(L_, 1); // Clean up the stack
 }

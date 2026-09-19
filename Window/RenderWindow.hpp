@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -72,6 +73,13 @@ class RenderWindow {
         std::string backend_id_{};
         unsigned int fps_ = 60;
         bool shutdown_notified_ = false;
+        struct PendingResize {
+                uint32_t width = 0;
+                uint32_t height = 0;
+                double last_change_seconds = 0.0;
+        };
+        std::optional<PendingResize> pending_resize_{};
+        static constexpr double kResizeSettleDelaySeconds = 0.2;
 
         // --- Listener registry storage (multi-slot) ---
         struct EventListenerEntry {

@@ -20,11 +20,11 @@ namespace atom::layout {
 struct LayoutConfig::Impl {
     explicit Impl(const bool use_web_defaults) : config{YGConfigNew()} {
         if (config == nullptr) {
-            LOG_ERROR(LogChannel::CORE, "Yoga failed to allocate a layout configuration");
+            LOG_ERROR(atom::log::layout::Core, "Yoga failed to allocate a layout configuration");
             throw std::bad_alloc{};
         }
         YGConfigSetUseWebDefaults(config, use_web_defaults);
-        LOG_DEBUG(LogChannel::CORE, std::string{"Created Yoga layout configuration (web defaults="} +
+        LOG_DEBUG(atom::log::layout::Core, std::string{"Created Yoga layout configuration (web defaults="} +
                                         (use_web_defaults ? "true" : "false") + ")");
     }
 
@@ -41,11 +41,11 @@ LayoutConfig::~LayoutConfig() = default;
 
 auto LayoutConfig::SetPointScaleFactor(const float scale_factor) -> void {
     if (scale_factor < 0.0f) {
-        LOG_WARNING(LogChannel::CORE, "Rejected negative Yoga point scale factor: " + std::to_string(scale_factor));
+        LOG_WARNING(atom::log::layout::Core, "Rejected negative Yoga point scale factor: " + std::to_string(scale_factor));
         throw std::invalid_argument{"Layout point scale factor cannot be negative"};
     }
     YGConfigSetPointScaleFactor(impl_->config, scale_factor);
-    LOG_DEBUG(LogChannel::CORE, "Set Yoga point scale factor to " + std::to_string(scale_factor));
+    LOG_DEBUG(atom::log::layout::Core, "Set Yoga point scale factor to " + std::to_string(scale_factor));
 }
 
 auto LayoutConfig::GetPointScaleFactor() const -> float {

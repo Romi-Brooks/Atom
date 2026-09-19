@@ -172,13 +172,13 @@ auto TranslateKey(const SDL_Scancode scancode) -> event::Key {
 auto TranslateModifiers(const SDL_Keymod modifiers) -> event::KeyModifiers {
     auto result = event::KeyModifiers::None;
     if (modifiers & SDL_KMOD_ALT)
-        result = result | event::KeyModifier::Alt;
+        result = result | event::KeyModifiers::Alt;
     if (modifiers & SDL_KMOD_CTRL)
-        result = result | event::KeyModifier::Control;
+        result = result | event::KeyModifiers::Control;
     if (modifiers & SDL_KMOD_SHIFT)
-        result = result | event::KeyModifier::Shift;
+        result = result | event::KeyModifiers::Shift;
     if (modifiers & SDL_KMOD_GUI)
-        result = result | event::KeyModifier::Super;
+        result = result | event::KeyModifiers::Super;
     return result;
 }
 
@@ -259,7 +259,7 @@ auto SDL3Window::Initialize(const std::string& title, const algo::Vec2 resolutio
     window_ = SDL_CreateWindow(title.c_str(), static_cast<int>(resolution.GetX()), static_cast<int>(resolution.GetY()),
                                SDL_WINDOW_RESIZABLE);
     if (!window_) {
-        LOG_ERROR(LogChannel::WINDOW, "SDL_CreateWindow failed: " + std::string{SDL_GetError()});
+        LOG_ERROR(atom::log::backend::sdl3::Window, "SDL_CreateWindow failed: " + std::string{SDL_GetError()});
         return false;
     }
     performance_frequency_ = SDL_GetPerformanceFrequency();

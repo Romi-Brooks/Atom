@@ -38,10 +38,11 @@ include(Render/Shader/AtomShaders.cmake)
     )
 
 # 0a. Shared color value and operations (header-only, no renderer dependency).
+    # Lives under Algorithm/ as a pure value/math type, not a root subsystem.
     add_library(Atom_Color INTERFACE)
     target_sources(Atom_Color INTERFACE
-        Color/Color.hpp
-        Color/ColorMath.hpp
+        Algorithm/Color/Color.hpp
+        Algorithm/Color/ColorMath.hpp
     )
     target_include_directories(Atom_Color INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -49,9 +50,12 @@ include(Render/Shader/AtomShaders.cmake)
     add_library(Atom_Backend_Contracts INTERFACE)
     target_sources(Atom_Backend_Contracts INTERFACE
         Backend/Contracts/Audio/AudioTypes.hpp
+        Backend/Contracts/Audio/AudioExtensions.hpp
+        Backend/Contracts/Audio/AudioSourceRegistry.hpp
         Backend/Contracts/Audio/IAudioBackend.hpp
         Backend/Contracts/Audio/IAudioDecoder.hpp
         Backend/Contracts/Audio/IAudioSource.hpp
+        Backend/Contracts/Audio/NullAudioBackend.hpp
         Backend/Contracts/Debug/IDebugImGuiBackend.hpp
         Backend/Contracts/Render/IRender2DContext.hpp
         Backend/Contracts/Render/IRenderBackend.hpp
@@ -207,6 +211,8 @@ include(Render/Shader/AtomShaders.cmake)
     add_library(Atom_Render_Resources STATIC
         Render/Resources/ImageTexture.hpp
         Render/Resources/ImageTexture.cpp
+        Render/Resources/TextureCache.hpp
+        Render/Resources/TextureCache.cpp
     )
     target_include_directories(Atom_Render_Resources PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Render_Resources PUBLIC Atom_Renderer2D Atom_Image)
@@ -230,11 +236,13 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/Audio/Decoder/WavProf/RiffWaveReader.cpp
         Backend/Audio/Decoder/WavProf/WavProfDecoder.hpp
         Backend/Audio/Decoder/WavProf/WavProfDecoder.cpp
+        Backend/Audio/Decoder/SDL3Wav/SDL3WavDecoder.hpp
+        Backend/Audio/Decoder/SDL3Wav/SDL3WavDecoder.cpp
         Backend/Audio/Decoder/minimp3/Minimp3Decoder.hpp
         Backend/Audio/Decoder/minimp3/Minimp3Decoder.cpp
     )
     target_include_directories(Atom_Backend_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_3rd_Minimp3 Atom_UTF8)
+    target_link_libraries(Atom_Backend_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_3rd_Minimp3 Atom_UTF8 Atom_3rd_SDL3)
 
 # 5. SDL3 Audio Backend
     add_library(Atom_Backend_SDL3_Audio STATIC
@@ -250,6 +258,19 @@ include(Render/Shader/AtomShaders.cmake)
     target_include_directories(Atom_Backend_SDL3_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Backend_SDL3_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_SDL3_Core Atom_Log)
 
+    add_library(Atom_Backend_SDL3_Mixer_Audio STATIC
+        Backend/SDL3/Audio/SDL3MixerAudioBackend.cpp
+        Backend/SDL3/Audio/SDL3MixerAudioBackend.hpp
+        Backend/SDL3/Audio/SDL3MixerContext.cpp
+        Backend/SDL3/Audio/SDL3MixerContext.hpp
+        Backend/SDL3/Audio/SDL3MixerSource.cpp
+        Backend/SDL3/Audio/SDL3MixerSource.hpp
+        Backend/SDL3/Audio/SDL3MixerStreamingSource.cpp
+        Backend/SDL3/Audio/SDL3MixerStreamingSource.hpp
+    )
+    target_include_directories(Atom_Backend_SDL3_Mixer_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Backend_SDL3_Mixer_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_SDL3_Core Atom_Log Atom_3rd_SDL3_mixer)
+
     add_library(Atom_Backend_Runtime STATIC
         Backend/Runtime/BackendRuntime.hpp
         Backend/Runtime/BackendRuntime.cpp
@@ -260,12 +281,16 @@ include(Render/Shader/AtomShaders.cmake)
         Atom_Backend_Contracts
         Atom_Backend_Extension
         Atom_Backend_Audio
-        Atom_Backend_SDL3_Audio)
+        Atom_Backend_SDL3_Audio
+        Atom_Backend_SDL3_Mixer_Audio)
 
 # 6. Media
     add_library(Atom_Media STATIC
         Media/Audio/Metadata/AudioMetadataReader.cpp
         Media/Audio/Metadata/AudioMetadataReader.hpp
+        Media/Audio/Effects/IAudioEffect.hpp
+        Media/Audio/Effects/DopplerEffect.cpp
+        Media/Audio/Effects/DopplerEffect.hpp
         Media/Audio/Mixing/AudioMixer.cpp
         Media/Audio/Mixing/AudioMixer.hpp
         Media/Audio/Resources/AudioClipLoader.cpp
@@ -294,15 +319,55 @@ add_library(Atom_UTF8 STATIC
 target_include_directories(Atom_UTF8 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_UTF8 PUBLIC Atom_Backend_Contracts Atom_3rd_UtfCpp)
 
+# 7b. Platform-independent virtual filesystem. Native implementation details
+# remain private; consumers use AssetPath and IFileSystem only.
+add_library(Atom_FS STATIC
+    Filesystem/AssetPath.hpp
+    Filesystem/AssetPath.cpp
+    Filesystem/FileSystem.hpp
+    Filesystem/FileSystem.cpp
+    Filesystem/MemoryFileSystem.hpp
+    Filesystem/MemoryFileSystem.cpp
+    Filesystem/OverlayFileSystem.hpp
+    Filesystem/OverlayFileSystem.cpp
+    Filesystem/Vfs.hpp
+    Filesystem/Vfs.cpp
+    Filesystem/PackageFileSystem.hpp
+    Filesystem/PackageFileSystem.cpp
+)
+target_include_directories(Atom_FS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
+# Render resources need AssetPath/IFileSystem for VFS-backed texture loads.
+target_link_libraries(Atom_Render_Resources PUBLIC Atom_FS)
+
+# 7c. Resource identity, handles, loader registry, and identity-keyed cache.
+add_library(Atom_Assets STATIC
+    Asset/AssetKind.hpp
+    Asset/AssetKind.cpp
+    Asset/ResourceId.hpp
+    Asset/ResourceId.cpp
+    Asset/ResourceHandle.hpp
+    Asset/IResourceLoader.hpp
+    Asset/IResourceLoader.cpp
+    Asset/ResourceManager.hpp
+    Asset/ResourceManager.cpp
+    Asset/ScriptSourceLoader.hpp
+    Asset/ScriptSourceLoader.cpp
+)
+target_include_directories(Atom_Assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(Atom_Assets PUBLIC Atom_FS)
+
 # 7a. Image decoding (CPU-side; GPU upload is a separate step via Renderer2D).
 add_library(Atom_Image STATIC
     Media/Image/ImageDecoder.hpp
     Media/Image/ImageDecoder.cpp
         Media/Image/Analysis/ColorStatistics.hpp
         Media/Image/Analysis/ColorStatistics.cpp
+    Media/Image/DecodedImageLoader.hpp
+    Media/Image/DecodedImageLoader.cpp
 )
 target_include_directories(Atom_Image PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Atom_Image PUBLIC Atom_Color)
+target_link_libraries(Atom_Image PUBLIC Atom_Color Atom_Assets)
 target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
 
 # 8. Packager
@@ -364,6 +429,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Atom_Log
             Atom_Lua
             Atom_UTF8
+            Atom_FS
+            Atom_Assets
             Atom_Renderer2D
             Atom_Render_Resources
             Atom_Image
@@ -384,7 +451,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_link_libraries(Atom_Lua PUBLIC
             Atom_3rd_Lua
             Atom_Log
-            Atom_Media)
+            Atom_Media
+            Atom_FS)
 
 # ============================================================================
 # Executable
@@ -428,7 +496,7 @@ target_link_libraries(Example_Log_Channel_Demo PRIVATE Atom_Log)
 # MusicCard example — Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
 # and an optional ImGui overlay for debug controls.
-add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp Render/Conversion/GeometryConversions.hpp)
+add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp)
 target_link_libraries(Example_MusicCard PRIVATE
     Atom_Media Atom_Window Atom_Debugger Atom_Layout Atom_Renderer2D Atom_Render_Resources Atom_Image)
 target_compile_definitions(Example_MusicCard PRIVATE
@@ -441,8 +509,23 @@ add_dependencies(Example_MusicCard Atom_Shaders)
 add_executable(Atom_Tool_Packager
         Utilities/Packager/Package_main.cpp
 )
+
+add_executable(Example_Spatial_Backend_Probe EXCLUDE_FROM_ALL Example/Audio/SpatialBackendProbe.cpp)
+target_link_libraries(Example_Spatial_Backend_Probe PRIVATE Atom_Media Atom_Window Atom_Debugger)
 set_target_properties(Atom_Tool_Packager PROPERTIES OUTPUT_NAME packager_tool)
 target_link_libraries(Atom_Tool_Packager PRIVATE Atom_Packager)
+
+include(CTest)
+# Third-party projects may force the generic BUILD_TESTING cache option off.
+# Atom-owned tests use an independent option so that project coverage is not
+# silently disabled by a dependency's configuration policy.
+option(ATOM_BUILD_TESTS "Build Atom-owned test targets" ON)
+if(ATOM_BUILD_TESTS)
+    enable_testing()
+    # All Atom-owned unit tests live under Test/<Module>/ and register themselves
+    # via Test/CMakeLists.txt (CTest names: Atom_<Module>.<Area>).
+    add_subdirectory(Test)
+endif()
 
 # ============================================================================
 # Platforms Config
@@ -480,9 +563,17 @@ if(MINGW)
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
-                               Example_MusicCard Atom_Tool_Packager)
+                                Example_MusicCard Atom_Tool_Packager)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()
+        if(ATOM_BUILD_TESTS)
+            get_property(atom_test_targets GLOBAL PROPERTY ATOM_TEST_TARGETS)
+            foreach(atom_test IN LISTS atom_test_targets)
+                if(TARGET ${atom_test})
+                    add_dependencies(${atom_test} Atom_Mingw_Runtime_DLL)
+                endif()
+            endforeach()
+        endif()
     endif()
 endif()
 if(WIN32)

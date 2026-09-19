@@ -65,6 +65,8 @@ class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2
         auto Initialize2D(const std::filesystem::path& shader_root) -> bool override;
         [[nodiscard]] auto CreateTexture2D(uint32_t width, uint32_t height) -> render::Texture2D override;
         auto UpdateTexture2D(render::Texture2D texture, const void* pixels, uint32_t pitch_bytes) -> bool override;
+        auto UpdateTexture2DRegion(render::Texture2D texture, uint32_t x, uint32_t y, uint32_t width,
+                                   uint32_t height, const void* pixels, uint32_t source_pitch_bytes) -> bool override;
         auto DestroyTexture2D(render::Texture2D texture) -> void override;
         [[nodiscard]] auto CreateSampler2D(const render::Sampler2DDesc& desc) -> render::Sampler2D override;
         auto DestroySampler2D(render::Sampler2D sampler) -> void override;

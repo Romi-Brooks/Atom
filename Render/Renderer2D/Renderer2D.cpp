@@ -25,6 +25,7 @@ namespace {
 
 constexpr float kMinZoom = 0.001f;
 constexpr float kMaxTextSize = 512.0f;
+constexpr float kAtlasSizeQuantum = 0.5f;
 constexpr uint32_t kPageSize = 1024;
 constexpr int kGlyphPadding = 2; // transparent border between glyphs
 constexpr float kTwoPi = 6.28318530717958647692f;
@@ -72,6 +73,18 @@ auto NextCodepoint(std::string_view text, std::size_t& index) -> uint32_t {
     return codepoint;
 }
 
+auto QuantizeAtlasSize(const float size_px) -> float {
+    return std::round(size_px / kAtlasSizeQuantum) * kAtlasSizeQuantum;
+}
+
+auto IsAsciiWordCodepoint(const uint32_t codepoint) -> bool {
+    return codepoint >= 0x21u && codepoint <= 0x7eu;
+}
+
+auto ToRenderRect(const algo::Rect& rect) -> Rect {
+    return {rect.x, rect.y, rect.width, rect.height};
+}
+
 auto ClampColor(const Color& color) -> std::array<float, 4> {
     return {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f};
 }
@@ -87,14 +100,14 @@ Renderer2D::~Renderer2D() {
 auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& shader_root) -> bool {
     if (initialized_) {
         if (device_ != &device) {
-            LOG_ERROR(atom::render::LogChannel::RENDERER2D, "Renderer2D cannot switch devices without Shutdown");
+            LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D cannot switch devices without Shutdown");
             return false;
         }
         return true;
     }
     context_ = dynamic_cast<IRender2DContext*>(&device);
     if (!context_ || !context_->Initialize2D(shader_root)) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D,
+        LOG_ERROR(atom::log::render::Renderer2D,
                   "Renderer2D: the active device has no usable 2D context (shader root: " + shader_root.string() + ")");
         context_ = nullptr;
         return false;
@@ -103,28 +116,20 @@ auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& 
     sampler_ = context_->CreateSampler2D(
         {Filter2D::Linear, Filter2D::Linear, AddressMode2D::ClampToEdge, AddressMode2D::ClampToEdge});
     if (sampler_ == render::kInvalidSampler2D) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D, "Renderer2D failed to create its default sampler");
-        Shutdown();
-        return false;
-    }
-    sampler_nearest_ = context_->CreateSampler2D(
-        {Filter2D::Nearest, Filter2D::Nearest, AddressMode2D::ClampToEdge, AddressMode2D::ClampToEdge});
-    if (sampler_nearest_ == render::kInvalidSampler2D) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D, "Renderer2D failed to create its glyph sampler");
+        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D failed to create its default sampler");
         Shutdown();
         return false;
     }
     white_texture_ = CreateTexture(1, 1, nullptr);
     if (!white_texture_) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D, "Renderer2D failed to create its white fallback texture");
+        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D failed to create its white fallback texture");
         Shutdown();
         return false;
     }
     constexpr uint8_t kWhitePixel[4] = {255, 255, 255, 255};
     UpdateTexture(*white_texture_, kWhitePixel);
     initialized_ = true;
-    LOG_INFO(atom::render::LogChannel::RENDERER2D,
-             "Renderer2D initialized (shader root: " + shader_root.string() + ")");
+    LOG_INFO(atom::log::render::Renderer2D, "Renderer2D initialized (shader root: " + shader_root.string() + ")");
     return true;
 }
 
@@ -134,7 +139,8 @@ auto Renderer2D::IsInitialized() const -> bool {
 
 auto Renderer2D::Shutdown() -> void {
     if (in_frame_)
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D shutdown discarded an unfinished frame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D shutdown discarded an unfinished frame");
+    deferred_destroys_.clear();
     pending_uploads_.clear();
     atlases_.clear();
     fonts_.clear();
@@ -145,8 +151,6 @@ auto Renderer2D::Shutdown() -> void {
         }
         if (sampler_ != render::kInvalidSampler2D)
             context_->DestroySampler2D(sampler_);
-        if (sampler_nearest_ != render::kInvalidSampler2D)
-            context_->DestroySampler2D(sampler_nearest_);
     }
     textures_.clear();
     ops_.clear();
@@ -154,7 +158,6 @@ auto Renderer2D::Shutdown() -> void {
     layer_stack_.clear();
     white_texture_ = nullptr;
     sampler_ = render::kInvalidSampler2D;
-    sampler_nearest_ = render::kInvalidSampler2D;
     postprocess_params_ = {};
     context_ = nullptr;
     device_ = nullptr;
@@ -164,15 +167,15 @@ auto Renderer2D::Shutdown() -> void {
 
 auto Renderer2D::BeginFrame(const float origin_x, const float origin_y, const float zoom) -> bool {
     if (!initialized_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::BeginFrame called before initialization");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::BeginFrame called before initialization");
         return false;
     }
     if (in_frame_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::BeginFrame called twice without EndFrame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::BeginFrame called twice without EndFrame");
         return false;
     }
     if (!std::isfinite(origin_x) || !std::isfinite(origin_y) || !std::isfinite(zoom) || zoom <= 0.0f) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "Renderer2D::BeginFrame rejected non-finite origin or non-positive zoom");
         return false;
     }
@@ -193,13 +196,12 @@ auto Renderer2D::IsInFrame() const -> bool {
 
 auto Renderer2D::EndFrame() -> bool {
     if (!initialized_ || !in_frame_ || !device_ || !context_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::EndFrame called without a valid active frame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::EndFrame called without a valid active frame");
         return false;
     }
     in_frame_ = false;
     if (!clip_stack_.empty() || !layer_stack_.empty())
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
-                    "Renderer2D frame ended with an unbalanced clip or layer stack");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D frame ended with an unbalanced clip or layer stack");
     const auto size = device_->GetOutputSize();
     output_width_ = size.GetX();
     output_height_ = size.GetY();
@@ -219,12 +221,48 @@ auto Renderer2D::EndFrame() -> bool {
             expanded.push_back(op);
     }
     ops_.clear();
-    // Coalesce glyph insertions: each dirty atlas page is copied to the
-    // pending-upload queue at most once per frame.
+    // Coalesce glyph insertions: a new page is zero-initialized once; later
+    // frames upload only the union of newly written glyph bounds.
     for (auto& atlas : atlases_) {
         for (auto& page : atlas->pages) {
-            if (page.dirty && page.texture) {
+            if (!page.texture)
+                continue;
+            if (page.needs_initial_upload) {
                 UpdateTexture(*page.texture, page.rgba.data());
+                page.needs_initial_upload = false;
+                page.dirty = false;
+            } else if (page.dirty) {
+                uint32_t left = page.dirty_left;
+                uint32_t top = page.dirty_top;
+                uint32_t right = page.dirty_right;
+                uint32_t bottom = page.dirty_bottom;
+                // Preserve a failed upload already queued for this page: the
+                // CPU atlas is authoritative, so requeue the union from it.
+                if (const auto pendingIt = pending_uploads_.find(page.texture->handle_);
+                    pendingIt != pending_uploads_.end()) {
+                    const auto& existing = pendingIt->second;
+                    left = std::min(left, existing.x);
+                    top = std::min(top, existing.y);
+                    right = std::max(right, existing.x + existing.width);
+                    bottom = std::max(bottom, existing.y + existing.height);
+                }
+                const uint32_t width = right - left;
+                const uint32_t height = bottom - top;
+                auto& pending = pending_uploads_[page.texture->handle_];
+                pending.handle = page.texture->handle_;
+                pending.x = left;
+                pending.y = top;
+                pending.width = width;
+                pending.height = height;
+                pending.pitch_bytes = width * 4u;
+                pending.rgba.resize(static_cast<std::size_t>(pending.pitch_bytes) * height);
+                const std::size_t page_pitch = static_cast<std::size_t>(page.size) * 4u;
+                for (uint32_t row = 0; row < height; ++row) {
+                    std::memcpy(pending.rgba.data() + static_cast<std::size_t>(row) * pending.pitch_bytes,
+                                page.rgba.data() + static_cast<std::size_t>(top + row) * page_pitch +
+                                    static_cast<std::size_t>(left) * 4u,
+                                pending.pitch_bytes);
+                }
                 page.dirty = false;
             }
         }
@@ -269,8 +307,7 @@ auto Renderer2D::EndFrame() -> bool {
 
         const auto beginItem = [&]() {
             const bool same = itemOpen && texture == lastTexture && sampler == lastSampler &&
-                              clipEnabled == lastClipEnabled &&
-                              (!clipEnabled || SameClip(clip, lastClip));
+                              clipEnabled == lastClipEnabled && (!clipEnabled || SameClip(clip, lastClip));
             if (same)
                 return;
             itemOpen = true;
@@ -376,10 +413,12 @@ auto Renderer2D::EndFrame() -> bool {
     context_->SetPostProcess2D(postprocess_params_);
     bool success = true;
     for (auto upload = pending_uploads_.begin(); upload != pending_uploads_.end();) {
-        if (context_->UpdateTexture2D(upload->first, upload->second.rgba.data(), 0)) {
+        const auto& data = upload->second;
+        if (context_->UpdateTexture2DRegion(data.handle, data.x, data.y, data.width, data.height, data.rgba.data(),
+                                            data.pitch_bytes)) {
             upload = pending_uploads_.erase(upload);
         } else {
-            LOG_ERROR(atom::render::LogChannel::RENDERER2D,
+            LOG_ERROR(atom::log::render::Renderer2D,
                       "Renderer2D failed to upload texture handle " + std::to_string(upload->first));
             success = false;
             ++upload;
@@ -393,9 +432,8 @@ auto Renderer2D::EndFrame() -> bool {
         const auto* chunk = &chunks[chunk_index];
         if (chunk->vertices.empty() || chunk->indices.empty() || chunk->items.empty())
             continue;
-        draw_passes.push_back(graph.AddPass(
-            RenderPassDesc{"Renderer2D chunk " + std::to_string(chunk_index), {}},
-            [&, chunk]() {
+        draw_passes.push_back(
+            graph.AddPass(RenderPassDesc{"Renderer2D chunk " + std::to_string(chunk_index), {}}, [&, chunk]() {
                 Render2DFrame frame{};
                 frame.view_projection = mvp.data();
                 frame.vertices = chunk->vertices.data();
@@ -422,7 +460,24 @@ auto Renderer2D::EndFrame() -> bool {
     return success;
 }
 
-auto Renderer2D::SetPostProcess(const PostProcess2DParams& params) -> void {
+auto Renderer2D::SetPostProcess(const PostProcessParams& params) -> void {
+    PostProcess2DParams backendParams{};
+    backendParams.effect = params.effect;
+    backendParams.has_region = params.has_region;
+    backendParams.region = ToRenderRect(params.region);
+    backendParams.corner_radius = params.corner_radius;
+    backendParams.feather = params.feather;
+    backendParams.amount = params.amount;
+    backendParams.scanline = params.scanline;
+    backendParams.noise = params.noise;
+    backendParams.progress = params.progress;
+    backendParams.intensity = params.intensity;
+    backendParams.time = params.time;
+    backendParams.direction = params.direction;
+    ApplyPostProcess(backendParams);
+}
+
+auto Renderer2D::ApplyPostProcess(const PostProcess2DParams& params) -> void {
     postprocess_params_ = params;
     if (postprocess_params_.has_region &&
         (!std::isfinite(postprocess_params_.region.x) || !std::isfinite(postprocess_params_.region.y) ||
@@ -455,8 +510,7 @@ auto Renderer2D::CreateTexture(const uint32_t width, const uint32_t height, cons
     const auto max = std::numeric_limits<std::size_t>::max();
     if (static_cast<std::size_t>(height) > max / static_cast<std::size_t>(width) ||
         static_cast<std::size_t>(width) * static_cast<std::size_t>(height) > max / 4u) {
-        LOG_ERROR(atom::render::LogChannel::RENDERER2D,
-                  "Renderer2D rejected a texture whose CPU upload size overflows");
+        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D rejected a texture whose CPU upload size overflows");
         return nullptr;
     }
     auto texture = std::make_unique<Texture>();
@@ -470,7 +524,7 @@ auto Renderer2D::CreateTexture(const uint32_t width, const uint32_t height, cons
     textures_.push_back(std::move(texture));
     if (rgba)
         UpdateTexture(*result, rgba);
-    LOG_DEBUG(atom::render::LogChannel::RENDERER2D,
+    LOG_DEBUG(atom::log::render::Renderer2D,
               "Renderer2D created texture " + std::to_string(width) + "x" + std::to_string(height));
     return result;
 }
@@ -481,17 +535,21 @@ auto Renderer2D::UpdateTexture(Texture& texture, const void* rgba) -> void {
     const auto count = static_cast<std::size_t>(texture.width_) * texture.height_ * 4u;
     auto& pending = pending_uploads_[texture.handle_];
     pending.handle = texture.handle_;
+    pending.x = 0;
+    pending.y = 0;
+    pending.width = texture.width_;
+    pending.height = texture.height_;
+    pending.pitch_bytes = texture.width_ * 4u;
     pending.rgba.assign(static_cast<const uint8_t*>(rgba), static_cast<const uint8_t*>(rgba) + count);
 }
 
 auto Renderer2D::DestroyTexture(Texture& texture) -> void {
     if (in_frame_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::DestroyTexture ignored during an active frame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::DestroyTexture ignored during an active frame");
         return;
     }
     if (texture.owner_ != this) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
-                    "Renderer2D refused to destroy a texture owned by another renderer");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D refused to destroy a texture owned by another renderer");
         return;
     }
     const bool wasWhiteTexture = white_texture_ == &texture;
@@ -501,20 +559,44 @@ auto Renderer2D::DestroyTexture(Texture& texture) -> void {
     texture.handle_ = render::kInvalidTexture2D;
     texture.owner_ = nullptr;
     std::erase_if(textures_, [&texture](const std::unique_ptr<Texture>& entry) { return entry.get() == &texture; });
+    std::erase(deferred_destroys_, &texture);
     if (wasWhiteTexture)
         white_texture_ = nullptr;
+}
+
+auto Renderer2D::EnqueueDeferredTextureDestroy(Texture* texture) -> void {
+    if (!texture || texture->owner_ != this)
+        return;
+    if (std::ranges::find(deferred_destroys_, texture) == deferred_destroys_.end())
+        deferred_destroys_.push_back(texture);
+}
+
+auto Renderer2D::FlushDeferredTextureDestroys() -> void {
+    if (deferred_destroys_.empty())
+        return;
+    if (in_frame_) {
+        LOG_WARNING(atom::log::render::Renderer2D,
+                    "Renderer2D::FlushDeferredTextureDestroys skipped during an active frame");
+        return;
+    }
+    // DestroyTexture mutates deferred_destroys_, so swap first.
+    std::vector<Texture*> pending{};
+    pending.swap(deferred_destroys_);
+    for (Texture* texture : pending) {
+        if (texture)
+            DestroyTexture(*texture);
+    }
 }
 
 auto Renderer2D::LoadFontFromMemory(std::span<const std::byte> font_data) -> Font* {
     auto font = Font::CreateFromMemory(font_data);
     if (!font) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
-                    "Renderer2D rejected empty, invalid, or unsupported font data");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D rejected empty, invalid, or unsupported font data");
         return nullptr;
     }
     auto* result = font.get();
     fonts_.push_back(std::move(font));
-    LOG_INFO(atom::render::LogChannel::RENDERER2D,
+    LOG_INFO(atom::log::render::Renderer2D,
              "Renderer2D loaded font data (bytes=" + std::to_string(font_data.size()) + ")");
     return result;
 }
@@ -523,7 +605,7 @@ auto Renderer2D::DestroyFont(Font* font) -> void {
     if (!font)
         return;
     if (in_frame_) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D, "Renderer2D::DestroyFont ignored during an active frame");
+        LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D::DestroyFont ignored during an active frame");
         return;
     }
     for (const auto& atlas : atlases_) {
@@ -544,9 +626,10 @@ auto Renderer2D::GetWhiteTexture() const -> Texture* {
 
 // --- recording ---------------------------------------------------------------
 
-auto Renderer2D::DrawTexture(const Texture& texture, const Rect& dst, const Color& tint, const Rect* source) -> void {
+auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint, const algo::Rect* source)
+    -> void {
     if (!in_frame_ || texture.owner_ != this || texture.handle_ == render::kInvalidTexture2D) {
-        LOG_WARNING(atom::render::LogChannel::RENDERER2D,
+        LOG_WARNING(atom::log::render::Renderer2D,
                     "DrawTexture rejected: in_frame=" + std::to_string(in_frame_) +
                         " owner_match=" + std::to_string(texture.owner_ == this) +
                         " valid_handle=" + std::to_string(texture.handle_ != render::kInvalidTexture2D));
@@ -558,28 +641,32 @@ auto Renderer2D::DrawTexture(const Texture& texture, const Rect& dst, const Colo
     op.has_clip = !clip_stack_.empty();
     op.color = tint;
     op.texture = &texture;
-    op.dst = dst;
+    op.dst = ToRenderRect(dst);
     if (source) {
-        op.source = *source;
+        op.source = ToRenderRect(*source);
         op.has_source = true;
     }
     ops_.push_back(std::move(op));
 }
 
-auto Renderer2D::DrawRect(const Rect& rect, const Color& color) -> void {
+auto Renderer2D::DrawRect(const algo::Rect& rect, const Color& color) -> void {
     if (!white_texture_)
         return;
     DrawTexture(*white_texture_, rect, color, nullptr);
 }
 
-auto Renderer2D::DrawRectOutline(const Rect& rect, const Color& color, const float thickness) -> void {
+auto Renderer2D::DrawRectOutline(const algo::Rect& rect, const Color& color, const float thickness) -> void {
     const float t = std::max(thickness, 0.0f);
     if (t <= 0.0f)
         return;
-    DrawRect(Rect{rect.x, rect.y, rect.width, t}, color);
-    DrawRect(Rect{rect.x, rect.y + rect.height - t, rect.width, t}, color);
-    DrawRect(Rect{rect.x, rect.y + t, t, std::max(rect.height - 2.0f * t, 0.0f)}, color);
-    DrawRect(Rect{rect.x + rect.width - t, rect.y + t, t, std::max(rect.height - 2.0f * t, 0.0f)}, color);
+    DrawRect(algo::Rect{rect.x, rect.y, rect.width, t}, color);
+    DrawRect(algo::Rect{rect.x, rect.y + rect.height - t, rect.width, t}, color);
+    DrawRect(algo::Rect{rect.x, rect.y + t, t, std::max(rect.height - 2.0f * t, 0.0f)}, color);
+    DrawRect(algo::Rect{rect.x + rect.width - t, rect.y + t, t, std::max(rect.height - 2.0f * t, 0.0f)}, color);
+}
+
+auto Renderer2D::DrawCircle(const algo::Circle2& circle, const Color& color, const uint32_t segments) -> void {
+    DrawCircle(circle.center.GetX(), circle.center.GetY(), circle.radius, color, segments);
 }
 
 auto Renderer2D::DrawCircle(const float center_x, const float center_y, const float radius, const Color& color,
@@ -647,18 +734,19 @@ auto Renderer2D::DrawText(const Font& font, const std::string_view text, const f
     ops_.push_back(std::move(op));
 }
 
-auto Renderer2D::PushClip(const Rect& rect) -> void {
+auto Renderer2D::PushClip(const algo::Rect& rect) -> void {
     if (!in_frame_)
         return;
+    const Rect renderRect = ToRenderRect(rect);
     if (clip_stack_.empty()) {
-        clip_stack_.push_back(rect);
+        clip_stack_.push_back(renderRect);
         return;
     }
     const auto& parent = clip_stack_.back();
-    const float left = std::max(parent.x, rect.x);
-    const float top = std::max(parent.y, rect.y);
-    const float right = std::min(parent.x + parent.width, rect.x + rect.width);
-    const float bottom = std::min(parent.y + parent.height, rect.y + rect.height);
+    const float left = std::max(parent.x, renderRect.x);
+    const float top = std::max(parent.y, renderRect.y);
+    const float right = std::min(parent.x + parent.width, renderRect.x + renderRect.width);
+    const float bottom = std::min(parent.y + parent.height, renderRect.y + renderRect.height);
     clip_stack_.push_back(Rect{left, top, std::max(right - left, 0.0f), std::max(bottom - top, 0.0f)});
 }
 auto Renderer2D::PopClip() -> void {
@@ -712,15 +800,20 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
         return &existing->second;
 
     AtlasGlyph glyph{};
-    glyph.advance = atlas.font ? atlas.font->Advance(codepoint, 0, atlas.scale) : 0.0f;
-    if (!atlas.font || !atlas.font->IsValid() || !atlas.font->HasGlyph(codepoint)) {
+    if (!atlas.font || !atlas.font->IsValid()) {
         glyph.width = 0;
         glyph.height = 0;
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
     }
 
+    const bool hasGlyph = atlas.font->HasGlyph(codepoint);
+    if (!hasGlyph) {
+        LOG_DEBUG(atom::log::render::Renderer2D,
+                  "Glyph U+" + std::to_string(codepoint) + " is unavailable; using the font .notdef glyph");
+    }
+
     RasterizedGlyph raster{};
-    const bool rasterized = atlas.font->Rasterize(codepoint, atlas.scale, raster);
+    const bool rasterized = atlas.font->Rasterize(hasGlyph ? codepoint : 0, atlas.scale, raster);
     glyph.width = rasterized ? raster.width : 0;
     glyph.height = rasterized ? raster.height : 0;
     glyph.offset_x = rasterized ? raster.offset_x : 0;
@@ -733,8 +826,12 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
 
     const int gw = static_cast<int>(glyph.width) + kGlyphPadding;
     const int gh = static_cast<int>(glyph.height) + kGlyphPadding;
-    if (gw > static_cast<int>(kPageSize) || gh > static_cast<int>(kPageSize))
+    if (gw > static_cast<int>(kPageSize) || gh > static_cast<int>(kPageSize)) {
+        LOG_WARNING(atom::log::render::Renderer2D, "Glyph U+" + std::to_string(codepoint) + " at atlas size " +
+                                                       std::to_string(atlas.size_px) + " exceeds the " +
+                                                       std::to_string(kPageSize) + "px atlas page");
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
+    }
     std::size_t pageIndex = atlas.pages.size();
     for (std::size_t i = 0; i < atlas.pages.size(); ++i) {
         int candidateX = atlas.pages[i].cursor_x;
@@ -765,8 +862,12 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
         page.cursor_y += page.row_height;
         page.row_height = 0;
     }
-    if (page.cursor_y + gh > static_cast<int>(page.size))
-        return &atlas.glyphs.emplace(codepoint, glyph).first->second; // oversized glyph
+    if (page.cursor_y + gh > static_cast<int>(page.size)) {
+        LOG_WARNING(atom::log::render::Renderer2D, "Glyph U+" + std::to_string(codepoint) +
+                                                       " could not be packed into a " + std::to_string(page.size) +
+                                                       "px atlas page");
+        return &atlas.glyphs.emplace(codepoint, glyph).first->second;
+    }
 
     glyph.page = static_cast<uint32_t>(pageIndex);
     glyph.u = static_cast<uint32_t>(page.cursor_x);
@@ -781,6 +882,19 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
     }
     page.cursor_x += gw;
     page.row_height = std::max(page.row_height, gh);
+    const uint32_t right = glyph.u + glyph.width;
+    const uint32_t bottom = glyph.v + glyph.height;
+    if (!page.dirty) {
+        page.dirty_left = glyph.u;
+        page.dirty_top = glyph.v;
+        page.dirty_right = right;
+        page.dirty_bottom = bottom;
+    } else {
+        page.dirty_left = std::min(page.dirty_left, glyph.u);
+        page.dirty_top = std::min(page.dirty_top, glyph.v);
+        page.dirty_right = std::max(page.dirty_right, right);
+        page.dirty_bottom = std::max(page.dirty_bottom, bottom);
+    }
     page.dirty = true;
     return &atlas.glyphs.emplace(codepoint, glyph).first->second;
 }
@@ -788,10 +902,10 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
 auto Renderer2D::ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -> void {
     if (!op.font || !op.font->IsValid())
         return;
-    const float size = op.size_px;
+    const float atlasSize = QuantizeAtlasSize(op.size_px);
 
     auto atlasIt = std::find_if(atlases_.begin(), atlases_.end(), [&](const std::unique_ptr<GlyphAtlas>& atlas) {
-        return atlas->font == op.font && atlas->size_px == size;
+        return atlas->font == op.font && atlas->size_px == atlasSize;
     });
     GlyphAtlas* atlas = nullptr;
     if (atlasIt != atlases_.end()) {
@@ -799,19 +913,64 @@ auto Renderer2D::ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -
     } else {
         auto created = std::make_unique<GlyphAtlas>();
         created->font = op.font;
-        created->size_px = size;
-        created->scale = op.font->ScaleForPixelHeight(size);
+        created->size_px = atlasSize;
+        created->scale = op.font->ScaleForPixelHeight(atlasSize);
         atlas = created.get();
         atlases_.push_back(std::move(created));
     }
 
-    const auto metrics = op.font->MetricsForPixelHeight(size);
+    const auto metrics = op.font->MetricsForPixelHeight(atlasSize);
     const float lineHeight = metrics.ascent - metrics.descent + metrics.line_gap;
     const float limit = op.max_width > 0.0f ? op.dst.x + op.max_width : std::numeric_limits<float>::infinity();
 
     float cursorX = op.dst.x;
     float cursorY = op.dst.y;
     uint32_t previous = 0;
+
+    const auto measureRun = [&](const std::size_t start, const std::size_t end, uint32_t runPrevious) {
+        float advance = 0.0f;
+        std::size_t runIndex = start;
+        while (runIndex < end) {
+            const auto before = runIndex;
+            const uint32_t codepoint = NextCodepoint(op.text, runIndex);
+            if (codepoint == 0) {
+                if (runIndex == before)
+                    ++runIndex;
+                continue;
+            }
+            advance += op.font->Advance(codepoint, runPrevious, atlas->scale);
+            runPrevious = codepoint;
+        }
+        return advance;
+    };
+    const auto emitGlyph = [&](const uint32_t codepoint) {
+        const float baseAdvance = op.font->Advance(codepoint, 0, atlas->scale);
+        cursorX += op.font->Advance(codepoint, previous, atlas->scale) - baseAdvance;
+        previous = codepoint;
+        const AtlasGlyph* glyph = EnsureGlyph(*atlas, codepoint);
+        if (glyph && glyph->width != 0 && glyph->height != 0 && glyph->page < atlas->pages.size()) {
+            const auto& page = atlas->pages[glyph->page];
+            DrawOp quad{};
+            quad.layer = op.layer;
+            quad.sampler = sampler_;
+            quad.clip = op.clip;
+            quad.has_clip = op.has_clip;
+            quad.color = op.color;
+            quad.texture = page.texture;
+            quad.dst = Rect{cursorX + static_cast<float>(glyph->offset_x),
+                            cursorY + metrics.ascent + static_cast<float>(glyph->offset_y),
+                            static_cast<float>(glyph->width), static_cast<float>(glyph->height)};
+            // Half-texel inset keeps linear sampling away from the transparent
+            // gutter between glyphs (avoids edge erosion / garbled small text).
+            quad.source = Rect{static_cast<float>(glyph->u) + 0.5f, static_cast<float>(glyph->v) + 0.5f,
+                               std::max(static_cast<float>(glyph->width) - 1.0f, 1.0f),
+                               std::max(static_cast<float>(glyph->height) - 1.0f, 1.0f)};
+            quad.has_source = true;
+            expanded.push_back(std::move(quad));
+        }
+        cursorX += baseAdvance;
+    };
+
     std::size_t index = 0;
     while (index < op.text.size()) {
         const auto previousIndex = index;
@@ -828,45 +987,56 @@ auto Renderer2D::ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -
             previous = 0;
             continue;
         }
-        const float baseAdvance = op.font->Advance(codepoint, 0, atlas->scale);
-        float kerning = op.font->Advance(codepoint, previous, atlas->scale) - baseAdvance;
-        if (cursorX + kerning + baseAdvance > limit && cursorX > op.dst.x && codepoint != ' ') {
+        if (codepoint == '\r')
+            continue;
+        if (codepoint == ' ') {
+            cursorX += op.font->Advance(codepoint, previous, atlas->scale);
+            previous = codepoint;
+            continue;
+        }
+        if (codepoint == '\t') {
+            const float tabWidth = std::max(op.font->Advance(' ', 0, atlas->scale) * 4.0f, 1.0f);
+            const float column = std::max(cursorX - op.dst.x, 0.0f);
+            cursorX = op.dst.x + (std::floor(column / tabWidth) + 1.0f) * tabWidth;
+            previous = 0;
+            continue;
+        }
+        if (IsAsciiWordCodepoint(codepoint)) {
+            const std::size_t wordStart = previousIndex;
+            std::size_t wordEnd = index;
+            while (wordEnd < op.text.size()) {
+                const std::size_t probeStart = wordEnd;
+                const uint32_t probe = NextCodepoint(op.text, wordEnd);
+                if (!IsAsciiWordCodepoint(probe)) {
+                    wordEnd = probeStart;
+                    break;
+                }
+            }
+            if (cursorX + measureRun(wordStart, wordEnd, previous) > limit && cursorX > op.dst.x) {
+                cursorX = op.dst.x;
+                cursorY += lineHeight;
+                previous = 0;
+            }
+            index = wordStart;
+            while (index < wordEnd) {
+                const auto wordIndex = index;
+                const uint32_t wordCodepoint = NextCodepoint(op.text, index);
+                if (wordCodepoint == 0) {
+                    if (index == wordIndex)
+                        ++index;
+                    continue;
+                }
+                emitGlyph(wordCodepoint);
+            }
+            continue;
+        }
+        const float advance = op.font->Advance(codepoint, previous, atlas->scale);
+        if (cursorX + advance > limit && cursorX > op.dst.x) {
             cursorX = op.dst.x;
             cursorY += lineHeight;
-            kerning = 0.0f; // no kern pair across a wrapped line boundary
+            previous = 0;
         }
-        cursorX += kerning;
-        previous = codepoint;
-        if (codepoint == ' ' || codepoint == '\t') {
-            cursorX += codepoint == '\t' ? baseAdvance * 4.0f : baseAdvance;
-            continue;
-        }
-        const AtlasGlyph* glyph = EnsureGlyph(*atlas, codepoint);
-        if (!glyph || glyph->width == 0 || glyph->height == 0) {
-            cursorX += baseAdvance;
-            continue;
-        }
-        if (glyph->page >= atlas->pages.size())
-            continue;
-        const auto& page = atlas->pages[glyph->page];
-        DrawOp quad{};
-        quad.layer = op.layer;
-        quad.sampler = sampler_nearest_;
-        quad.clip = op.clip;
-        quad.has_clip = op.has_clip;
-        quad.color = op.color;
-        quad.texture = page.texture;
-        quad.dst = Rect{cursorX + static_cast<float>(glyph->offset_x),
-                        cursorY + metrics.ascent + static_cast<float>(glyph->offset_y), static_cast<float>(glyph->width),
-                        static_cast<float>(glyph->height)};
-        // Half-texel inset keeps linear sampling away from the transparent
-        // gutter between glyphs (avoids edge erosion / garbled small text).
-        quad.source = Rect{static_cast<float>(glyph->u) + 0.5f, static_cast<float>(glyph->v) + 0.5f,
-                           std::max(static_cast<float>(glyph->width) - 1.0f, 1.0f),
-                           std::max(static_cast<float>(glyph->height) - 1.0f, 1.0f)};
-        quad.has_source = true;
-        expanded.push_back(std::move(quad));
-        cursorX += baseAdvance;
+        emitGlyph(codepoint);
     }
 }
 

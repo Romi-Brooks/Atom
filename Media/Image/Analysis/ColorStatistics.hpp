@@ -8,7 +8,7 @@
 
 #include <optional>
 
-#include <Color/Color.hpp>
+#include <Algorithm/Color/Color.hpp>
 #include <Media/Image/ImageDecoder.hpp>
 
 namespace atom::image {

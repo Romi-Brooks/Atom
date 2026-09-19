@@ -20,6 +20,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <Algorithm/Geometry/Primitives.hpp>
+#include <Algorithm/Geometry/Rect.hpp>
 #include <Backend/Contracts/Render/IRender2DContext.hpp>
 
 namespace atom::render {
@@ -35,6 +37,21 @@ class IRenderDevice;
 // touches SDL_GPU / Vulkan types.
 class Renderer2D {
     public:
+        struct PostProcessParams {
+                PostProcess2DEffect effect = PostProcess2DEffect::None;
+                bool has_region = false;
+                algo::Rect region{};
+                float corner_radius = 0.0f;
+                float feather = 0.0f;
+                float amount = 0.0f;
+                float scanline = 0.0f;
+                float noise = 0.0f;
+                float progress = 0.0f;
+                float intensity = 0.0f;
+                float time = 0.0f;
+                float direction = 1.0f;
+        };
+
         // A GPU texture owned by this renderer (RGBA8). Pointers stay valid
         // until DestroyTexture() or Shutdown(). Uploads are deferred to the
         // next EndFrame(), so Create/Update may be called outside a frame.
@@ -75,7 +92,7 @@ class Renderer2D {
         auto EndFrame() -> bool;
         [[nodiscard]] auto IsInFrame() const -> bool;
 
-        auto SetPostProcess(const PostProcess2DParams& params) -> void;
+        auto SetPostProcess(const PostProcessParams& params) -> void;
 
         // Resources:
         // Creates an RGBA8 texture; rgba (w*h*4 bytes) may be null. The upload
@@ -83,6 +100,14 @@ class Renderer2D {
         auto CreateTexture(uint32_t width, uint32_t height, const void* rgba = nullptr) -> Texture*;
         auto UpdateTexture(Texture& texture, const void* rgba) -> void;
         auto DestroyTexture(Texture& texture) -> void;
+
+        // Deferred GPU reclaim (ARCH-107 / D4). Callers that drop the last
+        // reference to a texture while a frame may be active enqueue it here;
+        // the actual DestroyTexture2D runs in FlushDeferredTextureDestroys(),
+        // which must be called outside an active frame (typically once per
+        // frame, before BeginFrame). Shutdown also drains the queue.
+        auto EnqueueDeferredTextureDestroy(Texture* texture) -> void;
+        auto FlushDeferredTextureDestroys() -> void;
 
         // Creates a font from TTF/TTC bytes (kept alive by the renderer until
         // DestroyFont() / Shutdown()).
@@ -92,12 +117,45 @@ class Renderer2D {
         [[nodiscard]] auto GetWhiteTexture() const -> Texture*;
 
         // Drawing (only between BeginFrame() and EndFrame()):
-        // dst is in world units; source is an optional texel sub-rectangle
-        // (for sprite sheets / glyph atlas pages).
-        auto DrawTexture(const Texture& texture, const Rect& dst, const Color& tint = Color::White(),
-                         const Rect* source = nullptr) -> void;
-        auto DrawRect(const Rect& rect, const Color& color) -> void;
-        auto DrawRectOutline(const Rect& rect, const Color& color, float thickness = 1.0f) -> void;
+        /**
+         * @brief Draws a texture into a geometry/world rectangle.
+         * @param texture Renderer-owned texture to draw.
+         * @param dst World-space destination rectangle. Renderer2D converts it
+         *        internally from algo::Rect to its private render::Rect.
+         * @param tint Color multiplied with the texture.
+         * @param source Optional texel rectangle in the texture. It is also
+         *        converted internally; a dedicated TextureRegion type will
+         *        replace this algo::Rect parameter in a future API revision.
+         */
+        auto DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint = Color::White(),
+                         const algo::Rect* source = nullptr) -> void;
+
+        /**
+         * @brief Draws a filled geometry/world rectangle.
+         * @param rect World-space rectangle. Renderer2D converts it internally
+         *        from algo::Rect to its private render::Rect before batching.
+         * @param color Fill color.
+         */
+        auto DrawRect(const algo::Rect& rect, const Color& color) -> void;
+
+        /**
+         * @brief Draws the outline of a geometry/world rectangle.
+         * @param rect World-space rectangle. Renderer2D splits it into four
+         *        geometry rectangles, each converted internally before draw.
+         * @param color Outline color.
+         * @param thickness Outline thickness in world units.
+         */
+        auto DrawRectOutline(const algo::Rect& rect, const Color& color, float thickness = 1.0f) -> void;
+
+        /**
+         * @brief Draws a geometric circle.
+         * @param circle Geometry circle. Renderer2D reads its center and radius
+         *        internally, then records its private render-circle operation.
+         * @param color Fill color.
+         * @param segments Tessellation quality; it is a rendering setting and
+         *        therefore is not stored in algo::Circle2.
+         */
+        auto DrawCircle(const algo::Circle2& circle, const Color& color, uint32_t segments = 0) -> void;
         auto DrawCircle(float center_x, float center_y, float radius, const Color& color, uint32_t segments = 0)
             -> void;
         auto DrawLine(float x0, float y0, float x1, float y1, const Color& color, float thickness = 1.0f) -> void;
@@ -107,9 +165,14 @@ class Renderer2D {
         auto DrawText(const Font& font, std::string_view text, float x, float y, const Color& color, float size_px,
                       float max_width = 0.0f) -> void;
 
-        // Scissor clip in world units (nested). Higher PushLayer values draw
-        // later (on top); layer stack is nested.
-        auto PushClip(const Rect& rect) -> void;
+        /**
+         * @brief Pushes a nested world-space scissor clip.
+         * @param rect Geometry/world rectangle. Renderer2D converts it
+         *        internally from algo::Rect to its private render::Rect before
+         *        intersecting it with the parent clip.
+         * @note Higher PushLayer values draw later (on top).
+         */
+        auto PushClip(const algo::Rect& rect) -> void;
         auto PopClip() -> void;
         auto PushLayer(int32_t layer) -> void;
         auto PopLayer() -> void;
@@ -154,6 +217,11 @@ class Renderer2D {
                 int cursor_y = 1;
                 int row_height = 0;
                 bool dirty = false;
+                bool needs_initial_upload = true;
+                uint32_t dirty_left = 0;
+                uint32_t dirty_top = 0;
+                uint32_t dirty_right = 0;
+                uint32_t dirty_bottom = 0;
         };
 
         struct AtlasGlyph {
@@ -164,7 +232,6 @@ class Renderer2D {
                 uint32_t height = 0;
                 int offset_x = 0;
                 int offset_y = 0;
-                float advance = 0.0f;
         };
 
         struct GlyphAtlas {
@@ -179,6 +246,7 @@ class Renderer2D {
         auto TransformY(float y) const -> float;
         auto TransformRect(const Rect& world) const -> Rect;
         auto BuildViewProjection(float out_width, float out_height) const -> std::array<float, 16>;
+        auto ApplyPostProcess(const PostProcess2DParams& params) -> void;
 
         auto EnsureGlyph(GlyphAtlas& atlas, uint32_t codepoint) -> const AtlasGlyph*;
         auto ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -> void;
@@ -186,7 +254,6 @@ class Renderer2D {
         IRenderDevice* device_ = nullptr;
         IRender2DContext* context_ = nullptr;
         render::Sampler2D sampler_ = render::kInvalidSampler2D;
-        render::Sampler2D sampler_nearest_ = render::kInvalidSampler2D;
         bool initialized_ = false;
         bool in_frame_ = false;
         float origin_x_ = 0.0f;
@@ -207,9 +274,15 @@ class Renderer2D {
 
         struct PendingUpload {
                 render::Texture2D handle = render::kInvalidTexture2D;
+                uint32_t x = 0;
+                uint32_t y = 0;
+                uint32_t width = 0;
+                uint32_t height = 0;
+                uint32_t pitch_bytes = 0;
                 std::vector<uint8_t> rgba{};
         };
         std::unordered_map<render::Texture2D, PendingUpload> pending_uploads_{};
+        std::vector<Texture*> deferred_destroys_{};
         PostProcess2DParams postprocess_params_{};
 };
 

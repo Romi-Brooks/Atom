@@ -3,11 +3,11 @@
   * @author         : Romi Brooks
   * @brief          : Log channel domain demo (one log per section, levels spread
   *                   across domains; per-domain enumeration + level filtering):
-  *                   - Level-1 domain: atom::core::LogChannel (prefix "Atom.")
-  *                   - Level-2 domains: atom::audio / atom::entity
-  *                   - Level-3 domain: atom::backend::sdl3
-  *                   - Game domain: game::GameLogChannel (prefix "Game."),
-  *                     nested game::npc (Level-2) and game::npc::ai (Level-3)
+  *                   - Level-1 domain: atom::log::core (prefix "Atom.")
+  *                   - Level-2 domains: atom::log::audio / atom::log::entity
+  *                   - Level-3 domain: atom::log::backend::Audio
+  *                   - Game domain: game::log (prefix "Game."), nested
+  *                     game::log::npc (Level-2) and game::log::npc::ai (Level-3)
   *                   - Ad-hoc string channels, per-domain enumeration,
   *                     level filtering
   * @attention      :
@@ -38,37 +38,37 @@ auto main() -> int {
     // Set the log level first
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
-    std::cout << "===== Level-1 domain: atom::core::LogChannel =====" << std::endl;
-    LOG_INFO(atom::core::LogChannel::MAIN, "Engine booting...");
+    std::cout << "===== Level-1 domain: atom::log::core =====" << std::endl;
+    LOG_INFO(atom::log::core::Main, "Engine booting...");
 
-    std::cout << "===== Level-2 domain: atom::audio::LogChannel =====" << std::endl;
-    LOG_WARNING(atom::audio::LogChannel::SFX, "SFX not found");
+    std::cout << "===== Level-2 domain: atom::log::audio =====" << std::endl;
+    LOG_WARNING(atom::log::audio::Sfx, "SFX not found");
 
-    std::cout << "===== Level-2 domain: atom::entity::LogChannel =====" << std::endl;
-    LOG_ERROR(atom::entity::LogChannel::PLAYER, "Player save failed");
+    std::cout << "===== Level-2 domain: atom::log::entity =====" << std::endl;
+    LOG_ERROR(atom::log::entity::Player, "Player save failed");
 
-    std::cout << "===== Level-3 domain: atom::backend::sdl3::LogChannel =====" << std::endl;
-    LOG_DEBUG(atom::backend::sdl3::LogChannel::RENDER, "SDL renderer created");
+    std::cout << "===== Level-3 domain: atom::log::backend::Audio =====" << std::endl;
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Audio backend initialized");
 
-    std::cout << "===== Game domain: game::GameLogChannel =====" << std::endl;
-    LOG_INFO(game::GameLogChannel::GAME_NPC, "NPC spawned");
+    std::cout << "===== Game domain: game::log =====" << std::endl;
+    LOG_INFO(game::log::Npc, "NPC spawned");
 
-    std::cout << "===== Game Level-2 domain: game::npc::LogChannel =====" << std::endl;
-    LOG_WARNING(game::npc::LogChannel::AI, "AI state reset");
+    std::cout << "===== Game Level-2 domain: game::log::npc =====" << std::endl;
+    LOG_WARNING(game::log::npc::Ai, "AI state reset");
 
-    std::cout << "===== Game Level-3 domain: game::npc::ai::LogChannel =====" << std::endl;
-    LOG_ERROR(game::npc::ai::LogChannel::PATHFINDING, "Pathfinding failed");
+    std::cout << "===== Game Level-3 domain: game::log::npc::ai =====" << std::endl;
+    LOG_ERROR(game::log::npc::ai::Pathfinding, "Pathfinding failed");
 
     std::cout << "===== Ad-hoc string channel =====" << std::endl;
     LOG_INFO("Game.NPC", "ad-hoc: dialog started");
 
-    PrintAllChannels<atom::core::LogChannel>("all atom::core channels");
-    PrintAllChannels<atom::audio::LogChannel>("all atom::audio channels");
-    PrintAllChannels<atom::entity::LogChannel>("all atom::entity channels");
-    PrintAllChannels<atom::backend::sdl3::LogChannel>("all atom::backend::sdl3 channels");
-    PrintAllChannels<game::GameLogChannel>("all game channels");
-    PrintAllChannels<game::npc::LogChannel>("all game::npc channels");
-    PrintAllChannels<game::npc::ai::LogChannel>("all game::npc::ai channels");
+    PrintAllChannels<atom::log::core::Channel>("all atom::log::core channels");
+    PrintAllChannels<atom::log::audio::Channel>("all atom::log::audio channels");
+    PrintAllChannels<atom::log::entity::Channel>("all atom::log::entity channels");
+    PrintAllChannels<atom::log::backend::Audio::Channel>("all atom::log::backend::Audio channels");
+    PrintAllChannels<game::log::Channel>("all game::log channels");
+    PrintAllChannels<game::log::npc::Channel>("all game::log::npc channels");
+    PrintAllChannels<game::log::npc::ai::Channel>("all game::log::npc::ai channels");
 
     return 0;
 }

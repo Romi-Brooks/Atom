@@ -20,11 +20,11 @@ auto SDL3MusicSource::EnsureStream() -> bool {
     if (stream_)
         return true;
     if (pcm_data_.empty()) {
-        LOG_WARNING(atom::audio::LogChannel::MUSIC, "EnsureStream: no PCM data loaded");
+        LOG_WARNING(atom::log::audio::Music, "EnsureStream: no PCM data loaded");
         return false;
     }
 
-    LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO,
+    LOG_DEBUG(atom::log::backend::Audio::sdl3,
               "Opening stream: fmt=" + std::to_string(spec_.format) + " freq=" + std::to_string(spec_.freq) +
                   " ch=" + std::to_string(spec_.channels) + " data_bytes=" + std::to_string(pcm_data_.size()));
 
@@ -34,29 +34,40 @@ auto SDL3MusicSource::EnsureStream() -> bool {
     // crackling) are minimised.
     stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, nullptr, nullptr);
     if (!stream_) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::AUDIO,
+        LOG_ERROR(atom::log::backend::Audio::sdl3,
                   "Failed to open audio stream: " + std::string(SDL_GetError()));
         return false;
     }
 
-    LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO, "Audio stream opened successfully");
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Audio stream opened successfully");
     return true;
 }
 
 SDL3MusicSource::~SDL3MusicSource() {
+    // Detach() releases the stream *and* drops this source from the backend's
+    // source registry, so a source destroyed outside a backend switch cannot
+    // leave a stale entry behind.
+    Detach();
+}
+
+auto SDL3MusicSource::ReleaseBackendHandles() -> void {
     Stop();
+    // Dropping the buffer makes every later Play() a no-op.
+    pcm_data_.clear();
     if (stream_) {
         SDL_DestroyAudioStream(stream_);
+        stream_ = nullptr;
     }
+    finished_ = false;
 }
 
 auto SDL3MusicSource::Play() -> void {
     if (pcm_data_.empty()) {
-        LOG_WARNING(atom::audio::LogChannel::MUSIC, "Play() called with no data");
+        LOG_WARNING(atom::log::audio::Music, "Play() called with no data");
         return;
     }
     if (!EnsureStream()) {
-        LOG_WARNING(atom::audio::LogChannel::MUSIC, "Play() aborted: cannot open stream");
+        LOG_WARNING(atom::log::audio::Music, "Play() aborted: cannot open stream");
         return;
     }
 
@@ -65,16 +76,16 @@ auto SDL3MusicSource::Play() -> void {
         thread_running_ = true;
         decode_thread_ = std::thread(&SDL3MusicSource::DecodeLoop, this);
         if (!SDL_ResumeAudioStreamDevice(stream_)) {
-            LOG_ERROR(atom::audio::LogChannel::MUSIC,
+            LOG_ERROR(atom::log::audio::Music,
                       "SDL_ResumeAudioStreamDevice failed: " + std::string(SDL_GetError()));
         }
-        LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback resumed");
+        LOG_INFO(atom::log::audio::Music, "Playback resumed");
         return;
     }
 
     atom::audio::AudioSourceState expected = atom::audio::AudioSourceState::Stopped;
     if (!state_.compare_exchange_strong(expected, atom::audio::AudioSourceState::Playing)) {
-        LOG_DEBUG(atom::audio::LogChannel::MUSIC,
+        LOG_DEBUG(atom::log::audio::Music,
                   "Play() ignored: state is " + std::to_string(static_cast<int>(state_.load())));
         return;
     }
@@ -85,18 +96,18 @@ auto SDL3MusicSource::Play() -> void {
     decode_thread_ = std::thread(&SDL3MusicSource::DecodeLoop, this);
 
     if (!SDL_ResumeAudioStreamDevice(stream_)) {
-        LOG_ERROR(atom::audio::LogChannel::MUSIC, "SDL_ResumeAudioStreamDevice failed: " + std::string(SDL_GetError()));
+        LOG_ERROR(atom::log::audio::Music, "SDL_ResumeAudioStreamDevice failed: " + std::string(SDL_GetError()));
     }
-    LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback started");
+    LOG_INFO(atom::log::audio::Music, "Playback started");
 }
 
 auto SDL3MusicSource::Stop() -> void {
     if (state_.load() == atom::audio::AudioSourceState::Stopped && !thread_running_.load() &&
         !decode_thread_.joinable()) {
-        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Stop() ignored: playback is already stopped");
+        LOG_DEBUG(atom::log::audio::Music, "Stop() ignored: playback is already stopped");
         return;
     }
-    LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Stop requested");
+    LOG_DEBUG(atom::log::audio::Music, "Stop requested");
     state_.store(atom::audio::AudioSourceState::Stopped);
     thread_running_ = false;
 
@@ -114,13 +125,13 @@ auto SDL3MusicSource::Stop() -> void {
 
     play_cursor_ = 0;
     finished_ = false;
-    LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback stopped");
+    LOG_INFO(atom::log::audio::Music, "Playback stopped");
 }
 
 auto SDL3MusicSource::Pause() -> void {
     atom::audio::AudioSourceState expected = atom::audio::AudioSourceState::Playing;
     if (!state_.compare_exchange_strong(expected, atom::audio::AudioSourceState::Paused)) {
-        LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Pause() ignored: playback is not active");
+        LOG_DEBUG(atom::log::audio::Music, "Pause() ignored: playback is not active");
         return;
     }
     thread_running_ = false;
@@ -130,7 +141,7 @@ auto SDL3MusicSource::Pause() -> void {
     if (decode_thread_.joinable()) {
         decode_thread_.join();
     }
-    LOG_DEBUG(atom::audio::LogChannel::MUSIC, "Playback paused");
+    LOG_DEBUG(atom::log::audio::Music, "Playback paused");
 }
 
 auto SDL3MusicSource::GetState() const -> atom::audio::AudioSourceState {
@@ -156,12 +167,21 @@ auto SDL3MusicSource::IsLooping() const -> bool {
     return loop_.load();
 }
 
-auto SDL3MusicSource::SetPlayingOffset(float seconds) -> void {
-    if (spec_.freq == 0)
-        return;
-    const auto totalFrames = pcm_data_.size() / (SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels);
-    const auto targetFrame = static_cast<uint64_t>(seconds * spec_.freq);
-    play_cursor_ = (std::min)(targetFrame, totalFrames) * SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
+auto SDL3MusicSource::SetPlayingOffset(const float seconds) -> bool {
+    const auto bytes_per_frame = static_cast<std::size_t>(SDL_AUDIO_BYTESIZE(spec_.format)) * spec_.channels;
+    if (spec_.freq == 0 || bytes_per_frame == 0 || pcm_data_.empty())
+        return false;
+    const auto total_frames = pcm_data_.size() / bytes_per_frame;
+    const auto target_frame = static_cast<std::size_t>(std::max(seconds, 0.0f) * static_cast<float>(spec_.freq));
+    play_cursor_ = (std::min)(target_frame, total_frames) * bytes_per_frame;
+    finished_ = false;
+    // Drop audio the decode thread already queued, otherwise the old position
+    // keeps playing for up to a chunk before the seek is audible.
+    if (stream_) {
+        SDL_ClearAudioStream(stream_);
+        SDL_SetAudioStreamGain(stream_, volume_.load() / 100.0f);
+    }
+    return true;
 }
 
 auto SDL3MusicSource::GetPlayingOffset() const -> float {
@@ -171,6 +191,10 @@ auto SDL3MusicSource::GetPlayingOffset() const -> float {
     if (bytesPerFrame == 0)
         return 0.0f;
     return static_cast<float>(play_cursor_.load()) / (static_cast<float>(spec_.freq) * bytesPerFrame);
+}
+
+auto SDL3MusicSource::IsSeekable() const -> bool {
+    return !pcm_data_.empty() && spec_.format != 0 && spec_.freq != 0;
 }
 
 auto SDL3MusicSource::IsFinished() const -> bool {
@@ -188,7 +212,7 @@ auto SDL3MusicSource::DecodeLoop() -> void {
     const std::size_t kStreamChunk =
         std::clamp(chunk_frames * bytes_per_frame, std::size_t{4096}, std::size_t{1048576});
 
-    LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO, "DecodeLoop started: chunk=" + std::to_string(kStreamChunk) +
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "DecodeLoop started: chunk=" + std::to_string(kStreamChunk) +
                                                           " total=" + std::to_string(pcm_data_.size()) +
                                                           " loop=" + std::to_string(loop_.load()));
 
@@ -202,7 +226,7 @@ auto SDL3MusicSource::DecodeLoop() -> void {
             const auto toPush = (std::min)(kStreamChunk, remaining);
 
             if (!SDL_PutAudioStreamData(stream_, pcm_data_.data() + cursor, static_cast<int>(toPush))) {
-                LOG_ERROR(atom::backend::sdl3::LogChannel::AUDIO,
+                LOG_ERROR(atom::log::backend::Audio::sdl3,
                           "SDL_PutAudioStreamData failed: " + std::string(SDL_GetError()));
                 break;
             }
@@ -211,7 +235,7 @@ auto SDL3MusicSource::DecodeLoop() -> void {
             // Throttled debug: log push progress every 3 seconds
             const auto now = std::chrono::steady_clock::now();
             if (now - last_debug_log >= std::chrono::seconds(3)) {
-                LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO,
+                LOG_DEBUG(atom::log::backend::Audio::sdl3,
                           "Pushed " + std::to_string(toPush) + " bytes, cursor=" + std::to_string(cursor + toPush) +
                               "/" + std::to_string(pcm_data_.size()));
                 last_debug_log = now;
@@ -219,13 +243,13 @@ auto SDL3MusicSource::DecodeLoop() -> void {
         } else {
             if (loop_.load()) {
                 play_cursor_ = 0;
-                LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO, "Looping: rewound cursor to 0");
+                LOG_DEBUG(atom::log::backend::Audio::sdl3, "Looping: rewound cursor to 0");
                 continue;
             }
             // SDL queues input bytes separately from converted output. Flush
             // the converter so the final resampler tail is not stranded.
             if (stream_ && !SDL_FlushAudioStream(stream_)) {
-                LOG_ERROR(atom::audio::LogChannel::MUSIC,
+                LOG_ERROR(atom::log::audio::Music,
                           "SDL_FlushAudioStream failed: " + std::string(SDL_GetError()));
             }
             // Wait for the stream to drain before stopping
@@ -237,7 +261,7 @@ auto SDL3MusicSource::DecodeLoop() -> void {
             }
             state_.store(atom::audio::AudioSourceState::Stopped);
             finished_ = true;
-            LOG_INFO(atom::audio::LogChannel::MUSIC, "Playback completed (end of data)");
+            LOG_INFO(atom::log::audio::Music, "Playback completed (end of data)");
             break;
         }
 
@@ -245,7 +269,7 @@ auto SDL3MusicSource::DecodeLoop() -> void {
     }
 
     thread_running_ = false;
-    LOG_DEBUG(atom::backend::sdl3::LogChannel::AUDIO, "DecodeLoop exited");
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "DecodeLoop exited");
 }
 
 } // namespace atom::backend::sdl3

@@ -25,6 +25,17 @@ class IAudioBackend {
         [[nodiscard]] virtual auto CreateStreamingMusicSource(std::unique_ptr<IAudioDecoder> decoder,
                                                               const AudioSpec& spec)
             -> std::unique_ptr<IAudioSource> = 0;
+
+        // Release every source this backend created before the backend itself is
+        // destroyed. BackendRuntime calls this as part of SetAudioBackend; the
+        // backend forwards it to its AudioSourceRegistry (see
+        // AudioSourceRegistry.hpp) so that no source outlives its backend.
+        //
+        // The default no-op is only correct for backends that own no platform
+        // resources (test/fake/null backends). A backend that owns a process-wide
+        // subsystem -- the SDL3 backends, whose teardown runs SDL_QuitSubSystem and
+        // destroys every audio stream in the process -- must implement this.
+        virtual auto Quiesce() -> void {}
 };
 
 } // namespace atom::audio

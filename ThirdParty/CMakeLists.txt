@@ -5,6 +5,7 @@
 set(ATOM_IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ImGUI")
 set(ATOM_LUA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Lua")
 set(ATOM_SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SDL3")
+set(ATOM_SDL3_MIXER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SDL_mixer")
 set(ATOM_TAGLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/taglib")
 set(ATOM_UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utfcpp")
 set(ATOM_MINIMP3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minimp3")
@@ -17,6 +18,7 @@ foreach(dependency_file IN ITEMS
         "${ATOM_IMGUI_DIR}/imgui.cpp"
         "${ATOM_LUA_DIR}/lapi.c"
         "${ATOM_SDL3_DIR}/CMakeLists.txt"
+        "${ATOM_SDL3_MIXER_DIR}/CMakeLists.txt"
         "${ATOM_TAGLIB_DIR}/CMakeLists.txt"
         "${ATOM_UTFCPP_DIR}/CMakeLists.txt"
         "${ATOM_MINIMP3_DIR}/minimp3.h"
@@ -62,6 +64,45 @@ atom_replace_cmake_identifier("${ATOM_SDL3_OVERLAY_DIR}" "SDL3-static" "Atom_3rd
 add_subdirectory(
     "${ATOM_SDL3_OVERLAY_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}/SDL3"
+    EXCLUDE_FROM_ALL
+)
+
+# --------------------------------------------------------------------------
+# SDL3_mixer
+# --------------------------------------------------------------------------
+# Atom feeds decoded PCM into SDL3_mixer, so its file decoders are unnecessary.
+# This keeps the dependency focused on device output, track management and
+# mixing while Atom retains ownership of decoder selection.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_TESTS OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_INSTALL OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_AIFF OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_WAVE OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_VOC OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_AU OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_FLAC OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_GME OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_MOD OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_MP3 OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_MIDI OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_OPUS OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_VORBIS_STB OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_VORBIS_VORBISFILE OFF CACHE BOOL "" FORCE)
+set(SDLMIXER_WAVPACK OFF CACHE BOOL "" FORCE)
+
+file(SHA256 "${ATOM_SDL3_MIXER_DIR}/CMakeLists.txt" ATOM_SDL3_MIXER_CMAKE_HASH)
+set(ATOM_SDL3_MIXER_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/TargetOverlays/SDL3_mixer")
+atom_prepare_target_overlay(
+    "${ATOM_SDL3_MIXER_DIR}"
+    "${ATOM_SDL3_MIXER_OVERLAY_DIR}"
+    "${ATOM_SDL3_MIXER_CMAKE_HASH}:Atom_3rd_SDL3_mixer:v1"
+)
+atom_replace_cmake_identifier("${ATOM_SDL3_MIXER_OVERLAY_DIR}" "SDL3_mixer-static" "Atom_3rd_SDL3_mixer")
+
+add_subdirectory(
+    "${ATOM_SDL3_MIXER_OVERLAY_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/SDL3_mixer"
     EXCLUDE_FROM_ALL
 )
 

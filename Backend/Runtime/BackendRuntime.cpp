@@ -3,12 +3,16 @@
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
+#include <utility>
 
 #include <Backend/Audio/Decoder/minimp3/Minimp3Decoder.hpp>
+#include <Backend/Audio/Decoder/SDL3Wav/SDL3WavDecoder.hpp>
 #include <Backend/Audio/Decoder/WavProf/WavProfDecoder.hpp>
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
+#include <Backend/Contracts/Audio/NullAudioBackend.hpp>
 #include <Backend/Runtime/IAudioBackendChangeListener.hpp>
 #include <Backend/SDL3/Audio/SDL3AudioBackend.hpp>
+#include <Backend/SDL3/Audio/SDL3MixerAudioBackend.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -30,10 +34,13 @@ auto BackendRuntime::GetInstance() -> BackendRuntime& {
 
 BackendRuntime::BackendRuntime() {
     RegisterAvailableBackends();
+    null_backend_ = std::make_shared<audio::NullAudioBackend>();
+    LOG_INFO(atom::log::backend::Runtime, "Initializing default audio backend 'sdl3'");
     audio_backend_ = registry_.CreateAudioBackend("sdl3");
     if (!audio_backend_)
         throw std::runtime_error("Failed to initialize default SDL3 audio backend");
     audio_backend_id_ = "sdl3";
+    LOG_INFO(atom::log::backend::Runtime, "Default audio backend 'sdl3' initialized");
     RegisterDefaultAudioDecoders(audio_decoders_);
 }
 
@@ -46,20 +53,57 @@ auto BackendRuntime::RegisterAvailableBackends() -> void {
             return nullptr;
         return backend;
     });
+    registry_.RegisterAudioBackend("sdl3_mixer", []() -> std::unique_ptr<audio::IAudioBackend> {
+        auto backend = std::make_unique<sdl3mixer::SDL3MixerAudioBackend>();
+        if (!backend->IsReady())
+            return nullptr;
+        return backend;
+    });
 }
 
 auto BackendRuntime::RegisterDefaultAudioDecoders(audio::AudioDecoderRegistry& decoders) -> void {
     // SDL3 itself provides no audio codecs; the engine ships one decoder per
     // format. Add new formats here as they are implemented.
-    decoders.Register(".wav", [] { return std::make_unique<audio_decoder::WavProfDecoder>(); });
-    decoders.Register(".mp3", [] { return std::make_unique<audio_decoder::Minimp3Decoder>(); });
+    //
+    // .wav holds two implementations:
+    //   preferred: WavProf       - streams with a 64 KiB window, so a long track
+    //                              never has to be resident; measured faster than
+    //                              the SDL3 loader for a whole-file PCM read
+    //                              (34 MB WAV: ~7.9 ms vs ~13.5 ms).
+    //   fallback:  SDL3Wav       - SDL_LoadWAV decodes the whole file, which also
+    //                              covers the encodings WavProf rejects (MS ADPCM,
+    //                              IMA ADPCM, A-Law, mu-Law).
+    // AudioClipLoader walks the chain, so plain PCM uses the streaming decoder and
+    // a compressed WAV still plays. Swap the two lines once WavProf no longer
+    // needs the fallback, or Replace(".wav", ...) to force one implementation.
+    decoders.Register(".wav", audio_decoder::CreateWavProfDecoder, "WavProf");
+    decoders.RegisterFallback(".wav", audio_decoder::CreateSDL3WavDecoder, "SDL3Wav");
+    decoders.Register(".mp3", [] { return std::make_unique<audio_decoder::Minimp3Decoder>(); }, "Minimp3");
 }
 
 auto BackendRuntime::Audio() -> audio::IAudioBackend& {
-    if (!audio_backend_)
-        throw std::runtime_error("No active audio backend");
-    return *audio_backend_;
+    std::scoped_lock lock{backend_mutex_};
+    if (audio_backend_) {
+        return *audio_backend_;
+    }
+    if (!reported_missing_backend_) {
+        LOG_ERROR(atom::log::backend::Runtime,
+                  "Audio backend requested while none is active; returning the null backend");
+        reported_missing_backend_ = true;
+    }
+    return *null_backend_;
 }
+
+auto BackendRuntime::TryAudio() -> audio::IAudioBackend* {
+    std::scoped_lock lock{backend_mutex_};
+    return audio_backend_.get();
+}
+
+auto BackendRuntime::AcquireAudioBackend() -> std::shared_ptr<audio::IAudioBackend> {
+    std::scoped_lock lock{backend_mutex_};
+    return audio_backend_;
+}
+
 auto BackendRuntime::AudioDecoders() -> audio::AudioDecoderRegistry& {
     return audio_decoders_;
 }
@@ -70,38 +114,64 @@ auto BackendRuntime::Registry() -> BackendRegistry& {
 auto BackendRuntime::SetAudioBackend(const std::string_view id) -> bool {
     const auto normalized_id = NormalizeBackendId(id);
     if (normalized_id == audio_backend_id_) {
-        LOG_DEBUG(atom::backend::LogChannel::RUNTIME,
+        LOG_DEBUG(atom::log::backend::Runtime,
                   "Audio backend '" + normalized_id + "' is already active, no switch needed");
         return true;
     }
     if (!registry_.ContainsAudioBackend(normalized_id)) {
-        LOG_ERROR(atom::backend::LogChannel::RUNTIME, "Audio backend '" + normalized_id + "' is not registered");
+        LOG_ERROR(atom::log::backend::Runtime, "Audio backend '" + normalized_id + "' is not registered");
         return false;
     }
 
     const auto previous_id = audio_backend_id_;
-    LOG_INFO(atom::backend::LogChannel::RUNTIME,
+    LOG_INFO(atom::log::backend::Runtime,
              "Switching audio backend from '" + previous_id + "' to '" + normalized_id + "'");
-    NotifyAudioBackendChanging();
-    audio_backend_.reset();
-    auto replacement = registry_.CreateAudioBackend(normalized_id);
+
+    // 1. Build the replacement first. The active backend and every source it owns
+    //    stay untouched, so a failed switch is a genuine no-op instead of a
+    //    "restored" backend that no longer owns the sources still in flight.
+    std::shared_ptr<audio::IAudioBackend> replacement = registry_.CreateAudioBackend(normalized_id);
     if (!replacement) {
-        LOG_ERROR(atom::backend::LogChannel::RUNTIME, "Failed to create audio backend '" + normalized_id +
-                                                          "', restoring previous backend '" + previous_id + "'");
-        audio_backend_ = registry_.CreateAudioBackend(previous_id);
-        if (!audio_backend_) {
-            throw std::runtime_error("Audio backend switch failed and the previous backend could not be restored");
-        }
+        LOG_ERROR(atom::log::backend::Runtime, "Failed to create audio backend '" + normalized_id +
+                                                   "', keeping '" + previous_id + "' active");
         return false;
     }
-    audio_backend_ = std::move(replacement);
-    audio_backend_id_ = normalized_id;
-    LOG_INFO(atom::backend::LogChannel::RUNTIME, "Audio backend switched to '" + normalized_id + "'");
+
+    // 2. Listeners release the ids/sources they own while the old backend is
+    //    still alive, then the old backend detaches anything the listeners do not
+    //    own (e.g. a source held directly by a screen). After this point no
+    //    source references the outgoing backend's handles.
+    NotifyAudioBackendChanging();
+    if (const auto outgoing = AcquireAudioBackend()) {
+        outgoing->Quiesce();
+    }
+
+    // 3. Swap, then release the old backend outside the lock. Doing it in this
+    //    order means concurrent TryAudio()/Audio() callers never observe a window
+    //    without an active backend, and any caller that already holds a strong
+    //    reference (AcquireAudioBackend) keeps it alive until it is done.
+    std::shared_ptr<audio::IAudioBackend> previous;
+    {
+        std::scoped_lock lock{backend_mutex_};
+        previous = std::move(audio_backend_);
+        audio_backend_ = std::move(replacement);
+        audio_backend_id_ = normalized_id;
+        ++audio_backend_generation_;
+    }
+
+    NotifyAudioBackendChanged();
+    LOG_INFO(atom::log::backend::Runtime, "Audio backend switched to '" + normalized_id + "' (generation " +
+                                              std::to_string(audio_backend_generation_) + ")");
     return true;
 }
 
 auto BackendRuntime::GetAudioBackendId() const -> const std::string& {
     return audio_backend_id_;
+}
+
+auto BackendRuntime::GetAudioBackendGeneration() const -> std::uint64_t {
+    std::scoped_lock lock{backend_mutex_};
+    return audio_backend_generation_;
 }
 
 auto BackendRuntime::AddAudioListener(IAudioBackendChangeListener& listener) -> void {
@@ -119,6 +189,13 @@ auto BackendRuntime::NotifyAudioBackendChanging() -> void {
     for (auto* listener : listeners)
         if (listener)
             listener->OnAudioBackendChanging();
+}
+
+auto BackendRuntime::NotifyAudioBackendChanged() -> void {
+    const auto listeners = audio_listeners_;
+    for (auto* listener : listeners)
+        if (listener)
+            listener->OnAudioBackendChanged();
 }
 
 } // namespace atom::backend

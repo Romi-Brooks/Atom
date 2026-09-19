@@ -63,7 +63,7 @@ auto LayoutTree::Append(const NodeId parent, const NodeId child) -> bool {
 auto LayoutTree::Insert(const NodeId parent, const NodeId child, const std::size_t index) -> bool {
     if (!IsValid(parent) || !IsValid(child) || parent == child || IsDescendant(child, parent) ||
         parents_[child - 1] != kInvalidNode) {
-        LOG_WARNING(LogChannel::CORE, "LayoutTree rejected an invalid parent/child relationship");
+        LOG_WARNING(atom::log::layout::Core, "LayoutTree rejected an invalid parent/child relationship");
         return false;
     }
     try {

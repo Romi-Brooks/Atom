@@ -50,10 +50,16 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 ### ARCH-107：统一资源系统与 VFS
 
-- [ ] 设计 Resource ID、`ResourceHandle<T>`、Loader Registry 和统一缓存。
-- [ ] 支持目录与 APKG 的透明挂载。
-- [ ] 后续增加异步加载、热重载、依赖图和内存预算。
-- 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源。
+- [x] `Atom_FS` 第一阶段完成：`AssetPath`、只读 `IFile`（含 `Tell`/`Seek`/`ReadNext` 顺序游标）、`IFileSystem`、`NativeFileSystem`、`MemoryFileSystem`、`OverlayFileSystem`、`Vfs` 挂载表、`PackageFileSystem`（APKG v1 只读，`List` 由前缀合成目录）。完整设计见 `Docs/Filesystem-Design-CN.md`；CTest：`Atom_FS.AssetPath` / `NativeFileSystem` / `MemoryFileSystem` / `OverlayVfs` / `PackageFileSystem`。
+- [x] `Atom_Assets` 资源层（阶段 B）：`AssetKind`、`ResourceId`（path+kind+variant）、`ResourceHandle<T>`、`IResourceLoader`/`TypedResourceLoader`、`ResourceManager` 去重缓存与 `SetRecycleCallback`（最后句柄释放时回调，供 C1 帧边界回收）。CTest：`Atom_Assets.ResourceManager`。
+- [x] 阶段 C2 Script：`LuaLoader::LoadScript/ReloadScript(IFileSystem, AssetPath)` 走 `IFile` + `luaL_loadbuffer`；`LoadScriptSource` 支持执行已缓存源码；`ScriptSourceLoader` 产出可共享的 `std::string` 资源。旧裸磁盘路径 API 已移除。
+- [x] 阶段 C1 Texture：`DecodedImageLoader` + `LoadTextureFileSystem` + `TextureCache`/`TextureHandle`；GPU 销毁走 `Renderer2D::EnqueueDeferredTextureDestroy` + `FlushDeferredTextureDestroys`（帧外）。MusicCard 壁纸经 NativeFileSystem+Vfs，封面走 `AcquireFromEncodedMemory`。
+- [ ] 阶段 C3 Audio：解码器从路径改为 `IFile` 流（minimp3 回调 IO / RiffWave 流接口）。
+- [ ] 阶段 D 验收示例：目录与 APKG 同一 URI 加载 Texture + Script + Audio 并断言共享。
+- [ ] APKG v2 reader + `PackageBuilder`（另立任务，约 2–3k 行）。
+- [ ] 后续增加异步加载、热重载、依赖图和内存预算（依赖 Job System 与 CORE-001）。
+- 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源（Script/Texture CPU 侧已可；Audio 与 GPU 所有权待 C1 难点/C3）。
+- 实施阶段划分（A/B/C/D）、待决问题与当前进度见 `Docs/Resource-System-Plan-CN.md`。
 
 ### ARCH-108：Entity 职责拆分
 
@@ -121,10 +127,29 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 ### AUDIO-006：Backend 热切换场景策略与测试
 
+- [x] 切换协议落地为"先建后换 + 通知 + Quiesce + 原子替换 + generation"：创建失败是真回滚，旧后端在替换后才释放，source 由 `IAudioBackend::Quiesce()` / `IAudioSource::Detach()` 统一失效（2026-09-12）。
+- [x] `Audio()` 不再抛异常（无活动后端时返回 `NullAudioBackend`），并提供 `TryAudio()` / `AcquireAudioBackend()`；后台加载线程不再因切换窗口 `std::terminate`（2026-09-12）。
+- [x] 实测通过：播放中切换不再崩溃（原先 0xC0000005 / 堆破坏）、caller-owned source 安全析构、并发 `Audio()` 调用无异常、切换后 ID 由 `GetAudioBackendGeneration()` 判定作废（2026-09-12）。
 - [ ] 在游戏处于正式 Gameplay 场景时禁止切换播放后端。
-- [ ] 主菜单/设置页面切换后，由页面或下一场景重新注册并播放所需 ID。
-- [ ] 增加切换成功、未知后端、初始化失败、旧后端恢复失败和多个 Player 同时注销的测试。
+- [ ] 主菜单/设置页面切换后，由页面或下一场景重新注册并播放所需 ID（示例 `MusicCard` 已给出监听 + generation 守卫的参考实现）。
+- [ ] 增加切换成功、未知后端、初始化失败和多个 Player 同时注销的**自动化**测试（当前为临时 harness 手工验证，已删除）。
 - [ ] 后续为 Lua 提供受控的 Backend 设置接口；脚本不得直接访问具体 SDL3/SFML 类型。
+
+### AUDIO-007：Music Seek 能力链
+
+- [x] 分层落地：`MusicPlayer::Seek/GetPlayingOffset/GetDuration/IsSeekable` → `IAudioSource::SetPlayingOffset()->bool` + `IsSeekable()` → `IAudioDecoder::SeekToFrame()/IsSeekable()`（2026-09-12）。
+- [x] 内置实现：WavProf（字节偏移）、SDL3Wav（内存游标）、Minimp3（`mp3dec_ex_seek`，采样级）；流式音源按"停线程 → 清缓冲 → 定位 → 重启"实现，buffered 音源直接移动播放游标。
+- [x] 实测通过：解码器级 seek 与"从头解码并丢弃"逐字节一致；两个后端上播放中 seek、停止后 seek 再播、越界钳制均正确。
+- [ ] 前向-only 解码器的回退策略：当前非 0 目标返回 `false`（只保留回起点），尚未提供"解码并丢弃"的近似实现。
+- [ ] 如需 24-bit 内存优化，评估 `AudioSampleFormat::Signed24` 作为解码侧载体 + 推送路径转换（原因与代价见 `Backend/Runtime/README-CN.md`）。（目前不需要）
+
+### AUDIO-008：解码器注册链与职责边界
+
+- [x] `AudioDecoderRegistry` 支持具名候选链：`Register` 首选、`RegisterFallback` 兜底、`Replace` 替换整条链、`CandidatesForFile` 按优先级返回（2026-09-12）。
+- [x] 解码器用 `DecoderOpenStatus`（`Opened`/`UnsupportedFormat`/`InvalidData`/`IoError`）声明失败原因；`AudioClipLoader` 负责尝试循环、引擎格式校验与汇总诊断（全部失败才 `LOG_WARNING`）。
+- [x] `.wav` 接入 SDL3 自带解码器（`SDL_LoadWAV`）作为兜底，覆盖 MS ADPCM / IMA ADPCM / A-Law / µ-Law；纯 PCM 仍走流式 WavProf（34 MB PCM WAV：7.2 ms vs 12.9 ms）。
+- [ ] 补齐自研 WavProf 的压缩 WAV 支持后，移除或对调兜底顺序。
+- [ ] 评估为 `.mp3` / 未来格式增加候选（当前 `SDLMIXER_*` 格式解码器全部为 OFF，`MIX_LoadAudio` 在本构建中无法解码任何格式）。
 
 ### AUDIO-003：设备 Stream 数量与复用
 
@@ -134,8 +159,9 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 ### AUDIO-004：音频格式覆盖
 
 - [!] 后续版本实现 OGG、FLAC 等格式（MP3 已通过 minimp3 支持，见 `Backend/Audio/Decoder/minimp3/Minimp3Decoder`）。
-- [ ] 每种格式实现独立 `IAudioDecoder` 并显式注册到 `AudioDecoderRegistry`。
-- [ ] 选择依赖时记录许可证、错误模型和流式解码能力。
+- [x] 每种格式实现独立 `IAudioDecoder` 并显式注册到 `AudioDecoderRegistry`（`.wav` 双实现 + 候选链，见 AUDIO-008）。
+- [x] 队列/依赖说明：SDL3Wav 复用引擎已有的 SDL3 依赖，无新增第三方库与许可证（2026-09-12）。
+- [ ] 选择新的解码器依赖时记录许可证、错误模型和流式解码能力。
 
 ### AUDIO-005：Effects 与 Plugins
 
@@ -195,6 +221,12 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 - [-] Renderer2D 已增加独立于 ImGui 的内存 Font、UTF-8 解码、stb_truetype 栅格与多页 GlyphAtlas；CJK fallback、文件/VFS/DPI 策略和 HarfBuzz shaping 待实现。
 - [x] 字形栅格结果保持后端无关，由 RenderDevice 上传 atlas；公共 API 不暴露 ImGui、SDL 或平台字体类型。
+- [x] 图集页首次清零后，新增字形只上传合并后的脏矩形；不再为每个新增字形重传整张页。
+- [x] 英文 ASCII 单词按整体换行、tab 对齐至列停靠点、CRLF 的 `\r` 被忽略；缺字尝试显示当前字体的 `.notdef` glyph。
+- [ ] 完整 Unicode 换行（UAX #14）、词典断词、双向文本和 locale 规则不能继续堆在 `Renderer2D::ExpandTextOp`；应由 `TextLayout` 负责。
+- [ ] `.notdef` 不是 fallback：需要 `FontProvider` 管理字体族、覆盖范围与回退链，并保证度量、baseline 和缓存键与实际选中的字体一致。
+- [ ] atlas 尺号已量化到 0.5px，但图集/页面尚无内存预算与 LRU；淘汰必须与 GPU 延迟释放和正在录制的 draw packet 生命周期协同。
+- [ ] stb_truetype 仅提供简单轮廓栅格和 kern pair；连字、组合音标、阿拉伯文/Indic 重排、彩色 emoji、OpenType feature/variation/DPI 实例应由 FreeType + HarfBuzz 路径提供。
 - 当前 `atom::debugger::ImGuiFontLoader` 只修复 Debugger 的 ImGui font atlas，支持文件与内存字体；它不是 Atom Renderer 的字体实现，也不应被正式游戏 UI 依赖。
 - MusicCard 业务文字已使用 Renderer2D；ImGuiFontLoader 只给调试窗口提供字体。
 

@@ -6,8 +6,8 @@
 #ifndef ATOM_COLOR_COLOR_MATH_HPP
 #define ATOM_COLOR_COLOR_MATH_HPP
 
+#include <Algorithm/Color/Color.hpp>
 #include <Algorithm/Math/Scalar.hpp>
-#include <Color/Color.hpp>
 
 namespace atom::color {
 

@@ -93,19 +93,17 @@ enum class Key : uint16_t {
     CapsLock
 };
 
-enum class KeyModifier : uint8_t { None = 0, Alt = 1 << 0, Control = 1 << 1, Shift = 1 << 2, Super = 1 << 3 };
+enum class KeyModifiers : uint8_t { None = 0, Alt = 1 << 0, Control = 1 << 1, Shift = 1 << 2, Super = 1 << 3 };
 
-using KeyModifiers = KeyModifier;
-
-constexpr auto operator|(const KeyModifier left, const KeyModifier right) -> KeyModifiers {
+constexpr auto operator|(const KeyModifiers left, const KeyModifiers right) -> KeyModifiers {
     return static_cast<KeyModifiers>(static_cast<uint8_t>(left) | static_cast<uint8_t>(right));
 }
 
-constexpr auto operator&(const KeyModifier left, const KeyModifier right) -> KeyModifiers {
+constexpr auto operator&(const KeyModifiers left, const KeyModifiers right) -> KeyModifiers {
     return static_cast<KeyModifiers>(static_cast<uint8_t>(left) & static_cast<uint8_t>(right));
 }
 
-constexpr auto HasModifier(const KeyModifiers modifiers, const KeyModifier modifier) -> bool {
+constexpr auto HasModifier(const KeyModifiers modifiers, const KeyModifiers modifier) -> bool {
     return (modifiers & modifier) == modifier;
 }
 

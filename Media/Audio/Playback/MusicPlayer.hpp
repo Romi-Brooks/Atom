@@ -44,8 +44,28 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
         auto Pause(const std::string& id) -> void;
         auto Stop(const std::string& id) -> void;
         [[nodiscard]] auto GetState(const std::string& id) const -> atom::audio::AudioSourceState;
+
+        // Seek to a position measured in seconds from the start of the track.
+        //
+        // Music is decoded by the format decoder owned by the source (WavProf,
+        // Minimp3Decoder, or a user-registered IAudioDecoder), so a seek requires
+        // that decoder to implement IAudioDecoder::SeekToFrame. The request is
+        // clamped to the known duration; seeking while playing continues playback
+        // from the new position and may be audible as a short gap, because the
+        // backend drops the audio it had already queued. Returns false when the id
+        // is unknown or the position cannot be reached.
+        auto Seek(const std::string& id, float seconds) -> bool;
+        [[nodiscard]] auto GetPlayingOffset(const std::string& id) const -> float;
+        // Total length in seconds, or 0 when the decoder could not report it
+        // (e.g. a CBR MP3 without a VBR tag).
+        [[nodiscard]] auto GetDuration(const std::string& id) const -> float;
+        // Whether Seek() can reach arbitrary positions for this id.
+        [[nodiscard]] auto IsSeekable(const std::string& id) const -> bool;
+
         auto Reset() -> void;
         auto SetVolume(const std::string& id, float volume) -> void;
+        auto SetLooping(const std::string& id, bool loop) -> void;
+        [[nodiscard]] auto IsLooping(const std::string& id) const -> bool;
         auto SetMusicVolume(float volume) -> void;
         [[nodiscard]] auto GetMusicVolume() const -> float;
         auto SetNowPlaying(const std::string& id) -> void;
@@ -62,6 +82,8 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
     private:
         struct Track {
                 std::unique_ptr<atom::audio::IAudioSource> source;
+                // Seconds; 0 when the decoder could not report the length.
+                float duration_seconds = 0.0f;
         };
 
         atom::audio::IAudioBackend* backend_;

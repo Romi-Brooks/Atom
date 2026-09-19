@@ -10,6 +10,8 @@
 #include <span>
 #include <string>
 
+#include <Filesystem/AssetPath.hpp>
+#include <Filesystem/FileSystem.hpp>
 #include <Media/Image/ImageDecoder.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 
@@ -21,6 +23,11 @@ namespace atom::render::resources {
 [[nodiscard]] auto LoadTextureFile(Renderer2D& renderer, const std::string& path) -> Renderer2D::Texture*;
 [[nodiscard]] auto LoadTextureMemory(Renderer2D& renderer, std::span<const std::byte> encoded_image)
     -> Renderer2D::Texture*;
+
+// Reads encoded bytes through the VFS and decodes in memory. Preferred over
+// LoadTextureFile for anything that must work under Native/Package mounts.
+[[nodiscard]] auto LoadTextureFileSystem(Renderer2D& renderer, const fs::IFileSystem& filesystem,
+                                         const fs::AssetPath& path) -> Renderer2D::Texture*;
 
 } // namespace atom::render::resources
 

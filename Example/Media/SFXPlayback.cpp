@@ -8,6 +8,7 @@
 **/
 
 #include <Event/Input.hpp>
+#include <Backend/Runtime/BackendRuntime.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
 #include <Media/Audio/Resources/AudioClipCache.hpp>
@@ -49,7 +50,8 @@ class SFXDebugger final : public atom::Debugger {
             }
             ImGui::Separator();
 
-            ImGui::TextDisabled("Playback Backend: SDL3 (only registered playback backend)");
+            const auto& backend_id = atom::backend::BackendRuntime::GetInstance().GetAudioBackendId();
+            ImGui::TextDisabled("Active audio backend: %s", backend_id.c_str());
             ImGui::Separator();
 
             ImGui::Text("Press ESC to exit");

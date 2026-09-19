@@ -85,7 +85,7 @@ auto SDLGPUDevice::ResolvePostProcess2D() -> bool {
     if (postprocess_params_.effect == render::PostProcess2DEffect::None || !postprocess_target_encoded_)
         return true;
     if (!EncodePostProcess(postprocess_texture_, postprocess_width_, postprocess_height_)) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER, "Renderer2D post-process pass failed");
+        LOG_ERROR(atom::log::backend::sdl3::Render, "Renderer2D post-process pass failed");
         return false;
     }
     frame_encoded_ = true;
@@ -109,7 +109,7 @@ auto SDLGPUDevice::EnsurePostProcessTarget(const uint32_t width, const uint32_t 
     postprocess_texture_ = SDL_CreateGPUTexture(device_, &targetInfo);
     if (!postprocess_texture_) {
         postprocess_width_ = postprocess_height_ = 0;
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Failed to create Renderer2D post-process target: " + std::string{SDL_GetError()});
         return false;
     }
@@ -232,7 +232,7 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
 
 auto SDLGPUDevice::CreateTexture2D(const uint32_t width, const uint32_t height) -> render::Texture2D {
     if (!device_ || width == 0 || height == 0) {
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_WARNING(atom::log::backend::sdl3::Render,
                     "CreateTexture2D rejected invalid device or zero-sized texture");
         return render::kInvalidTexture2D;
     }
@@ -247,13 +247,13 @@ auto SDLGPUDevice::CreateTexture2D(const uint32_t width, const uint32_t height) 
                                   0};
     auto* texture = SDL_CreateGPUTexture(device_, &info);
     if (!texture) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER, "SDL_CreateGPUTexture failed for " + std::to_string(width) +
+        LOG_ERROR(atom::log::backend::sdl3::Render, "SDL_CreateGPUTexture failed for " + std::to_string(width) +
                                                                "x" + std::to_string(height) + ": " + SDL_GetError());
         return render::kInvalidTexture2D;
     }
     const render::Texture2D handle = next_texture_2d_++;
     textures_2d_.emplace(handle, SDLGPU2DTextureEntry{texture, width, height});
-    LOG_DEBUG(atom::backend::sdl3::LogChannel::RENDER, "Created Renderer2D texture handle " + std::to_string(handle) +
+    LOG_DEBUG(atom::log::backend::sdl3::Render, "Created Renderer2D texture handle " + std::to_string(handle) +
                                                            " (" + std::to_string(width) + "x" + std::to_string(height) +
                                                            ")");
     return handle;
@@ -262,72 +262,88 @@ auto SDLGPUDevice::CreateTexture2D(const uint32_t width, const uint32_t height) 
 auto SDLGPUDevice::UpdateTexture2D(const render::Texture2D texture, const void* pixels, const uint32_t pitch_bytes)
     -> bool {
     const auto it = textures_2d_.find(texture);
+    if (it == textures_2d_.end()) {
+        LOG_WARNING(atom::log::backend::sdl3::Render, "UpdateTexture2D rejected an invalid handle");
+        return false;
+    }
+    return UpdateTexture2DRegion(texture, 0, 0, it->second.width, it->second.height, pixels, pitch_bytes);
+}
+
+auto SDLGPUDevice::UpdateTexture2DRegion(const render::Texture2D texture, const uint32_t x, const uint32_t y,
+                                         const uint32_t width, const uint32_t height, const void* pixels,
+                                         const uint32_t source_pitch_bytes) -> bool {
+    const auto it = textures_2d_.find(texture);
     if (it == textures_2d_.end() || !pixels) {
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_WARNING(atom::log::backend::sdl3::Render,
                     "UpdateTexture2D rejected an invalid handle or null pixel buffer");
         return false;
     }
     if (!command_buffer_) {
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER, "UpdateTexture2D requires an active GPU frame");
+        LOG_WARNING(atom::log::backend::sdl3::Render, "UpdateTexture2D requires an active GPU frame");
         return false;
     }
     auto* sdlTexture = it->second.texture;
     if (!sdlTexture)
         return false;
-    const uint32_t w = it->second.width;
-    const uint32_t h = it->second.height;
-    if (w > std::numeric_limits<uint32_t>::max() / 4u) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+    const uint32_t textureWidth = it->second.width;
+    const uint32_t textureHeight = it->second.height;
+    if (width == 0 || height == 0 || x > textureWidth || y > textureHeight || width > textureWidth - x ||
+        height > textureHeight - y) {
+        LOG_ERROR(atom::log::backend::sdl3::Render, "UpdateTexture2DRegion rejected an out-of-bounds region");
+        return false;
+    }
+    if (width > std::numeric_limits<uint32_t>::max() / 4u) {
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "UpdateTexture2D rejected a texture whose row size overflows");
         return false;
     }
-    const uint32_t rowBytes = w * 4;
-    if (h > std::numeric_limits<uint32_t>::max() / rowBytes) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+    const uint32_t rowBytes = width * 4;
+    if (height > std::numeric_limits<uint32_t>::max() / rowBytes) {
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "UpdateTexture2D rejected a texture whose upload size overflows");
         return false;
     }
-    if (pitch_bytes != 0 && pitch_bytes < rowBytes) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+    if (source_pitch_bytes != 0 && source_pitch_bytes < rowBytes) {
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "UpdateTexture2D rejected a source pitch smaller than one RGBA8 row");
         return false;
     }
     const auto* src = static_cast<const uint8_t*>(pixels);
 
-    SDL_GPUTransferBufferCreateInfo transferInfo{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, rowBytes * h, 0};
+    SDL_GPUTransferBufferCreateInfo transferInfo{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, rowBytes * height, 0};
     auto* transfer = SDL_CreateGPUTransferBuffer(device_, &transferInfo);
     if (!transfer) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_CreateGPUTransferBuffer failed during texture upload: " + std::string{SDL_GetError()});
         return false;
     }
     auto* mapped = static_cast<uint8_t*>(SDL_MapGPUTransferBuffer(device_, transfer, false));
     if (!mapped) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_MapGPUTransferBuffer failed during texture upload: " + std::string{SDL_GetError()});
         SDL_ReleaseGPUTransferBuffer(device_, transfer);
         return false;
     }
-    const uint32_t sourceStride = pitch_bytes == 0 ? rowBytes : pitch_bytes;
-    for (uint32_t y = 0; y < h; ++y)
-        std::memcpy(mapped + y * rowBytes, src + y * sourceStride, rowBytes);
+    const uint32_t sourceStride = source_pitch_bytes == 0 ? rowBytes : source_pitch_bytes;
+    for (uint32_t row = 0; row < height; ++row)
+        std::memcpy(mapped + row * rowBytes, src + row * sourceStride, rowBytes);
     SDL_UnmapGPUTransferBuffer(device_, transfer);
 
     auto* copy = SDL_BeginGPUCopyPass(command_buffer_);
     if (!copy) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_BeginGPUCopyPass failed during texture upload: " + std::string{SDL_GetError()});
         SDL_ReleaseGPUTransferBuffer(device_, transfer);
         return false;
     }
-    SDL_GPUTextureTransferInfo source{transfer, 0, w, h};
-    SDL_GPUTextureRegion target{sdlTexture, 0, 0, 0, 0, 0, w, h, 1};
+    SDL_GPUTextureTransferInfo source{transfer, 0, width, height};
+    SDL_GPUTextureRegion target{sdlTexture, 0, 0, x, y, 0, width, height, 1};
     SDL_ClearError();
     SDL_UploadToGPUTexture(copy, &source, &target, true);
     {
         const char* sdlErr = SDL_GetError();
         if (sdlErr && *sdlErr) {
-            LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+            LOG_ERROR(atom::log::backend::sdl3::Render,
                       "SDL_UploadToGPUTexture reported an error: " + std::string{sdlErr});
         }
     }
@@ -361,7 +377,7 @@ auto SDLGPUDevice::CreateSampler2D(const render::Sampler2DDesc& desc) -> render:
     info.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
     auto* sampler = SDL_CreateGPUSampler(device_, &info);
     if (!sampler) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_CreateGPUSampler failed: " + std::string{SDL_GetError()});
         return render::kInvalidSampler2D;
     }
@@ -389,20 +405,20 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     if (!frame.view_projection || (frame.item_count > 0 && !frame.items))
         return false;
     if (frame.vertex_count > kMax2DVertices || frame.index_count > kMax2DIndices) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER, "Renderer2D frame exceeds the backend chunk capacity");
+        LOG_ERROR(atom::log::backend::sdl3::Render, "Renderer2D frame exceeds the backend chunk capacity");
         return false;
     }
     for (uint32_t itemIndex = 0; itemIndex < frame.item_count; ++itemIndex) {
         const auto& item = frame.items[itemIndex];
         if (item.first_index > frame.index_count || item.index_count > frame.index_count - item.first_index) {
-            LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+            LOG_ERROR(atom::log::backend::sdl3::Render,
                       "Renderer2D rejected an item with an out-of-range index span");
             return false;
         }
         for (uint32_t index = item.first_index; index < item.first_index + item.index_count; ++index) {
             if (frame.indices[index] >= frame.vertex_count ||
                 item.vertex_offset > frame.vertex_count - frame.indices[index] - 1) {
-                LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+                LOG_ERROR(atom::log::backend::sdl3::Render,
                           "Renderer2D rejected an item whose effective vertex index is out of range");
                 return false;
             }
@@ -429,7 +445,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
         return false;
     }();
     if (usePostProcess && (!selectedPipelineAvailable || !EnsurePostProcessTarget(width, height))) {
-        LOG_WARNING(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_WARNING(atom::log::backend::sdl3::Render,
                     "Requested Renderer2D post-process effect is unavailable; using direct swapchain rendering");
     }
     const bool postProcessActive = usePostProcess && selectedPipelineAvailable && postprocess_texture_;
@@ -446,7 +462,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
         SDL_GPUBufferCreateInfo info{SDL_GPU_BUFFERUSAGE_VERTEX, vertexBytes, 0};
         vertex_buffer_2d_ = SDL_CreateGPUBuffer(device_, &info);
         vertex_capacity_2d_ = vertex_buffer_2d_ ? frame.vertex_count : 0;
-        LOG_DEBUG(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_DEBUG(atom::log::backend::sdl3::Render,
                   "Renderer2D vertex capacity resized to " + std::to_string(vertex_capacity_2d_));
     }
     if (index_capacity_2d_ < frame.index_count) {
@@ -457,11 +473,11 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
         SDL_GPUBufferCreateInfo info{SDL_GPU_BUFFERUSAGE_INDEX, indexBytes, 0};
         index_buffer_2d_ = SDL_CreateGPUBuffer(device_, &info);
         index_capacity_2d_ = index_buffer_2d_ ? frame.index_count : 0;
-        LOG_DEBUG(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_DEBUG(atom::log::backend::sdl3::Render,
                   "Renderer2D index capacity resized to " + std::to_string(index_capacity_2d_));
     }
     if (!vertex_buffer_2d_ || !index_buffer_2d_) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to allocate GPU geometry buffers: " + std::string{SDL_GetError()});
         return false;
     }
@@ -469,13 +485,13 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     SDL_GPUTransferBufferCreateInfo transferInfo{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, vertexBytes + indexBytes, 0};
     auto* transfer = SDL_CreateGPUTransferBuffer(device_, &transferInfo);
     if (!transfer) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to allocate geometry transfer buffer: " + std::string{SDL_GetError()});
         return false;
     }
     auto* mapped = static_cast<uint8_t*>(SDL_MapGPUTransferBuffer(device_, transfer, false));
     if (!mapped) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to map geometry transfer buffer: " + std::string{SDL_GetError()});
         SDL_ReleaseGPUTransferBuffer(device_, transfer);
         return false;
@@ -486,7 +502,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
 
     auto* copy = SDL_BeginGPUCopyPass(command_buffer_);
     if (!copy) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to begin geometry copy pass: " + std::string{SDL_GetError()});
         SDL_ReleaseGPUTransferBuffer(device_, transfer);
         return false;
@@ -518,7 +534,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
 
     auto* pass = SDL_BeginGPURenderPass(command_buffer_, &target, 1, nullptr);
     if (!pass) {
-        LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+        LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to begin render pass: " + std::string{SDL_GetError()});
         return false;
     }
@@ -541,7 +557,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
         const auto samplerIt = samplers_2d_.find(item.sampler);
         if (textureIt == textures_2d_.end() || !textureIt->second.texture || samplerIt == samplers_2d_.end() ||
             !samplerIt->second) {
-            LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+            LOG_ERROR(atom::log::backend::sdl3::Render,
                       "Renderer2D skipped an item with an invalid texture or sampler handle");
             allItemsValid = false;
             continue;
@@ -552,7 +568,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
         if (item.clip_w >= 0.0f) {
             if (!std::isfinite(item.clip_x) || !std::isfinite(item.clip_y) || !std::isfinite(item.clip_w) ||
                 !std::isfinite(item.clip_h) || item.clip_h < 0.0f) {
-                LOG_ERROR(atom::backend::sdl3::LogChannel::RENDER,
+                LOG_ERROR(atom::log::backend::sdl3::Render,
                           "Renderer2D skipped an item with an invalid scissor rectangle");
                 allItemsValid = false;
                 continue;

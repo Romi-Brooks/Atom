@@ -46,7 +46,7 @@ auto Packager::ToUTF8(const std::string& str) -> std::string {
 auto Packager::SafePathToString(const fs::path& path) -> std::string {
     const auto result = atom::PathToUtf8(path);
     if (result.empty() && !path.empty()) {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Path conversion produced an empty UTF-8 path");
+        LOG_ERROR(atom::log::utilities::Packager, "Path conversion produced an empty UTF-8 path");
         return "unknown_path";
     }
     return result;
@@ -56,7 +56,7 @@ auto Packager::SafeRelativePath(const fs::path& path) -> std::string {
     try {
         return atom::PathToUtf8(fs::relative(path));
     } catch (const std::exception& e) {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER,
+        LOG_ERROR(atom::log::utilities::Packager,
                   "Unable to obtain relative path: " + std::to_string(*e.what()));
         return atom::PathToUtf8(path.filename());
     }
@@ -68,7 +68,7 @@ auto Packager::CollectFiles(const std::vector<std::string>& resourcePaths, std::
         try {
             fs::path path = atom::PathFromUtf8(path_str);
             if (!fs::exists(path)) {
-                LOG_WARNING(atom::utilities::LogChannel::PACKAGER, "Path does not exist: " + path_str);
+                LOG_WARNING(atom::log::utilities::Packager, "Path does not exist: " + path_str);
                 continue;
             }
 
@@ -82,7 +82,7 @@ auto Packager::CollectFiles(const std::vector<std::string>& resourcePaths, std::
                 allFiles.push_back(path);
             }
         } catch (const std::exception& e) {
-            LOG_WARNING(atom::utilities::LogChannel::PACKAGER,
+            LOG_WARNING(atom::log::utilities::Packager,
                         "Error occurred while processing the path " + path_str + ": " + e.what());
         }
     }
@@ -113,7 +113,7 @@ auto Packager::GenerateInternalFilename(const fs::path& filePath, const Config& 
             return final_name;
         }
     } catch (const std::exception& e) {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER,
+        LOG_ERROR(atom::log::utilities::Packager,
                   "Failed to generate internal filename: " + std::to_string(*e.what()));
         return "unknown_file_" + std::to_string(file_index_.size());
     }
@@ -132,7 +132,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
             fs::remove(outputFile);
         }
     } catch (const std::exception& e) {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER,
+        LOG_ERROR(atom::log::utilities::Packager,
                   "Unable to delete existing file: " + std::to_string(*e.what()));
         return Result::ERROR_WRITE_FAILED;
     }
@@ -165,13 +165,13 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         try {
             input.open(filePath, std::ios::binary);
         } catch (const std::exception& e) {
-            LOG_WARNING(atom::utilities::LogChannel::PACKAGER,
+            LOG_WARNING(atom::log::utilities::Packager,
                         "Warning: Unable to open file: " + SafePathToString(filePath) + " - " + e.what());
             continue;
         }
 
         if (!input.is_open()) {
-            LOG_WARNING(atom::utilities::LogChannel::PACKAGER,
+            LOG_WARNING(atom::log::utilities::Packager,
                         "Unable to open file: " + SafePathToString(filePath));
             continue;
         }
@@ -190,7 +190,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
             entry.offset = current_offset;
             entry.size = file_size;
         } catch (const std::exception& e) {
-            LOG_ERROR(atom::utilities::LogChannel::PACKAGER,
+            LOG_ERROR(atom::log::utilities::Packager,
                       "Error: Failed to create file entry: " + std::to_string(*e.what()));
             input.close();
             continue;
@@ -201,7 +201,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         input.read(buffer.data(), static_cast<long long>(file_size));
 
         if (!input) {
-            LOG_WARNING(atom::utilities::LogChannel::PACKAGER,
+            LOG_WARNING(atom::log::utilities::Packager,
                         "Failed to read file: " + SafePathToString(filePath));
             input.close();
             continue;
@@ -217,7 +217,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         entries.push_back(entry);
         file_count++;
 
-        LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+        LOG_INFO(atom::log::utilities::Packager,
                  "Packing: " + entry.filename + " (" + std::to_string(file_size) + " bytes)");
     }
 
@@ -276,24 +276,24 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
     output.close();
 
     // Verify package file
-    LOG_INFO(atom::utilities::LogChannel::PACKAGER, "Packing complete, commencing verification...");
+    LOG_INFO(atom::log::utilities::Packager, "Packing complete, commencing verification...");
     std::ifstream verify(outputFile, std::ios::binary);
     if (verify.is_open()) {
         char magic[4];
         verify.read(magic, 4);
         std::string magic_str(magic, 4);
-        LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+        LOG_INFO(atom::log::utilities::Packager,
                  "Verification magic number: " + magic_str + " " +
                      (magic_str == std::string(MAGIC, 4) ? "True" : "False"));
 
         uint16_t version;
         verify.read(reinterpret_cast<char*>(&version), sizeof(version));
-        LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+        LOG_INFO(atom::log::utilities::Packager,
                  "Verification version: " + std::to_string(version) + " " + (version == 1 ? "True" : "False"));
 
         uint32_t file_count_verify;
         verify.read(reinterpret_cast<char*>(&file_count_verify), sizeof(file_count_verify));
-        LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+        LOG_INFO(atom::log::utilities::Packager,
                  "Number of documents to be verified: " + std::to_string(file_count_verify) + " " +
                      (file_count_verify == file_count ? "True" : "False"));
 
@@ -301,16 +301,16 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         verify.seekg(-static_cast<std::streamoff>(sizeof(uint64_t)), std::ios::end);
         uint64_t table_offset_verify;
         verify.read(reinterpret_cast<char*>(&table_offset_verify), sizeof(table_offset_verify));
-        LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+        LOG_INFO(atom::log::utilities::Packager,
                  "Verification file table offset: " + std::to_string(table_offset_verify) + " " +
                      (table_offset_verify == table_start ? "True" : "False"));
 
         verify.close();
     }
 
-    LOG_INFO(atom::utilities::LogChannel::PACKAGER, "Packing completed: " + outputFile);
-    LOG_INFO(atom::utilities::LogChannel::PACKAGER, "Includes " + std::to_string(file_count) + " files");
-    LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+    LOG_INFO(atom::log::utilities::Packager, "Packing completed: " + outputFile);
+    LOG_INFO(atom::log::utilities::Packager, "Includes " + std::to_string(file_count) + " files");
+    LOG_INFO(atom::log::utilities::Packager,
              "Package size: " + std::to_string(table_end + sizeof(uint64_t)) + " bytes");
 
     return Result::SUCCESS;
@@ -325,10 +325,10 @@ auto Packager::GetPackedFiles() const -> std::vector<std::string> {
 }
 
 auto Packager::PrintPackageInfo() const -> void {
-    LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+    LOG_INFO(atom::log::utilities::Packager,
              "The package contains " + std::to_string(file_table_.size()) + " files:");
     for (const auto& entry : file_table_) {
-        LOG_INFO(atom::utilities::LogChannel::PACKAGER,
+        LOG_INFO(atom::log::utilities::Packager,
                  "  " + entry.filename + " [" + entry.type + "] - " + std::to_string(entry.size) + " bytes");
     }
 }

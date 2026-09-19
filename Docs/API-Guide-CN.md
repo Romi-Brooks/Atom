@@ -3,7 +3,7 @@
 ## 设计原则
 
 - SDL3 等具体实现由 Atom 内部注册，普通用户不包含 `Backend/SDL3/*`。
-- 音频播放后端全局选择，默认为 `sdl3`；格式解码器由引擎默认注册（`.wav` → WavProfDecoder，`.mp3` → Minimp3Decoder）。
+- 音频播放后端全局选择，默认为 `sdl3`；格式解码器由引擎默认注册（`.wav` → WavProf 首选 / SDL3Wav 兜底，`.mp3` → Minimp3Decoder）。
 - `MusicPlayer`、`SFXPlayer`、`AudioMixer` 和 `MusicCrossfade` 仍是可自由组合的实例，不强制使用统一 `AudioSystem`。
 - Backend 热切换会停止声音并清空 Player 中已注册的音频 ID；页面或后续场景需要重新 `Load/Play`。
 
@@ -12,9 +12,9 @@
 ```cpp
 #include <Log/LogSystem.hpp>
 
-LOG_INFO(atom::core::LogChannel::MAIN, "Engine started");
-LOG_WARNING(atom::core::LogChannel::FILESYSTEM, "File not found");
-LOG_ERROR(atom::core::LogChannel::LUA, "Script error");
+LOG_INFO(atom::log::core::Main, "Engine started");
+LOG_WARNING(atom::log::core::Filesystem, "File not found");
+LOG_ERROR(atom::log::core::Lua, "Script error");
 
 atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 ```
@@ -162,11 +162,39 @@ crossfade.Switch("game", 2.0f);
 crossfade.Update(delta_time);
 ```
 
+### Seek / 播放进度
+
+```cpp
+const float duration = music.GetDuration("menu"); // 秒；0 表示解码器无法报告长度
+if (music.IsSeekable("menu")) {
+    music.Seek("menu", 42.0f);          // 越界会按 duration 钳制
+}
+const float position = music.GetPlayingOffset("menu");
+```
+
+调用链是分层的，Seek 能力由解码器决定，任何一层都不会假装能做到：
+
+```text
+MusicPlayer::Seek(id, seconds)                  // Atom 层：按 duration 钳制 + 结果上报
+  └─ IAudioSource::SetPlayingOffset(seconds)    // 播放后端契约，返回 bool
+       ├─ buffered 音源：直接移动播放游标
+       │    （SDL3MixerSource 用 MIX_SetTrackPlaybackPosition；SDL3MusicSource 用 PCM 游标）
+       └─ streaming 音源：停解码线程 → 清空环形缓冲/SDL 队列 → 解码器定位 → 重启
+            └─ IAudioDecoder::SeekToFrame(frame) // 解码器契约，IsSeekable() 声明能力
+                 ├─ WavProfDecoder ：纯字节偏移，逐样本精确
+                 └─ Minimp3Decoder ：mp3dec_ex_seek，采样级精确
+```
+
+- 正在播放时 Seek 会丢掉已经排队的数据，可能听到一次很短的静音空隙；停止/暂停状态下 Seek 只设置位置，下一次 `Play()` 从该位置开始。
+- `SetPlayingOffset(0)` 永远可用（等价于 `Rewind()`）；非 0 目标在解码器 `IsSeekable() == false` 时返回 `false`，不会静默忽略。
+- 自研解码器要实现 Seek，只需覆写 `IAudioDecoder::SeekToFrame(frame)` 与 `IsSeekable()`；播放层不需要任何改动。
+- MP3 的长度与帧索引在 `Open()` 时由 minimp3 扫描得到（VBR 标签存在时直接采用标签值），因此 `GetDuration` 对 MP3 通常可用。
+
 ### 资源包 + 内存流式播放
 
 `MusicPlayer::LoadFromMemory` 可以直接从内存缓冲流式播放（例如
 `Unpackager::ExtractFileToMemory` 从资源包读出的内容），全程不写临时文件。
-解码器（minimp3 / WavProf）均实现了 `IAudioDecoder::OpenFromMemory`：
+解码器（minimp3 / WavProf / SDL3Wav）均实现了 `IAudioDecoder::OpenFromMemory`：
 
 ```cpp
 #include <Packager.hpp>
@@ -261,19 +289,37 @@ audio backend = sdl3
 
 auto& backends = atom::backend::BackendRuntime::GetInstance();
 
-if (!backends.SetAudioBackend("sdl3")) {
-    // 后端不存在、初始化失败，或旧后端恢复失败。
+if (!backends.SetAudioBackend("sdl3_mixer")) {
+    // 后端未注册，或新后端初始化失败——此时当前后端与已注册的 ID 完全不受影响。
 }
 ```
 
 切换规则：
 
-1. 通知所有接入全局 Runtime 的 Music/SFX Player。
-2. Player 停止声音并清空所有已注册 ID、Source、VoicePool 和缓存。
-3. 销毁旧播放后端并创建新后端。
-4. 当前页面或后续场景重新执行 `Load/Play`。
+1. 先创建新后端实例；创建失败即返回 `false`，当前后端与它拥有的 source 不受任何影响。
+2. 通知所有接入全局 Runtime 的 Music/SFX Player（`OnAudioBackendChanging`）：停止声音并清空所有已注册 ID、Source、VoicePool 和缓存。自建缓存（例如音乐卡片自己记录的"已加载"标记）也应在这里失效。
+3. 调用旧后端的 `Quiesce()`，把它创建的其余 source 一并失效（`IAudioSource::Detach()`）。
+4. 替换后端、generation +1，再通知 `OnAudioBackendChanged()`；当前页面或后续场景重新执行 `Load/Play`。
 
-Beta 阶段建议只在主菜单或设置页面切换。游戏运行状态检测与禁止策略将在后续实现。
+切换后 ID 不会自动恢复，播放位置也不会迁移。需要判断缓存是否作废时使用 generation：
+
+```cpp
+const auto generation = backends.GetAudioBackendGeneration();
+// ... 异步加载 ...
+if (backends.GetAudioBackendGeneration() != generation) {
+    // 这份结果是上一个后端产生的，丢弃并重试。
+}
+```
+
+访问当前后端：
+
+```cpp
+backends.Audio();                 // IAudioBackend&，无活动后端时返回 NullAudioBackend，不抛异常
+backends.TryAudio();              // IAudioBackend*，无活动后端时为 nullptr
+backends.AcquireAudioBackend();   // std::shared_ptr<IAudioBackend>，创建 source 时使用
+```
+
+Beta 阶段建议只在主菜单或设置页面切换，并且从主线程发起。游戏运行状态检测与禁止策略将在后续实现。
 
 ## 自定义 Backend（高级用法）
 
@@ -291,7 +337,16 @@ runtime.Registry().RegisterAudioBackend("custom", [] {
 
 ```cpp
 auto& decoders = atom::backend::BackendRuntime::GetInstance().AudioDecoders();
-decoders.Register(".ogg", [] { return std::make_unique<MyOggDecoder>(); });
+decoders.Register(".ogg", [] { return std::make_unique<MyOggDecoder>(); }, "MyOgg");
+```
+
+`Register` 决定首选实现，`RegisterFallback` 追加兜底候选（只有前一个候选**声明**无法处理该文件时才继续），`Replace` 用单个解码器替换整条链。候选的职责边界：解码器只负责"我能不能解 + 不能解的原因"（`DecoderOpenStatus`），尝试顺序属于注册策略，尝试循环与日志属于 `AudioClipLoader`。
+
+`.wav` 默认就是一条链：自研 `WavProf`（流式、内存恒定、无压缩格式）优先，SDL3 的 `SDL_LoadWAV` 兜底（覆盖 ADPCM / A-Law / µ-Law，但会把整段 PCM 驻留内存）。要强制单实现：
+
+```cpp
+decoders.Replace(".wav", atom::backend::audio_decoder::CreateSDL3WavDecoder, "SDL3Wav");  // 只用 SDL3
+decoders.Replace(".wav", atom::backend::audio_decoder::CreateWavProfDecoder, "WavProf");  // 只用自研
 ```
 
 测试或特殊工具仍可使用显式注入构造，不受全局切换影响：

@@ -28,7 +28,7 @@ auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMe
         // UTF-16 untouched.
         const auto wide_path = atom::Utf8ToWide(path);
         if (wide_path.empty()) {
-            LOG_WARNING(atom::audio::LogChannel::METADATA, "Failed to convert path to UTF-16: " + path);
+            LOG_WARNING(atom::log::audio::Metadata, "Failed to convert path to UTF-16: " + path);
             return std::nullopt;
         }
         TagLib::FileRef file(wide_path.c_str());
@@ -36,7 +36,7 @@ auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMe
         TagLib::FileRef file(path.c_str());
 #endif
         if (file.isNull() || !file.tag()) {
-            LOG_WARNING(atom::audio::LogChannel::METADATA, "No metadata found: " + path);
+            LOG_WARNING(atom::log::audio::Metadata, "No metadata found: " + path);
             return std::nullopt;
         }
 
@@ -58,14 +58,14 @@ auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMe
                 meta.artworkMimeType = picture.value("mimeType").toString().to8Bit(true);
                 const auto* begin = reinterpret_cast<const uint8_t*>(bytes.data());
                 meta.artworkData.assign(begin, begin + bytes.size());
-                LOG_DEBUG(atom::audio::LogChannel::METADATA, "Extracted embedded artwork: " + meta.artworkMimeType +
+                LOG_DEBUG(atom::log::audio::Metadata, "Extracted embedded artwork: " + meta.artworkMimeType +
                                                                  ", " + std::to_string(meta.artworkData.size()) +
                                                                  " bytes");
             } else {
-                LOG_WARNING(atom::audio::LogChannel::METADATA, "Embedded artwork entry has no image data: " + path);
+                LOG_WARNING(atom::log::audio::Metadata, "Embedded artwork entry has no image data: " + path);
             }
         } else {
-            LOG_DEBUG(atom::audio::LogChannel::METADATA, "No embedded artwork found: " + path);
+            LOG_DEBUG(atom::log::audio::Metadata, "No embedded artwork found: " + path);
         }
 
         if (file.audioProperties()) {
@@ -76,12 +76,12 @@ auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMe
             meta.channels = static_cast<uint16_t>(props->channels());
         }
 
-        LOG_INFO(atom::audio::LogChannel::METADATA, "Read metadata: " + path + " (title='" + meta.title +
+        LOG_INFO(atom::log::audio::Metadata, "Read metadata: " + path + " (title='" + meta.title +
                                                         "', artist='" + meta.artist +
                                                         "', duration=" + std::to_string(meta.durationSeconds) + "s)");
         return meta;
     } catch (...) {
-        LOG_WARNING(atom::audio::LogChannel::METADATA, "Failed to read metadata: " + path);
+        LOG_WARNING(atom::log::audio::Metadata, "Failed to read metadata: " + path);
         return std::nullopt;
     }
 }

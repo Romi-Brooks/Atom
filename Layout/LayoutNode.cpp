@@ -164,7 +164,7 @@ auto ApplyMargin(YGNodeRef node, const YGEdge edge, const Length length) -> void
 
 auto ApplyPadding(YGNodeRef node, const YGEdge edge, const Length length) -> void {
     if (length.unit == Unit::Auto) {
-        LOG_WARNING(LogChannel::CORE, "Rejected Unit::Auto padding in a Yoga layout style");
+        LOG_WARNING(atom::log::layout::Core, "Rejected Unit::Auto padding in a Yoga layout style");
         throw std::invalid_argument{"Layout padding cannot use Unit::Auto"};
     }
     ApplyLength(
@@ -191,7 +191,7 @@ struct LayoutNode::Impl {
     Impl(const LayoutConfig& config_value, void* native_config)
         : config{config_value}, node{YGNodeNewWithConfig(static_cast<YGConfigRef>(native_config))} {
         if (node == nullptr) {
-            LOG_ERROR(LogChannel::CORE, "Yoga failed to allocate a layout node");
+            LOG_ERROR(atom::log::layout::Core, "Yoga failed to allocate a layout node");
             throw std::bad_alloc{};
         }
         YGNodeSetContext(node, this);
@@ -223,7 +223,7 @@ struct LayoutNode::Impl {
             const auto size = impl->measure_function({width, ToAtom(width_mode), height, ToAtom(height_mode)});
             return {size.width, size.height};
         } catch (...) {
-            LOG_ERROR(LogChannel::CORE, "A layout measure callback threw; returning a zero size");
+            LOG_ERROR(atom::log::layout::Core, "A layout measure callback threw; returning a zero size");
             return {0.0f, 0.0f};
         }
     }
@@ -288,24 +288,24 @@ auto LayoutNode::SetStyle(const LayoutStyle& style) -> void {
 
 auto LayoutNode::InsertChild(LayoutNode& child, const std::size_t index) -> void {
     if (impl_.get() == child.impl_.get()) {
-        LOG_WARNING(LogChannel::CORE, "Rejected an attempt to parent a layout node to itself");
+        LOG_WARNING(atom::log::layout::Core, "Rejected an attempt to parent a layout node to itself");
         throw std::invalid_argument{"A layout node cannot be its own child"};
     }
     if (index > GetChildCount()) {
-        LOG_WARNING(LogChannel::CORE, "Rejected an out-of-range layout child insertion index");
+        LOG_WARNING(atom::log::layout::Core, "Rejected an out-of-range layout child insertion index");
         throw std::out_of_range{"Layout child index is out of range"};
     }
     if (YGNodeHasMeasureFunc(impl_->node)) {
-        LOG_WARNING(LogChannel::CORE, "Rejected a child insertion into a measured layout node");
+        LOG_WARNING(atom::log::layout::Core, "Rejected a child insertion into a measured layout node");
         throw std::logic_error{"A measured layout node cannot have children"};
     }
     if (YGNodeGetOwner(child.impl_->node) != nullptr) {
-        LOG_WARNING(LogChannel::CORE, "Rejected a layout child that already has a parent");
+        LOG_WARNING(atom::log::layout::Core, "Rejected a layout child that already has a parent");
         throw std::logic_error{"Layout node already has a parent"};
     }
     for (auto ancestor = impl_->node; ancestor != nullptr; ancestor = YGNodeGetOwner(ancestor)) {
         if (ancestor == child.impl_->node) {
-            LOG_WARNING(LogChannel::CORE, "Rejected a cycle in the layout tree");
+            LOG_WARNING(atom::log::layout::Core, "Rejected a cycle in the layout tree");
             throw std::logic_error{"A layout tree cannot contain a cycle"};
         }
     }
@@ -318,7 +318,7 @@ auto LayoutNode::AppendChild(LayoutNode& child) -> void {
 
 auto LayoutNode::RemoveChild(LayoutNode& child) -> void {
     if (YGNodeGetOwner(child.impl_->node) != impl_->node) {
-        LOG_WARNING(LogChannel::CORE, "Rejected removal of a node that is not a direct child");
+        LOG_WARNING(atom::log::layout::Core, "Rejected removal of a node that is not a direct child");
         throw std::logic_error{"Layout node is not a child of this parent"};
     }
     YGNodeRemoveChild(impl_->node, child.impl_->node);
@@ -354,16 +354,16 @@ auto LayoutNode::CalculateLayout(const std::optional<float> available_width,
 
 auto LayoutNode::SetMeasureFunction(MeasureFunction measure_function) -> void {
     if (!measure_function) {
-        LOG_WARNING(LogChannel::CORE, "Rejected an empty layout measure callback");
+        LOG_WARNING(atom::log::layout::Core, "Rejected an empty layout measure callback");
         throw std::invalid_argument{"Layout measure function cannot be empty"};
     }
     if (GetChildCount() != 0) {
-        LOG_WARNING(LogChannel::CORE, "Rejected a measure callback on a layout node with children");
+        LOG_WARNING(atom::log::layout::Core, "Rejected a measure callback on a layout node with children");
         throw std::logic_error{"A measured layout node cannot have children"};
     }
     impl_->measure_function = std::move(measure_function);
     YGNodeSetMeasureFunc(impl_->node, Impl::Measure);
-    LOG_DEBUG(LogChannel::CORE, "Installed a Yoga layout measure callback");
+    LOG_DEBUG(atom::log::layout::Core, "Installed a Yoga layout measure callback");
 }
 
 auto LayoutNode::ClearMeasureFunction() -> void {
@@ -373,7 +373,7 @@ auto LayoutNode::ClearMeasureFunction() -> void {
 
 auto LayoutNode::MarkDirty() -> void {
     if (!impl_->measure_function) {
-        LOG_WARNING(LogChannel::CORE, "Rejected MarkDirty on a layout node without a measure callback");
+        LOG_WARNING(atom::log::layout::Core, "Rejected MarkDirty on a layout node without a measure callback");
         throw std::logic_error{"Only measured layout nodes can be marked dirty"};
     }
     YGNodeMarkDirty(impl_->node);

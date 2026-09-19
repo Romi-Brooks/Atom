@@ -43,6 +43,7 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
             for (const auto& entry : resize_listeners_) {
                 entry.fn(resize.width, resize.height);
             }
+            pending_resize_ = PendingResize{resize.width, resize.height, window.GetTimeSeconds()};
         }
 
         screenManager.HandleEvent(*event);
@@ -50,6 +51,32 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
         if (!window.IsOpen())
             break;
     }
+
+    if (!window.IsOpen() || !pending_resize_)
+        return;
+    const double now = window.GetTimeSeconds();
+    if (now - pending_resize_->last_change_seconds < kResizeSettleDelaySeconds)
+        return;
+
+    auto settled = *pending_resize_;
+    pending_resize_.reset();
+    // The backend's regular resize event may report logical dimensions on a
+    // high-DPI display. The settled notification is deliberately physical:
+    // it is commonly used for logs, persisted window size and render targets.
+    const auto physicalSize = window.GetSize();
+    if (physicalSize.GetX() > 0.0f && physicalSize.GetY() > 0.0f) {
+        settled.width = static_cast<uint32_t>(physicalSize.GetX());
+        settled.height = static_cast<uint32_t>(physicalSize.GetY());
+    }
+    atom::window::IEvent settledEvent{};
+    settledEvent.type = atom::window::EventType::ResizeSettled;
+    settledEvent.data = atom::window::ResizeEvent{settled.width, settled.height};
+    LOG_INFO(atom::log::core::Window,
+             "Window resize settled: " + std::to_string(settled.width) + "x" + std::to_string(settled.height));
+    for (const auto& entry : event_listeners_) {
+        entry.fn(settledEvent);
+    }
+    screenManager.HandleEvent(settledEvent);
 }
 
 auto RenderWindow::Initialize(const std::string& title, atom::algo::Vec2 resolution, std::string_view backendId)
@@ -62,11 +89,12 @@ auto RenderWindow::Initialize(const std::string& title, atom::algo::Vec2 resolut
     // Fresh window session: shutdown listeners must fire again on the next
     // Shutdown().
     shutdown_notified_ = false;
+    pending_resize_.reset();
 
     auto& registry = atom::backend::RenderBackendRegistry::GetInstance();
     backend_ = registry.CreateBackend(backendId);
     if (!backend_) {
-        LOG_ERROR(atom::core::LogChannel::WINDOW, "Render backend '" + backend_id_ + "' is not registered");
+        LOG_ERROR(atom::log::core::Window, "Render backend '" + backend_id_ + "' is not registered");
         return;
     }
 
@@ -172,6 +200,7 @@ auto RenderWindow::Shutdown() -> void {
     if (backend_) {
         backend_->Shutdown();
     }
+    pending_resize_.reset();
 }
 
 // ── Listener registry ───────────────────────────────────────────────

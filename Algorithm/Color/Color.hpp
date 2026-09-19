@@ -16,6 +16,7 @@ struct Color {
         uint8_t b = 0;
         uint8_t a = 255;
 
+        // Basic colors
         [[nodiscard]] static constexpr auto Black() -> Color { return {.r = 0, .g = 0, .b = 0}; }
         [[nodiscard]] static constexpr auto White() -> Color { return {.r = 255, .g = 255, .b = 255}; }
         [[nodiscard]] static constexpr auto Red() -> Color { return {.r = 255, .g = 0, .b = 0}; }

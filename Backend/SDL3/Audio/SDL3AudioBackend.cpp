@@ -4,6 +4,7 @@
 #include <Backend/SDL3/Audio/SDL3MusicSource.hpp>
 #include <Backend/SDL3/Audio/SDL3SFXSource.hpp>
 #include <Backend/SDL3/Audio/SDL3StreamingMusicSource.hpp>
+#include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3 {
 
@@ -32,11 +33,22 @@ auto ToSDLSpec(const atom::audio::AudioSpec& spec) -> SDL_AudioSpec {
 }
 } // namespace
 
+SDL3AudioBackend::SDL3AudioBackend() {
+    if (audio_runtime_.IsValid()) {
+        LOG_INFO(atom::log::backend::Audio::sdl3, "Native SDL3 audio backend initialized");
+    } else {
+        LOG_ERROR(atom::log::backend::Audio::sdl3, "Failed to initialize native SDL3 audio backend");
+    }
+}
+
 auto SDL3AudioBackend::CreateMusicSource(std::vector<uint8_t> pcm, const atom::audio::AudioSpec& spec)
     -> std::unique_ptr<atom::audio::IAudioSource> {
     if (!audio_runtime_.IsValid())
         return nullptr;
-    return std::make_unique<SDL3MusicSource>(std::move(pcm), ToSDLSpec(spec));
+    LOG_INFO(atom::log::backend::Audio::sdl3, "Creating buffered music source");
+    auto source = std::make_unique<SDL3MusicSource>(std::move(pcm), ToSDLSpec(spec));
+    source->BindRegistry(sources_);
+    return source;
 }
 
 auto SDL3AudioBackend::CreateStreamingMusicSource(std::unique_ptr<atom::audio::IAudioDecoder> decoder,
@@ -46,17 +58,31 @@ auto SDL3AudioBackend::CreateStreamingMusicSource(std::unique_ptr<atom::audio::I
         return nullptr;
     if (!decoder || !decoder->IsOpen())
         return nullptr;
-    return std::make_unique<SDL3StreamingMusicSource>(std::move(decoder), ToSDLSpec(spec));
+    LOG_INFO(atom::log::backend::Audio::sdl3, "Creating streaming music source from initialized decoder");
+    auto source = std::make_unique<SDL3StreamingMusicSource>(std::move(decoder), ToSDLSpec(spec));
+    source->BindRegistry(sources_);
+    return source;
 }
 
 auto SDL3AudioBackend::CreateSFXSource(const std::vector<uint8_t>& pcm, const atom::audio::AudioSpec& spec)
     -> std::unique_ptr<atom::audio::IAudioSource> {
     if (!audio_runtime_.IsValid())
         return nullptr;
+    LOG_INFO(atom::log::backend::Audio::sdl3, "Creating SFX source");
     auto source = std::make_unique<SDL3SFXSource>();
     source->SetBuffer(pcm.data(), static_cast<uint32_t>(pcm.size()));
     source->SetSpec(ToSDLSpec(spec));
+    source->BindRegistry(sources_);
     return source;
+}
+
+auto SDL3AudioBackend::Quiesce() -> void {
+    const auto tracked = sources_.TrackedCount();
+    if (tracked > 0) {
+        LOG_INFO(atom::log::backend::Audio::sdl3,
+                 "Detaching " + std::to_string(tracked) + " live source(s) before backend teardown");
+    }
+    sources_.DetachAll();
 }
 
 auto SDL3AudioBackend::IsReady() const -> bool {

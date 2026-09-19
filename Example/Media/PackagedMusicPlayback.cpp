@@ -85,6 +85,22 @@ class PackedMusicDebugger final : public atom::Debugger {
             }
 
             ImGui::Text("Now playing: %s", music_.GetNowPlaying().c_str());
+            // In-memory tracks report their length and support the same seek API as
+            // file-backed tracks (the decoder is chosen by extension either way).
+            const auto now_playing = music_.GetNowPlaying();
+            if (!now_playing.empty()) {
+                auto position = music_.GetPlayingOffset(now_playing);
+                const auto duration = music_.GetDuration(now_playing);
+                if (duration > 0.0f) {
+                    ImGui::Text("Position: %.2f / %.2f s", static_cast<double>(position),
+                                static_cast<double>(duration));
+                    if (music_.IsSeekable(now_playing) &&
+                        ImGui::SliderFloat("Seek", &position, 0.0f, duration, "%.2f s"))
+                        music_.Seek(now_playing, position);
+                } else {
+                    ImGui::Text("Position: %.2f s (duration unknown)", static_cast<double>(position));
+                }
+            }
             ImGui::Separator();
 
             static float volume = music_.GetMusicVolume();
@@ -140,7 +156,7 @@ auto main() -> int {
         const std::vector<std::string> sources(std::begin(kSourceFiles), std::end(kSourceFiles));
         const auto result = packer.Pack(sources, kPackPath, config);
         if (result != atom::tools::Packager::Result::SUCCESS) {
-            LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Packing failed, cannot continue");
+            LOG_ERROR(atom::log::utilities::Packager, "Packing failed, cannot continue");
             return 1;
         }
         packer.PrintPackageInfo();
@@ -152,14 +168,14 @@ auto main() -> int {
     // load the pack and extract every entry into memory
     atom::tools::Unpackager unpacker;
     if (unpacker.Load(kPackPath, /*verbose=*/true) != atom::tools::Unpackager::Result::SUCCESS) {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Failed to load package: " + std::string(kPackPath));
+        LOG_ERROR(atom::log::utilities::Packager, "Failed to load package: " + std::string(kPackPath));
         return 1;
     }
     unpacker.PrintPackageInfo();
 
     std::vector<atom::tools::Unpackager::MemoryFile> memoryFiles;
     if (unpacker.ExtractAllToMemory(memoryFiles) != atom::tools::Unpackager::Result::SUCCESS) {
-        LOG_ERROR(atom::utilities::LogChannel::PACKAGER, "Failed to extract package contents into memory");
+        LOG_ERROR(atom::log::utilities::Packager, "Failed to extract package contents into memory");
         return 1;
     }
 
@@ -175,13 +191,13 @@ auto main() -> int {
         // track for the whole program lifetime, satisfying the contract.
         if (music.LoadFromMemory(id, file.filename, file.GetData(), file.GetSize())) {
             ++loadedCount;
-            LOG_INFO(atom::audio::LogChannel::MUSIC, "Track ready (in-memory): " + file.filename);
+            LOG_INFO(atom::log::audio::Music, "Track ready (in-memory): " + file.filename);
         } else {
-            LOG_WARNING(atom::audio::LogChannel::MUSIC, "Track load failed: " + file.filename);
+            LOG_WARNING(atom::log::audio::Music, "Track load failed: " + file.filename);
         }
     }
     if (loadedCount == 0) {
-        LOG_ERROR(atom::audio::LogChannel::MUSIC, "No track could be loaded from the pack");
+        LOG_ERROR(atom::log::audio::Music, "No track could be loaded from the pack");
         return 1;
     }
 

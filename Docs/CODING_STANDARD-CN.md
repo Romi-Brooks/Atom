@@ -91,6 +91,14 @@ include 按以下分组顺序排列，每组空一行：
 - 自身头文件（对应的 `.hpp`）使用 `#include "FileName.hpp"`，置于最前
 - 禁止使用 `../../` 相对路径
 
+### 2.3 `using` 与类型别名
+
+- 公共头文件**禁止** `using namespace xxx;`；它会污染所有包含者的查找范围。
+- `using Name = Type;` 是在当前命名空间声明一个受限的别名，不会把名字导入包含者的全局命名空间；允许用于明确且有意的 API 门面、资源句柄或类内 callback 类型。
+- 命名空间级别别名必须表示**完全相同的类型与单位语义**，并放在拥有该 API 的命名空间中。例如 `render::Color = color::Color`；如果坐标系、单位、所有权或不变量不同，必须使用独立 struct/wrapper，不能用别名。
+- 别名没有独立的前置声明。若公共接口按值存储或构造该类型，头文件必须包含底层类型的完整定义；若仅使用指针/引用，可先前置声明底层 tag 后再声明别名。
+- 不要为缩短局部代码随意新增命名空间级别别名；名字冲突应由限定命名空间或更清晰的类型名解决。新增公共别名须在代码审查中说明其稳定 API 意图。
+
 ***
 
 ## 3. 命名规范
@@ -114,25 +122,25 @@ include 按以下分组顺序排列，每组空一行：
 
 ### 3.1.1 日志通道命名
 
-通道是**按层级域分组**的枚举——每个域是一个 `ATOM_DEFINE_CHANNELS` 块
-（引擎通道在 `Log/AtomLogChannels.hpp`，游戏域在游戏项目里）。一个域拥有
-一个命名空间、一个枚举和一个显示前缀：
+通道是按日志命名空间分组的**枚举支持值**——每个域是一个
+`ATOM_DEFINE_CHANNELS` 块（引擎通道在 `Log/AtomLogChannels.hpp`，游戏域在游戏项目里）。
+一个域拥有命名空间、内部 `Channel` 枚举和显示前缀：
 
 | 域 | 前缀 | 示例 |
 |---|---|---|
-| `atom::core::LogChannel` | `Atom.` | `atom::core::LogChannel::MAIN` |
-| `atom::audio::LogChannel` | `Atom.Audio.` | `atom::audio::LogChannel::MUSIC` |
-| `atom::render::LogChannel` | `Atom.Render.` | `atom::render::LogChannel::RENDERER2D` |
-| `atom::image::LogChannel` | `Atom.Image.` | `atom::image::LogChannel::DECODER` |
-| `atom::backend::sdl3::LogChannel` | `Atom.SDL3.Backend.` | `atom::backend::sdl3::LogChannel::AUDIO` |
-| `game::GameLogChannel` | `Game.` | `game::GameLogChannel::GAME_NPC` |
+| `atom::log::core` | `Atom.` | `atom::log::core::Main` |
+| `atom::log::audio` | `Atom.Audio.` | `atom::log::audio::Music` |
+| `atom::log::render` | `Atom.Render.` | `atom::log::render::Renderer2D` |
+| `atom::log::image` | `Atom.Image.` | `atom::log::image::Decoder` |
+| `atom::log::backend::Audio` | `Atom.Backend.Audio.` | `atom::log::backend::Audio::sdl3` |
+| `game::log` | `Game.` | `game::log::Npc` |
 
-- 枚举名使用 `UPPER_SNAKE_CASE`（`SCREEN_MANAGER`、`PLUG_MUSICFADE`）；游戏域可保留
-  简短分类前缀（`GAME_NPC`）
+- 通道值使用 `PascalCase`（`ScreenManager`、`PlugMusicFade`）。后端实现标识是例外：
+  使用其规范的注册 ID（`sdl3`、`sdl3_mixer`），以保证日志通道和运行时后端 ID 一致。
 - 显示名使用 `.` 分隔的 PascalCase（`Atom.Entity.NPC ->`）
-- 调用处一律直接写域的枚举值（如 `atom::audio::LogChannel::MUSIC`），不要定义局部别名
-  （如 `const auto& kLogChannel = atom::audio::LogChannel::MUSIC;`）——别名虽然让调用
-  更短，但会给接手的人增加一层间接跳转，收益有限。
+- 调用处一律通过日志域直接写通道值（如 `atom::log::audio::Music`），不要定义局部别名
+  （如 `const auto& kMusicLogChannel = atom::log::audio::Music;`）——别名虽然让调用更短，
+  但会给接手的人增加一层间接跳转，收益有限。
 
 ### 3.2 详细规则
 

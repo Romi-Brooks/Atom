@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include <Backend/Contracts/Audio/AudioTypes.hpp>
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
@@ -33,6 +34,16 @@ class AudioClipLoader final {
                                                    std::size_t size) const -> std::optional<StreamingResult>;
 
     private:
+        // Shared front half of both entry points: resolve the decoder through the
+        // registry, open it and validate the format it reports. On success the
+        // resolved sample format is written to `format`. Every failure is logged
+        // at WARNING -- "the file is listed but silent" must be visible at the
+        // default log level.
+        [[nodiscard]] auto OpenDecoder(std::string_view operation, const std::string& label, const std::string& path,
+                                       const void* memory_data, std::size_t memory_size,
+                                       atom::audio::AudioSampleFormat& format) const
+            -> std::unique_ptr<atom::audio::IAudioDecoder>;
+
         atom::audio::AudioDecoderRegistry& decoders_;
 };
 } // namespace atom

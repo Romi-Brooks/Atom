@@ -31,7 +31,10 @@ enum class EventType {
     MouseWheel,
     TextInput,
     FocusChanged,
-    Resized
+    Resized,
+    // Synthesized by the engine after resize notifications have been quiet
+    // for its configured debounce interval; never emitted by an OS backend.
+    ResizeSettled
 };
 
 // Input payloads are declared by Event, rather than by a window backend.

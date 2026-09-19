@@ -112,27 +112,28 @@ headers in the following order, separated by blank lines:
 
 ### 3.1.1 Log Channel Naming
 
-Channels are enums grouped into hierarchical **domains** — each domain is one
-`ATOM_DEFINE_CHANNELS` block (engine channels live in `Log/AtomLogChannels.hpp`,
-game domains live in the game project). A domain owns a namespace, an enum and a
-display prefix:
+Channels are enum-backed values grouped below the logging namespace — each
+domain is one `ATOM_DEFINE_CHANNELS` block (engine channels live in
+`Log/AtomLogChannels.hpp`, game domains live in the game project). A domain owns
+a namespace, an internal `Channel` enum and a display prefix:
 
 | Domain | Prefix | Example usage |
 |---|---|---|
-| `atom::core::LogChannel` | `Atom.` | `atom::core::LogChannel::MAIN` |
-| `atom::audio::LogChannel` | `Atom.Audio.` | `atom::audio::LogChannel::MUSIC` |
-| `atom::render::LogChannel` | `Atom.Render.` | `atom::render::LogChannel::RENDERER2D` |
-| `atom::image::LogChannel` | `Atom.Image.` | `atom::image::LogChannel::DECODER` |
-| `atom::backend::sdl3::LogChannel` | `Atom.SDL3.Backend.` | `atom::backend::sdl3::LogChannel::AUDIO` |
-| `game::GameLogChannel` | `Game.` | `game::GameLogChannel::GAME_NPC` |
+| `atom::log::core` | `Atom.` | `atom::log::core::Main` |
+| `atom::log::audio` | `Atom.Audio.` | `atom::log::audio::Music` |
+| `atom::log::render` | `Atom.Render.` | `atom::log::render::Renderer2D` |
+| `atom::log::image` | `Atom.Image.` | `atom::log::image::Decoder` |
+| `atom::log::backend::Audio` | `Atom.Backend.Audio.` | `atom::log::backend::Audio::sdl3` |
+| `game::log` | `Game.` | `game::log::Npc` |
 
-- Enumerator names are `UPPER_SNAKE_CASE` (`SCREEN_MANAGER`, `PLUG_MUSICFADE`); a game
-  domain may keep a short category prefix (`GAME_NPC`).
+- Channel values are `PascalCase` (`ScreenManager`, `PlugMusicFade`). Backend
+  implementation identifiers are the exception: use their canonical registry
+  IDs (`sdl3`, `sdl3_mixer`) so log channels and runtime backend IDs match.
 - Display names are dotted PascalCase components (`Atom.Entity.NPC ->`).
-- Always reference a channel as its domain enum value at the call site
-  (e.g. `atom::audio::LogChannel::MUSIC`). Do not introduce local aliases such as
-  `const auto& kLogChannel = atom::audio::LogChannel::MUSIC;`
-  — they add indirection for readers without meaningful benefit.
+- Always reference a channel through its logging domain at the call site
+  (e.g. `atom::log::audio::Music`). Do not introduce local aliases such as
+  `const auto& kMusicLogChannel = atom::log::audio::Music;` — they add
+  indirection for readers without meaningful benefit.
 
 ### 3.2 Detailed Rules
 

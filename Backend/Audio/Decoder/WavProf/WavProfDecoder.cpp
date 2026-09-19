@@ -11,27 +11,38 @@
 #include "WavProfDecoder.hpp"
 
 #include <cstdint>
+#include <limits>
 
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::audio_decoder {
 
-auto WavProfDecoder::Open(const std::string& path) -> bool {
+auto WavProfDecoder::Open(const std::string& path) -> atom::audio::DecoderOpenStatus {
     Close();
-    if (!reader_.Open(path)) {
-        LOG_ERROR(atom::audio::LogChannel::WAVPROF, "WavProf: failed to open WAV file: " + path);
-        return false;
+    const auto status = reader_.Open(path);
+    if (status != atom::audio::DecoderOpenStatus::Opened) {
+        // "Cannot read this file" is an expected outcome, not an error: the
+        // registry keeps a fallback decoder for the encodings this reader rejects,
+        // and AudioClipLoader reports a warning only if every candidate fails.
+        LOG_DEBUG(atom::log::audio::WavProf,
+                  std::string{"WavProf: declined file ("} + atom::audio::DescribeDecoderOpenStatus(status) +
+                      "): " + path);
+        return status;
     }
-    return SetupInfo(path);
+    return SetupInfo(path) ? atom::audio::DecoderOpenStatus::Opened : atom::audio::DecoderOpenStatus::InvalidData;
 }
 
-auto WavProfDecoder::OpenFromMemory(const void* data, const std::size_t size) -> bool {
+auto WavProfDecoder::OpenFromMemory(const void* data, const std::size_t size) -> atom::audio::DecoderOpenStatus {
     Close();
-    if (!reader_.OpenFromMemory(data, size)) {
-        LOG_ERROR(atom::audio::LogChannel::WAVPROF, "WavProf: failed to open WAV from memory buffer");
-        return false;
+    const auto status = reader_.OpenFromMemory(data, size);
+    if (status != atom::audio::DecoderOpenStatus::Opened) {
+        LOG_DEBUG(atom::log::audio::WavProf,
+                  std::string{"WavProf: declined memory buffer ("} + atom::audio::DescribeDecoderOpenStatus(status) +
+                      ")");
+        return status;
     }
-    return SetupInfo("(memory)");
+    return SetupInfo("(memory)") ? atom::audio::DecoderOpenStatus::Opened
+                                 : atom::audio::DecoderOpenStatus::InvalidData;
 }
 
 auto WavProfDecoder::SetupInfo(const std::string& source_label) -> bool {
@@ -48,11 +59,11 @@ auto WavProfDecoder::SetupInfo(const std::string& source_label) -> bool {
     const auto bytes_per_frame = static_cast<uint64_t>(info_.channels) * (source_bits_per_sample_ / 8u);
     info_.total_pcm_frames = bytes_per_frame == 0 ? 0 : reader_.GetTotalPCMBytes() / bytes_per_frame;
     if (info_.total_pcm_frames == 0) {
-        LOG_ERROR(atom::audio::LogChannel::WAVPROF, "WavProf: WAV stream has no PCM data: " + source_label);
+        LOG_DEBUG(atom::log::audio::WavProf, "WavProf: WAV stream has no PCM data: " + source_label);
         return false;
     }
 
-    LOG_DEBUG(atom::audio::LogChannel::WAVPROF, "WavProf: WAV stream opened: " + source_label +
+    LOG_DEBUG(atom::log::audio::WavProf, "WavProf: WAV stream opened: " + source_label +
                                                     " (sample_rate=" + std::to_string(info_.sample_rate) +
                                                     ", channels=" + std::to_string(info_.channels) +
                                                     ", bits_per_sample=" + std::to_string(info_.bits_per_sample) + ")");
@@ -61,7 +72,6 @@ auto WavProfDecoder::SetupInfo(const std::string& source_label) -> bool {
 
 auto WavProfDecoder::Close() -> void {
     reader_.Close();
-    decode_scratch_.clear();
     source_bits_per_sample_ = 0;
     info_ = {};
 }
@@ -71,28 +81,32 @@ auto WavProfDecoder::DecodeChunk(uint8_t* output, const uint32_t max_bytes) -> u
         return 0;
 
     if (source_bits_per_sample_ == 24) {
-        const auto input_frame_bytes = static_cast<std::size_t>(info_.channels) * 3u;
-        const auto output_frame_bytes = static_cast<std::size_t>(info_.channels) * 4u;
-        if (input_frame_bytes == 0 || max_bytes < output_frame_bytes)
+        // 24-bit packed PCM has no SDL format, so it is widened to S32 here: three
+        // bytes in, four bytes out, per *sample* (interleaved channel value), which
+        // is what SDL's own PCM_ConvertSint24ToSint32 does as well.
+        //
+        // The packed read goes into the tail of the caller's buffer (one byte of
+        // slack per sample) and the widening runs in place from the front: the
+        // write window of sample s always ends below the first not-yet-read packed
+        // byte, so no scratch buffer and no second full copy are needed.
+        const auto capacity_samples = static_cast<std::size_t>(max_bytes) / 4u;
+        if (capacity_samples == 0)
             return 0;
 
-        const auto frames = static_cast<std::size_t>(max_bytes / output_frame_bytes);
-        const auto input_bytes = frames * input_frame_bytes;
-        decode_scratch_.resize(input_bytes);
-
-        const auto decoded = reader_.ReadChunk(decode_scratch_.data(), input_bytes);
-        const auto samples = (decoded / input_frame_bytes) * info_.channels;
-        for (std::size_t sample_index = 0; sample_index < samples; ++sample_index) {
-            const auto src = sample_index * 3u;
-            const auto dst = sample_index * 4u;
+        auto* packed = output + capacity_samples;
+        const auto decoded = reader_.ReadChunk(packed, capacity_samples * 3u);
+        const auto read_samples = decoded / 3u;
+        for (std::size_t index = 0; index < read_samples; ++index) {
+            const auto src = index * 3u;
+            const auto dst = index * 4u;
             // Scale packed signed 24-bit PCM to signed 32-bit range.
             // In little-endian form this is simply 00, low, mid, high.
             output[dst] = 0;
-            output[dst + 1] = decode_scratch_[src];
-            output[dst + 2] = decode_scratch_[src + 1];
-            output[dst + 3] = decode_scratch_[src + 2];
+            output[dst + 1] = packed[src];
+            output[dst + 2] = packed[src + 1];
+            output[dst + 3] = packed[src + 2];
         }
-        return static_cast<uint32_t>(samples * 4u);
+        return static_cast<uint32_t>(read_samples * 4u);
     }
 
     return static_cast<uint32_t>(reader_.ReadChunk(output, max_bytes));
@@ -102,12 +116,37 @@ auto WavProfDecoder::Rewind() -> bool {
     return reader_.Rewind();
 }
 
+auto WavProfDecoder::IsSeekable() const -> bool {
+    // Uncompressed PCM: a seek is a file offset (or an in-memory cursor) move.
+    return reader_.IsOpen();
+}
+
+auto WavProfDecoder::SeekToFrame(const std::uint64_t frame) -> bool {
+    if (!reader_.IsOpen() || info_.channels == 0 || source_bits_per_sample_ == 0)
+        return false;
+
+    // The reader stores packed source PCM, so the frame stride uses the *source*
+    // width (a 24-bit file is widened to S32 only while decoding).
+    const auto bytes_per_frame = static_cast<std::uint64_t>(info_.channels) * (source_bits_per_sample_ / 8u);
+    if (bytes_per_frame == 0)
+        return false;
+
+    const auto byte_offset = frame * bytes_per_frame;
+    if (byte_offset > std::numeric_limits<std::size_t>::max())
+        return false;
+    return reader_.SeekToByte(static_cast<std::size_t>(byte_offset));
+}
+
 auto WavProfDecoder::GetInfo() const -> const atom::audio::DecoderInfo& {
     return info_;
 }
 
 auto WavProfDecoder::IsOpen() const -> bool {
     return reader_.IsOpen();
+}
+
+auto CreateWavProfDecoder() -> std::unique_ptr<atom::audio::IAudioDecoder> {
+    return std::make_unique<WavProfDecoder>();
 }
 
 } // namespace atom::backend::audio_decoder
