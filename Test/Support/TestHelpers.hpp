@@ -6,6 +6,7 @@
 #ifndef ATOM_TEST_SUPPORT_TEST_HELPERS_HPP
 #define ATOM_TEST_SUPPORT_TEST_HELPERS_HPP
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <string_view>
