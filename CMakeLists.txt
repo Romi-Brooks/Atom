@@ -521,37 +521,9 @@ include(CTest)
 option(ATOM_BUILD_TESTS "Build Atom-owned test targets" ON)
 if(ATOM_BUILD_TESTS)
     enable_testing()
-    add_executable(Atom_FS_AssetPath_Tests Filesystem/Test/AssetPathTests.cpp)
-    target_link_libraries(Atom_FS_AssetPath_Tests PRIVATE Atom_FS)
-    add_test(NAME Atom_FS.AssetPath COMMAND Atom_FS_AssetPath_Tests)
-
-    add_executable(Atom_FS_NativeFileSystem_Tests Filesystem/Test/NativeFileSystemTests.cpp)
-    target_link_libraries(Atom_FS_NativeFileSystem_Tests PRIVATE Atom_FS)
-    add_test(NAME Atom_FS.NativeFileSystem COMMAND Atom_FS_NativeFileSystem_Tests)
-
-    add_executable(Atom_FS_MemoryFileSystem_Tests Filesystem/Test/MemoryFileSystemTests.cpp)
-    target_link_libraries(Atom_FS_MemoryFileSystem_Tests PRIVATE Atom_FS)
-    add_test(NAME Atom_FS.MemoryFileSystem COMMAND Atom_FS_MemoryFileSystem_Tests)
-
-    add_executable(Atom_FS_OverlayVfs_Tests Filesystem/Test/OverlayVfsTests.cpp)
-    target_link_libraries(Atom_FS_OverlayVfs_Tests PRIVATE Atom_FS)
-    add_test(NAME Atom_FS.OverlayVfs COMMAND Atom_FS_OverlayVfs_Tests)
-
-    add_executable(Atom_FS_PackageFileSystem_Tests Filesystem/Test/PackageFileSystemTests.cpp)
-    target_link_libraries(Atom_FS_PackageFileSystem_Tests PRIVATE Atom_FS)
-    add_test(NAME Atom_FS.PackageFileSystem COMMAND Atom_FS_PackageFileSystem_Tests)
-
-    add_executable(Atom_Assets_ResourceManager_Tests Asset/Test/ResourceManagerTests.cpp)
-    target_link_libraries(Atom_Assets_ResourceManager_Tests PRIVATE Atom_Assets)
-    add_test(NAME Atom_Assets.ResourceManager COMMAND Atom_Assets_ResourceManager_Tests)
-
-    add_executable(Atom_Assets_ConsumerLoader_Tests Asset/Test/ConsumerLoaderTests.cpp)
-    target_link_libraries(Atom_Assets_ConsumerLoader_Tests PRIVATE Atom_Assets Atom_Image)
-    add_test(NAME Atom_Assets.ConsumerLoader COMMAND Atom_Assets_ConsumerLoader_Tests)
-
-    add_executable(Atom_Render_Resources_TextureCache_Tests Render/Resources/Test/TextureCacheTests.cpp)
-    target_link_libraries(Atom_Render_Resources_TextureCache_Tests PRIVATE Atom_Render_Resources Atom_FS)
-    add_test(NAME Atom_Render_Resources.TextureCache COMMAND Atom_Render_Resources_TextureCache_Tests)
+    # All Atom-owned unit tests live under Test/<Module>/ and register themselves
+    # via Test/CMakeLists.txt (CTest names: Atom_<Module>.<Area>).
+    add_subdirectory(Test)
 endif()
 
 # ============================================================================
@@ -594,12 +566,11 @@ if(MINGW)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()
         if(ATOM_BUILD_TESTS)
-            foreach(atom_test IN ITEMS Atom_FS_AssetPath_Tests Atom_FS_NativeFileSystem_Tests
-                                       Atom_FS_MemoryFileSystem_Tests Atom_FS_OverlayVfs_Tests
-                                       Atom_FS_PackageFileSystem_Tests Atom_Assets_ResourceManager_Tests
-                                       Atom_Assets_ConsumerLoader_Tests
-                                       Atom_Render_Resources_TextureCache_Tests)
-                add_dependencies(${atom_test} Atom_Mingw_Runtime_DLL)
+            get_property(atom_test_targets GLOBAL PROPERTY ATOM_TEST_TARGETS)
+            foreach(atom_test IN LISTS atom_test_targets)
+                if(TARGET ${atom_test})
+                    add_dependencies(${atom_test} Atom_Mingw_Runtime_DLL)
+                endif()
             endforeach()
         endif()
     endif()
