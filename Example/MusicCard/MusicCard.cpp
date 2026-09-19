@@ -43,7 +43,7 @@
 #include <Media/Image/Analysis/ColorStatistics.hpp>
 #include <Media/Image/ImageDecoder.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
-#include <Color/ColorMath.hpp>
+#include <Algorithm/Color/ColorMath.hpp>
 #include <Render/Resources/TextureCache.hpp>
 #include <Render/Text/Font.hpp>
 #include <Utilities/Utf8/Utf8.hpp>

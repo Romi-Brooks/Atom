@@ -38,10 +38,11 @@ include(Render/Shader/AtomShaders.cmake)
     )
 
 # 0a. Shared color value and operations (header-only, no renderer dependency).
+    # Lives under Algorithm/ as a pure value/math type, not a root subsystem.
     add_library(Atom_Color INTERFACE)
     target_sources(Atom_Color INTERFACE
-        Color/Color.hpp
-        Color/ColorMath.hpp
+        Algorithm/Color/Color.hpp
+        Algorithm/Color/ColorMath.hpp
     )
     target_include_directories(Atom_Color INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 

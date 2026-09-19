@@ -10,7 +10,7 @@
 #ifndef ATOM_BACKEND_CONTRACTS_RENDER_IRENDERTYPES_HPP
 #define ATOM_BACKEND_CONTRACTS_RENDER_IRENDERTYPES_HPP
 
-#include <Color/Color.hpp>
+#include <Algorithm/Color/Color.hpp>
 
 namespace atom::render {
 

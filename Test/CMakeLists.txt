@@ -101,7 +101,7 @@ atom_add_test(Atom_Algorithm.Rect
 
 atom_add_test(Atom_Color.ColorMath
     Atom_Color_ColorMath_Tests
-    Color/ColorMathTest.cpp
+    Algorithm/ColorMathTest.cpp
     Atom_Color)
 
 atom_add_test(Atom_Event.ActionMap

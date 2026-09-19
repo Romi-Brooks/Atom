@@ -1,5 +1,5 @@
-#include <Color/Color.hpp>
-#include <Color/ColorMath.hpp>
+#include <Algorithm/Color/Color.hpp>
+#include <Algorithm/Color/ColorMath.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {
