@@ -1,16 +1,19 @@
+// Copyright (c) 2026 Romi Brooks
+// SPDX-License-Identifier: MIT
+
 #include "LogDebugger.hpp"
 
 #include <string>
 #include <utility>
 #include <vector>
 
+#include <Debugger/PanelLayout.hpp>
 #include <Log/LogSystem.hpp>
-#include <Window/OverlayManager.hpp>
 #include <Window/RenderWindow.hpp>
 
 #include <imgui.h>
 
-namespace atom {
+namespace atom::debugger {
 namespace {
 
 auto LevelName(const LogLevel level) -> const char* {
@@ -47,32 +50,14 @@ auto ChannelKey(const LogChannelInfo& channel) -> std::string {
 
 } // namespace
 
-LogDebugger::~LogDebugger() {
-    Detach();
+auto LogDebugger::SetEnabled(const bool enabled) -> void {
+    DebugPanel::SetEnabled(enabled);
+    window_open_ = enabled;
+    if (enabled)
+        slot_applied_ = false;
 }
 
-auto LogDebugger::Attach(RenderWindow& window) -> void {
-    if (attached_)
-        return;
-
-    target_window_ = &window;
-    if (!window.GetIWindow() || !window.GetRenderDevice()) {
-        target_window_ = nullptr;
-        return;
-    }
-
-    auto& overlay_manager = window.GetOverlayManager();
-    overlay_connection_ = std::make_unique<debugger::OverlayConnection>(
-        overlay_manager.AddPanel([this] {
-            if (enabled_)
-                OnDrawOverlay();
-        }));
-    if (!overlay_connection_->IsConnected()) {
-        overlay_connection_.reset();
-        target_window_ = nullptr;
-        return;
-    }
-
+auto LogDebugger::OnAttach(atom::RenderWindow&) -> void {
     state_ = std::make_shared<State>();
     const auto weak_state = std::weak_ptr<State>{state_};
     log_connection_ = Log::Subscribe([weak_state, max_entries = max_entries_](const LogRecord& record) {
@@ -83,33 +68,29 @@ auto LogDebugger::Attach(RenderWindow& window) -> void {
                 state->records.pop_front();
         }
     });
-
     window_open_ = true;
-    enabled_ = true;
-    attached_ = true;
+    slot_applied_ = false;
 }
 
-auto LogDebugger::Detach() -> void {
+auto LogDebugger::OnDetach() -> void {
     log_connection_.Reset();
     state_.reset();
-    overlay_connection_.reset();
-    target_window_ = nullptr;
-    attached_ = false;
-}
-
-auto LogDebugger::SetEnabled(const bool enabled) -> void {
-    window_open_ = enabled;
-    enabled_ = enabled;
+    slot_applied_ = false;
 }
 
 auto LogDebugger::OnDrawOverlay() -> void {
     if (!state_ || !window_open_)
         return;
 
+    if (!slot_applied_) {
+        ApplyLogPanelSlot();
+        slot_applied_ = true;
+    }
+
     if (!ImGui::Begin("Log Debugger", &window_open_)) {
         ImGui::End();
         if (!window_open_)
-            enabled_ = false;
+            DebugPanel::SetEnabled(false);
         return;
     }
 
@@ -123,8 +104,6 @@ auto LogDebugger::OnDrawOverlay() -> void {
     std::unordered_set<std::string> known_channels;
     for (const auto& channel : channels)
         known_channels.insert(ChannelKey(channel));
-    // Ad-hoc string channels are still captured. Add them to the selector as
-    // observed channels so game code does not need an enum to be visible here.
     for (const auto& record : records) {
         LogChannelInfo channel{record.channel_prefix, record.channel_name};
         if (known_channels.insert(ChannelKey(channel)).second)
@@ -195,7 +174,7 @@ auto LogDebugger::OnDrawOverlay() -> void {
     ImGui::End();
 
     if (!window_open_)
-        enabled_ = false;
+        DebugPanel::SetEnabled(false);
 }
 
-} // namespace atom
+} // namespace atom::debugger

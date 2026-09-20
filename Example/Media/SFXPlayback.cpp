@@ -7,15 +7,17 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
+#include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Event/Input.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
 #include <Media/Audio/Resources/AudioClipCache.hpp>
-#include <Window/Manager/ScreenManager.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
-#include <Window/Overlay.hpp>
+#include <Debugger/Overlay.hpp>
+#include <Debugger/LogDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -27,7 +29,7 @@ constexpr auto kSFX2Path =
     R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 2 - C.wav)";
 
 // Debugger overlay
-class SFXDebugger final : public atom::Debugger {
+class SFXDebugger final : public atom::debugger::DebugPanel {
     public:
         explicit SFXDebugger(atom::SFXPlayer& sfx) : sfx_(sfx) {}
 
@@ -97,16 +99,19 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("SFX");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - SFX Playback Example", atom::algo::Vec2{720, 720});
+    window.Initialize("Atom Engine - SFX Playback Example", atom::algo::Vec2{720, 720},
+                      atom::backend::RenderBackendId::SdlGpu);
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly
     // consume GPU/CPU resources.
     window.SetFPS(60);
 
+    atom::debugger::LogDebugger log_panel{};
+    log_panel.Attach(window);
+
     SFXDebugger debugger{sfx};
     debugger.Attach(window);
-    debugger.SetLoggerEnabled(true);
 
     window.Run();
 }

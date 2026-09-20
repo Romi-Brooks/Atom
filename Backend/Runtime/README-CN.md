@@ -157,7 +157,7 @@ runtime.AcquireAudioBackend();   // std::shared_ptr<IAudioBackend>，创建 sour
 ## 全局切换语义
 
 ```cpp
-runtime.SetAudioBackend("sdl3_mixer");
+runtime.SetAudioBackend(atom::backend::AudioBackendId::Sdl3Mixer);
 ```
 
 切换分四步：

@@ -4,7 +4,7 @@
   * @brief          : Main render window singleton (Engine Core)
  * @attention      : Wraps an atom::render::IRenderBackend selected by the engine runtime.
   *                   behind a stable singleton API. Never depends on a concrete
-  *                   backend type; pick one with the backendId argument.
+  *                   backend type; pick one with RenderBackendId.
   *                   Overlay/event hooks are multi-slot listeners registered
   *                   with RAII ListenerConnection (ARCH-112).
   * @date           : 2025/9/28
@@ -25,8 +25,9 @@
 
 #include <Backend/Contracts/Render/IRenderBackend.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
-#include <Window/Manager/ScreenManager.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/OverlayManager.hpp>
 
 namespace atom {
@@ -139,7 +140,7 @@ class RenderWindow {
         // being dispatched. ---
 
         using EventListener = std::function<void(atom::window::IEvent&)>; // translated engine event
-        using UpdateListener = std::function<void(float)>;                // per frame, before rendering
+        using UpdateListener = std::function<void(float)>;                // variable update, before rendering
         using OverlayListener = std::function<void()>;                    // per frame, after scene render
         using ResizeListener = std::function<void(uint32_t, uint32_t)>;   // after backend HandleResize
         using ShutdownListener = std::function<void()>;                   // once, on Shutdown
@@ -151,10 +152,11 @@ class RenderWindow {
         [[nodiscard]] auto AddShutdownListener(ShutdownListener listener) -> ListenerConnection;
 
         // Core API
-        // backendId selects the render backend (e.g. "sdl_gpu", or a custom backend
-        // registered in atom::backend::RenderBackendRegistry). Defaults to the engine default.
+        // backendId selects a built-in render backend (engine-curated enum).
+        // The default is RenderBackendId::SdlGpu; new members are added by Atom
+        // releases, not by game/mod code.
         auto Initialize(const std::string& title, algo::Vec2 resolution,
-                        std::string_view backendId = "sdl_gpu") -> void;
+                        backend::RenderBackendId backendId = backend::RenderBackendId::SdlGpu) -> void;
         auto Run() -> void;
         auto SetFPS(unsigned int fps) -> void;
         [[nodiscard]] auto GetFPS() const -> unsigned;

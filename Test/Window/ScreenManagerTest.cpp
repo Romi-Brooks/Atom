@@ -1,7 +1,7 @@
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
 #include <Test/Support/TestHelpers.hpp>
-#include <Window/Manager/ScreenManager.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/Screen.hpp>
 
 #include <memory>

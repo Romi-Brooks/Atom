@@ -47,11 +47,14 @@
 #include <Render/Resources/TextureCache.hpp>
 #include <Render/Text/Font.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
-#include <Window/Debugger/ImGui/ImGuiFontLoader.hpp>
-#include <Window/Manager/ScreenManager.hpp>
-#include <Window/Overlay.hpp>
+#include <Debugger/FontLoader.hpp>
+#include <Window/ScreenManager.hpp>
+#include <Debugger/Overlay.hpp>
+#include <Debugger/LogDebugger.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
+#include <Backend/Contracts/Audio/AudioBackendId.hpp>
+#include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Backend/Runtime/IAudioBackendChangeListener.hpp>
 
@@ -439,9 +442,9 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
 
                 // The same user-interface font feeds the production Renderer2D
                 // text path and the ImGui-only debugger window.
-                const auto* debug_font = atom::debugger::ImGuiFontLoader::LoadFromFile(
+                const auto* debug_font = atom::debugger::FontLoader::LoadFromFile(
                     font_path, {.size_pixels = 18.0f,
-                                .glyph_preset = atom::debugger::ImGuiGlyphPreset::ChineseFull,
+                                .glyph_preset = atom::debugger::GlyphPreset::ChineseFull,
                                 .set_as_default = true});
                 if (!debug_font)
                     LOG_WARNING(atom::log::debugger::ImGui,
@@ -1422,7 +1425,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         atom::algo::Rect next_hitbox_;
 };
 
-class MusicCardDebugger final : public atom::Debugger {
+class MusicCardDebugger final : public atom::debugger::DebugPanel {
     public:
         explicit MusicCardDebugger(MusicCardScreen& screen) : screen_{screen} {}
 
@@ -1444,12 +1447,12 @@ class MusicCardDebugger final : public atom::Debugger {
                         static_cast<unsigned long long>(runtime.GetAudioBackendGeneration()));
 
             if (ImGui::Button("Use native SDL3")) {
-                runtime.SetAudioBackend("sdl3");
+                runtime.SetAudioBackend(atom::backend::AudioBackendId::Sdl3);
             }
 
             ImGui::SameLine();
             if (ImGui::Button("Use SDL3_mixer")) {
-                runtime.SetAudioBackend("sdl3_mixer");
+                runtime.SetAudioBackend(atom::backend::AudioBackendId::Sdl3Mixer);
             }
 
             if (ImGui::Button("Previous")) {
@@ -1604,13 +1607,16 @@ auto main(int argc, char** argv) -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("MusicCard");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f});
+    window.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
+                      atom::backend::RenderBackendId::SdlGpu);
     window.SetVSync(false);
     window.SetFPS(165);
 
+    atom::debugger::LogDebugger log_panel{};
+    log_panel.Attach(window);
+
     MusicCardDebugger debugger{*screen_pointer};
     debugger.Attach(window);
-    debugger.SetLoggerEnabled(true);
     auto renderer_shutdown = window.AddShutdownListener([screen_pointer] { screen_pointer->ShutdownRenderer(); });
     screen_pointer->LoadInterfaceFont();
 

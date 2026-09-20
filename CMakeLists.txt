@@ -51,6 +51,7 @@ include(Render/Shader/AtomShaders.cmake)
     target_sources(Atom_Backend_Contracts INTERFACE
         Backend/Contracts/Audio/AudioTypes.hpp
         Backend/Contracts/Audio/AudioExtensions.hpp
+        Backend/Contracts/Audio/AudioBackendId.hpp
         Backend/Contracts/Audio/AudioSourceRegistry.hpp
         Backend/Contracts/Audio/IAudioBackend.hpp
         Backend/Contracts/Audio/IAudioDecoder.hpp
@@ -63,6 +64,7 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/Contracts/Render/IRenderTarget.hpp
         Backend/Contracts/Render/IRenderTypes.hpp
         Backend/Contracts/Render/ITexture.hpp
+        Backend/Contracts/Render/RenderBackendId.hpp
         Backend/Contracts/Video/IVideoDecoder.hpp
         Backend/Contracts/Window/IWindow.hpp
     )
@@ -156,7 +158,7 @@ include(Render/Shader/AtomShaders.cmake)
         ATOM_SHADER_HAS_DXIL=$<BOOL:${ATOM_SHADER_BUILD_DXIL}>
         ATOM_SHADER_HAS_MSL=$<BOOL:${ATOM_SHADER_BUILD_MSL}>)
 
-# 3c. SDL_GPU Debug (ImGui) Backend â€” ImGui glue for the SDL_GPU render backend.
+# 3c. SDL_GPU Debug (ImGui) Backend â€?ImGui glue for the SDL_GPU render backend.
     add_library(Atom_Backend_SDLGPU_Debug STATIC
         Backend/SDLGPU/Debug/SDLGPUImGuiBackend.cpp
         Backend/SDLGPU/Debug/SDLGPUImGuiBackend.hpp
@@ -165,7 +167,7 @@ include(Render/Shader/AtomShaders.cmake)
     target_link_libraries(Atom_Backend_SDLGPU_Debug PUBLIC
         Atom_Backend_Contracts Atom_Backend_SDL_GPU Atom_3rd_ImGui_SDL3)
 
-# 3d. Render Backend Runtime â€” the sanctioned layer that knows the concrete
+# 3d. Render Backend Runtime â€?the sanctioned layer that knows the concrete
 #     backends and registers them (window + render-device factory);
 #     upper layers only consume the registries and the I* interfaces.
     add_library(Atom_Backend_Render_Runtime STATIC
@@ -176,7 +178,7 @@ include(Render/Shader/AtomShaders.cmake)
     target_link_libraries(Atom_Backend_Render_Runtime PUBLIC Atom_Backend_Extension Atom_Backend_SDL_GPU)
     target_link_libraries(Atom_Backend_Render_Runtime PRIVATE Atom_Backend_SDLGPU_Debug)
 
-# 3e. Text â€” backend-neutral font provider and glyph rasterization service.
+# 3e. Text â€?backend-neutral font provider and glyph rasterization service.
     add_library(Atom_Text STATIC
         Render/Text/Font.cpp
         Render/Text/Font.hpp
@@ -184,21 +186,21 @@ include(Render/Shader/AtomShaders.cmake)
     target_include_directories(Atom_Text PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Text PRIVATE Atom_3rd_Stb)
 
-# 3f. Pipeline â€” backend-neutral pipeline descriptors shared by 2D and 3D.
+# 3f. Pipeline â€?backend-neutral pipeline descriptors shared by 2D and 3D.
     add_library(Atom_Render_Pipeline INTERFACE)
     target_sources(Atom_Render_Pipeline INTERFACE
         Render/Pipeline/PipelineTypes.hpp
     )
     target_include_directories(Atom_Render_Pipeline INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# 3g. Render Core â€” backend-neutral pass scheduling and render orchestration.
+# 3g. Render Core â€?backend-neutral pass scheduling and render orchestration.
     add_library(Atom_Render_Core STATIC
         Render/Core/RenderGraph.cpp
         Render/Core/RenderGraph.hpp
     )
     target_include_directories(Atom_Render_Core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# 3h. Renderer2D â€” high-level batched 2D renderer on the IRender2DContext slice.
+# 3h. Renderer2D â€?high-level batched 2D renderer on the IRender2DContext slice.
     add_library(Atom_Renderer2D STATIC
         Render/Renderer2D/Renderer2D.cpp
         Render/Renderer2D/Renderer2D.hpp
@@ -207,7 +209,7 @@ include(Render/Shader/AtomShaders.cmake)
     target_link_libraries(Atom_Renderer2D PUBLIC Atom_Backend_Contracts Atom_Render_Pipeline Atom_Render_Core Atom_Text)
     target_link_libraries(Atom_Renderer2D PRIVATE Atom_Log)
 
-# 3i. Render resources â€” bridges decoded media assets into renderer-owned GPU resources.
+# 3i. Render resources â€?bridges decoded media assets into renderer-owned GPU resources.
     add_library(Atom_Render_Resources STATIC
         Render/Resources/ImageTexture.hpp
         Render/Resources/ImageTexture.cpp
@@ -386,8 +388,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Window/RenderWindow.cpp
             Window/Screen.cpp
             Window/Screen.hpp
-            Window/Manager/ScreenManager.cpp
-            Window/Manager/ScreenManager.hpp
+            Window/ScreenManager.cpp
+            Window/ScreenManager.hpp
             Window/OverlayManager.hpp
             Window/OverlayManager.cpp
     )
@@ -402,13 +404,15 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
 
 # 10. Debugger
     add_library(Atom_Debugger STATIC
-            Window/Debugger.hpp
-            Window/Debugger.cpp
-            Window/LogDebugger.hpp
-            Window/LogDebugger.cpp
-            Window/Debugger/ImGui/ImGuiFontLoader.hpp
-            Window/Debugger/ImGui/ImGuiFontLoader.cpp
-            Window/Overlay.hpp
+            Debugger/DebugPanel.hpp
+            Debugger/DebugPanel.cpp
+            Debugger/LogDebugger.hpp
+            Debugger/LogDebugger.cpp
+            Debugger/FontLoader.hpp
+            Debugger/FontLoader.cpp
+            Debugger/PanelLayout.hpp
+            Debugger/PanelLayout.cpp
+            Debugger/Overlay.hpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3)
@@ -493,7 +497,7 @@ target_link_libraries(Example_Packaged_Music PRIVATE
 add_executable(Example_Log_Channel_Demo Example/Log/LogChannelDemo.cpp Example/Log/GameChannels.hpp)
 target_link_libraries(Example_Log_Channel_Demo PRIVATE Atom_Log)
 
-# MusicCard example â€” Yoga music HUD card migrated onto Renderer2D (phase C):
+# MusicCard example â€?Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
 # and an optional ImGui overlay for debug controls.
 add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp)

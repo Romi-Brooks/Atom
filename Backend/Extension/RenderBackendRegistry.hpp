@@ -7,22 +7,22 @@
 #include <string_view>
 #include <unordered_map>
 
+#include <Backend/Contracts/Render/RenderBackendId.hpp>
+
 namespace atom::render {
 class IRenderBackend;
 }
 
 namespace atom::backend {
 
-// Registry of complete render backend factories. Mirrors
-// BackendRegistry (audio): engine internals register concrete backends here
-// (e.g. "sdl_gpu", later "vulkan"), upper layers create the window/device
-// bundle through the registry instead of touching concrete backend types. Public headers must
-// never include Backend/<name>/* directly.
+// Registry of complete render backend factories. Engine internals register
+// concrete backends here; public game code selects via RenderBackendId on
+// RenderWindow::Initialize. Upper layers must not include Backend/<name>/*.
 class RenderBackendRegistry final {
     public:
         using BackendFactory = std::function<std::unique_ptr<render::IRenderBackend>()>;
 
-        static constexpr std::string_view kDefaultBackendId = "sdl_gpu";
+        static constexpr RenderBackendId kDefaultBackendId = RenderBackendId::SdlGpu;
 
         [[nodiscard]] static auto GetInstance() -> RenderBackendRegistry&;
 

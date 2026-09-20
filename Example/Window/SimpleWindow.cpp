@@ -8,7 +8,8 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Window/Manager/ScreenManager.hpp>
+#include <Backend/Contracts/Render/RenderBackendId.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
 
@@ -44,7 +45,9 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("Example");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Simple Window Example", atom::algo::Vec2{1280, 720});
+    // Init the window instance, you can pass a render backend explicit
+    window.Initialize("Atom Engine - Simple Window Example", atom::algo::Vec2{1280, 720},
+                      atom::backend::RenderBackendId::SdlGpu);
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly

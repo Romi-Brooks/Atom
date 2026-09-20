@@ -35,30 +35,33 @@ auto BackendRuntime::GetInstance() -> BackendRuntime& {
 BackendRuntime::BackendRuntime() {
     RegisterAvailableBackends();
     null_backend_ = std::make_shared<audio::NullAudioBackend>();
-    LOG_INFO(atom::log::backend::Runtime, "Initializing default audio backend 'sdl3'");
-    audio_backend_ = registry_.CreateAudioBackend("sdl3");
+    const auto default_audio_id = ToString(AudioBackendId::Sdl3);
+    LOG_INFO(atom::log::backend::Runtime, "Initializing default audio backend '" + std::string{default_audio_id} + "'");
+    audio_backend_ = registry_.CreateAudioBackend(default_audio_id);
     if (!audio_backend_)
         throw std::runtime_error("Failed to initialize default SDL3 audio backend");
-    audio_backend_id_ = "sdl3";
-    LOG_INFO(atom::log::backend::Runtime, "Default audio backend 'sdl3' initialized");
+    audio_backend_id_ = default_audio_id;
+    LOG_INFO(atom::log::backend::Runtime, "Default audio backend '" + audio_backend_id_ + "' initialized");
     RegisterDefaultAudioDecoders(audio_decoders_);
 }
 
 BackendRuntime::~BackendRuntime() = default;
 
 auto BackendRuntime::RegisterAvailableBackends() -> void {
-    registry_.RegisterAudioBackend("sdl3", []() -> std::unique_ptr<audio::IAudioBackend> {
-        auto backend = std::make_unique<sdl3::SDL3AudioBackend>();
-        if (!backend->IsReady())
-            return nullptr;
-        return backend;
-    });
-    registry_.RegisterAudioBackend("sdl3_mixer", []() -> std::unique_ptr<audio::IAudioBackend> {
-        auto backend = std::make_unique<sdl3mixer::SDL3MixerAudioBackend>();
-        if (!backend->IsReady())
-            return nullptr;
-        return backend;
-    });
+    registry_.RegisterAudioBackend(std::string{ToString(AudioBackendId::Sdl3)},
+                                   []() -> std::unique_ptr<audio::IAudioBackend> {
+                                       auto backend = std::make_unique<sdl3::SDL3AudioBackend>();
+                                       if (!backend->IsReady())
+                                           return nullptr;
+                                       return backend;
+                                   });
+    registry_.RegisterAudioBackend(std::string{ToString(AudioBackendId::Sdl3Mixer)},
+                                   []() -> std::unique_ptr<audio::IAudioBackend> {
+                                       auto backend = std::make_unique<sdl3mixer::SDL3MixerAudioBackend>();
+                                       if (!backend->IsReady())
+                                           return nullptr;
+                                       return backend;
+                                   });
 }
 
 auto BackendRuntime::RegisterDefaultAudioDecoders(audio::AudioDecoderRegistry& decoders) -> void {
@@ -111,8 +114,8 @@ auto BackendRuntime::Registry() -> BackendRegistry& {
     return registry_;
 }
 
-auto BackendRuntime::SetAudioBackend(const std::string_view id) -> bool {
-    const auto normalized_id = NormalizeBackendId(id);
+auto BackendRuntime::SetAudioBackend(const AudioBackendId id) -> bool {
+    const auto normalized_id = NormalizeBackendId(ToString(id));
     if (normalized_id == audio_backend_id_) {
         LOG_DEBUG(atom::log::backend::Runtime,
                   "Audio backend '" + normalized_id + "' is already active, no switch needed");

@@ -93,8 +93,10 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 - [x] 由窗口级 `OverlayManager` 共享一份 ImGui 上下文；Debugger/LogDebugger/未来的 Profiler/Console 只贡献 panel 内容。
 - [x] 旧 SDL_Renderer ImGui 适配器已退出 Atom target，SDL_GPU 的 `imgui_impl_sdlgpu3` 已注册并通过单 Debugger 验收。
-- [x] `Log` 提供线程安全的 RAII subscription；`Debugger` 可通过 `SetLoggerEnabled()` 挂载 LogDebugger，使用独立缓冲区和主线程 ImGui 绘制。
-- 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。（已通过共享 Debugger + LogDebugger 示例构建验收。）
+- [x] `Log` 提供线程安全的 RAII subscription；`LogDebugger` 是 `DebugPanel` 子类，与自定义面板平级 `Attach`，不再经由 `SetLoggerEnabled` 托管。
+- [x] 可见性 `SetEnabled` 与生命周期 `Attach/Detach` 分离；调试面板默认槽位由 `Debugger/PanelLayout` 写入，ImGui `IniFilename=nullptr`，不再依赖 imgui.ini。
+- [x] 目录：`Debugger/`（DebugPanel、LogDebugger、FontLoader、PanelLayout、Overlay）；`Window/` 仅保留窗口/Screen/OverlayManager。
+- 验收：同一窗口可挂多个 ImGui Overlay 而不互相覆盖。
 
 ### ARCH-114：Packager 路径与编码加固
 
@@ -227,8 +229,8 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 - [ ] `.notdef` 不是 fallback：需要 `FontProvider` 管理字体族、覆盖范围与回退链，并保证度量、baseline 和缓存键与实际选中的字体一致。
 - [ ] atlas 尺号已量化到 0.5px，但图集/页面尚无内存预算与 LRU；淘汰必须与 GPU 延迟释放和正在录制的 draw packet 生命周期协同。
 - [ ] stb_truetype 仅提供简单轮廓栅格和 kern pair；连字、组合音标、阿拉伯文/Indic 重排、彩色 emoji、OpenType feature/variation/DPI 实例应由 FreeType + HarfBuzz 路径提供。
-- 当前 `atom::debugger::ImGuiFontLoader` 只修复 Debugger 的 ImGui font atlas，支持文件与内存字体；它不是 Atom Renderer 的字体实现，也不应被正式游戏 UI 依赖。
-- MusicCard 业务文字已使用 Renderer2D；ImGuiFontLoader 只给调试窗口提供字体。
+- 当前 `atom::debugger::FontLoader` 只修复 Debugger 的 ImGui font atlas，支持文件与内存字体；它不是 Atom Renderer 的字体实现，也不应被正式游戏 UI 依赖。
+- MusicCard 业务文字已使用 Renderer2D；`Debugger/FontLoader` 只给调试窗口提供字体。
 
 ### RENDER-007：SDLGPU 内部组件化
 

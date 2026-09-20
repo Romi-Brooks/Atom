@@ -13,15 +13,17 @@
 #include <iterator>
 #include <vector>
 
+#include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Event/Input.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Utilities/Packager/Packager.hpp>
 #include <Utilities/Packager/Unpackager.hpp>
-#include <Window/Manager/ScreenManager.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
-#include <Window/Overlay.hpp>
+#include <Debugger/Overlay.hpp>
+#include <Debugger/LogDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -39,7 +41,7 @@ constexpr const char* kSourceFiles[] = {
 constexpr const char* kPackPath = "music_demo.pak";
 
 // Debugger overlay
-class PackedMusicDebugger final : public atom::Debugger {
+class PackedMusicDebugger final : public atom::debugger::DebugPanel {
     public:
         PackedMusicDebugger(atom::MusicPlayer& music, const std::vector<atom::tools::Unpackager::MemoryFile>& files,
                             std::string packPath, std::string packStatus)
@@ -206,16 +208,19 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("PackedMusic");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720});
+    window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720},
+                      atom::backend::RenderBackendId::SdlGpu);
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly
     // consume GPU/CPU resources.
     window.SetFPS(60);
 
+    atom::debugger::LogDebugger log_panel{};
+    log_panel.Attach(window);
+
     PackedMusicDebugger debugger{music, memoryFiles, kPackPath, pack_status};
     debugger.Attach(window);
-    debugger.SetLoggerEnabled(true);
 
     window.Run();
     return 0;
