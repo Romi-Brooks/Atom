@@ -72,6 +72,7 @@ class RenderWindow {
     private:
         std::unique_ptr<atom::render::IRenderBackend> backend_;
         std::unique_ptr<atom::debugger::OverlayManager> overlay_manager_;
+        std::string name_{};
         std::string backend_id_{};
         unsigned int fps_ = 60;
         bool shutdown_notified_ = false;
@@ -173,6 +174,9 @@ class RenderWindow {
         [[nodiscard]] auto IsVSyncEnabled() const -> bool;
         [[nodiscard]] auto IsOpen() const -> bool;
         auto Shutdown() -> void;
+
+        // Window name (the title passed to Initialize). Used by debugger logs.
+        [[nodiscard]] auto GetName() const -> const std::string&;
 
         // Backend access
         [[nodiscard]] auto GetIWindow() -> atom::window::IWindow*;

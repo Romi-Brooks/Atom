@@ -19,9 +19,28 @@ auto ScreenManager::GetInstance() -> ScreenManager& {
     return instance;
 }
 
-auto ScreenManager::LoadScreen(const std::string& name, std::unique_ptr<Screen> screen) -> void {
+auto ScreenManager::LoadScreen(const std::string& name, std::unique_ptr<Screen> screen) -> Screen* {
+    if (const auto it = screens_.find(name); it != screens_.end() && it->second) {
+        LOG_INFO(atom::log::core::ScreenManager, "Replacing screen: " + name);
+    }
     screens_[name] = std::move(screen);
     LOG_INFO(atom::log::core::ScreenManager, "Registering screen: " + name);
+    return screens_[name].get();
+}
+
+auto ScreenManager::GetScreen(const std::string& name) const -> Screen* {
+    const auto it = screens_.find(name);
+    return it != screens_.end() ? it->second.get() : nullptr;
+}
+
+auto ScreenManager::GetScreenName(const Screen* screen) const -> std::string {
+    if (screen == nullptr)
+        return {};
+    for (const auto& [name, owned] : screens_) {
+        if (owned.get() == screen)
+            return name;
+    }
+    return {};
 }
 
 auto ScreenManager::SwitchScreen(const std::string& name) -> void {
@@ -38,6 +57,19 @@ auto ScreenManager::SwitchScreen(const std::string& name) -> void {
     LOG_INFO(atom::log::core::ScreenManager, "Switched screen to : " + name);
 }
 
+auto ScreenManager::SwitchScreen(Screen* screen) -> void {
+    if (screen == nullptr) {
+        LOG_WARNING(atom::log::core::ScreenManager, "SwitchScreen called with a null screen");
+        return;
+    }
+    const auto name = GetScreenName(screen);
+    if (name.empty()) {
+        LOG_WARNING(atom::log::core::ScreenManager, "SwitchScreen called with an unregistered screen");
+        return;
+    }
+    SwitchScreen(name);
+}
+
 auto ScreenManager::PushScreen(const std::string& name) -> void {
     const auto it = screens_.find(name);
     if (it != screens_.end()) {
@@ -50,6 +82,19 @@ auto ScreenManager::PushScreen(const std::string& name) -> void {
         current_screen_->OnActivate();
     }
     LOG_INFO(atom::log::core::ScreenManager, "Pushed & Rendering screen: " + name);
+}
+
+auto ScreenManager::PushScreen(Screen* screen) -> void {
+    if (screen == nullptr) {
+        LOG_WARNING(atom::log::core::ScreenManager, "PushScreen called with a null screen");
+        return;
+    }
+    const auto name = GetScreenName(screen);
+    if (name.empty()) {
+        LOG_WARNING(atom::log::core::ScreenManager, "PushScreen called with an unregistered screen");
+        return;
+    }
+    PushScreen(name);
 }
 
 auto ScreenManager::PopScreen() -> void {
@@ -106,5 +151,17 @@ auto ScreenManager::GetCurrentScreenName() const -> const std::string& {
 
 auto ScreenManager::GetScreenStack() const -> const std::vector<std::pair<std::string, Screen*>>& {
     return screen_stack_;
+}
+
+auto ScreenManager::IsScreenVisible(const Screen* screen) const -> bool {
+    if (screen == nullptr)
+        return false;
+    if (current_screen_ == screen)
+        return true;
+    for (const auto& entry : screen_stack_) {
+        if (entry.second == screen)
+            return true;
+    }
+    return false;
 }
 } // namespace atom

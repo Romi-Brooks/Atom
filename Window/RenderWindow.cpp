@@ -19,6 +19,7 @@ RenderWindow::~RenderWindow() {
     // OverlayManager owns RAII callbacks into RenderWindow's listener
     // storage. Release it while that storage is still alive.
     overlay_manager_.reset();
+    LOG_INFO(atom::log::core::Window, "Render window destroyed");
 }
 
 auto RenderWindow::GetInstance() -> RenderWindow& {
@@ -79,13 +80,13 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
     screenManager.HandleEvent(settledEvent);
 }
 
-auto RenderWindow::Initialize(const std::string& title, atom::algo::Vec2 resolution,
-                              const atom::backend::RenderBackendId backendId)
-    -> void {
+auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 resolution,
+                              const atom::backend::RenderBackendId backendId) -> void {
     // The runtime layer owns concrete backends; this facade only consumes the
     // registry and the IRenderBackend/IWindow/IRenderDevice contracts.
     atom::backend::RenderBackendRuntime::GetInstance().EnsureDefaultRenderBackend();
     const auto backend_id = atom::backend::ToString(backendId);
+    name_ = title;
     backend_id_ = std::string{backend_id};
 
     // Fresh window session: shutdown listeners must fire again on the next
@@ -215,6 +216,7 @@ auto RenderWindow::Shutdown() -> void {
     // loop exits, and screens may also request shutdown mid-frame.
     if (!shutdown_notified_) {
         shutdown_notified_ = true;
+        LOG_INFO(atom::log::core::Window, "Render window shutting down: " + name_);
         for (const auto& entry : shutdown_listeners_) {
             entry.fn();
         }
@@ -249,6 +251,10 @@ auto RenderWindow::AddResizeListener(ResizeListener listener) -> ListenerConnect
 
 auto RenderWindow::AddShutdownListener(ShutdownListener listener) -> ListenerConnection {
     return AddListener(shutdown_listeners_, std::move(listener));
+}
+
+auto RenderWindow::GetName() const -> const std::string& {
+    return name_;
 }
 
 auto RenderWindow::GetBackendId() const -> const std::string& {

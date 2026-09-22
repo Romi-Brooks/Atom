@@ -34,9 +34,17 @@ class ScreenManager {
 
         [[nodiscard]] static auto GetInstance() -> ScreenManager&;
 
-        auto LoadScreen(const std::string& name, std::unique_ptr<Screen> screen) -> void;
+        // Returns a non-owning pointer to the stored screen (valid until the
+        // name is reloaded or the manager is destroyed). Prefer this over
+        // keeping the unique_ptr — LoadScreen takes ownership.
+        [[nodiscard]] auto LoadScreen(const std::string& name, std::unique_ptr<Screen> screen) -> Screen*;
+        [[nodiscard]] auto GetScreen(const std::string& name) const -> Screen*;
+        [[nodiscard]] auto GetScreenName(const Screen* screen) const -> std::string;
+
         auto SwitchScreen(const std::string& name) -> void;
+        auto SwitchScreen(Screen* screen) -> void;
         auto PushScreen(const std::string& name) -> void;
+        auto PushScreen(Screen* screen) -> void;
         auto PopScreen() -> void;
 
         auto Render(atom::render::IRenderDevice& device) const -> void;
@@ -46,6 +54,10 @@ class ScreenManager {
 
         [[nodiscard]] auto GetCurrentScreenName() const -> const std::string&;
         [[nodiscard]] auto GetScreenStack() const -> const std::vector<std::pair<std::string, Screen*>>&;
+
+        // True when `screen` is current or on the screen stack (the same set
+        // ScreenManager::Render draws). Used by screen-scoped debug panels.
+        [[nodiscard]] auto IsScreenVisible(const Screen* screen) const -> bool;
 };
 } // namespace atom
 #endif // ATOM_SCREENMANAGER_HPP

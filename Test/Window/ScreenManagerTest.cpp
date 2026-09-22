@@ -60,9 +60,16 @@ auto main() -> int {
     auto pause = std::make_unique<CountingScreen>("pause");
     auto* pause_ptr = pause.get();
 
-    manager.LoadScreen("home", std::move(home));
-    manager.LoadScreen("settings", std::move(settings));
-    manager.LoadScreen("pause", std::move(pause));
+    auto* home_loaded = manager.LoadScreen("home", std::move(home));
+    auto* settings_loaded = manager.LoadScreen("settings", std::move(settings));
+    auto* pause_loaded = manager.LoadScreen("pause", std::move(pause));
+    ATOM_CHECK(home_loaded == home_ptr);
+    ATOM_CHECK(settings_loaded == settings_ptr);
+    ATOM_CHECK(pause_loaded == pause_ptr);
+    ATOM_CHECK(manager.GetScreen("home") == home_ptr);
+    ATOM_CHECK(manager.GetScreen("missing") == nullptr);
+    ATOM_CHECK(manager.GetScreenName(home_ptr) == "home");
+    ATOM_CHECK(manager.GetScreenName(nullptr).empty());
 
     ATOM_CHECK(manager.GetCurrentScreenName() == "");
 
@@ -123,5 +130,28 @@ auto main() -> int {
     ATOM_CHECK(manager.GetCurrentScreenName() == "settings");
     manager.PushScreen("missing-screen");
     ATOM_CHECK(manager.GetCurrentScreenName() == "settings");
+
+    // IsScreenVisible follows Render's set: current + screen stack.
+    manager.SwitchScreen("home");
+    ATOM_CHECK(manager.IsScreenVisible(home_ptr));
+    ATOM_CHECK(!manager.IsScreenVisible(settings_ptr));
+    ATOM_CHECK(!manager.IsScreenVisible(pause_ptr));
+    ATOM_CHECK(!manager.IsScreenVisible(nullptr));
+
+    manager.PushScreen("pause");
+    ATOM_CHECK(manager.IsScreenVisible(pause_ptr));
+    ATOM_CHECK(manager.IsScreenVisible(home_ptr));
+
+    manager.PopScreen();
+    ATOM_CHECK(manager.IsScreenVisible(home_ptr));
+    ATOM_CHECK(!manager.IsScreenVisible(pause_ptr));
+    manager.SwitchScreen(home_loaded);
+    ATOM_CHECK(manager.GetCurrentScreenName() == "home");
+    manager.PushScreen(pause_loaded);
+    ATOM_CHECK(manager.GetCurrentScreenName() == "pause");
+    manager.PopScreen();
+    ATOM_CHECK(manager.GetCurrentScreenName() == "home");
+    manager.SwitchScreen(nullptr);
+    ATOM_CHECK(manager.GetCurrentScreenName() == "home");
     return 0;
 }

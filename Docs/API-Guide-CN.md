@@ -36,9 +36,10 @@ public:
     auto Update(float delta_time) -> void override { /* game logic */ }
 };
 
-atom::ScreenManager::GetInstance().LoadScreen(
+// LoadScreen 返回非拥有指针（[[nodiscard]]），SwitchScreen 可直接用它
+auto* menu = atom::ScreenManager::GetInstance().LoadScreen(
     "menu", std::make_unique<MenuScreen>());
-atom::ScreenManager::GetInstance().SwitchScreen("menu");
+atom::ScreenManager::GetInstance().SwitchScreen(menu);
 
 auto& window = atom::RenderWindow::GetInstance();
 window.Initialize("My Game", atom::algo::Vec2{1280, 720}); // 默认 RenderBackendId::SdlGpu
