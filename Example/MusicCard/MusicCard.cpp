@@ -54,8 +54,7 @@
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
-#include <Backend/Contracts/Render/RenderBackendId.hpp>
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Media/Audio/AudioBackend.hpp>
 #include <Backend/Runtime/IAudioBackendChangeListener.hpp>
 
 namespace {
@@ -241,7 +240,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             // backend switch invalidates everything it cached (see
             // OnAudioBackendChanging). MusicPlayer is registered separately and
             // drops the ids it owns.
-            atom::backend::BackendRuntime::GetInstance().AddAudioListener(*this);
+            atom::audio::AddAudioBackendListener(*this);
             LOG_INFO(atom::log::core::Screen, "Music card initialized with " + std::to_string(tracks_.size()) +
                                                   " track path(s); lazy metadata + audio loading enabled");
         }
@@ -249,7 +248,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         ~MusicCardScreen() override {
             // loader_thread_ is a std::jthread: its destructor requests stop and
             // joins, so the worker exits before renderer_/tracks_ are torn down.
-            atom::backend::BackendRuntime::GetInstance().RemoveAudioListener(*this);
+            atom::audio::RemoveAudioBackendListener(*this);
             renderer_.Shutdown();
         }
 
@@ -286,7 +285,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             loader_cv_.notify_one();
             LOG_INFO(atom::log::audio::Music,
                      "Audio backend changed (generation " +
-                         std::to_string(atom::backend::BackendRuntime::GetInstance().GetAudioBackendGeneration()) +
+                         std::to_string(atom::audio::GetAudioBackendGeneration()) +
                          "); music card re-resolving tracks");
         }
 
@@ -1442,17 +1441,16 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
             }
             ImGui::Separator();
 
-            auto& runtime = atom::backend::BackendRuntime::GetInstance();
-            ImGui::Text("Active backend: %s (generation %llu)", runtime.GetAudioBackendId().c_str(),
-                        static_cast<unsigned long long>(runtime.GetAudioBackendGeneration()));
+            ImGui::Text("Active backend: %s (generation %llu)", atom::audio::GetAudioBackendId().c_str(),
+                        static_cast<unsigned long long>(atom::audio::GetAudioBackendGeneration()));
 
             if (ImGui::Button("Use native SDL3")) {
-                runtime.SetAudioBackend(atom::backend::AudioBackendId::Sdl3);
+                atom::audio::SetAudioBackend(atom::backend::AudioBackendId::Sdl3);
             }
 
             ImGui::SameLine();
             if (ImGui::Button("Use SDL3_mixer")) {
-                runtime.SetAudioBackend(atom::backend::AudioBackendId::Sdl3Mixer);
+                atom::audio::SetAudioBackend(atom::backend::AudioBackendId::Sdl3Mixer);
             }
 
             if (ImGui::Button("Previous")) {
@@ -1542,7 +1540,7 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
         LOG_ERROR(atom::log::audio::Music, "Music path is not a directory: " + music_root);
         return paths;
     }
-    auto& decoders = atom::backend::BackendRuntime::GetInstance().AudioDecoders();
+    auto& decoders = atom::audio::GetAudioDecoders();
     auto skipped_extensions = std::vector<std::string>{};
     auto skipped_files = std::size_t{0};
     for (const auto& entry : std::filesystem::directory_iterator(music_dir, ec)) {
@@ -1602,9 +1600,11 @@ auto main(int argc, char** argv) -> int {
     auto paths = LoadTrackPaths(music_root);
 
     auto screen = std::make_unique<MusicCardScreen>(music, std::move(paths));
-    auto* screen_pointer = screen.get();
-    atom::ScreenManager::GetInstance().LoadScreen("MusicCard", std::move(screen));
-    atom::ScreenManager::GetInstance().SwitchScreen("MusicCard");
+    // Keep the derived type; LoadScreen only hands back Screen*.
+    auto* music_card_screen = screen.get();
+    [[maybe_unused]] auto* registered =
+        atom::ScreenManager::GetInstance().LoadScreen("MusicCard", std::move(screen));
+    atom::ScreenManager::GetInstance().SwitchScreen(music_card_screen);
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
@@ -1615,10 +1615,10 @@ auto main(int argc, char** argv) -> int {
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    MusicCardDebugger debugger{*screen_pointer};
+    MusicCardDebugger debugger{*music_card_screen};
     debugger.Attach(window);
-    auto renderer_shutdown = window.AddShutdownListener([screen_pointer] { screen_pointer->ShutdownRenderer(); });
-    screen_pointer->LoadInterfaceFont();
+    auto renderer_shutdown = window.AddShutdownListener([music_card_screen] { music_card_screen->ShutdownRenderer(); });
+    music_card_screen->LoadInterfaceFont();
 
     window.Run();
     return 0;

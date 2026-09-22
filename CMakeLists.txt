@@ -305,6 +305,8 @@ include(Render/Shader/AtomShaders.cmake)
 
 # 6. Media
     add_library(Atom_Media STATIC
+        Media/Audio/AudioBackend.cpp
+        Media/Audio/AudioBackend.hpp
         Media/Audio/Metadata/AudioMetadataReader.cpp
         Media/Audio/Metadata/AudioMetadataReader.hpp
         Media/Audio/Effects/IAudioEffect.hpp
@@ -421,6 +423,10 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
         Atom_Backend_Render_Runtime)
 
 # 10. Debugger
+    # Debug overlay follows NDEBUG by default (on in Debug, off in Release).
+    # Force either way with -DATOM_ENABLE_DEBUGGER=ON/OFF (or ATOM_ENABLE_DEBUGGER=0/1).
+    set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow NDEBUG), ON, or OFF")
+    set_property(CACHE ATOM_ENABLE_DEBUGGER PROPERTY STRINGS AUTO ON OFF)
     add_library(Atom_Debugger STATIC
             Debugger/DebugPanel.hpp
             Debugger/DebugPanel.cpp
@@ -433,6 +439,13 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Debugger/Overlay.hpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    if(ATOM_ENABLE_DEBUGGER STREQUAL "ON")
+        target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=1)
+        target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=1)
+    elseif(ATOM_ENABLE_DEBUGGER STREQUAL "OFF")
+        target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=0)
+        target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=0)
+    endif()
     target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3)
     target_link_libraries(Atom_Debugger PRIVATE Atom_Backend_SDLGPU_Debug)
     if(WIN32)

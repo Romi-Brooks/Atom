@@ -7,9 +7,7 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Backend/Contracts/Render/RenderBackendId.hpp>
-#include <Event/Input.hpp>
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
 #include <Media/Audio/Resources/AudioClipCache.hpp>
@@ -52,7 +50,7 @@ class SFXDebugger final : public atom::debugger::DebugPanel {
             }
             ImGui::Separator();
 
-            const auto& backend_id = atom::backend::BackendRuntime::GetInstance().GetAudioBackendId();
+            const auto& backend_id = atom::audio::GetAudioBackendId();
             ImGui::TextDisabled("Active audio backend: %s", backend_id.c_str());
             ImGui::Separator();
 
@@ -95,8 +93,9 @@ auto main() -> int {
     sfx.Load("registerId_1", kSFX1Path);
     sfx.Load("registerId_2", kSFX2Path);
 
-    atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen("SFX");
+    auto* sfx_screen =
+        atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen(sfx_screen);
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom Engine - SFX Playback Example", atom::algo::Vec2{720, 720},

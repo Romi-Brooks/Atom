@@ -8,9 +8,7 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Backend/Contracts/Render/RenderBackendId.hpp>
-#include <Event/Input.hpp>
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Media/Audio/Transitions/MusicCrossfade.hpp>
@@ -57,7 +55,7 @@ class MusicDebugger final : public atom::debugger::DebugPanel {
             ImGui::Text("If one of them is playing, switch it to the aim song");
             ImGui::Separator();
 
-            const auto& backend_id = atom::backend::BackendRuntime::GetInstance().GetAudioBackendId();
+            const auto& backend_id = atom::audio::GetAudioBackendId();
             ImGui::TextDisabled("Active audio backend: %s", backend_id.c_str());
             ImGui::Separator();
 
@@ -148,8 +146,9 @@ auto main() -> int {
     music.Load("registerId_1", kMusic1Path);
     music.Load("registerId_2", kMusic2Path);
 
-    atom::ScreenManager::GetInstance().LoadScreen("Music", std::make_unique<MusicScreen>(music_fade));
-    atom::ScreenManager::GetInstance().SwitchScreen("Music");
+    auto* music_screen =
+        atom::ScreenManager::GetInstance().LoadScreen("Music", std::make_unique<MusicScreen>(music_fade));
+    atom::ScreenManager::GetInstance().SwitchScreen(music_screen);
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},
