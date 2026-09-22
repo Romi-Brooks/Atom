@@ -268,8 +268,10 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 
 ### CORE-001：固定时间步与调度
 
-- [ ] 将逻辑更新与渲染帧率解耦，支持 accumulator、最大追帧次数和插值。
-- [ ] 明确 Event → Fixed Update → Variable Update → Render → Present 顺序。
+- [x] 将逻辑更新与渲染帧率解耦，支持 accumulator、最大追帧次数和插值。（`Time/` 分域时钟 + 固定步 accumulator + max catch-up + alpha；见 `Docs/Time-System-Plan-CN.md`）
+- [x] 明确 Event → Fixed Update → Variable Update → Render → Present 顺序。（`RenderWindow::Run`）
+- [ ] P3 音频设备钟 `SyncTo`、卡点与 A/V 对齐（设计见 `Docs/Time-System-Plan-CN.md`）。
+- [ ] P4 渲染插值与统一 shader time（同上）。
 
 ### CORE-002：InputSystem
 

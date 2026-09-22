@@ -94,6 +94,12 @@ auto ScreenManager::Update(const float deltaTime) const -> void {
     }
 }
 
+auto ScreenManager::FixedUpdate(const float deltaTime) const -> void {
+    if (current_screen_) {
+        current_screen_->FixedUpdate(deltaTime);
+    }
+}
+
 auto ScreenManager::GetCurrentScreenName() const -> const std::string& {
     return current_screen_name_;
 }

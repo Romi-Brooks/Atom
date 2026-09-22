@@ -42,6 +42,7 @@ class ScreenManager {
         auto Render(atom::render::IRenderDevice& device) const -> void;
         auto HandleEvent(const atom::window::IEvent& event) const -> void;
         auto Update(float deltaTime) const -> void;
+        auto FixedUpdate(float deltaTime) const -> void;
 
         [[nodiscard]] auto GetCurrentScreenName() const -> const std::string&;
         [[nodiscard]] auto GetScreenStack() const -> const std::vector<std::pair<std::string, Screen*>>&;

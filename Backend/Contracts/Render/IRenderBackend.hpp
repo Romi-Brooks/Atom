@@ -20,6 +20,9 @@ class IRenderDevice;
 namespace atom::window {
 class IWindow;
 }
+namespace atom::backend {
+class ITimeSource;
+}
 
 namespace atom::render {
 
@@ -30,6 +33,9 @@ class IRenderBackend {
         virtual auto Shutdown() -> void = 0;
         [[nodiscard]] virtual auto Window() -> window::IWindow& = 0;
         [[nodiscard]] virtual auto Device() -> IRenderDevice& = 0;
+        // High-resolution host clock for atom::time. Bound to the backend's
+        // native counter (SDL_GetPerformanceCounter on SDL3).
+        [[nodiscard]] virtual auto TimeSource() -> backend::ITimeSource& = 0;
 };
 
 } // namespace atom::render

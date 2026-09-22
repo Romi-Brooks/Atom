@@ -12,6 +12,7 @@
 
 #include <Backend/Contracts/Render/IRenderBackend.hpp>
 #include <Backend/SDLGPU/Device/SDLGPUDevice.hpp>
+#include <Backend/SDL3/Time/SDL3TimeSource.hpp>
 #include <Backend/SDL3/Window/SDL3Window.hpp>
 
 namespace atom::backend::sdlgpu {
@@ -23,10 +24,12 @@ class SDLGPUBackend final : public render::IRenderBackend {
         auto Shutdown() -> void override;
         [[nodiscard]] auto Window() -> window::IWindow& override;
         [[nodiscard]] auto Device() -> render::IRenderDevice& override;
+        [[nodiscard]] auto TimeSource() -> backend::ITimeSource& override;
 
     private:
         sdl3::SDL3Window window_;
         SDLGPUDevice device_;
+        sdl3::SDL3TimeSource time_source_;
 };
 
 } // namespace atom::backend::sdlgpu

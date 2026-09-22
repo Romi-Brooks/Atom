@@ -27,6 +27,7 @@
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
+#include <Time/TimeSystem.hpp>
 #include <Window/ScreenManager.hpp>
 #include <Window/OverlayManager.hpp>
 
@@ -93,6 +94,11 @@ class RenderWindow {
                 std::function<void(float)> fn;
                 using ListenerFn = std::function<void(float)>;
         };
+        struct FixedUpdateListenerEntry {
+                uint64_t id;
+                std::function<void(float)> fn;
+                using ListenerFn = std::function<void(float)>;
+        };
         struct OverlayListenerEntry {
                 uint64_t id;
                 std::function<void()> fn;
@@ -111,6 +117,7 @@ class RenderWindow {
 
         std::vector<EventListenerEntry> event_listeners_;
         std::vector<UpdateListenerEntry> update_listeners_;
+        std::vector<FixedUpdateListenerEntry> fixed_update_listeners_;
         std::vector<OverlayListenerEntry> overlay_listeners_;
         std::vector<ResizeListenerEntry> resize_listeners_;
         std::vector<ShutdownListenerEntry> shutdown_listeners_;
@@ -141,12 +148,14 @@ class RenderWindow {
 
         using EventListener = std::function<void(atom::window::IEvent&)>; // translated engine event
         using UpdateListener = std::function<void(float)>;                // variable update, before rendering
+        using FixedUpdateListener = std::function<void(float)>;           // fixed step, 0..N per frame (CORE-001)
         using OverlayListener = std::function<void()>;                    // per frame, after scene render
         using ResizeListener = std::function<void(uint32_t, uint32_t)>;   // after backend HandleResize
         using ShutdownListener = std::function<void()>;                   // once, on Shutdown
 
         [[nodiscard]] auto AddEventListener(EventListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddUpdateListener(UpdateListener listener) -> ListenerConnection;
+        [[nodiscard]] auto AddFixedUpdateListener(FixedUpdateListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddOverlayListener(OverlayListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddResizeListener(ResizeListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddShutdownListener(ShutdownListener listener) -> ListenerConnection;
@@ -169,6 +178,9 @@ class RenderWindow {
         [[nodiscard]] auto GetIWindow() -> atom::window::IWindow*;
         [[nodiscard]] auto GetRenderDevice() -> atom::render::IRenderDevice*;
         [[nodiscard]] auto GetBackendId() const -> const std::string&;
+
+        // Time domains (game/physics/render/ui/audio) after Initialize.
+        [[nodiscard]] auto GetTimeSystem() -> atom::time::TimeSystem&;
 
         // Window-owned shared ImGui lifecycle. Individual Debugger instances
         // register panels here instead of creating separate ImGui contexts.

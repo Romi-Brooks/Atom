@@ -33,5 +33,8 @@ auto SDLGPUBackend::Window() -> window::IWindow& {
 auto SDLGPUBackend::Device() -> render::IRenderDevice& {
     return device_;
 }
+auto SDLGPUBackend::TimeSource() -> backend::ITimeSource& {
+    return time_source_;
+}
 
 } // namespace atom::backend::sdlgpu
