@@ -16,6 +16,8 @@
 namespace atom::debugger {
 namespace {
 
+LogDebugger* g_log_debugger_instance = nullptr;
+
 auto LevelName(const LogLevel level) -> const char* {
     switch (level) {
     case LogLevel::ATOM_DEBUG:
@@ -50,6 +52,21 @@ auto ChannelKey(const LogChannelInfo& channel) -> std::string {
 
 } // namespace
 
+LogDebugger::~LogDebugger() {
+    // Detach while this derived object is still alive so OnDetach dispatches here.
+    Detach();
+    if (g_log_debugger_instance == this)
+        g_log_debugger_instance = nullptr;
+}
+
+auto LogDebugger::Get() -> LogDebugger* {
+#if ATOM_ENABLE_DEBUGGER
+    return g_log_debugger_instance;
+#else
+    return nullptr;
+#endif
+}
+
 auto LogDebugger::SetEnabled(const bool enabled) -> void {
     DebugPanel::SetEnabled(enabled);
     window_open_ = enabled;
@@ -57,7 +74,13 @@ auto LogDebugger::SetEnabled(const bool enabled) -> void {
         slot_applied_ = false;
 }
 
-auto LogDebugger::OnAttach(atom::RenderWindow&) -> void {
+auto LogDebugger::OnAttach(atom::RenderWindow&) -> bool {
+    if (g_log_debugger_instance != nullptr && g_log_debugger_instance != this) {
+        LOG_WARNING(atom::log::debugger::ImGui,
+                    "LogDebugger already attached; rejecting a second instance");
+        return false;
+    }
+    g_log_debugger_instance = this;
     state_ = std::make_shared<State>();
     const auto weak_state = std::weak_ptr<State>{state_};
     log_connection_ = Log::Subscribe([weak_state, max_entries = max_entries_](const LogRecord& record) {
@@ -70,9 +93,12 @@ auto LogDebugger::OnAttach(atom::RenderWindow&) -> void {
     });
     window_open_ = true;
     slot_applied_ = false;
+    return true;
 }
 
 auto LogDebugger::OnDetach() -> void {
+    if (g_log_debugger_instance == this)
+        g_log_debugger_instance = nullptr;
     log_connection_.Reset();
     state_.reset();
     slot_applied_ = false;

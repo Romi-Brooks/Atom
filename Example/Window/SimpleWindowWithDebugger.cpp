@@ -2,13 +2,12 @@
   * @file           : SimpleWindowWithDebugger.cpp
   * @author         : Romi Brooks
   * @brief          : Single-window example with custom debug overlay.
-  * @attention      : Demonstrates DebugPanel inheritance and standalone LogDebugger
+  * @attention      : Window-scoped LogDebugger + screen-scoped custom panel.
+  *                   Toggles the log panel via LogDebugger::Get() (no injection).
   * @date           : 2026/6/6
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Backend/Contracts/Render/RenderBackendId.hpp>
-#include <Event/Input.hpp>
 #include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
@@ -18,15 +17,16 @@
 #include <Log/LogSystem.hpp>
 
 namespace {
+
 class ExamplePanel final : public atom::debugger::DebugPanel {
     private:
         bool slot_applied_ = false;
-        atom::debugger::LogDebugger* log_panel_ = nullptr;
-
-    public:
-        explicit ExamplePanel(atom::debugger::LogDebugger* log_panel) : log_panel_(log_panel) {}
 
     protected:
+        [[nodiscard]] auto GetPanelName() const -> const char* override {
+            return "ExamplePanel";
+        }
+
         auto OnDrawOverlay() -> void override {
             if (!slot_applied_) {
                 atom::debugger::ApplyStatusPanelSlot();
@@ -36,19 +36,26 @@ class ExamplePanel final : public atom::debugger::DebugPanel {
             ImGui::Text("FPS: %.1f", GetFPS());
             ImGui::Separator();
             ImGui::Text("Press ESC to exit");
-            if (log_panel_ != nullptr && ImGui::Button(log_panel_->IsEnabled() ? "Hide Log Debugger" : "Show Log Debugger")) {
-                log_panel_->SetEnabled(!log_panel_->IsEnabled());
+            // Well-known log panel — no constructor injection required.
+            if (auto* log_panel = atom::debugger::LogDebugger::Get()) {
+                if (ImGui::Button(log_panel->IsEnabled() ? "Hide Log Debugger" : "Show Log Debugger")) {
+                    log_panel->SetEnabled(!log_panel->IsEnabled());
+                }
             }
             ImGui::End();
         }
 };
 
+// Inheriting from the abstract Screen class
+// Override methods to determine the page/content/behavior
 class ExampleScreen final : public atom::Screen {
     public:
+        // Render content
         auto Render(atom::render::IRenderDevice& device) -> void override {
-            device.Clear(atom::render::Color{30, 30, 60});
+            device.Clear(atom::color::Color::Black());
         }
 
+        // Event Handler
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
@@ -65,23 +72,40 @@ class ExampleScreen final : public atom::Screen {
 } // namespace
 
 auto main() -> int {
+    // For windows: Console Debugger OUTPUT CP will be set to UTF-8
     atom::Log::SetConsoleOutputUtf8();
+
+    // Log level
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
-    atom::ScreenManager::GetInstance().LoadScreen("Example", std::make_unique<ExampleScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen("Example");
+    // Screen Register
+    auto* example_screen = atom::ScreenManager::GetInstance().LoadScreen(
+        "Example", std::make_unique<ExampleScreen>());
 
+    // Select this screen
+    atom::ScreenManager::GetInstance().SwitchScreen(example_screen);
+
+    // Give a window instance
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Debug Overlay Example", atom::algo::Vec2{1280, 720},
-                      atom::backend::RenderBackendId::SdlGpu);
+    // Init the window instance, Can pass a render backend explicit
+    window.Initialize("Atom Engine - Debug Overlay Example",  // Title (also the window name)
+                      atom::algo::Vec2{1280, 720},  // Resolution
+                      atom::backend::RenderBackendId::SdlGpu  // Render Backend
+                      );
+
+    // It is recommended to limit the FPS when creating the window,
+    // or define a custom FPS limit; otherwise it will significantly
+    // consume GPU/CPU resources.
     window.SetFPS(60);
 
-    // Panels are peers: attach the built-in log viewer and any custom DebugPanel.
+    // Attach the custom debug panel to this screen scoped (only while Example is visible)
+    ExamplePanel example_panel{};
+    example_panel.Attach(window, *example_screen);
+
+    // Attach the Built-in Log Debugger to the window scoped (globally)
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    ExamplePanel stats_panel{&log_panel};
-    stats_panel.Attach(window);
-
+    // Main loop
     window.Run();
 }
