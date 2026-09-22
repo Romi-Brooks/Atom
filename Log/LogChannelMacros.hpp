@@ -129,8 +129,8 @@ auto RegisterLogChannelDomain(std::string_view prefix, const std::string_view* n
 #define ATOM_CHANNEL_VALUE_ENTRY(pair) ATOM_CHANNEL_VALUE_IMPL pair
 #define ATOM_CHANNEL_VALUE_IMPL(cppName, displayName) inline constexpr Channel cppName = Channel::cppName;
 
-// Channel-domain definition: expose values directly under their domain, e.g.
-// atom::log::audio::Music. The Channel enum remains the value type used by
+// Channel-domain definition: expose values directly under their domain,
+// e.g. atom::log::audio::Music. The Channel enum remains the value type used by
 // the generic resolver and is intentionally an implementation detail of the
 // public spelling.
 #define ATOM_DEFINE_CHANNELS(DomainNs, EnumName, DomainPrefix, ...)                                                   \
