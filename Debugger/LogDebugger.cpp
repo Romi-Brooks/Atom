@@ -1,17 +1,22 @@
+// Copyright (c) 2026 Romi Brooks
+// SPDX-License-Identifier: MIT
+
 #include "LogDebugger.hpp"
 
 #include <string>
 #include <utility>
 #include <vector>
 
+#include <Debugger/PanelLayout.hpp>
 #include <Log/LogSystem.hpp>
-#include <Window/OverlayManager.hpp>
 #include <Window/RenderWindow.hpp>
 
 #include <imgui.h>
 
-namespace atom {
+namespace atom::debugger {
 namespace {
+
+LogDebugger* g_log_debugger_instance = nullptr;
 
 auto LevelName(const LogLevel level) -> const char* {
     switch (level) {
@@ -48,31 +53,34 @@ auto ChannelKey(const LogChannelInfo& channel) -> std::string {
 } // namespace
 
 LogDebugger::~LogDebugger() {
+    // Detach while this derived object is still alive so OnDetach dispatches here.
     Detach();
+    if (g_log_debugger_instance == this)
+        g_log_debugger_instance = nullptr;
 }
 
-auto LogDebugger::Attach(RenderWindow& window) -> void {
-    if (attached_)
-        return;
+auto LogDebugger::Get() -> LogDebugger* {
+#if ATOM_ENABLE_DEBUGGER
+    return g_log_debugger_instance;
+#else
+    return nullptr;
+#endif
+}
 
-    target_window_ = &window;
-    if (!window.GetIWindow() || !window.GetRenderDevice()) {
-        target_window_ = nullptr;
-        return;
+auto LogDebugger::SetEnabled(const bool enabled) -> void {
+    DebugPanel::SetEnabled(enabled);
+    window_open_ = enabled;
+    if (enabled)
+        slot_applied_ = false;
+}
+
+auto LogDebugger::OnAttach(atom::RenderWindow&) -> bool {
+    if (g_log_debugger_instance != nullptr && g_log_debugger_instance != this) {
+        LOG_WARNING(atom::log::debugger::ImGui,
+                    "LogDebugger already attached; rejecting a second instance");
+        return false;
     }
-
-    auto& overlay_manager = window.GetOverlayManager();
-    overlay_connection_ = std::make_unique<debugger::OverlayConnection>(
-        overlay_manager.AddPanel([this] {
-            if (enabled_)
-                OnDrawOverlay();
-        }));
-    if (!overlay_connection_->IsConnected()) {
-        overlay_connection_.reset();
-        target_window_ = nullptr;
-        return;
-    }
-
+    g_log_debugger_instance = this;
     state_ = std::make_shared<State>();
     const auto weak_state = std::weak_ptr<State>{state_};
     log_connection_ = Log::Subscribe([weak_state, max_entries = max_entries_](const LogRecord& record) {
@@ -83,33 +91,32 @@ auto LogDebugger::Attach(RenderWindow& window) -> void {
                 state->records.pop_front();
         }
     });
-
     window_open_ = true;
-    enabled_ = true;
-    attached_ = true;
+    slot_applied_ = false;
+    return true;
 }
 
-auto LogDebugger::Detach() -> void {
+auto LogDebugger::OnDetach() -> void {
+    if (g_log_debugger_instance == this)
+        g_log_debugger_instance = nullptr;
     log_connection_.Reset();
     state_.reset();
-    overlay_connection_.reset();
-    target_window_ = nullptr;
-    attached_ = false;
-}
-
-auto LogDebugger::SetEnabled(const bool enabled) -> void {
-    window_open_ = enabled;
-    enabled_ = enabled;
+    slot_applied_ = false;
 }
 
 auto LogDebugger::OnDrawOverlay() -> void {
     if (!state_ || !window_open_)
         return;
 
+    if (!slot_applied_) {
+        ApplyLogPanelSlot();
+        slot_applied_ = true;
+    }
+
     if (!ImGui::Begin("Log Debugger", &window_open_)) {
         ImGui::End();
         if (!window_open_)
-            enabled_ = false;
+            DebugPanel::SetEnabled(false);
         return;
     }
 
@@ -123,8 +130,6 @@ auto LogDebugger::OnDrawOverlay() -> void {
     std::unordered_set<std::string> known_channels;
     for (const auto& channel : channels)
         known_channels.insert(ChannelKey(channel));
-    // Ad-hoc string channels are still captured. Add them to the selector as
-    // observed channels so game code does not need an enum to be visible here.
     for (const auto& record : records) {
         LogChannelInfo channel{record.channel_prefix, record.channel_name};
         if (known_channels.insert(ChannelKey(channel)).second)
@@ -195,7 +200,7 @@ auto LogDebugger::OnDrawOverlay() -> void {
     ImGui::End();
 
     if (!window_open_)
-        enabled_ = false;
+        DebugPanel::SetEnabled(false);
 }
 
-} // namespace atom
+} // namespace atom::debugger

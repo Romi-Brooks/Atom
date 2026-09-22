@@ -153,6 +153,9 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
                 LOG_ERROR(atom::log::debugger::ImGui, "ImGui::CreateContext failed");
                 return false;
             }
+            // Debug panels declare their own default geometry (PanelLayout).
+            // Never persist window positions to imgui.ini.
+            ImGui::GetIO().IniFilename = nullptr;
             ImGui_ImplSDLGPU3_InitInfo info{};
             info.Device = device_.GetNativeDevice();
             info.ColorTargetFormat = static_cast<SDL_GPUTextureFormat>(device_.GetBackendInfo().swapchain_format);

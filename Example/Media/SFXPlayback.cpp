@@ -7,15 +7,15 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Event/Input.hpp>
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
 #include <Media/Audio/Resources/AudioClipCache.hpp>
-#include <Window/Manager/ScreenManager.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
-#include <Window/Overlay.hpp>
+#include <Debugger/Overlay.hpp>
+#include <Debugger/LogDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -27,7 +27,7 @@ constexpr auto kSFX2Path =
     R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 2 - C.wav)";
 
 // Debugger overlay
-class SFXDebugger final : public atom::Debugger {
+class SFXDebugger final : public atom::debugger::DebugPanel {
     public:
         explicit SFXDebugger(atom::SFXPlayer& sfx) : sfx_(sfx) {}
 
@@ -50,7 +50,7 @@ class SFXDebugger final : public atom::Debugger {
             }
             ImGui::Separator();
 
-            const auto& backend_id = atom::backend::BackendRuntime::GetInstance().GetAudioBackendId();
+            const auto& backend_id = atom::audio::GetAudioBackendId();
             ImGui::TextDisabled("Active audio backend: %s", backend_id.c_str());
             ImGui::Separator();
 
@@ -93,20 +93,24 @@ auto main() -> int {
     sfx.Load("registerId_1", kSFX1Path);
     sfx.Load("registerId_2", kSFX2Path);
 
-    atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen("SFX");
+    auto* sfx_screen =
+        atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen(sfx_screen);
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - SFX Playback Example", atom::algo::Vec2{720, 720});
+    window.Initialize("Atom Engine - SFX Playback Example", atom::algo::Vec2{720, 720},
+                      atom::backend::RenderBackendId::SdlGpu);
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly
     // consume GPU/CPU resources.
     window.SetFPS(60);
 
+    atom::debugger::LogDebugger log_panel{};
+    log_panel.Attach(window);
+
     SFXDebugger debugger{sfx};
     debugger.Attach(window);
-    debugger.SetLoggerEnabled(true);
 
     window.Run();
 }

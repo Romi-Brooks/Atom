@@ -51,6 +51,7 @@ include(Render/Shader/AtomShaders.cmake)
     target_sources(Atom_Backend_Contracts INTERFACE
         Backend/Contracts/Audio/AudioTypes.hpp
         Backend/Contracts/Audio/AudioExtensions.hpp
+        Backend/Contracts/Audio/AudioBackendId.hpp
         Backend/Contracts/Audio/AudioSourceRegistry.hpp
         Backend/Contracts/Audio/IAudioBackend.hpp
         Backend/Contracts/Audio/IAudioDecoder.hpp
@@ -63,6 +64,8 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/Contracts/Render/IRenderTarget.hpp
         Backend/Contracts/Render/IRenderTypes.hpp
         Backend/Contracts/Render/ITexture.hpp
+        Backend/Contracts/Render/RenderBackendId.hpp
+        Backend/Contracts/Time/ITimeSource.hpp
         Backend/Contracts/Video/IVideoDecoder.hpp
         Backend/Contracts/Window/IWindow.hpp
     )
@@ -70,6 +73,20 @@ include(Render/Shader/AtomShaders.cmake)
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
     target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Color Atom_Event)
+
+# 0c. Time (master + domain clocks, fixed-step policy)
+    add_library(Atom_Time STATIC
+            Time/TimeTypes.hpp
+            Time/SteadyTimeSource.hpp
+            Time/MasterClock.hpp
+            Time/MasterClock.cpp
+            Time/DomainClock.hpp
+            Time/DomainClock.cpp
+            Time/TimeSystem.hpp
+            Time/TimeSystem.cpp
+    )
+    target_include_directories(Atom_Time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Time PUBLIC Atom_Backend_Contracts)
 
 # 1. Log
     add_library(Atom_Log STATIC
@@ -126,6 +143,8 @@ include(Render/Shader/AtomShaders.cmake)
     add_library(Atom_Backend_SDL3_Core STATIC
         Backend/SDL3/Core/SDLRuntime.cpp
         Backend/SDL3/Core/SDLRuntime.hpp
+        Backend/SDL3/Time/SDL3TimeSource.cpp
+        Backend/SDL3/Time/SDL3TimeSource.hpp
     )
     target_include_directories(Atom_Backend_SDL3_Core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Backend_SDL3_Core PUBLIC Atom_3rd_SDL3)
@@ -286,6 +305,8 @@ include(Render/Shader/AtomShaders.cmake)
 
 # 6. Media
     add_library(Atom_Media STATIC
+        Media/Audio/AudioBackend.cpp
+        Media/Audio/AudioBackend.hpp
         Media/Audio/Metadata/AudioMetadataReader.cpp
         Media/Audio/Metadata/AudioMetadataReader.hpp
         Media/Audio/Effects/IAudioEffect.hpp
@@ -386,8 +407,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Window/RenderWindow.cpp
             Window/Screen.cpp
             Window/Screen.hpp
-            Window/Manager/ScreenManager.cpp
-            Window/Manager/ScreenManager.hpp
+            Window/ScreenManager.cpp
+            Window/ScreenManager.hpp
             Window/OverlayManager.hpp
             Window/OverlayManager.cpp
     )
@@ -395,22 +416,36 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_link_libraries(Atom_Window PUBLIC
         Atom_Backend_Contracts
         Atom_Log
-        Atom_Algorithm)
+        Atom_Algorithm
+        Atom_Time)
     target_link_libraries(Atom_Window PRIVATE
         Atom_Backend_Extension
         Atom_Backend_Render_Runtime)
 
 # 10. Debugger
+    # Debug overlay follows NDEBUG by default (on in Debug, off in Release).
+    # Force either way with -DATOM_ENABLE_DEBUGGER=ON/OFF (or ATOM_ENABLE_DEBUGGER=0/1).
+    set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow NDEBUG), ON, or OFF")
+    set_property(CACHE ATOM_ENABLE_DEBUGGER PROPERTY STRINGS AUTO ON OFF)
     add_library(Atom_Debugger STATIC
-            Window/Debugger.hpp
-            Window/Debugger.cpp
-            Window/LogDebugger.hpp
-            Window/LogDebugger.cpp
-            Window/Debugger/ImGui/ImGuiFontLoader.hpp
-            Window/Debugger/ImGui/ImGuiFontLoader.cpp
-            Window/Overlay.hpp
+            Debugger/DebugPanel.hpp
+            Debugger/DebugPanel.cpp
+            Debugger/LogDebugger.hpp
+            Debugger/LogDebugger.cpp
+            Debugger/FontLoader.hpp
+            Debugger/FontLoader.cpp
+            Debugger/PanelLayout.hpp
+            Debugger/PanelLayout.cpp
+            Debugger/Overlay.hpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    if(ATOM_ENABLE_DEBUGGER STREQUAL "ON")
+        target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=1)
+        target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=1)
+    elseif(ATOM_ENABLE_DEBUGGER STREQUAL "OFF")
+        target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=0)
+        target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=0)
+    endif()
     target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3)
     target_link_libraries(Atom_Debugger PRIVATE Atom_Backend_SDLGPU_Debug)
     if(WIN32)

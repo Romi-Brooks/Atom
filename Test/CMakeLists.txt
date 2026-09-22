@@ -151,6 +151,21 @@ atom_add_test(Atom_Log.LogSystem
     Log/LogSystemTest.cpp
     Atom_Log)
 
+atom_add_test(Atom_Time.MasterClock
+    Atom_Time_MasterClock_Tests
+    Time/MasterClockTest.cpp
+    Atom_Time)
+
+atom_add_test(Atom_Time.DomainClock
+    Atom_Time_DomainClock_Tests
+    Time/DomainClockTest.cpp
+    Atom_Time)
+
+atom_add_test(Atom_Time.TimeSystem
+    Atom_Time_TimeSystem_Tests
+    Time/TimeSystemTest.cpp
+    Atom_Time)
+
 atom_add_test(Atom_UTF8.Utf8
     Atom_UTF8_Utf8_Tests
     Utilities/Utf8Test.cpp

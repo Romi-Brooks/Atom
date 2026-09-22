@@ -3,7 +3,7 @@
 ## 设计原则
 
 - SDL3 等具体实现由 Atom 内部注册，普通用户不包含 `Backend/SDL3/*`。
-- 音频播放后端全局选择，默认为 `sdl3`；格式解码器由引擎默认注册（`.wav` → WavProf 首选 / SDL3Wav 兜底，`.mp3` → Minimp3Decoder）。
+- 音频播放后端全局选择，默认为 `AudioBackendId::Sdl3`；格式解码器由引擎默认注册（`.wav` → WavProf 首选 / SDL3Wav 兜底，`.mp3` → Minimp3Decoder）。游戏侧按路径加载，无需指定解码格式。
 - `MusicPlayer`、`SFXPlayer`、`AudioMixer` 和 `MusicCrossfade` 仍是可自由组合的实例，不强制使用统一 `AudioSystem`。
 - Backend 热切换会停止声音并清空 Player 中已注册的音频 ID；页面或后续场景需要重新 `Load/Play`。
 
@@ -23,7 +23,7 @@ atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
 ```cpp
 #include <Window/RenderWindow.hpp>
-#include <Window/Manager/ScreenManager.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/Screen.hpp>
 
 class MenuScreen final : public atom::Screen {
@@ -36,70 +36,64 @@ public:
     auto Update(float delta_time) -> void override { /* game logic */ }
 };
 
-atom::ScreenManager::GetInstance().LoadScreen(
+// LoadScreen 返回非拥有指针（[[nodiscard]]），SwitchScreen 可直接用它
+auto* menu = atom::ScreenManager::GetInstance().LoadScreen(
     "menu", std::make_unique<MenuScreen>());
-atom::ScreenManager::GetInstance().SwitchScreen("menu");
+atom::ScreenManager::GetInstance().SwitchScreen(menu);
 
 auto& window = atom::RenderWindow::GetInstance();
-window.Initialize("My Game", atom::algo::Vec2{1280, 720});           // 默认渲染后端 "sdl_gpu"
-window.Initialize("My Game", atom::algo::Vec2{1280, 720}, "sdl_gpu"); // 显式指定后端
+window.Initialize("My Game", atom::algo::Vec2{1280, 720}); // 默认 RenderBackendId::SdlGpu
+window.Initialize("My Game", atom::algo::Vec2{1280, 720},
+                  atom::backend::RenderBackendId::SdlGpu); // 显式指定
 window.SetFPS(60);
 window.Run();
 ```
 
-`Initialize` 的第三个参数（`backendId`）选择渲染后端，默认 `"sdl_gpu"`。SDL_GPU
-根据平台、驱动和本次构建提供的 Shader 格式选择 D3D12、Vulkan 或 Metal；Atom
-上层不直接选择这些原生 API。自定义后端通过 `RenderBackendRegistry` 注册后即可选用：
-
-```cpp
-#include <Backend/Extension/RenderBackendRegistry.hpp>
-
-atom::backend::RenderBackendRegistry::GetInstance().RegisterBackendFactory(
-    "my_backend", [] { return std::make_unique<MyRenderBackend>(); });
-// window.Initialize("My Game", atom::algo::Vec2{1280, 720}, "my_backend");
-```
+`Initialize` 的第三个参数选择**引擎内置**渲染后端（枚举 `atom::backend::RenderBackendId`），
+默认 `SdlGpu`（内部注册表 ID `"sdl_gpu"`）。SDL_GPU 根据平台、驱动和本次构建提供的
+Shader 格式选择 D3D12、Vulkan 或 Metal；Atom 上层不直接选择这些原生 API。
+新后端由 Atom 引擎侧实现并在发版时加入枚举；游戏/Mod 代码不注册渲染后端。
 
 具体后端实现（`Backend/SDL3/*` 等）由引擎运行时内部注册与持有；普通用户通过
 `Window/*`、`Render/*`、`Media/*` 和 `Event/*` 编程，不直接包含具体后端头文件。
-`Backend/Contracts/*` 是实现这些门面所需的稳定抽象类型，只有实现 Screen、渲染插件等
-底层扩展时才应直接使用；`Backend/Extension/*` 同样只面向显式注册自定义后端的扩展作者。
 
 ### 调试覆盖层（ImGui）
 
-`Debugger` 的公共接口保持后端无关，运行时会为默认 `sdl_gpu` 后端选择
-`imgui_impl_sdlgpu3`。用户只需要引擎头：
+`Debugger/Overlay.hpp` 是写自定义调试面板的唯一入口：导出 ImGui +
+`atom::debugger::DebugPanel` + 默认槽位工具。内置日志面板是
+`atom::debugger::LogDebugger`（is-a `DebugPanel`），与自定义面板平级挂载。
 
 ```cpp
-#include <Window/Overlay.hpp> // 引擎导出 ImGui API + atom::Debugger
+#include <Debugger/Overlay.hpp>
+#include <Debugger/LogDebugger.hpp>
 
-class MyDebugger final : public atom::Debugger {
+class MyPanel final : public atom::debugger::DebugPanel {
 protected:
     auto OnDrawOverlay() -> void override {
+        atom::debugger::ApplyStatusPanelSlot();
         ImGui::Begin("Debug");
         ImGui::Text("FPS: %.1f", GetFPS());
         ImGui::End();
     }
 };
 
-MyDebugger debugger{};
-debugger.Attach(atom::RenderWindow::GetInstance());
+MyPanel stats{};
+atom::debugger::LogDebugger logs{};
+stats.Attach(atom::RenderWindow::GetInstance());
+logs.Attach(atom::RenderWindow::GetInstance());
+
+// 显隐与生命周期分离：SetEnabled 只开关面板（X 关掉后可再开）；
+// Detach 才取消订阅并丢弃日志缓冲。
+logs.SetEnabled(false);
+logs.SetEnabled(true);
 ```
 
-- 用户**不要**直接 `#include <imgui.h>` 或任何 `Backend/*` 头文件；`Overlay.hpp` 是唯一入口。
-- 一个 `RenderWindow` 由窗口级 `OverlayManager` 维护一份 ImGui context/backend，多个 Debugger 可以独立 attach：
-
-```cpp
-MyDebugger game_debugger{};
-game_debugger.Attach(window);
-game_debugger.SetLoggerEnabled(true);
-
-// 隐藏/重新显示内置 Log Debugger；隐藏期间仍会继续缓存日志。
-game_debugger.SetLoggerEnabled(false);
-game_debugger.SetLoggerEnabled(true);
-```
-
-- 每个 Debugger 应在 `OnDrawOverlay()` 中使用不同的 `ImGui::Begin()` 窗口名。
-- `SetLoggerEnabled(true)` 会挂载内置 `LogDebugger`，默认保留最近 10,000 条记录，支持级别、已注册 channel 下拉多选、消息文本过滤和清空。
+- 用户**不要**直接 `#include <imgui.h>` 或任何 `Backend/*` 头文件；`Debugger/Overlay.hpp` 是唯一入口。
+- 可选工具按需 include：`Debugger/LogDebugger.hpp`、`Debugger/FontLoader.hpp`。
+- 调试面板默认位置由 `atom::debugger::Apply*PanelSlot()` 在首次绘制时写入；ImGui 不再读写 `imgui.ini`。
+- 一个 `RenderWindow` 由窗口级 `OverlayManager` 维护一份 ImGui context/backend；多个 `DebugPanel` 可独立 attach。
+- 每个面板应使用不同的 `ImGui::Begin()` 窗口名，并在 `Begin` 前调用合适的 `Apply*PanelSlot()`。
+- `FontLoader` 是调试字体工具（不是面板、不是 Atom 业务字体 API）；业务文字走 Renderer2D。
 - 这里的“多个窗口”指同一 ImGui context 内的多个 ImGui window；如果需要拖出为原生 SDL 窗口，还需要额外实现 multi-viewports。
 
 ### 窗口扩展监听器
@@ -286,11 +280,12 @@ audio backend = sdl3
 
 ```cpp
 #include <Backend/Runtime/BackendRuntime.hpp>
+#include <Backend/Contracts/Audio/AudioBackendId.hpp>
 
 auto& backends = atom::backend::BackendRuntime::GetInstance();
 
-if (!backends.SetAudioBackend("sdl3_mixer")) {
-    // 后端未注册，或新后端初始化失败——此时当前后端与已注册的 ID 完全不受影响。
+if (!backends.SetAudioBackend(atom::backend::AudioBackendId::Sdl3Mixer)) {
+    // 当前内置后端初始化失败——已激活的后端与 source 不受影响。
 }
 ```
 
@@ -376,7 +371,7 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 | 类型 | 默认使用方式 | 说明 |
 |---|---|---|
 | `BackendRuntime` | `GetInstance()` | 全局 Backend 选择与热切换 |
-| `RenderWindow` | `GetInstance()` + `Initialize(title, size, backendId)` | 窗口和主循环门面；默认渲染后端 `sdl_gpu` |
+| `RenderWindow` | `GetInstance()` + `Initialize(title, size, RenderBackendId)` | 窗口和主循环门面；默认 `RenderBackendId::SdlGpu` |
 | `ScreenManager` | `GetInstance()` | Screen 注册、切换与调度 |
 | `AudioMixer` | 普通实例 | Master/Music/SFX 分类音量 |
 | `MusicPlayer` | `MusicPlayer(mixer)` | 默认使用全局音频后端与引擎默认解码器 |
@@ -384,4 +379,4 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 | `SFXPlayer` | `SFXPlayer(clips, mixer)` | 默认使用全局音频后端 |
 | `MusicCrossfade` | `MusicCrossfade(music)` | 帧驱动音乐过渡 |
 | `AudioMetadataReader` | `AudioMetadataReader::Read(path)` | 读取音频标签与属性（基于 TagLib） |
-| `Debugger` | 普通实例 + `Attach` + `SetLoggerEnabled` | ImGui 调试覆盖层和可选 Log Debugger（include `<Window/Overlay.hpp>`） |
+| `DebugPanel` | 继承 + `Attach` + 可选 `LogDebugger` | ImGui 调试面板基类（include `<Debugger/Overlay.hpp>`） |

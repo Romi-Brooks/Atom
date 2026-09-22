@@ -8,15 +8,15 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Event/Input.hpp>
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Media/Audio/Transitions/MusicCrossfade.hpp>
-#include <Window/Manager/ScreenManager.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
-#include <Window/Overlay.hpp>
+#include <Debugger/Overlay.hpp>
+#include <Debugger/LogDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -25,7 +25,7 @@ namespace {
 constexpr auto kMusic1Path = R"(E:\Music\我的歌声里 - 曲婉婷.mp3)";
 constexpr auto kMusic2Path = R"(E:\Music\滴滴 - 覆予.mp3)";
 
-class MusicDebugger final : public atom::Debugger {
+class MusicDebugger final : public atom::debugger::DebugPanel {
     public:
         MusicDebugger(atom::MusicPlayer& music, atom::audio::MusicCrossfade& fade) : music_(music), fade_(fade) {}
 
@@ -55,7 +55,7 @@ class MusicDebugger final : public atom::Debugger {
             ImGui::Text("If one of them is playing, switch it to the aim song");
             ImGui::Separator();
 
-            const auto& backend_id = atom::backend::BackendRuntime::GetInstance().GetAudioBackendId();
+            const auto& backend_id = atom::audio::GetAudioBackendId();
             ImGui::TextDisabled("Active audio backend: %s", backend_id.c_str());
             ImGui::Separator();
 
@@ -146,20 +146,24 @@ auto main() -> int {
     music.Load("registerId_1", kMusic1Path);
     music.Load("registerId_2", kMusic2Path);
 
-    atom::ScreenManager::GetInstance().LoadScreen("Music", std::make_unique<MusicScreen>(music_fade));
-    atom::ScreenManager::GetInstance().SwitchScreen("Music");
+    auto* music_screen =
+        atom::ScreenManager::GetInstance().LoadScreen("Music", std::make_unique<MusicScreen>(music_fade));
+    atom::ScreenManager::GetInstance().SwitchScreen(music_screen);
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720});
+    window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},
+                      atom::backend::RenderBackendId::SdlGpu);
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly
     // consume GPU/CPU resources.
     window.SetFPS(60);
 
+    atom::debugger::LogDebugger log_panel{};
+    log_panel.Attach(window);
+
     MusicDebugger debugger{music, music_fade};
     debugger.Attach(window);
-    debugger.SetLoggerEnabled(true);
 
     window.Run();
 }

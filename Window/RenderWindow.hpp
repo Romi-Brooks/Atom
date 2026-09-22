@@ -4,7 +4,7 @@
   * @brief          : Main render window singleton (Engine Core)
  * @attention      : Wraps an atom::render::IRenderBackend selected by the engine runtime.
   *                   behind a stable singleton API. Never depends on a concrete
-  *                   backend type; pick one with the backendId argument.
+  *                   backend type; pick one with RenderBackendId.
   *                   Overlay/event hooks are multi-slot listeners registered
   *                   with RAII ListenerConnection (ARCH-112).
   * @date           : 2025/9/28
@@ -25,8 +25,10 @@
 
 #include <Backend/Contracts/Render/IRenderBackend.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
-#include <Window/Manager/ScreenManager.hpp>
+#include <Time/TimeSystem.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/OverlayManager.hpp>
 
 namespace atom {
@@ -70,6 +72,7 @@ class RenderWindow {
     private:
         std::unique_ptr<atom::render::IRenderBackend> backend_;
         std::unique_ptr<atom::debugger::OverlayManager> overlay_manager_;
+        std::string name_{};
         std::string backend_id_{};
         unsigned int fps_ = 60;
         bool shutdown_notified_ = false;
@@ -92,6 +95,11 @@ class RenderWindow {
                 std::function<void(float)> fn;
                 using ListenerFn = std::function<void(float)>;
         };
+        struct FixedUpdateListenerEntry {
+                uint64_t id;
+                std::function<void(float)> fn;
+                using ListenerFn = std::function<void(float)>;
+        };
         struct OverlayListenerEntry {
                 uint64_t id;
                 std::function<void()> fn;
@@ -110,6 +118,7 @@ class RenderWindow {
 
         std::vector<EventListenerEntry> event_listeners_;
         std::vector<UpdateListenerEntry> update_listeners_;
+        std::vector<FixedUpdateListenerEntry> fixed_update_listeners_;
         std::vector<OverlayListenerEntry> overlay_listeners_;
         std::vector<ResizeListenerEntry> resize_listeners_;
         std::vector<ShutdownListenerEntry> shutdown_listeners_;
@@ -139,22 +148,25 @@ class RenderWindow {
         // being dispatched. ---
 
         using EventListener = std::function<void(atom::window::IEvent&)>; // translated engine event
-        using UpdateListener = std::function<void(float)>;                // per frame, before rendering
+        using UpdateListener = std::function<void(float)>;                // variable update, before rendering
+        using FixedUpdateListener = std::function<void(float)>;           // fixed step, 0..N per frame (CORE-001)
         using OverlayListener = std::function<void()>;                    // per frame, after scene render
         using ResizeListener = std::function<void(uint32_t, uint32_t)>;   // after backend HandleResize
         using ShutdownListener = std::function<void()>;                   // once, on Shutdown
 
         [[nodiscard]] auto AddEventListener(EventListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddUpdateListener(UpdateListener listener) -> ListenerConnection;
+        [[nodiscard]] auto AddFixedUpdateListener(FixedUpdateListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddOverlayListener(OverlayListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddResizeListener(ResizeListener listener) -> ListenerConnection;
         [[nodiscard]] auto AddShutdownListener(ShutdownListener listener) -> ListenerConnection;
 
         // Core API
-        // backendId selects the render backend (e.g. "sdl_gpu", or a custom backend
-        // registered in atom::backend::RenderBackendRegistry). Defaults to the engine default.
+        // backendId selects a built-in render backend (engine-curated enum).
+        // The default is RenderBackendId::SdlGpu; new members are added by Atom
+        // releases, not by game/mod code.
         auto Initialize(const std::string& title, algo::Vec2 resolution,
-                        std::string_view backendId = "sdl_gpu") -> void;
+                        backend::RenderBackendId backendId = backend::RenderBackendId::SdlGpu) -> void;
         auto Run() -> void;
         auto SetFPS(unsigned int fps) -> void;
         [[nodiscard]] auto GetFPS() const -> unsigned;
@@ -163,10 +175,16 @@ class RenderWindow {
         [[nodiscard]] auto IsOpen() const -> bool;
         auto Shutdown() -> void;
 
+        // Window name (the title passed to Initialize). Used by debugger logs.
+        [[nodiscard]] auto GetName() const -> const std::string&;
+
         // Backend access
         [[nodiscard]] auto GetIWindow() -> atom::window::IWindow*;
         [[nodiscard]] auto GetRenderDevice() -> atom::render::IRenderDevice*;
         [[nodiscard]] auto GetBackendId() const -> const std::string&;
+
+        // Time domains (game/physics/render/ui/audio) after Initialize.
+        [[nodiscard]] auto GetTimeSystem() -> atom::time::TimeSystem&;
 
         // Window-owned shared ImGui lifecycle. Individual Debugger instances
         // register panels here instead of creating separate ImGui contexts.

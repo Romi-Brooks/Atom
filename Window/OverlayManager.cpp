@@ -1,8 +1,10 @@
 #include "OverlayManager.hpp"
 
 #include <algorithm>
+#include <string>
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
 #include <Backend/Extension/DebugImGuiBackendRegistry.hpp>
+#include <Debugger/DebuggerConfig.hpp>
 #include <Log/LogSystem.hpp>
 #include <Window/RenderWindow.hpp>
 
@@ -19,6 +21,9 @@ OverlayManager::~OverlayManager() {
 }
 
 auto OverlayManager::EnsureInitialized() -> bool {
+#if !ATOM_ENABLE_DEBUGGER
+    return false;
+#else
     if (initialized_)
         return true;
 
@@ -61,9 +66,14 @@ auto OverlayManager::EnsureInitialized() -> bool {
 
     initialized_ = true;
     return true;
+#endif
 }
 
 auto OverlayManager::AddPanel(DrawCallback callback) -> OverlayConnection {
+#if !ATOM_ENABLE_DEBUGGER
+    (void)callback;
+    return {};
+#else
     if (!callback || !EnsureInitialized())
         return {};
 
@@ -72,14 +82,22 @@ auto OverlayManager::AddPanel(DrawCallback callback) -> OverlayConnection {
     return OverlayConnection([this, id] {
         std::erase_if(panels_, [id](const PanelEntry& panel) { return panel.id == id; });
     });
+#endif
 }
 
 auto OverlayManager::OnRenderWindowInitialized() -> void {
+#if ATOM_ENABLE_DEBUGGER
     if (!panels_.empty())
         EnsureInitialized();
+#endif
 }
 
 auto OverlayManager::ShutdownBackend() -> void {
+    if (!panels_.empty()) {
+        LOG_WARNING(atom::log::debugger::ImGui,
+                    "Overlay shutting down with " + std::to_string(panels_.size()) +
+                        " debug panel(s) still attached");
+    }
     if (backend_) {
         backend_->Shutdown();
         backend_.reset();

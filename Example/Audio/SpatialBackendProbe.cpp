@@ -2,14 +2,16 @@
 
 #include <Backend/Contracts/Audio/AudioExtensions.hpp>
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
+#include <Backend/Contracts/Audio/AudioBackendId.hpp>
+#include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Event/Input.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Effects/DopplerEffect.hpp>
 #include <Media/Audio/Resources/AudioClipLoader.hpp>
-#include <Window/Debugger.hpp>
-#include <Window/Manager/ScreenManager.hpp>
-#include <Window/Overlay.hpp>
+#include <Debugger/Overlay.hpp>
+#include <Debugger/LogDebugger.hpp>
+#include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
 
@@ -35,7 +37,7 @@ class ProbeScreen final : public atom::Screen {
         }
 };
 
-class ProbeDebugger final : public atom::Debugger {
+class ProbeDebugger final : public atom::debugger::DebugPanel {
     public:
         auto LoadSource() -> void {
             source_.reset();
@@ -56,7 +58,7 @@ class ProbeDebugger final : public atom::Debugger {
         // tears the whole audio subsystem (and every stream in it) down. The
         // runtime also detaches leftover sources, but an owner should not rely on
         // that safety net.
-        auto SwitchBackend(const std::string_view id) -> void {
+        auto SwitchBackend(const atom::backend::AudioBackendId id) -> void {
             auto& runtime = atom::backend::BackendRuntime::GetInstance();
             source_.reset();
             if (!runtime.SetAudioBackend(id))
@@ -74,10 +76,10 @@ class ProbeDebugger final : public atom::Debugger {
             ImGui::Text("Active backend: %s (generation %llu)", runtime.GetAudioBackendId().c_str(),
                         static_cast<unsigned long long>(runtime.GetAudioBackendGeneration()));
             if (ImGui::Button("Use native SDL3"))
-                SwitchBackend("sdl3");
+                SwitchBackend(atom::backend::AudioBackendId::Sdl3);
             ImGui::SameLine();
             if (ImGui::Button("Use SDL3_mixer"))
-                SwitchBackend("sdl3_mixer");
+                SwitchBackend(atom::backend::AudioBackendId::Sdl3Mixer);
 
             if (!source_) {
                 ImGui::TextDisabled("No source. Check kAudioPath and reload.");
@@ -213,14 +215,17 @@ class ProbeDebugger final : public atom::Debugger {
 auto main() -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
-    atom::ScreenManager::GetInstance().LoadScreen("Probe", std::make_unique<ProbeScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen("Probe");
+    auto* probe_screen =
+        atom::ScreenManager::GetInstance().LoadScreen("Probe", std::make_unique<ProbeScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen(probe_screen);
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom - Spatial Audio Backend Probe", atom::algo::Vec2{860, 780});
+    window.Initialize("Atom - Spatial Audio Backend Probe", atom::algo::Vec2{860, 780},
+                      atom::backend::RenderBackendId::SdlGpu);
     ProbeDebugger debugger;
     debugger.LoadSource();
+    atom::debugger::LogDebugger log_panel{};
+    log_panel.Attach(window);
     debugger.Attach(window);
-    debugger.SetLoggerEnabled(true);
     window.Run();
 }

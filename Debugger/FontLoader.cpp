@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Romi Brooks
 // SPDX-License-Identifier: MIT
 
-#include "ImGuiFontLoader.hpp"
+#include "FontLoader.hpp"
 
 #include <cstring>
 #include <limits>
@@ -11,18 +11,18 @@
 
 namespace atom::debugger {
 namespace {
-[[nodiscard]] auto ResolveGlyphRanges(ImFontAtlas& atlas, const ImGuiGlyphPreset preset) -> const ImWchar* {
+[[nodiscard]] auto ResolveGlyphRanges(ImFontAtlas& atlas, const GlyphPreset preset) -> const ImWchar* {
     switch (preset) {
-    case ImGuiGlyphPreset::ChineseFull:
+    case GlyphPreset::ChineseFull:
         return atlas.GetGlyphRangesChineseFull();
-    case ImGuiGlyphPreset::Default:
+    case GlyphPreset::Default:
         return atlas.GetGlyphRangesDefault();
     }
     return atlas.GetGlyphRangesDefault();
 }
 
-[[nodiscard]] auto PresetName(const ImGuiGlyphPreset preset) -> std::string_view {
-    return preset == ImGuiGlyphPreset::ChineseFull ? "ChineseFull" : "Default";
+[[nodiscard]] auto PresetName(const GlyphPreset preset) -> std::string_view {
+    return preset == GlyphPreset::ChineseFull ? "ChineseFull" : "Default";
 }
 
 auto ApplyDefaultFont(ImGuiIO& io, ImFont* font, const bool set_as_default) -> ImFont* {
@@ -33,7 +33,7 @@ auto ApplyDefaultFont(ImGuiIO& io, ImFont* font, const bool set_as_default) -> I
 }
 } // namespace
 
-auto ImGuiFontLoader::LoadFromFile(const std::string_view path, const ImGuiFontLoadOptions& options) -> ImFont* {
+auto FontLoader::LoadFromFile(const std::string_view path, const FontLoadOptions& options) -> ImFont* {
     if (ImGui::GetCurrentContext() == nullptr) {
         LOG_ERROR(atom::log::debugger::ImGui, "Cannot load font file before the debugger ImGui context is initialized");
         return nullptr;
@@ -52,14 +52,14 @@ auto ImGuiFontLoader::LoadFromFile(const std::string_view path, const ImGuiFontL
         return nullptr;
     }
 
-    LOG_INFO(atom::log::debugger::ImGui, "Loaded ImGui font file: " + null_terminated_path +
+    LOG_INFO(atom::log::debugger::ImGui, "Loaded debugger font file: " + null_terminated_path +
                                     " (size=" + std::to_string(options.size_pixels) +
                                     ", glyphs=" + std::string{PresetName(options.glyph_preset)} +
                                     ", default=" + (options.set_as_default ? "true" : "false") + ")");
     return ApplyDefaultFont(io, font, options.set_as_default);
 }
 
-auto ImGuiFontLoader::LoadFromMemory(const std::span<const std::byte> font_data, const ImGuiFontLoadOptions& options)
+auto FontLoader::LoadFromMemory(const std::span<const std::byte> font_data, const FontLoadOptions& options)
     -> ImFont* {
     if (ImGui::GetCurrentContext() == nullptr) {
         LOG_ERROR(atom::log::debugger::ImGui, "Cannot load memory font before the debugger ImGui context is initialized");
@@ -86,7 +86,7 @@ auto ImGuiFontLoader::LoadFromMemory(const std::span<const std::byte> font_data,
         return nullptr;
     }
 
-    LOG_INFO(atom::log::debugger::ImGui, "Loaded ImGui font from memory (bytes=" + std::to_string(font_data.size()) +
+    LOG_INFO(atom::log::debugger::ImGui, "Loaded debugger font from memory (bytes=" + std::to_string(font_data.size()) +
                                     ", size=" + std::to_string(options.size_pixels) +
                                     ", glyphs=" + std::string{PresetName(options.glyph_preset)} +
                                     ", default=" + (options.set_as_default ? "true" : "false") + ")");

@@ -15,16 +15,19 @@
 #include <Log/LogSystem.hpp>
 
 namespace {
-constexpr const char* kSampleFiles[] = {
+// file path
+constexpr const char* sample_files[] = {
     // replace it
-    R"(E:\Music\我的歌声里 - 曲婉婷.mp3)", R"(E:\Music\滴滴 - 覆予.mp3)",  R"(E:\Music\YOASOBI - 夜に駆ける.mp3)",
-    R"(E:\Music\Doja Cat - Say So.flac)",  R"(E:\Music\Glorb - LOIS.mp3)",
+    R"(E:\Music\我的歌声里 - 曲婉婷.mp3)",
+    R"(E:\Music\YOASOBI - 夜に駆ける.mp3)",
+    R"(E:\Music\Doja Cat - Say So.flac)",
 };
 } // namespace
 
 auto main() -> int {
     atom::Log::SetConsoleOutputUtf8();
-    for (const auto* path : kSampleFiles) {
+
+    for (const auto* path : sample_files) {
         std::cout << "========================================" << std::endl;
         std::cout << path << std::endl;
         std::cout << "========================================" << std::endl;

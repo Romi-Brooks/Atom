@@ -8,6 +8,7 @@
 #include <string_view>
 #include <vector>
 
+#include <Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Backend/Extension/BackendRegistry.hpp>
 
@@ -43,14 +44,16 @@ class BackendRuntime final {
         [[nodiscard]] auto AudioDecoders() -> audio::AudioDecoderRegistry&;
         [[nodiscard]] auto Registry() -> BackendRegistry&;
 
-        // Global switch for the playback backend. The replacement backend is
-        // created first, so a failed switch leaves the active backend (and every
-        // source it owns) untouched. On success the change is applied in three
-        // steps: listeners release their sources, the old backend detaches
-        // whatever is left, then the swap happens. No playback position is
-        // migrated and no ID is re-registered -- callers must Load/Play again
-        // against the new backend. See README-CN.md.
-        auto SetAudioBackend(std::string_view id) -> bool;
+        // Global switch for the playback backend (engine-curated enum). The
+        // replacement backend is created first, so a failed switch leaves the
+        // active backend (and every source it owns) untouched. On success the
+        // change is applied in three steps: listeners release their sources,
+        // the old backend detaches whatever is left, then the swap happens. No
+        // playback position is migrated — callers must Load/Play again against
+        // the new backend. See README-CN.md.
+        auto SetAudioBackend(AudioBackendId id) -> bool;
+        // Canonical registry id of the active backend (e.g. "sdl3_mixer"), for
+        // logs and settings UI. Selection APIs take AudioBackendId.
         [[nodiscard]] auto GetAudioBackendId() const -> const std::string&;
 
         // Monotonic counter, incremented on every successful switch. Any id,

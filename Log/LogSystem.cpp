@@ -100,6 +100,7 @@ auto Log::SetConsoleOutputUtf8() -> void {
 #ifdef _WIN32
     constexpr unsigned int utf8_code_page = 65001; // Win32 CP_UTF8
     SetConsoleOutputCP(utf8_code_page);
+    LOG_INFO(atom::log::core::Logger, "Set the console output code page to UTF-8");
 #endif // _WIN32
 }
 
