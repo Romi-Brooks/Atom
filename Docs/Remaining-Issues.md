@@ -1,7 +1,7 @@
 # Atom 未完成工作统一清单
 
 > 状态：唯一有效的架构整改与后续规划文档
-> 更新日期：2026-09-04
+> 更新日期：2026-09-25
 
 ## 1. 使用规则
 
@@ -81,6 +81,14 @@
 - [ ] 使用线程安全时间格式化，Channel 避免无意义复制。
 - [ ] 音频实时路径不得同步写控制台或持有阻塞锁。
 - [ ] 后续提供 sink、异步队列和 Release 日志裁剪。
+- [ ] **启动日志丢失（2026-09-25 发现）**：`Log::LogOut` 只实时派发给已订阅 listener、不保存历史，而
+      `LogDebugger` 在 `RenderWindow` 创建后才 `OnAttach`/`Subscribe`，导致资源准备/加载阶段日志（音频解码、
+      纹理加载、脚本加载等）在订阅前已被派发丢弃。两个互补方案：
+  - **轻量 ringbuffer**（小改动、立即收益）：`Log` 单例维护最近 N 条 `LogRecord`，`LogOut` 时既实时派发又写
+    ringbuffer，`Subscribe` 时把已有 buffer 回放给新订阅者，使 LogDebugger 能补看启动日志。
+  - **文件写入 sink**（较大、长期方向）：LogSystem 升级支持落盘（异步写、路径约定、轮转/分级），LogDebugger 回归
+    「运行时实时 viewer」定位，历史回溯交给文件。与 ringbuffer 互补而非替代。
+  - 本轮决策：只记文档不动代码，二者留待后续实现。
 
 ### ARCH-112：扩展回调由单槽改为 Listener Registry
 
@@ -303,6 +311,8 @@
 - [ ] 用户新增 shader 不得修改 Atom 内部 `Render/Shader/AtomShaders.cmake`；引擎只维护内置 shader 默认包。
 - [ ] 工具负责 GLSL → SPIR-V，并按目标平台生成可选 DXIL/MSL 变体及 reflection metadata。
 - [!] 本轮暂不实现编译器和外部项目 CMake 集成，先冻结资源包格式与公共 pipeline 描述。
+- 关联：圆角 SDF 蒙版「可插拔」拆分与 shader 通用/专属分层的完整设计见 `Docs/Shader-Extension-Plan-CN.md`
+  （职责边界：游戏侧不得反向修改引擎侧 `AtomShaders.cmake`）。
 
 ### CORE-009：Utilities 目录职责与命名
 
