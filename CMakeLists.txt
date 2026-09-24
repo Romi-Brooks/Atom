@@ -540,6 +540,11 @@ target_link_libraries(Example_Packaged_Music PRIVATE
 add_executable(Example_Log_Channel_Demo Example/Log/LogChannelDemo.cpp Example/Log/GameChannels.hpp)
 target_link_libraries(Example_Log_Channel_Demo PRIVATE Atom_Log)
 
+# Lua scripting example (loads an external script and plays a track via Lua)
+add_executable(Example_Lua_Scripting Example/Lua/LuaScripting.cpp)
+target_link_libraries(Example_Lua_Scripting PRIVATE
+        Atom_Lua Atom_Media Atom_Log Atom_Window Atom_Debugger)
+
 # MusicCard example — Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
 # and an optional ImGui overlay for debug controls.
@@ -610,7 +615,7 @@ if(MINGW)
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
-                                Example_MusicCard Atom_Tool_Packager)
+                                Example_MusicCard Example_Lua_Scripting Atom_Tool_Packager)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()
         if(ATOM_BUILD_TESTS)
