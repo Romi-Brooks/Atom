@@ -4,9 +4,11 @@
   * @brief          : Loads an external Lua script through the LuaHost and plays
   *                   a music track driven from Lua. Demonstrates script file IO
   *                   (VFS), context injection, and the Atom.Audio.* bindings.
-  * @attention      : The script lives at Example/Lua/script.lua and is mounted
-  *                   as res:// so LuaHost::LoadScript reads it through the VFS,
-  *                   never a raw path.
+  * @attention      : The script folder is the executable's own directory,
+  *                   mounted as scripts://, so LuaHost::LoadScript reads
+  *                   script.lua through the VFS. There is deliberately no
+  *                   source-tree / __FILE__ fallback: place script.lua next to
+  *                   the built Example_Lua_Scripting binary to run it.
   * @date           : 2026/9/24
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
@@ -54,15 +56,14 @@ class LuaScreen final : public atom::Screen {
 
 } // namespace
 
-auto main() -> int {
+auto main(int /*argc*/, char** argv) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
     atom::AudioMixer mixer;
     atom::MusicPlayer music{mixer};
 
-    // Mount the music directory as "res" and the script directory as "scripts"
-    // on the process-wide default Vfs.
+    // Mount the music directory as "res" on the process-wide default Vfs.
     std::unique_ptr<atom::fs::NativeFileSystem> music_fs{};
     if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(kMusicDir), music_fs) !=
             atom::fs::Result::Success ||
@@ -72,8 +73,15 @@ auto main() -> int {
     }
     atom::fs::Vfs::GetInstance().Mount("res", 0, std::move(music_fs));
 
+    // The script folder plays the role of a mod's script directory: a plain
+    // folder the host mounts and the script then drives. Here we use the
+    // executable's own directory (no source-tree or __FILE__ fallback), so the
+    // load genuinely fails when script.lua is not placed next to the binary.
+    // Place Example/Lua/script.lua alongside Example_Lua_Scripting(.exe) to run.
     std::unique_ptr<atom::fs::NativeFileSystem> script_fs{};
-    const std::string script_dir = atom::PathToUtf8(std::filesystem::path{__FILE__}.parent_path().string());
+    const std::string script_dir = atom::PathToUtf8(
+        std::filesystem::path{argv[0]}.parent_path().empty() ? std::filesystem::path{"."}.string()
+                                                             : std::filesystem::path{argv[0]}.parent_path().string());
     if (atom::fs::NativeFileSystem::Create("scripts", script_dir, script_fs) != atom::fs::Result::Success ||
         !script_fs) {
         LOG_ERROR(atom::log::core::Lua, "Script directory unavailable: " + script_dir);
