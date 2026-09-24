@@ -36,11 +36,10 @@ namespace {
 // which is a security trade-off to prevent scripts from accessing higher-level directories.
 constexpr auto MusicDir = R"(E:\Music\)";
 
-// The script entry point is configured explicitly here, not derived from argv
-// or __FILE__. Change ScriptFile (and ScriptDir, if it differs from the music
-// mount) to point at a different script. Leave ScriptFile empty to disable
+// The script entry point is configured explicitly here,
+// Change ScriptFile to point at a different script. Leave ScriptFile empty to disable
 // script loading entirely.
-constexpr auto ScriptDir = R"(E:\Music\)";
+constexpr auto ScriptDir = R"(.\)";
 constexpr auto ScriptFile = "script.lua";
 
 class LuaScreen final : public atom::Screen {
@@ -65,23 +64,20 @@ class LuaScreen final : public atom::Screen {
 
 } // namespace
 
-auto main() -> int {
-    atom::Log::SetConsoleOutputUtf8();
-    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
-
-    atom::AudioMixer mixer;
-    atom::MusicPlayer music{mixer};
-
+static auto HandleResFs() -> atom::fs::Result {
     // Mount the music directory as "res" on the process-wide default Vfs.
     std::unique_ptr<atom::fs::NativeFileSystem> music_fs{};
     if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(MusicDir), music_fs) !=
             atom::fs::Result::Success ||
         !music_fs) {
         LOG_ERROR(atom::log::audio::Music, "Music directory unavailable: " + std::string{MusicDir});
-        return 1;
-    }
+        return atom::fs::Result::NotFound;
+        }
     atom::fs::Vfs::GetInstance().Mount("res", 0, std::move(music_fs));
+    return atom::fs::Result::Success;
+}
 
+static auto HandleScriptFs() -> atom::fs::Result {
     // The script plays the role of a mod's entry script: a plain directory the
     // host mounts, with the script filename configured explicitly above (no
     // argv/__FILE__ derivation). The host still owns mounting; the script only
@@ -91,9 +87,22 @@ auto main() -> int {
             atom::fs::Result::Success ||
         !script_fs) {
         LOG_ERROR(atom::log::core::Lua, "Script directory unavailable: " + std::string{ScriptDir});
-        return 1;
-    }
+        return atom::fs::Result::NotFound;
+        }
     atom::fs::Vfs::GetInstance().Mount("scripts", 0, std::move(script_fs));
+    return atom::fs::Result::Success;
+}
+
+auto main() -> int {
+    atom::Log::SetConsoleOutputUtf8();
+    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
+
+    // init the audio player
+    atom::AudioMixer mixer;
+    atom::MusicPlayer music{mixer};
+
+    HandleResFs();
+    HandleScriptFs();
 
     // Wire the engine objects into the Lua context so the script can drive them.
     atom::LuaHost host;
