@@ -9,7 +9,6 @@
 #ifndef ATOM_DEBUGGER_DEBUG_PANEL_HPP
 #define ATOM_DEBUGGER_DEBUG_PANEL_HPP
 
-#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -21,54 +20,55 @@ class Screen;
 class ListenerConnection;
 }
 
+enum class PanelScope {
+    Window,
+    Screen,
+};
+
 namespace atom::debugger {
 
 class OverlayConnection;
 
-// One panel in the RenderWindow-owned shared ImGui context. Subclasses
-// implement OnDrawOverlay(); multiple panels coexist independently.
+// One panel in the RenderWindow-owned shared ImGui context.
+// Subclasses implement OnDrawOverlay();
+// multiple panels coexist independently.
 //
-// Lifetime scopes:
-//   Attach(window)          — window-level, visible for the whole run
-//                             (e.g. LogDebugger).
-//   Attach(window, screen)  — screen-level, drawn only while that Screen is
-//                             visible (current or on the screen stack).
+//   Attach(window)          — window-level, visible for the whole run, global Debugger
+//   Attach(window, screen)  — screen-level, drawn only while that Screen is visible
+
 class DebugPanel {
     private:
         bool attached_ = false;
         bool enabled_ = true;
+
         atom::RenderWindow* target_window_ = nullptr;
         atom::Screen* bound_screen_ = nullptr;
-        // Cached at Attach while the derived object is still alive — virtual
-        // GetPanelName() is not safe from ~DebugPanel (derived already gone).
-        std::string panel_name_{"DebugPanel"};
-        // "window-scoped" | "screen-scoped", snapshotted with panel_name_.
-        std::string panel_scope_{"window-scoped"};
-        std::unique_ptr<OverlayConnection> overlay_connection_;
-        std::unique_ptr<atom::ListenerConnection> update_connection_;
 
-        std::size_t frame_count_ = 0;
-        float fps_accumulator_ = 0.0f;
-        float fps_display_ = 0.0f;
+        std::string panel_name_ = {};
+
+        PanelScope panel_scope_ = {};
+
+        std::unique_ptr<OverlayConnection> overlay_connection_;
 
     public:
-        DebugPanel() = default;
+        explicit DebugPanel(std::string panel_name = "DebugPanel");
         virtual ~DebugPanel();
 
         DebugPanel(const DebugPanel&) = delete;
         auto operator=(const DebugPanel&) -> DebugPanel& = delete;
 
-        // Window-level: survives screen switches.
+        // Window-level
         auto Attach(atom::RenderWindow& window) -> void;
-        // Screen-level: follows that Screen's visibility (stack + current).
+        // Screen-level
         auto Attach(atom::RenderWindow& window, atom::Screen& screen) -> void;
+
         auto Detach() -> void;
 
         [[nodiscard]] auto IsAttached() const -> bool {
             return attached_;
         }
 
-        virtual auto SetEnabled(bool enabled) -> void {
+        virtual auto SetEnabled(const bool enabled) -> void {
             enabled_ = enabled;
         }
 
@@ -76,13 +76,18 @@ class DebugPanel {
             return enabled_;
         }
 
-        [[nodiscard]] auto GetFPS() const -> float {
-            return fps_display_;
+        [[nodiscard]] auto GetPanelName() const -> const std::string& {
+            return panel_name_;
+        }
+        [[nodiscard]] auto GetPanelScope() const -> PanelScope {
+            return panel_scope_;
         }
 
         [[nodiscard]] auto GetBoundScreen() const -> atom::Screen* {
             return bound_screen_;
         }
+
+        [[nodiscard]] auto GetPanelScopeName() const -> const char*;
 
     protected:
         // Called inside the shared ImGui frame when the panel is enabled and
@@ -98,10 +103,6 @@ class DebugPanel {
         virtual auto OnAttach(atom::RenderWindow& window) -> bool;
         virtual auto OnDetach() -> void;
 
-        [[nodiscard]] virtual auto GetPanelName() const -> const char* {
-            return "DebugPanel";
-        }
-
         [[nodiscard]] auto GetTargetWindow() const -> atom::RenderWindow* {
             return target_window_;
         }
@@ -109,6 +110,7 @@ class DebugPanel {
     private:
         auto AttachScoped(atom::RenderWindow& window, atom::Screen* screen) -> void;
         [[nodiscard]] auto IsScopeVisible() const -> bool;
+        auto RollbackAttach() -> void;
 };
 
 } // namespace atom::debugger

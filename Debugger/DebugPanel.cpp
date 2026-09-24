@@ -4,6 +4,7 @@
 #include "DebugPanel.hpp"
 
 #include <string>
+#include <utility>
 
 #include <Log/LogSystem.hpp>
 #include <Window/OverlayManager.hpp>
@@ -11,19 +12,13 @@
 #include <Window/ScreenManager.hpp>
 
 namespace atom::debugger {
+DebugPanel::DebugPanel(std::string panel_name) : panel_name_(std::move(panel_name)) {}
 
 DebugPanel::~DebugPanel() {
-    // Safety net only. Virtual GetPanelName/OnDetach are not safe here (the
-    // derived object is already destroyed). Prefer Detach() in the derived
-    // destructor so hooks still dispatch; this path uses the name cached at Attach.
-    if (!attached_)
-        return;
-    update_connection_.reset();
-    overlay_connection_.reset();
-    target_window_ = nullptr;
-    bound_screen_ = nullptr;
+    if (!attached_) { return; }
+    RollbackAttach();
     attached_ = false;
-    LOG_INFO(atom::log::debugger::ImGui, panel_name_ + " detached (" + panel_scope_ + ")");
+    LOG_INFO(atom::log::debugger::ImGui, panel_name_ + " detached (" + GetPanelScopeName() + ")");
 }
 
 auto DebugPanel::OnAttach(atom::RenderWindow&) -> bool {
@@ -54,8 +49,7 @@ auto DebugPanel::AttachScoped(atom::RenderWindow& window, atom::Screen* screen) 
     if (!window.GetIWindow() || !window.GetRenderDevice()) {
         LOG_WARNING(atom::log::debugger::ImGui,
                     "DebugPanel attach requires an initialized render window and device");
-        target_window_ = nullptr;
-        bound_screen_ = nullptr;
+        RollbackAttach();
         return;
     }
 
@@ -67,76 +61,62 @@ auto DebugPanel::AttachScoped(atom::RenderWindow& window, atom::Screen* screen) 
     }));
     if (!overlay_connection_->IsConnected()) {
         LOG_ERROR(atom::log::debugger::ImGui,
-                  std::string{GetPanelName()} + " attach failed for render backend '" +
+                  GetPanelName() + " attach failed for render backend '" +
                       window.GetBackendId() + "'");
-        overlay_connection_.reset();
-        target_window_ = nullptr;
-        bound_screen_ = nullptr;
+        RollbackAttach();
         return;
     }
-
-    // Snapshot the derived name/scope before any later detach from ~DebugPanel.
-    panel_name_ = GetPanelName();
-    panel_scope_ = screen ? "screen-scoped" : "window-scoped";
-
-    update_connection_ = std::make_unique<atom::ListenerConnection>(window.AddUpdateListener([this](float delta_time) {
-        frame_count_++;
-        fps_accumulator_ += delta_time;
-        if (fps_accumulator_ >= 1.0f) {
-            fps_display_ = static_cast<float>(frame_count_) / fps_accumulator_;
-            frame_count_ = 0;
-            fps_accumulator_ = 0.0f;
-        }
-    }));
 
     if (!OnAttach(window)) {
-        update_connection_.reset();
-        overlay_connection_.reset();
-        target_window_ = nullptr;
-        bound_screen_ = nullptr;
+        RollbackAttach();
         return;
     }
 
-    enabled_ = true;
     attached_ = true;
+
+    // get the type of panel scope
+    panel_scope_ = screen ? PanelScope::Screen : PanelScope::Window;
+
     std::string target;
     if (screen) {
         auto screen_name = atom::ScreenManager::GetInstance().GetScreenName(screen);
         if (screen_name.empty())
             screen_name = "<unnamed>";
-        target = "render screen '" + screen_name + "' (" + panel_scope_ + ")";
+        target = "render screen '" + screen_name + "' (" + GetPanelScopeName() + ")";
     } else {
-        target = "render window '" + window.GetName() + "' (" + panel_scope_ + ")";
+        target = "render window '" + window.GetName() + "' (" + GetPanelScopeName() + ")";
     }
     LOG_INFO(atom::log::debugger::ImGui, panel_name_ + " attached to " + target);
 #endif
 }
 
 auto DebugPanel::Detach() -> void {
-    if (!attached_ || !target_window_)
-        return;
+    if (!attached_) { return; }
 
-#if !ATOM_ENABLE_DEBUGGER
-    attached_ = false;
-    target_window_ = nullptr;
-    bound_screen_ = nullptr;
-    return;
-#else
     OnDetach();
-    update_connection_.reset();
-    overlay_connection_.reset();
-
-    target_window_ = nullptr;
-    bound_screen_ = nullptr;
+    RollbackAttach();
     attached_ = false;
-    LOG_INFO(atom::log::debugger::ImGui, panel_name_ + " detached (" + panel_scope_ + ")");
-#endif
+    LOG_INFO(atom::log::debugger::ImGui, panel_name_ + " detached (" + GetPanelScopeName() + ")");
 }
 
 auto DebugPanel::IsScopeVisible() const -> bool {
     if (!bound_screen_)
         return true;
     return atom::ScreenManager::GetInstance().IsScreenVisible(bound_screen_);
+}
+
+auto DebugPanel::GetPanelScopeName() const -> const char* {
+    switch (panel_scope_) {
+    case PanelScope::Window: return "Window";
+    case PanelScope::Screen: return "Screen";
+    }
+    return "unknown";
+}
+
+auto DebugPanel::RollbackAttach() -> void {
+    overlay_connection_.reset();
+    target_window_ = nullptr;
+    bound_screen_ = nullptr;
 }
 
 } // namespace atom::debugger
