@@ -1,6 +1,6 @@
 # ATOM 文件系统与资源包设计
 
-> 状态：`Atom_FS` + `Atom_Assets` + C1/C2 消费端（Script、Texture/TextureCache）已完成。C3 Audio 与 APKG v2 未开始。完整进度见 `Docs/Resource-System-Plan-CN.md`。
+> 状态：`Atom_FS` + `Atom_Assets` + C1/C2/C3 消费端（Script、Texture/TextureCache、Audio）已完成。APKG v2 未开始。完整进度见 `Docs/Resource-System-Plan-CN.md`。
 
 ## 目标与非目标
 
@@ -41,7 +41,7 @@ Atom_FS               AssetPath, IFile, IFileSystem, Vfs
 Atom_Assets           ResourceId, LoaderRegistry, ResourceHandle<T>, cache
      ├── DecodedImageLoader（VFS → DecodedImage，已接入）
      ├── ScriptSourceLoader（VFS → 脚本源码，已接入）
-     ├── Audio loader（未接入，待 C3）
+     ├── Audio loader（已接入：AudioClipResourceLoader + AudioClipLoader VFS 入口）
      ├── Shader loader（未接入）
      └── Model/video/font loader（未接入）
 ```
@@ -108,7 +108,7 @@ kind = "config"
 2. [x] 将 APKG v1 封装为 `PackageFileSystem`，使目录与旧包能透明挂载（`List` 由路径前缀合成目录）。
 3. [ ] 设计并实现 v2 reader、manifest、chunk 校验与流式读取；v1 只读兼容。
 4. [ ] 将 Packager 改为 manifest 驱动的 `PackageBuilder`，实现树、分类、重复检测、临时输出与原子替换。
-5. [-] 迁移 loader：Script 已走 `IFile`/`AssetPath`；Texture 已有 `DecodedImageLoader` + `TextureCache`（MusicCard 已迁）；Audio/Shader/Font/Model 未迁。
+5. [x] 迁移 loader：Script 已走 `IFile`/`AssetPath`；Texture 已有 `DecodedImageLoader` + `TextureCache`（MusicCard 已迁）；Audio 已有 `AudioClipResourceLoader`（kind=Audio，走 `ResourceManager`）+ `AudioClipLoader` VFS 入口；Shader/Font/Model 未迁。
 6. [x] 资源身份与共享：`ResourceId`、`ResourceHandle<T>`、`LoaderRegistry`、去重缓存与 recycle 回调已落地（`Atom_Assets`）；异步加载、热重载、依赖图和内存预算仍后续。
 
 验收标准：相同 manifest 在不同 CWD 和平台产生相同虚拟资源树；开发目录与 APKG 能以同一 URI 打开；非法路径和符号链接不能越过挂载根；损坏包、hash 不匹配、重复路径和不支持的 variant 都返回受控错误。

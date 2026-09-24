@@ -26,6 +26,11 @@ class SFXPlayer final : public atom::backend::IAudioBackendChangeListener {
         SFXPlayer(atom::audio::IAudioBackend& backend, AudioClipCache& clips, AudioMixer& mixer);
         ~SFXPlayer() override;
 
+        auto Load(const std::string& id, const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path)
+            -> bool;
+
+        // Convenience overload: parses `path` as an AssetPath and resolves it
+        // through the process-wide default Vfs (atom::fs::Vfs::GetInstance()).
         auto Load(const std::string& id, const std::string& path) -> bool;
         auto Play(const std::string& id) -> void;
         auto Play(const std::string& id, float volume) -> void;

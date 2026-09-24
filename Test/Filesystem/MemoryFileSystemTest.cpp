@@ -97,5 +97,23 @@ auto main() -> int {
         return Fail("Could not remove memory file");
     if (memory->Stat(button, info) != atom::fs::Result::NotFound)
         return Fail("Removed file still exists");
+
+    // Removing a directory must cascade to its descendants and not leave
+    // orphaned children reachable under a vanished parent.
+    atom::fs::AssetPath nested{};
+    atom::fs::AssetPath nestedChild{};
+    if (!atom::fs::AssetPath::TryParse("res://audio/music/track.mp3", nestedChild) ||
+        !atom::fs::AssetPath::TryParse("res://audio", nested)) {
+        return Fail("Could not parse nested removal paths");
+    }
+    if (memory->WriteFile(nestedChild, Bytes("samples")) != atom::fs::Result::Success)
+        return Fail("Could not write nested file");
+    if (memory->Remove(nested) != atom::fs::Result::Success)
+        return Fail("Could not remove directory");
+    if (memory->Stat(nested, info) != atom::fs::Result::NotFound)
+        return Fail("Removed directory still exists");
+    if (memory->Stat(nestedChild, info) != atom::fs::Result::NotFound)
+        return Fail("Orphaned child survived directory removal");
+
     return 0;
 }

@@ -14,25 +14,36 @@
 #include "lua.hpp"
 
 // Engine Headers
+#include <Filesystem/FileSystem.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
 
 #include <Log/LogSystem.hpp>
 
-// Global bridge pointer — set by the application after constructing SFX
+// Global bridge pointers — set by the application after constructing SFX.
 // 全局桥接指针 — 由应用在构造 SFX 后设置
 namespace {
 atom::SFXPlayer* g_sfx = nullptr;
+const atom::fs::IFileSystem* g_filesystem = nullptr;
 }
 
 auto SetLuaSFXInstance(atom::SFXPlayer& sfx) -> void {
     g_sfx = &sfx;
 }
 
+auto SetLuaSFXFilesystem(const atom::fs::IFileSystem& filesystem) -> void {
+    g_filesystem = &filesystem;
+}
+
 static int lua_SFX_Load(lua_State* L) {
     const char* sfx_id = luaL_checkstring(L, 1);
     const char* file_path = luaL_checkstring(L, 2);
 
-    bool load_result = g_sfx->Load(sfx_id, file_path);
+    bool load_result = false;
+    if (g_filesystem) {
+        atom::fs::AssetPath asset{};
+        if (atom::fs::AssetPath::TryParse(file_path, asset))
+            load_result = g_sfx->Load(sfx_id, *g_filesystem, asset);
+    }
 
     lua_pushboolean(L, load_result);
     return 1;
@@ -80,7 +91,12 @@ static int lua_SFXManager_LoadSFXFiles(lua_State* L) {
     const char* buf_id = luaL_checkstring(L, 1);
     const char* file_path = luaL_checkstring(L, 2);
 
-    bool load_result = g_sfx->Load(buf_id, file_path);
+    bool load_result = false;
+    if (g_filesystem) {
+        atom::fs::AssetPath asset{};
+        if (atom::fs::AssetPath::TryParse(file_path, asset))
+            load_result = g_sfx->Load(buf_id, *g_filesystem, asset);
+    }
     lua_pushboolean(L, load_result);
     return 1;
 }

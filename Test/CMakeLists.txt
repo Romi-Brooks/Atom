@@ -67,6 +67,12 @@ atom_add_test(Atom_Assets.ScriptSourceLoader
     Asset/ScriptSourceLoaderTest.cpp
     Atom_Assets)
 
+# ARCH-107 Stage D: unified URI loading across directory + package mounts.
+atom_add_test(Atom_Assets.StageDAcceptance
+    Atom_Assets_StageDAcceptance_Tests
+    Asset/StageDAcceptanceTest.cpp
+    Atom_Media Atom_Image Atom_Backend_Extension Atom_FS Atom_UTF8)
+
 # --- Render ---
 atom_add_test(Atom_Render_Resources.TextureCache
     Atom_Render_Resources_TextureCache_Tests

@@ -8,7 +8,7 @@
 #include <filesystem>
 #include <unordered_map>
 
-namespace fs = std::filesystem;
+namespace native_fs = std::filesystem;
 
 namespace atom::tools {
 class Packager {
@@ -59,12 +59,12 @@ class Packager {
         static constexpr uint16_t VERSION = 1;
 
         auto NormalizePath(const std::string& path) -> std::string;
-        auto GenerateInternalFilename(const fs::path& filePath, const Config& config) -> std::string;
+        auto GenerateInternalFilename(const native_fs::path& filePath, const Config& config) -> std::string;
         auto ToUTF8(const std::string& str) -> std::string;
-        auto SafePathToString(const fs::path& path) -> std::string;
-        auto SafeRelativePath(const fs::path& path) -> std::string;
+        auto SafePathToString(const native_fs::path& path) -> std::string;
+        auto SafeRelativePath(const native_fs::path& path) -> std::string;
 
-        auto CollectFiles(const std::vector<std::string>& resourcePaths, std::vector<fs::path>& allFiles,
+        auto CollectFiles(const std::vector<std::string>& resourcePaths, std::vector<native_fs::path>& allFiles,
                           const Config& config) -> bool;
         auto IsValidUTF8(const std::string& str) -> bool;
 };

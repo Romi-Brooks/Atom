@@ -18,6 +18,8 @@
 #include <string>
 #include <vector>
 
+#include <Filesystem/FileSystem.hpp>
+
 namespace atom::audio {
 
 // Audio file metadata: tag fields plus basic audio properties.
@@ -48,6 +50,15 @@ struct AudioMetadata {
 // Returns nullopt when the file cannot be read or carries no tags.
 class AudioMetadataReader {
     public:
+        // Reads metadata through the VFS: the file is opened via `filesystem` and
+        // handed to TagLib through an IOStream adapter, so no native path is
+        // involved. This is the primary entry point.
+        static auto Read(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path)
+            -> std::optional<AudioMetadata>;
+
+        // Convenience overload: parses `path` as an AssetPath (e.g.
+        // "res://music/song.mp3") and resolves it through the process-wide default
+        // Vfs (atom::fs::Vfs::GetInstance()).
         static auto Read(const std::string& path) -> std::optional<AudioMetadata>;
 };
 

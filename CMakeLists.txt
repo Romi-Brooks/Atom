@@ -316,6 +316,8 @@ include(Render/Shader/AtomShaders.cmake)
         Media/Audio/Mixing/AudioMixer.hpp
         Media/Audio/Resources/AudioClipLoader.cpp
         Media/Audio/Resources/AudioClipLoader.hpp
+        Media/Audio/Resources/AudioClipResourceLoader.cpp
+        Media/Audio/Resources/AudioClipResourceLoader.hpp
         Media/Audio/Resources/AudioClipCache.cpp
         Media/Audio/Resources/AudioClipCache.hpp
         Media/Audio/Playback/MusicPlayer.cpp
@@ -360,6 +362,9 @@ target_include_directories(Atom_FS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
 # Render resources need AssetPath/IFileSystem for VFS-backed texture loads.
 target_link_libraries(Atom_Render_Resources PUBLIC Atom_FS)
+# Audio decoders and the clip loader consume IFile for VFS-backed audio (ARCH-107 C3).
+target_link_libraries(Atom_Backend_Audio PUBLIC Atom_FS)
+target_link_libraries(Atom_Media PUBLIC Atom_FS)
 
 # 7c. Resource identity, handles, loader registry, and identity-keyed cache.
 add_library(Atom_Assets STATIC
@@ -377,6 +382,9 @@ add_library(Atom_Assets STATIC
 )
 target_include_directories(Atom_Assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_Assets PUBLIC Atom_FS)
+# AudioClipResourceLoader (kind=Audio) lives in Atom_Media and extends
+# atom::asset::TypedResourceLoader, mirroring DecodedImageLoader in Atom_Image.
+target_link_libraries(Atom_Media PUBLIC Atom_Assets)
 
 # 7a. Image decoding (CPU-side; GPU upload is a separate step via Renderer2D).
 add_library(Atom_Image STATIC

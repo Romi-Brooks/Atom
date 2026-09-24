@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include <Backend/Contracts/Audio/AudioTypes.hpp>
+#include <Filesystem/FileSystem.hpp>
 #include <Media/Audio/Resources/AudioClipLoader.hpp>
 
 namespace atom {
@@ -16,6 +17,11 @@ class AudioClipCache final {
         AudioClipCache();
         explicit AudioClipCache(atom::audio::AudioDecoderRegistry& decoders) : loader_(decoders) {}
 
+        auto Load(const std::string& id, const atom::fs::IFileSystem& filesystem,
+                  const atom::fs::AssetPath& path) -> bool;
+
+        // Convenience overload: parses `path` as an AssetPath and resolves it
+        // through the process-wide default Vfs (atom::fs::Vfs::GetInstance()).
         auto Load(const std::string& id, const std::string& path) -> bool;
         [[nodiscard]] auto Get(const std::string& id) const -> std::shared_ptr<const atom::audio::DecodedAudio>;
         [[nodiscard]] auto Contains(const std::string& id) const -> bool;

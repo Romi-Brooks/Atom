@@ -43,7 +43,7 @@ auto Packager::ToUTF8(const std::string& str) -> std::string {
     }
 }
 
-auto Packager::SafePathToString(const fs::path& path) -> std::string {
+auto Packager::SafePathToString(const native_fs::path& path) -> std::string {
     const auto result = atom::PathToUtf8(path);
     if (result.empty() && !path.empty()) {
         LOG_ERROR(atom::log::utilities::Packager, "Path conversion produced an empty UTF-8 path");
@@ -52,9 +52,9 @@ auto Packager::SafePathToString(const fs::path& path) -> std::string {
     return result;
 }
 
-auto Packager::SafeRelativePath(const fs::path& path) -> std::string {
+auto Packager::SafeRelativePath(const native_fs::path& path) -> std::string {
     try {
-        return atom::PathToUtf8(fs::relative(path));
+        return atom::PathToUtf8(native_fs::relative(path));
     } catch (const std::exception& e) {
         LOG_ERROR(atom::log::utilities::Packager,
                   "Unable to obtain relative path: " + std::to_string(*e.what()));
@@ -62,23 +62,23 @@ auto Packager::SafeRelativePath(const fs::path& path) -> std::string {
     }
 }
 
-auto Packager::CollectFiles(const std::vector<std::string>& resourcePaths, std::vector<fs::path>& allFiles,
+auto Packager::CollectFiles(const std::vector<std::string>& resourcePaths, std::vector<native_fs::path>& allFiles,
                             const Config& config) -> bool {
     for (const auto& path_str : resourcePaths) {
         try {
-            fs::path path = atom::PathFromUtf8(path_str);
-            if (!fs::exists(path)) {
+            native_fs::path path = atom::PathFromUtf8(path_str);
+            if (!native_fs::exists(path)) {
                 LOG_WARNING(atom::log::utilities::Packager, "Path does not exist: " + path_str);
                 continue;
             }
 
-            if (fs::is_directory(path)) {
-                for (const auto& entry : fs::recursive_directory_iterator(path)) {
+            if (native_fs::is_directory(path)) {
+                for (const auto& entry : native_fs::recursive_directory_iterator(path)) {
                     if (entry.is_regular_file()) {
                         allFiles.push_back(entry.path());
                     }
                 }
-            } else if (fs::is_regular_file(path)) {
+            } else if (native_fs::is_regular_file(path)) {
                 allFiles.push_back(path);
             }
         } catch (const std::exception& e) {
@@ -89,11 +89,11 @@ auto Packager::CollectFiles(const std::vector<std::string>& resourcePaths, std::
     return !allFiles.empty();
 }
 
-auto Packager::GenerateInternalFilename(const fs::path& filePath, const Config& config) -> std::string {
+auto Packager::GenerateInternalFilename(const native_fs::path& filePath, const Config& config) -> std::string {
     try {
         if (config.preserveStructure) {
             const std::string relative_path = SafeRelativePath(filePath);
-            // fs::relative() yields an empty path when the two paths sit on
+            // native_fs::relative() yields an empty path when the two paths sit on
             // different drives (libstdc++) or throws (MSVC); fall back to the
             // bare filename so entries never get an empty name.
             if (!relative_path.empty())
@@ -125,11 +125,11 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
     file_index_.clear();
 
     try {
-        if (fs::exists(outputFile)) {
+        if (native_fs::exists(outputFile)) {
             if (!config.overwrite) {
                 return Result::ERROR_WRITE_FAILED;
             }
-            fs::remove(outputFile);
+            native_fs::remove(outputFile);
         }
     } catch (const std::exception& e) {
         LOG_ERROR(atom::log::utilities::Packager,
@@ -137,7 +137,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         return Result::ERROR_WRITE_FAILED;
     }
 
-    std::vector<fs::path> allFiles;
+    std::vector<native_fs::path> allFiles;
     if (!CollectFiles(resourcePaths, allFiles, config)) {
         return Result::ERROR_EMPTY_PACKAGE;
     }
@@ -224,7 +224,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
     if (file_count == 0) {
         output.close();
         try {
-            fs::remove(outputFile);
+            native_fs::remove(outputFile);
         } catch (...) {
         }
         return Result::ERROR_EMPTY_PACKAGE;

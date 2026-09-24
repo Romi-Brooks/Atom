@@ -20,6 +20,15 @@ namespace {
 namespace native_fs = std::filesystem;
 
 [[nodiscard]] auto IsWithinRoot(const native_fs::path& root, const native_fs::path& candidate) -> bool {
+    // Different root names (e.g. C: vs D:, or a drive vs a UNC share) can never
+    // be inside one another. Reject them up front so `relative` never has to
+    // manufacture a path across volume boundaries (which some implementations
+    // resolve to a surprising non-empty value rather than reporting an error).
+    if (root.has_root_name() != candidate.has_root_name())
+        return false;
+    if (root.has_root_name() && candidate.has_root_name() && root.root_name() != candidate.root_name())
+        return false;
+
     std::error_code error;
     const native_fs::path relative = native_fs::relative(candidate, root, error);
     if (error)
@@ -229,14 +238,14 @@ auto NativeFileSystem::List(const AssetPath& directory, std::vector<DirectoryEnt
             continue;
         const std::string name = atom::PathToUtf8(entry.path().filename());
         if (name.empty())
-            return Result::IoError;
+            continue;
 
         FileInfo info{};
         info.type = native_fs::is_directory(status) ? EntryType::Directory : EntryType::File;
         if (info.type == EntryType::File) {
             info.size = entry.file_size(entryError);
             if (entryError)
-                return Result::IoError;
+                continue;
         }
         output.push_back({name, info});
     }

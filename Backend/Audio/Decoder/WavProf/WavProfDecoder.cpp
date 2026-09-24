@@ -17,21 +17,6 @@
 
 namespace atom::backend::audio_decoder {
 
-auto WavProfDecoder::Open(const std::string& path) -> atom::audio::DecoderOpenStatus {
-    Close();
-    const auto status = reader_.Open(path);
-    if (status != atom::audio::DecoderOpenStatus::Opened) {
-        // "Cannot read this file" is an expected outcome, not an error: the
-        // registry keeps a fallback decoder for the encodings this reader rejects,
-        // and AudioClipLoader reports a warning only if every candidate fails.
-        LOG_DEBUG(atom::log::audio::WavProf,
-                  std::string{"WavProf: declined file ("} + atom::audio::DescribeDecoderOpenStatus(status) +
-                      "): " + path);
-        return status;
-    }
-    return SetupInfo(path) ? atom::audio::DecoderOpenStatus::Opened : atom::audio::DecoderOpenStatus::InvalidData;
-}
-
 auto WavProfDecoder::OpenFromMemory(const void* data, const std::size_t size) -> atom::audio::DecoderOpenStatus {
     Close();
     const auto status = reader_.OpenFromMemory(data, size);
@@ -43,6 +28,18 @@ auto WavProfDecoder::OpenFromMemory(const void* data, const std::size_t size) ->
     }
     return SetupInfo("(memory)") ? atom::audio::DecoderOpenStatus::Opened
                                  : atom::audio::DecoderOpenStatus::InvalidData;
+}
+
+auto WavProfDecoder::OpenStream(atom::fs::IFile& file) -> atom::audio::DecoderOpenStatus {
+    Close();
+    const auto status = reader_.OpenStream(file);
+    if (status != atom::audio::DecoderOpenStatus::Opened) {
+        LOG_DEBUG(atom::log::audio::WavProf,
+                  std::string{"WavProf: declined stream ("} + atom::audio::DescribeDecoderOpenStatus(status) + ")");
+        return status;
+    }
+    return SetupInfo("(vfs)") ? atom::audio::DecoderOpenStatus::Opened
+                              : atom::audio::DecoderOpenStatus::InvalidData;
 }
 
 auto WavProfDecoder::SetupInfo(const std::string& source_label) -> bool {

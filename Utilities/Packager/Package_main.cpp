@@ -14,7 +14,7 @@
 #include "Packager.hpp"
 #include "Unpackager.hpp"
 
-namespace fs = std::filesystem;
+namespace native_fs = std::filesystem;
 using atom::tools::Packager;
 using atom::tools::Unpackager;
 
@@ -28,22 +28,22 @@ static auto ClearInputBuffer() -> void {
 static auto TraverseSingleDirectory(const std::string& dir_path) -> std::vector<std::string> {
     std::vector<std::string> file_paths;
     try {
-        if (!fs::exists(dir_path)) {
+        if (!native_fs::exists(dir_path)) {
             LOG_ERROR(atom::log::utilities::Packager, "Directory does not exist:" + dir_path);
             return file_paths;
         }
-        if (!fs::is_directory(dir_path)) {
+        if (!native_fs::is_directory(dir_path)) {
             LOG_ERROR(atom::log::utilities::Packager, "Not a valid directory:" + dir_path);
             return file_paths;
         }
 
         // Recursively traverse directories, collecting only regular files
-        for (const auto& entry : fs::recursive_directory_iterator(dir_path)) {
-            if (fs::is_regular_file(entry)) {
+        for (const auto& entry : native_fs::recursive_directory_iterator(dir_path)) {
+            if (native_fs::is_regular_file(entry)) {
                 file_paths.push_back(entry.path().string());
             }
         }
-    } catch (const fs::filesystem_error& e) {
+    } catch (const native_fs::filesystem_error& e) {
         LOG_ERROR(atom::log::utilities::Packager,
                   "Directory traversal failed:" + dir_path + " -> " + e.what());
     }

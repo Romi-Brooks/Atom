@@ -6,7 +6,7 @@
 
 #include <Utilities/Utf8/Utf8.hpp>
 
-namespace fs = std::filesystem;
+namespace native_fs = std::filesystem;
 
 namespace atom::tools {
 Unpackager::Config::Config() : verbose(false), preserveStructure(true), overwrite(true), outputDir(".") {}
@@ -47,10 +47,10 @@ Unpackager& Unpackager::operator=(Unpackager&& other) noexcept {
     return *this;
 }
 
-auto Unpackager::CreateDirectory(const fs::path& dir_path) -> bool {
+auto Unpackager::CreateDirectory(const native_fs::path& dir_path) -> bool {
     try {
-        if (!fs::exists(dir_path)) {
-            return fs::create_directories(dir_path);
+        if (!native_fs::exists(dir_path)) {
+            return native_fs::create_directories(dir_path);
         }
         return true;
     } catch (const std::exception& e) {
@@ -59,7 +59,7 @@ auto Unpackager::CreateDirectory(const fs::path& dir_path) -> bool {
     }
 }
 
-auto Unpackager::SafePathToString(const fs::path& path) -> std::string {
+auto Unpackager::SafePathToString(const native_fs::path& path) -> std::string {
     const auto result = atom::PathToUtf8(path);
     if (result.empty() && !path.empty()) {
         std::cout << "Warning: path conversion produced an empty UTF-8 path" << std::endl;
@@ -70,7 +70,7 @@ auto Unpackager::SafePathToString(const fs::path& path) -> std::string {
 
 auto Unpackager::GetFileSize(const std::string& filename) -> uint64_t {
     try {
-        return static_cast<uint64_t>(fs::file_size(atom::PathFromUtf8(filename)));
+        return static_cast<uint64_t>(native_fs::file_size(atom::PathFromUtf8(filename)));
     } catch (...) {
         return 0;
     }
@@ -108,7 +108,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         package_stream_.close();
     }
 
-    if (!fs::exists(package_path)) {
+    if (!native_fs::exists(package_path)) {
         if (verbose)
             std::cout << "Error: package file does not exist: " << packageFile << std::endl;
         return Result::ERROR_OPEN_FILE;
@@ -253,7 +253,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
             }
         }
 
-        const fs::path internal_path = atom::PathFromUtf8(entry.filename);
+        const native_fs::path internal_path = atom::PathFromUtf8(entry.filename);
         if (internal_path.is_absolute() || internal_path.has_root_name()) {
             return Result::ERROR_CORRUPTED_PACKAGE;
         }
@@ -440,13 +440,13 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
     const FileEntry& entry = file_table_[it->second];
 
     // Build output path
-    fs::path output_path;
+    native_fs::path output_path;
     try {
         output_path = atom::PathFromUtf8(config.outputDir);
         if (config.preserveStructure) {
             output_path /= atom::PathFromUtf8(filename);
         } else {
-            const fs::path file_path = atom::PathFromUtf8(filename);
+            const native_fs::path file_path = atom::PathFromUtf8(filename);
             output_path /= file_path.filename();
         }
     } catch (const std::exception& e) {
@@ -457,14 +457,14 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
     }
 
     // Create directory
-    fs::path output_dir = output_path.parent_path();
+    native_fs::path output_dir = output_path.parent_path();
     if (!CreateDirectory(output_dir)) {
         return Result::ERROR_CREATE_DIRECTORY;
     }
 
     // Check if the file already exists
     try {
-        if (fs::exists(output_path) && !config.overwrite) {
+        if (native_fs::exists(output_path) && !config.overwrite) {
             if (config.verbose) {
                 std::cout << "Skipped: file already exists - " << SafePathToString(output_path) << std::endl;
             }

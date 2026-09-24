@@ -11,7 +11,11 @@
 #include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Media/Audio/Transitions/MusicCrossfade.hpp>
+#include <Media/Audio/Transitions/MusicCrossfade.hpp> // fade in plugin
+
+#include <Filesystem/FileSystem.hpp>
+#include <Utilities/Utf8/Utf8.hpp>
+
 #include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
@@ -22,12 +26,14 @@
 
 namespace {
 // replace it
-constexpr auto kMusic1Path = R"(E:\Music\我的歌声里 - 曲婉婷.mp3)";
-constexpr auto kMusic2Path = R"(E:\Music\滴滴 - 覆予.mp3)";
+constexpr auto MusicDir = R"(E:\Music\)";
+constexpr auto Music1Name = "我的歌声里 - 曲婉婷.mp3";
+constexpr auto Music2Name = "滴滴 - 覆予.mp3";
 
 class MusicDebugger final : public atom::debugger::DebugPanel {
     public:
-        MusicDebugger(atom::MusicPlayer& music, atom::audio::MusicCrossfade& fade) : music_(music), fade_(fade) {}
+        MusicDebugger(atom::MusicPlayer& music, atom::audio::MusicCrossfade& fade)
+            : DebugPanel("MusicDebugger"), music_(music), fade_(fade) {}
 
     protected:
         auto OnDrawOverlay() -> void override {
@@ -112,7 +118,7 @@ class MusicScreen final : public atom::Screen {
         explicit MusicScreen(atom::audio::MusicCrossfade& transition) : transition_(transition) {}
 
         auto Render(atom::render::IRenderDevice& device) -> void override {
-            device.Clear(atom::render::Color{30, 30, 60});
+            device.Clear(atom::render::Color{.r = 30, .g = 30, .b = 60});
         }
 
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
@@ -136,18 +142,37 @@ class MusicScreen final : public atom::Screen {
 } // namespace
 
 auto main() -> int {
+    // For windows: Console Debugger OUTPUT CP will be set to UTF-8
     atom::Log::SetConsoleOutputUtf8();
+
+    // Log level
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
     atom::AudioMixer mixer;
     atom::MusicPlayer music{mixer};
     atom::audio::MusicCrossfade music_fade{music};
 
-    music.Load("registerId_1", kMusic1Path);
-    music.Load("registerId_2", kMusic2Path);
+    // Mount the music directory as res:// so tracks load through the VFS
+    // contract (same URI machinery as packaged assets) instead of a raw path.
+    std::unique_ptr<atom::fs::NativeFileSystem> filesystem{};
+    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(MusicDir), filesystem) !=
+            atom::fs::Result::Success ||
+        !filesystem) {
+        LOG_ERROR(atom::log::audio::Music, "Music directory unavailable: " + std::string{MusicDir});
+        return 1;
+    }
+    atom::fs::AssetPath music1{};
+    atom::fs::AssetPath music2{};
+    if (!atom::fs::AssetPath::TryParse("res://" + std::string{Music1Name}, music1) ||
+        !atom::fs::AssetPath::TryParse("res://" + std::string{Music2Name}, music2)) {
+        LOG_ERROR(atom::log::audio::Music, "Music filenames are not valid AssetPath segments");
+        return 1;
+    }
+    music.Load("registerId_1", *filesystem, music1);
+    music.Load("registerId_2", *filesystem, music2);
 
     auto* music_screen =
-        atom::ScreenManager::GetInstance().LoadScreen("Music", std::make_unique<MusicScreen>(music_fade));
+        atom::ScreenManager::GetInstance().LoadScreen("MusicPlayback", std::make_unique<MusicScreen>(music_fade));
     atom::ScreenManager::GetInstance().SwitchScreen(music_screen);
 
     auto& window = atom::RenderWindow::GetInstance();

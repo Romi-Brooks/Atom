@@ -26,6 +26,8 @@
 #include <cstdint>
 #include <string>
 
+#include <Filesystem/FileSystem.hpp>
+
 namespace atom::audio {
 
 struct DecoderInfo {
@@ -79,15 +81,21 @@ class IAudioDecoder {
     public:
         virtual ~IAudioDecoder() = default;
 
-        // Open a file for decoding. On failure the returned status states whether
-        // this decoder simply does not cover the format (UnsupportedFormat), found
-        // the data unusable (InvalidData) or could not read it at all (IoError).
-        [[nodiscard]] virtual auto Open(const std::string& path) -> DecoderOpenStatus = 0;
-
         // Open a decoder over an in-memory buffer (e.g. an entry extracted from
         // a resource pack). The buffer is borrowed: the caller must keep it alive
         // until Close() is called. Same status contract as Open().
         [[nodiscard]] virtual auto OpenFromMemory(const void* data, std::size_t size) -> DecoderOpenStatus = 0;
+
+        // Open a decoder over an already-resolved VFS file. This is the streaming
+        // entry point that lets a decoder consume an asset without ever touching a
+        // native path: the IFileSystem handed out the IFile, and the decoder only
+        // sees the random/sequential read contract. The file is borrowed for the
+        // lifetime of the decoder and must outlive it until Close().
+        //
+        // Decoders that cannot stream (e.g. an all-in-memory loader) may read the
+        // whole file up front here and fall back to their buffer path. Same status
+        // contract as Open().
+        [[nodiscard]] virtual auto OpenStream(atom::fs::IFile& file) -> DecoderOpenStatus = 0;
 
         // Close and release all resources.
         virtual auto Close() -> void = 0;

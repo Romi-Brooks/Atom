@@ -125,5 +125,41 @@ auto main() -> int {
         entries.front().name != "button.txt") {
         return Fail("Incorrect directory entries");
     }
+
+    // A symlink that points outside the root must not resolve to a file beyond
+    // the trust boundary.
+    {
+        std::error_code error;
+        const auto outside = std::filesystem::temp_directory_path(error) / "atom_fs_native_outside.txt";
+        if (error)
+            return Fail("Could not compute outside path");
+        {
+            std::ofstream file{outside, std::ios::binary};
+            file << "secret";
+            if (!file)
+                return Fail("Could not create outside file");
+        }
+        const auto link = temporary.Root() / "textures" / "escape.txt";
+        std::filesystem::create_directory_symlink(outside, link, error);
+        const bool symlink_unsupported = static_cast<bool>(error);
+
+        atom::fs::AssetPath escape{};
+        if (!atom::fs::AssetPath::TryParse("res://textures/escape.txt", escape))
+            return Fail("Could not parse escape path");
+
+        if (!symlink_unsupported) {
+            atom::fs::FileInfo escapeInfo{};
+            if (filesystem->Stat(escape, escapeInfo) != atom::fs::Result::OutsideRoot)
+                return Fail("Symlink escaped the configured root");
+            std::unique_ptr<atom::fs::IFile> escapeFile{};
+            if (filesystem->OpenRead(escape, escapeFile) != atom::fs::Result::OutsideRoot)
+                return Fail("Symlink escape opened a file");
+        }
+
+        std::error_code cleanupError;
+        std::filesystem::remove(link, cleanupError);
+        std::filesystem::remove(outside, cleanupError);
+    }
+
     return 0;
 }

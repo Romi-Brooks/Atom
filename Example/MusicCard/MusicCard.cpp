@@ -94,6 +94,11 @@ struct MusicCardTheme {
 struct Track {
         std::string id;
         std::string path;
+        // VFS identity of the track, resolved from the filename inside the
+        // mounted music directory. Used by MusicPlayer::Load(IFileSystem, ...)
+        // and AudioMetadataReader::Read(IFileSystem, ...); `path` stays only for
+        // display and filesystem diagnostics.
+        atom::fs::AssetPath asset_path;
         MusicCardTheme theme;
         // Lazy-loaded fields (protected by MusicCardScreen::tracks_mutex_).
         // metadata_loaded is set to true only after all fields below are written.
@@ -208,7 +213,9 @@ class CardPainter {
 
 class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioBackendChangeListener {
     public:
-        MusicCardScreen(atom::MusicPlayer& music, std::vector<std::string> paths) : music_{music} {
+        MusicCardScreen(atom::MusicPlayer& music, std::vector<std::string> paths,
+                        std::shared_ptr<atom::fs::NativeFileSystem> filesystem)
+            : music_{music}, filesystem_{std::move(filesystem)} {
             layout_tree_.SetPointScaleFactor(1.0f);
             root_ = layout_tree_.Root();
             card_ = layout_tree_.CreateNode();
@@ -1260,8 +1267,8 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             is_playing_ = false;
         }
 
-        // Creates Track stubs (id + path + theme) from discovered file paths.
-        // No metadata or audio is loaded here; that happens lazily.
+        // Creates Track stubs (id + path + asset_path + theme) from discovered
+        // file paths. No metadata or audio is loaded here; that happens lazily.
         auto BuildTrackStubs(std::vector<std::string> paths) -> void {
             constexpr std::array themes{
                 MusicCardTheme{{52, 45, 111, 255}, {92, 74, 168, 255}, {132, 219, 214, 255}},
@@ -1269,8 +1276,18 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             };
             tracks_.reserve(paths.size());
             for (auto i = std::size_t{0}; i < paths.size(); ++i) {
-                tracks_.push_back(
-                    {"music_card_track_" + std::to_string(i), std::move(paths[i]), themes[i % themes.size()]});
+                // The audio load and metadata read both go through the VFS using
+                // the filename; the full path is kept only for display.
+                atom::fs::AssetPath asset_path{};
+                const auto filename = atom::PathToUtf8(std::filesystem::path{paths[i]}.filename());
+                if (!filename.empty())
+                    (void)atom::fs::AssetPath::TryParse("res://" + filename, asset_path);
+                Track stub{};
+                stub.id = "music_card_track_" + std::to_string(i);
+                stub.path = std::move(paths[i]);
+                stub.asset_path = asset_path;
+                stub.theme = themes[i % themes.size()];
+                tracks_.push_back(std::move(stub));
             }
         }
 
@@ -1295,14 +1312,22 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             }
             // Snapshot immutable fields outside the lock.
             const std::string path = tracks_[index].path;
+            const atom::fs::AssetPath asset_path = tracks_[index].asset_path;
             const std::string id = tracks_[index].id;
 
             LOG_DEBUG(atom::log::audio::Metadata, "Lazy-loading track " + std::to_string(index) + ": " + path);
-            auto metadata = atom::audio::AudioMetadataReader::Read(path);
+            // Metadata is read through the VFS too: TagLib is fed an IOStream
+            // adapter over the mounted file, so no native path reaches it.
+            auto metadata = filesystem_ && asset_path.IsValid()
+                                ? atom::audio::AudioMetadataReader::Read(*filesystem_, asset_path)
+                                : std::optional<atom::audio::AudioMetadata>{std::nullopt};
             auto title =
                 metadata && !metadata->title.empty() ? metadata->title : std::filesystem::path{path}.stem().string();
             auto artist = metadata && !metadata->artist.empty() ? metadata->artist : std::string{"UNKNOWN ARTIST"};
-            const auto is_loaded = music_.Load(id, path);
+            // Audio decode/streaming and metadata both go through the VFS now.
+            const auto is_loaded = filesystem_ && asset_path.IsValid()
+                                       ? music_.Load(id, *filesystem_, asset_path)
+                                       : false;
             auto artwork_mime_type = metadata ? std::move(metadata->artworkMimeType) : std::string{};
             auto artwork_data = metadata ? std::move(metadata->artworkData) : std::vector<uint8_t>{};
 
@@ -1367,6 +1392,8 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         }
 
         atom::MusicPlayer& music_;
+        // Mounts the music directory as res:// so audio loads go through the VFS.
+        std::shared_ptr<atom::fs::NativeFileSystem> filesystem_;
         std::vector<Track> tracks_;
         std::size_t current_track_ = 0;
         std::size_t pending_track_ = tracks_.size();
@@ -1426,16 +1453,16 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
 
 class MusicCardDebugger final : public atom::debugger::DebugPanel {
     public:
-        explicit MusicCardDebugger(MusicCardScreen& screen) : screen_{screen} {}
+        explicit MusicCardDebugger(MusicCardScreen& screen) : DebugPanel("MusicCardDebugger"), screen_{screen} {}
 
     protected:
         auto OnDrawOverlay() -> void override {
             ImGui::Begin("Music Card Debugger");
-            ImGui::Text("FPS: %.1f", static_cast<double>(GetFPS()));
+            ImGui::Text("FPS: %.1f", static_cast<double>(ImGui::GetIO().Framerate));
             ImGui::Text("VSync: %s", atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off");
-            if (!reported_frame_pacing_ && GetFPS() > 0.0f) {
+            if (!reported_frame_pacing_ && ImGui::GetIO().Framerate > 0.0f) {
                 LOG_INFO(atom::log::core::Window,
-                         "Music card frame pacing: " + std::to_string(GetFPS()) + " FPS, VSync " +
+                         "Music card frame pacing: " + std::to_string(ImGui::GetIO().Framerate) + " FPS, VSync " +
                              (atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off"));
                 reported_frame_pacing_ = true;
             }
@@ -1599,7 +1626,19 @@ auto main(int argc, char** argv) -> int {
     const std::string music_root = argc > 1 ? std::string{argv[1]} : std::string{MusicPath};
     auto paths = LoadTrackPaths(music_root);
 
-    auto screen = std::make_unique<MusicCardScreen>(music, std::move(paths));
+    // Mount the music directory as res:// so audio loads go through the VFS
+    // (the same contract as packaged assets). Kept alive for the screen's
+    // lifetime; the TagLib metadata reader still uses the raw paths.
+    std::unique_ptr<atom::fs::NativeFileSystem> fs_owned{};
+    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(music_root), fs_owned) !=
+            atom::fs::Result::Success ||
+        !fs_owned) {
+        LOG_ERROR(atom::log::audio::Music, "Music directory unavailable: " + music_root);
+        return 1;
+    }
+    auto filesystem = std::shared_ptr<atom::fs::NativeFileSystem>{std::move(fs_owned)};
+
+    auto screen = std::make_unique<MusicCardScreen>(music, std::move(paths), std::move(filesystem));
     // Keep the derived type; LoadScreen only hands back Screen*.
     auto* music_card_screen = screen.get();
     [[maybe_unused]] auto* registered =

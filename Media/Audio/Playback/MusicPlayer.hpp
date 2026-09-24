@@ -10,6 +10,7 @@
 #include <Backend/Contracts/Audio/AudioTypes.hpp>
 #include <Backend/Contracts/Audio/IAudioSource.hpp>
 #include <Backend/Runtime/IAudioBackendChangeListener.hpp>
+#include <Filesystem/FileSystem.hpp>
 
 namespace atom::audio {
 class AudioDecoderRegistry;
@@ -30,7 +31,20 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
                     AudioMixer& mixer);
         ~MusicPlayer() override;
 
-        auto Load(const std::string& id, const std::string& file) -> bool;
+        // Load a music track through the VFS. The path's extension selects the
+        // decoder; the file is opened via the filesystem and streamed by the
+        // decoder, so no native path is involved. The VFS IFile is owned by the
+        // track for as long as it is loaded.
+        auto Load(const std::string& id, const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path)
+            -> bool;
+
+        // Convenience overload: parses `path` as an AssetPath (e.g. "res://music/"
+        // "song.mp3") and resolves it through the process-wide default Vfs
+        // (atom::fs::Vfs::GetInstance()). Returns false when the string is not a
+        // valid asset path. Prefer the IFileSystem overload when the filesystem
+        // is already in hand; this exists so string-only callers (scripts, Lua,
+        // quick tools) do not have to build an AssetPath themselves.
+        auto Load(const std::string& id, const std::string& path) -> bool;
 
         // Load a music track from an in-memory buffer, e.g. an entry extracted
         // from a resource pack. filename is used only to select a decoder by
@@ -84,6 +98,11 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
                 std::unique_ptr<atom::audio::IAudioSource> source;
                 // Seconds; 0 when the decoder could not report the length.
                 float duration_seconds = 0.0f;
+                // Owns the underlying VFS file when the track was opened from a
+                // stream (Load(IFileSystem, AssetPath)). Must outlive `source`
+                // (whose decoder reads from it); kept alongside the source and
+                // destroyed after it. Null for the path and memory entry points.
+                std::unique_ptr<atom::fs::IFile> file;
         };
 
         atom::audio::IAudioBackend* backend_;
