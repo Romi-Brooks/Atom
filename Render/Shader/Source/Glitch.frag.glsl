@@ -22,8 +22,8 @@ layout(set = 3, binding = 0, std140) uniform GlitchParams {
     float uIntensity;
     float uTime;
     float uDirection;
-    vec4 uRegion; // normalized top-left x/y/width/height
-    vec4 uMask;   // corner radius px, feather px, unused, unused
+    vec4 uRegion; // normalized top-left x/y/width/height (ignored when mask off)
+    vec4 uMask;   // x: corner radius px, y: feather px, z: mask enabled (>0.5)
 };
 
 float hash(vec2 p) {
@@ -83,13 +83,17 @@ void main() {
     float alpha = 1.0 - smoothstep(0.7, 1.0, p) * 0.8;
 
     const vec2 maskUv = vUv;
-    const vec2 pixelSize = vec2(textureSize(uScene, 0));
-    const vec2 pxy = maskUv * pixelSize - (uRegion.xy + 0.5 * uRegion.zw) * pixelSize;
-    const vec2 halfExtent = 0.5 * uRegion.zw * pixelSize;
-    const float corner = min(uMask.x, min(halfExtent.x, halfExtent.y));
-    const vec2 q = abs(pxy) - (halfExtent - vec2(corner));
-    const float sdf = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - corner;
-    const float edge = max(uMask.y, 0.5);
-    const float mask = 1.0 - smoothstep(-edge, edge, sdf);
+    float mask = 1.0;
+    if (uMask.z > 0.5) {
+        // Optional rounded-rectangle region mask (see ChromaticAberration).
+        const vec2 pixelSize = vec2(textureSize(uScene, 0));
+        const vec2 pxy = maskUv * pixelSize - (uRegion.xy + 0.5 * uRegion.zw) * pixelSize;
+        const vec2 halfExtent = 0.5 * uRegion.zw * pixelSize;
+        const float corner = min(uMask.x, min(halfExtent.x, halfExtent.y));
+        const vec2 q = abs(pxy) - (halfExtent - vec2(corner));
+        const float sdf = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - corner;
+        const float edge = max(uMask.y, 0.5);
+        mask = 1.0 - smoothstep(-edge, edge, sdf);
+    }
     outColor = vec4(color, sourceAlpha * alpha * mask);
 }

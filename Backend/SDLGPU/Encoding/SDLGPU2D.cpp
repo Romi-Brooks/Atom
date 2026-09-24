@@ -192,7 +192,7 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
                 float radius;
                 float corner_radius;
                 float feather;
-                float unused;
+                float mask_enabled;
                 float region_x;
                 float region_y;
                 float region_w;
@@ -201,6 +201,7 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
         blur.radius = postprocess_params_.amount;
         blur.corner_radius = postprocess_params_.corner_radius;
         blur.feather = postprocess_params_.feather;
+        blur.mask_enabled = postprocess_params_.has_region ? 1.0f : 0.0f;
         blur.region_x = static_cast<float>(postprocess_params_.region.x) / static_cast<float>(width);
         blur.region_y = static_cast<float>(postprocess_params_.region.y) / static_cast<float>(height);
         blur.region_w = static_cast<float>(postprocess_params_.region.width) / static_cast<float>(width);
@@ -224,6 +225,7 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
     }
     params.corner_radius = postprocess_params_.corner_radius;
     params.feather = postprocess_params_.feather;
+    params.unused0 = postprocess_params_.has_region ? 1.0f : 0.0f; // uMask.z: mask enabled
     SDL_PushGPUFragmentUniformData(command_buffer_, 0, &params, sizeof(params));
     SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
     SDL_EndGPURenderPass(pass);
