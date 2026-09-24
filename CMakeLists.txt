@@ -482,11 +482,15 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
 # 12. Lua Binding
     add_library(Atom_Lua STATIC
             Lua/lua.hpp
-            Lua/LuaLoader.hpp
-            Lua/LuaLoader.cpp
+            Lua/LuaContext.hpp
+            Lua/BindingRegistry.hpp
+            Lua/LuaHost.hpp
+            Lua/LuaHost.cpp
+            Lua/LuaBinding/ContextBridge.hpp
             Lua/LuaBinding/LuaMusic.cpp
             Lua/LuaBinding/LuaSFX.cpp
             Lua/LuaBinding/LuaVolume.cpp
+            Lua/LuaBinding/LuaLog.cpp
     )
     target_include_directories(Atom_Lua
             PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
