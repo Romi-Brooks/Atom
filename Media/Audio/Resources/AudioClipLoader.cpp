@@ -9,6 +9,7 @@
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom {
@@ -47,7 +48,7 @@ auto DescribeFormat(const atom::audio::DecoderInfo& info) -> std::string {
 
 } // namespace
 
-auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::string& label, const std::string& path,
+auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::string& label,
                                   const void* memory_data, const std::size_t memory_size,
                                   atom::audio::AudioSampleFormat& format) const
     -> std::unique_ptr<atom::audio::IAudioDecoder> {
@@ -61,7 +62,7 @@ auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::s
     // The registry is the single resolution authority: extension lookup,
     // normalization and candidate order all come from it. A format may hold a
     // chain (preferred decoder first, then fallbacks), so walk it until one
-    // candidate actually opens the file -- that is what lets a fast streaming
+    // candidate actually opens the buffer -- that is what lets a fast streaming
     // decoder handle the common case while a heavier one covers the encodings the
     // first cannot read.
     const auto candidates = decoders_.CandidatesForFile(label);
@@ -71,7 +72,6 @@ auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::s
         return nullptr;
     }
 
-    const bool from_memory = memory_data != nullptr;
     // Every declined candidate is collected so the final diagnostic can name each
     // decoder and the boundary it hit, instead of only the last one.
     std::string declined;
@@ -86,9 +86,9 @@ auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::s
         if (!decoder)
             continue;
 
-        const auto status = from_memory ? decoder->OpenFromMemory(memory_data, memory_size) : decoder->Open(path);
+        const auto status = decoder->OpenFromMemory(memory_data, memory_size);
         if (status != atom::audio::DecoderOpenStatus::Opened) {
-            // A candidate declining a file is the normal path of a chain (for
+            // A candidate declining a buffer is the normal path of a chain (for
             // example WavProf meeting an ADPCM WAV); the caller sees one warning
             // only after every candidate is exhausted.
             note_decline(name, atom::audio::DescribeDecoderOpenStatus(status));
@@ -104,7 +104,7 @@ auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::s
         if (!resolved || info.sample_rate == 0 || info.channels == 0) {
             note_decline(name, "unusable format");
             LOG_DEBUG(atom::log::audio::Music, std::string{operation} + ": decoder '" + name +
-                                                   "' opened the file but reported an unusable format (" +
+                                                   "' opened the buffer but reported an unusable format (" +
                                                    DescribeFormat(info) + "), trying the next candidate");
             if (info.bits_per_sample == 24) {
                 LOG_DEBUG(atom::log::audio::Music,
@@ -121,62 +121,81 @@ auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::s
     }
 
     LOG_WARNING(atom::log::audio::Music,
-                std::string{operation} + ": every registered decoder declined " +
-                    (from_memory ? "the memory buffer" : "the file") + " [" + declined + "]: " + label);
+                std::string{operation} + ": every registered decoder declined the memory buffer [" + declined +
+                    "]: " + label);
     return nullptr;
 }
 
-auto AudioClipLoader::Load(const std::string& path) const -> std::optional<atom::audio::DecodedAudio> {
-    atom::audio::AudioSampleFormat format{};
-    auto decoder = OpenDecoder("Load", path, path, nullptr, 0, format);
-    if (!decoder)
-        return std::nullopt;
-
-    const auto info = decoder->GetInfo();
-
-    std::vector<uint8_t> pcm;
-    std::array<uint8_t, 64 * 1024> chunk{};
-    while (const auto decoded = decoder->DecodeChunk(chunk.data(), static_cast<uint32_t>(chunk.size()))) {
-        pcm.insert(pcm.end(), chunk.begin(), chunk.begin() + decoded);
-    }
-    decoder->Close();
-    if (pcm.empty()) {
-        LOG_WARNING(atom::log::audio::Music, "Load: decoder produced no PCM data: " + path);
-        return std::nullopt;
+auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::string& label, atom::fs::IFile& file,
+                                  atom::audio::AudioSampleFormat& format) const
+    -> std::unique_ptr<atom::audio::IAudioDecoder> {
+    const auto dot = label.find_last_of('.');
+    if (dot == std::string::npos) {
+        LOG_WARNING(atom::log::audio::Music,
+                    std::string{operation} + ": no file extension, cannot select a decoder: " + label);
+        return nullptr;
     }
 
-    LOG_INFO(atom::log::audio::Music,
-             "Load: decoded audio successfully: " + path + " (pcm_bytes=" + std::to_string(pcm.size()) +
-                 ", sample_rate=" + std::to_string(info.sample_rate) + ", channels=" + std::to_string(info.channels) +
-                 ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
-    return atom::audio::DecodedAudio{
-        .pcm = std::move(pcm),
-        .spec = atom::audio::AudioSpec{format, info.sample_rate, info.channels},
+    const auto candidates = decoders_.CandidatesForFile(label);
+    if (candidates.empty()) {
+        LOG_WARNING(atom::log::audio::Music, std::string{operation} + ": no decoder registered for extension '" +
+                                                                 label.substr(dot) + "': " + label);
+        return nullptr;
+    }
+
+    std::string declined;
+    const auto note_decline = [&declined](const std::string& name, const std::string_view reason) {
+        declined += (declined.empty() ? "" : ", ") + name + " (" + std::string{reason} + ")";
     };
-}
 
-auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optional<StreamingResult> {
-    atom::audio::AudioSampleFormat format{};
-    auto decoder = OpenDecoder("OpenStreaming", path, path, nullptr, 0, format);
-    if (!decoder)
-        return std::nullopt;
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+        const auto& candidate = candidates[index];
+        const auto name = candidate.name.empty() ? "candidate " + std::to_string(index) : candidate.name;
+        auto decoder = candidate.factory ? candidate.factory() : nullptr;
+        if (!decoder)
+            continue;
 
-    const auto& info = decoder->GetInfo();
+        // A stream must be re-readable for each candidate: a declined decoder may
+        // have consumed part of the file, so rewind it before every attempt.
+        if (file.Seek(0) != atom::fs::Result::Success) {
+            note_decline(name, "unrewindable stream");
+            decoder->Close();
+            continue;
+        }
+        const auto status = decoder->OpenStream(file);
+        if (status != atom::audio::DecoderOpenStatus::Opened) {
+            note_decline(name, atom::audio::DescribeDecoderOpenStatus(status));
+            LOG_DEBUG(atom::log::audio::Music,
+                      std::string{operation} + ": decoder '" + name + "' declined (" +
+                          atom::audio::DescribeDecoderOpenStatus(status) + "), trying the next candidate: " + label);
+            decoder->Close();
+            continue;
+        }
 
-    LOG_INFO(atom::log::audio::Music, "OpenStreaming: opened streaming decoder: " + path +
-                                                  " (sample_rate=" + std::to_string(info.sample_rate) +
-                                                  ", channels=" + std::to_string(info.channels) +
-                                                  ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
-    return StreamingResult{
-        .decoder = std::move(decoder),
-        .spec = atom::audio::AudioSpec{format, info.sample_rate, info.channels},
-    };
+        const auto& info = decoder->GetInfo();
+        const auto resolved = ToSampleFormat(info);
+        if (!resolved || info.sample_rate == 0 || info.channels == 0) {
+            note_decline(name, "unusable format");
+            LOG_DEBUG(atom::log::audio::Music, std::string{operation} + ": decoder '" + name +
+                                                   "' opened the stream but reported an unusable format (" +
+                                                   DescribeFormat(info) + "), trying the next candidate");
+            decoder->Close();
+            continue;
+        }
+
+        format = *resolved;
+        return decoder;
+    }
+
+    LOG_WARNING(atom::log::audio::Music,
+                std::string{operation} + ": every registered decoder declined the stream [" + declined + "]: " + label);
+    return nullptr;
 }
 
 auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const void* data,
                                               const std::size_t size) const -> std::optional<StreamingResult> {
     atom::audio::AudioSampleFormat format{};
-    auto decoder = OpenDecoder("OpenStreamingFromMemory", filename, {}, data, size, format);
+    auto decoder = OpenDecoder("OpenStreamingFromMemory", filename, data, size, format);
     if (!decoder)
         return std::nullopt;
 
@@ -190,6 +209,90 @@ auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const
         .decoder = std::move(decoder),
         .spec = atom::audio::AudioSpec{format, info.sample_rate, info.channels},
     };
+}
+
+auto AudioClipLoader::Load(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path) const
+    -> std::optional<atom::audio::DecodedAudio> {
+    std::unique_ptr<atom::fs::IFile> file{};
+    if (filesystem.OpenRead(path, file) != atom::fs::Result::Success || !file) {
+        LOG_WARNING(atom::log::audio::Music, "Load: could not open through VFS: " + std::string{path.String()});
+        return std::nullopt;
+    }
+
+    const std::string label{path.String()};
+    atom::audio::AudioSampleFormat format{};
+    auto decoder = OpenDecoder("Load", label, *file, format);
+    if (!decoder)
+        return std::nullopt;
+
+    const auto info = decoder->GetInfo();
+
+    std::vector<uint8_t> pcm;
+    std::array<uint8_t, 64 * 1024> chunk{};
+    while (const auto decoded = decoder->DecodeChunk(chunk.data(), static_cast<uint32_t>(chunk.size()))) {
+        pcm.insert(pcm.end(), chunk.begin(), chunk.begin() + decoded);
+    }
+    decoder->Close();
+    if (pcm.empty()) {
+        LOG_WARNING(atom::log::audio::Music, "Load: decoder produced no PCM data: " + label);
+        return std::nullopt;
+    }
+
+    LOG_INFO(atom::log::audio::Music,
+             "Load: decoded audio successfully: " + label + " (pcm_bytes=" + std::to_string(pcm.size()) +
+                 ", sample_rate=" + std::to_string(info.sample_rate) + ", channels=" + std::to_string(info.channels) +
+                 ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
+    return atom::audio::DecodedAudio{
+        .pcm = std::move(pcm),
+        .spec = atom::audio::AudioSpec{format, info.sample_rate, info.channels},
+    };
+}
+
+auto AudioClipLoader::Load(const std::string& path) const -> std::optional<atom::audio::DecodedAudio> {
+    atom::fs::AssetPath asset_path{};
+    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
+        LOG_WARNING(atom::log::audio::Music, "Load: invalid asset path: " + path);
+        return std::nullopt;
+    }
+    return Load(atom::fs::Vfs::GetInstance(), asset_path);
+}
+
+auto AudioClipLoader::OpenStreaming(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path) const
+    -> std::optional<StreamingResult> {
+    std::unique_ptr<atom::fs::IFile> file{};
+    if (filesystem.OpenRead(path, file) != atom::fs::Result::Success || !file) {
+        LOG_WARNING(atom::log::audio::Music,
+                    "OpenStreaming: could not open through VFS: " + std::string{path.String()});
+        return std::nullopt;
+    }
+
+    const std::string label{path.String()};
+    atom::audio::AudioSampleFormat format{};
+    auto decoder = OpenDecoder("OpenStreaming", label, *file, format);
+    if (!decoder)
+        return std::nullopt;
+
+    const auto& info = decoder->GetInfo();
+
+    LOG_INFO(atom::log::audio::Music, "OpenStreaming: opened streaming decoder: " + label +
+                                                  " (sample_rate=" + std::to_string(info.sample_rate) +
+                                                  ", channels=" + std::to_string(info.channels) +
+                                                  ", bits_per_sample=" + std::to_string(info.bits_per_sample) + ")");
+    // Keep the IFile alive for as long as the decoder streams from it.
+    return StreamingResult{
+        .decoder = std::move(decoder),
+        .spec = atom::audio::AudioSpec{format, info.sample_rate, info.channels},
+        .file = std::move(file),
+    };
+}
+
+auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optional<StreamingResult> {
+    atom::fs::AssetPath asset_path{};
+    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
+        LOG_WARNING(atom::log::audio::Music, "OpenStreaming: invalid asset path: " + path);
+        return std::nullopt;
+    }
+    return OpenStreaming(atom::fs::Vfs::GetInstance(), asset_path);
 }
 
 } // namespace atom

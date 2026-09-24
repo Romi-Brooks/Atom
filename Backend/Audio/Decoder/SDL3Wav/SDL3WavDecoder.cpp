@@ -10,8 +10,10 @@
 #include "SDL3WavDecoder.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include <SDL3/SDL.h>
 
@@ -86,29 +88,6 @@ auto SDL3WavDecoder::AdoptLoadedBuffer(const std::string& source_label) -> bool 
     return true;
 }
 
-auto SDL3WavDecoder::Open(const std::string& path) -> atom::audio::DecoderOpenStatus {
-    Close();
-
-    // SDL takes a UTF-8 path and handles the platform encoding itself; the file
-    // is fully decoded into impl_->pcm.
-    if (!SDL_LoadWAV(path.c_str(), &impl_->spec, &impl_->pcm, &impl_->length)) {
-        // SDL reports "Couldn't open ..." for unreadable files and format errors
-        // for everything else; keep both visible at debug level, the loader owns
-        // the user-facing diagnostics.
-        LOG_DEBUG(atom::log::audio::SDL3Wav,
-                  "SDL3Wav: SDL_LoadWAV failed: " + std::string(SDL_GetError()) + ": " + path);
-        impl_->pcm = nullptr;
-        impl_->length = 0;
-        return atom::audio::DecoderOpenStatus::InvalidData;
-    }
-    impl_->cursor = 0;
-    if (!AdoptLoadedBuffer(path)) {
-        impl_->spec = {};
-        return atom::audio::DecoderOpenStatus::InvalidData;
-    }
-    return atom::audio::DecoderOpenStatus::Opened;
-}
-
 auto SDL3WavDecoder::OpenFromMemory(const void* data, const std::size_t size) -> atom::audio::DecoderOpenStatus {
     Close();
     if (data == nullptr || size == 0) {
@@ -138,6 +117,21 @@ auto SDL3WavDecoder::OpenFromMemory(const void* data, const std::size_t size) ->
         return atom::audio::DecoderOpenStatus::InvalidData;
     }
     return atom::audio::DecoderOpenStatus::Opened;
+}
+
+auto SDL3WavDecoder::OpenStream(atom::fs::IFile& file) -> atom::audio::DecoderOpenStatus {
+    Close();
+
+    // SDL decodes the whole file up front, so streaming has no memory benefit:
+    // read the file into a buffer and reuse the in-memory path. The buffer only
+    // needs to outlive this call (SDL_LoadWAV_IO produces a fresh PCM allocation
+    // we own), so a local vector is sufficient.
+    std::vector<std::byte> bytes{};
+    if (atom::fs::ReadAll(file, bytes) != atom::fs::Result::Success || bytes.empty()) {
+        LOG_DEBUG(atom::log::audio::SDL3Wav, "SDL3Wav: failed to read stream into memory");
+        return atom::audio::DecoderOpenStatus::IoError;
+    }
+    return OpenFromMemory(bytes.data(), bytes.size());
 }
 
 auto SDL3WavDecoder::Close() -> void {

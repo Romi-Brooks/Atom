@@ -22,8 +22,8 @@ layout(set = 3, binding = 0, std140) uniform PostParams {
     float uScanline;
     float uNoise;
     float uTime;
-    vec4 uRegion; // normalized top-left x/y/width/height
-    vec4 uMask;   // corner radius px, feather px, unused, unused
+    vec4 uRegion; // normalized top-left x/y/width/height (ignored when mask off)
+    vec4 uMask;   // x: corner radius px, y: feather px, z: mask enabled (>0.5)
 };
 
 float hash(vec2 p) {
@@ -64,13 +64,20 @@ void main() {
     }
 
     const vec2 maskUv = vUv;
-    const vec2 pixelSize = vec2(textureSize(uScene, 0));
-    const vec2 p = maskUv * pixelSize - (uRegion.xy + 0.5 * uRegion.zw) * pixelSize;
-    const vec2 halfExtent = 0.5 * uRegion.zw * pixelSize;
-    const float corner = min(uMask.x, min(halfExtent.x, halfExtent.y));
-    const vec2 q = abs(p) - (halfExtent - vec2(corner));
-    const float sdf = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - corner;
-    const float edge = max(uMask.y, 0.5);
-    const float mask = 1.0 - smoothstep(-edge, edge, sdf);
+    float mask = 1.0;
+    if (uMask.z > 0.5) {
+        // Optional rounded-rectangle region mask: confine the effect to a
+        // sub-rectangle (e.g. a card popup) and leave the rest of the frame
+        // untouched. Skipped entirely when the mask is disabled so a fullscreen
+        // post-process pays no SDF cost.
+        const vec2 pixelSize = vec2(textureSize(uScene, 0));
+        const vec2 p = maskUv * pixelSize - (uRegion.xy + 0.5 * uRegion.zw) * pixelSize;
+        const vec2 halfExtent = 0.5 * uRegion.zw * pixelSize;
+        const float corner = min(uMask.x, min(halfExtent.x, halfExtent.y));
+        const vec2 q = abs(p) - (halfExtent - vec2(corner));
+        const float sdf = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - corner;
+        const float edge = max(uMask.y, 0.5);
+        mask = 1.0 - smoothstep(-edge, edge, sdf);
+    }
     outColor = vec4(color, alpha * mask);
 }

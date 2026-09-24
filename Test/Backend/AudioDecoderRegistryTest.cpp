@@ -11,10 +11,10 @@ class StubDecoder final : public atom::audio::IAudioDecoder {
     public:
         explicit StubDecoder(std::string marker) : marker_(std::move(marker)) {}
 
-        [[nodiscard]] auto Open(const std::string&) -> atom::audio::DecoderOpenStatus override {
+        [[nodiscard]] auto OpenFromMemory(const void*, std::size_t) -> atom::audio::DecoderOpenStatus override {
             return atom::audio::DecoderOpenStatus::UnsupportedFormat;
         }
-        [[nodiscard]] auto OpenFromMemory(const void*, std::size_t) -> atom::audio::DecoderOpenStatus override {
+        [[nodiscard]] auto OpenStream(atom::fs::IFile&) -> atom::audio::DecoderOpenStatus override {
             return atom::audio::DecoderOpenStatus::UnsupportedFormat;
         }
         auto Close() -> void override {}

@@ -48,7 +48,6 @@ struct DecodedImage {
 // upload layout used by Renderer2D / SDL_GPU). Returns an invalid image when
 // the data cannot be decoded.
 [[nodiscard]] auto DecodeImageMemory(std::span<const std::byte> data, bool flip_vertically = false) -> DecodedImage;
-[[nodiscard]] auto DecodeImageFile(const std::string& path, bool flip_vertically = false) -> DecodedImage;
 
 } // namespace atom::image
 

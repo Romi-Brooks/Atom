@@ -1,9 +1,10 @@
 #version 450
 
-// Single-pass, screen-space 2D Gaussian approximation used for the MusicCard
-// backdrop. The source is the already-rendered wallpaper, while the resolve
-// pass is scissored and rounded to the popup rectangle. This keeps the
-// debugger and the rest of the wallpaper untouched.
+// Single-pass, screen-space 2D Gaussian approximation. Blurs the already
+// rendered scene. Optionally applies a rounded-rectangle region mask so a
+// caller can frost only part of the frame (e.g. a popup) while leaving the
+// surrounding scene sharp; with the mask disabled it is a plain fullscreen
+// blur, usable by any example through PostProcess2DEffect::GaussianBlur.
 layout(location = 0) in vec2 vUv;
 layout(location = 0) out vec4 outColor;
 
@@ -11,12 +12,12 @@ layout(set = 2, binding = 0) uniform sampler2D uScene;
 
 // SDL_GPU fragment uniform buffers use set 3, binding 0.
 // x: blur radius in source texels, y: rounded-corner radius in pixels,
-// z: edge feather in pixels.
+// z: edge feather in pixels, w: mask enabled (>0.5).
 layout(set = 3, binding = 0, std140) uniform BlurParams {
     float uRadius;
     float uCornerRadius;
     float uFeather;
-    float uUnused;
+    float uMaskEnabled;
     vec4 uRegion; // normalized x, y, width, height in top-left coordinates
 };
 
@@ -41,13 +42,17 @@ void main() {
     // the fullscreen triangle. Only texture sampling needs the backend's
     // orientation handling; the mask must not be flipped a second time.
     const vec2 maskUv = vUv;
-    const vec2 pixelSize = vec2(textureSize(uScene, 0));
-    const vec2 p = maskUv * pixelSize - (uRegion.xy + 0.5 * uRegion.zw) * pixelSize;
-    const vec2 halfExtent = 0.5 * uRegion.zw * pixelSize;
-    const float corner = min(uCornerRadius, min(halfExtent.x, halfExtent.y));
-    const vec2 q = abs(p) - (halfExtent - vec2(corner));
-    const float signedDistance = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - corner;
-    const float feather = max(uFeather, 0.5);
-    const float mask = 1.0 - smoothstep(-feather, feather, signedDistance);
+    float mask = 1.0;
+    if (uMaskEnabled > 0.5) {
+        // Optional rounded-rectangle region mask (see ChromaticAberration).
+        const vec2 pixelSize = vec2(textureSize(uScene, 0));
+        const vec2 p = maskUv * pixelSize - (uRegion.xy + 0.5 * uRegion.zw) * pixelSize;
+        const vec2 halfExtent = 0.5 * uRegion.zw * pixelSize;
+        const float corner = min(uCornerRadius, min(halfExtent.x, halfExtent.y));
+        const vec2 q = abs(p) - (halfExtent - vec2(corner));
+        const float signedDistance = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - corner;
+        const float feather = max(uFeather, 0.5);
+        mask = 1.0 - smoothstep(-feather, feather, signedDistance);
+    }
     outColor = vec4(result.rgb, result.a * mask);
 }

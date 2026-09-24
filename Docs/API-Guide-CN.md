@@ -72,7 +72,7 @@ protected:
     auto OnDrawOverlay() -> void override {
         atom::debugger::ApplyStatusPanelSlot();
         ImGui::Begin("Debug");
-        ImGui::Text("FPS: %.1f", GetFPS());
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
         ImGui::End();
     }
 };

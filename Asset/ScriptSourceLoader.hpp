@@ -14,7 +14,7 @@
 
 namespace atom {
 
-// Resource payload is the raw script source. Execution stays with LuaLoader so
+// Resource payload is the raw script source. Execution stays with LuaHost so
 // multiple Lua states can share one cached source string.
 class ScriptSourceLoader final : public asset::TypedResourceLoader<std::string> {
     public:

@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include <Filesystem/Vfs.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 
 namespace atom::render::resources {
@@ -15,10 +16,6 @@ auto CreateTexture(Renderer2D& renderer, const image::DecodedImage& image) -> Re
     if (!image.IsValid())
         return nullptr;
     return renderer.CreateTexture(image.width, image.height, image.rgba.data());
-}
-
-auto LoadTextureFile(Renderer2D& renderer, const std::string& path) -> Renderer2D::Texture* {
-    return CreateTexture(renderer, image::DecodeImageFile(path));
 }
 
 auto LoadTextureMemory(Renderer2D& renderer, const std::span<const std::byte> encoded_image) -> Renderer2D::Texture* {
@@ -34,6 +31,13 @@ auto LoadTextureFileSystem(Renderer2D& renderer, const fs::IFileSystem& filesyst
     if (fs::ReadAll(*file, bytes) != fs::Result::Success)
         return nullptr;
     return LoadTextureMemory(renderer, bytes);
+}
+
+auto LoadTexture(Renderer2D& renderer, const std::string& path) -> Renderer2D::Texture* {
+    fs::AssetPath asset_path{};
+    if (!fs::AssetPath::TryParse(path, asset_path))
+        return nullptr;
+    return LoadTextureFileSystem(renderer, fs::Vfs::GetInstance(), asset_path);
 }
 
 } // namespace atom::render::resources

@@ -37,6 +37,12 @@ class IRenderDevice;
 // touches SDL_GPU / Vulkan types.
 class Renderer2D {
     public:
+        // Parameters for an optional post-process pass. The effect itself is a
+        // fullscreen algorithm; `has_region` optionally confines it to a
+        // rounded-rectangle sub-region (region + corner_radius + feather). With
+        // has_region == false the effect runs over the whole frame with no
+        // region-mask cost, so it is a generic screen-space filter usable by
+        // any renderer client.
         struct PostProcessParams {
                 PostProcess2DEffect effect = PostProcess2DEffect::None;
                 bool has_region = false;

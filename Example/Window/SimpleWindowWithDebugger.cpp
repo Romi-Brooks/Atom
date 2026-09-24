@@ -17,26 +17,25 @@
 #include <Log/LogSystem.hpp>
 
 namespace {
-
+// To have a debug panel, Inheriting the DebugPanel
 class ExamplePanel final : public atom::debugger::DebugPanel {
+    public:
+        ExamplePanel() : DebugPanel("ExamplePanel") {}
+
     private:
         bool slot_applied_ = false;
 
     protected:
-        [[nodiscard]] auto GetPanelName() const -> const char* override {
-            return "ExamplePanel";
-        }
-
         auto OnDrawOverlay() -> void override {
             if (!slot_applied_) {
                 atom::debugger::ApplyStatusPanelSlot();
                 slot_applied_ = true;
             }
             ImGui::Begin("Example Debugger");
-            ImGui::Text("FPS: %.1f", GetFPS());
+            ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
             ImGui::Separator();
             ImGui::Text("Press ESC to exit");
-            // Well-known log panel — no constructor injection required.
+            // Built-in log-deugger
             if (auto* log_panel = atom::debugger::LogDebugger::Get()) {
                 if (ImGui::Button(log_panel->IsEnabled() ? "Hide Log Debugger" : "Show Log Debugger")) {
                     log_panel->SetEnabled(!log_panel->IsEnabled());
@@ -80,7 +79,7 @@ auto main() -> int {
 
     // Screen Register
     auto* example_screen = atom::ScreenManager::GetInstance().LoadScreen(
-        "Example", std::make_unique<ExampleScreen>());
+        "ExampleScreen", std::make_unique<ExampleScreen>());
 
     // Select this screen
     atom::ScreenManager::GetInstance().SwitchScreen(example_screen);

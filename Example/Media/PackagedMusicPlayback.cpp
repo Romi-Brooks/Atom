@@ -44,13 +44,14 @@ class PackedMusicDebugger final : public atom::debugger::DebugPanel {
     public:
         PackedMusicDebugger(atom::MusicPlayer& music, const std::vector<atom::tools::Unpackager::MemoryFile>& files,
                             std::string packPath, std::string packStatus)
-            : music_(music), files_(files), pack_path_(std::move(packPath)), pack_status_(std::move(packStatus)) {}
+            : DebugPanel("PackedMusicDebugger"), music_(music), files_(files), pack_path_(std::move(packPath)),
+              pack_status_(std::move(packStatus)) {}
 
     protected:
         auto OnDrawOverlay() -> void override {
             ImGui::Begin("Packed Music Player");
 
-            ImGui::Text("FPS: %.1f", GetFPS());
+            ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
             ImGui::Separator();
 
             ImGui::TextUnformatted(pack_path_.c_str());

@@ -1,7 +1,7 @@
-D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
+# Atom 未完成工作统一清单
 
 > 状态：唯一有效的架构整改与后续规划文档
-> 更新日期：2026-09-04
+> 更新日期：2026-09-25
 
 ## 1. 使用规则
 
@@ -54,11 +54,11 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 - [x] `Atom_Assets` 资源层（阶段 B）：`AssetKind`、`ResourceId`（path+kind+variant）、`ResourceHandle<T>`、`IResourceLoader`/`TypedResourceLoader`、`ResourceManager` 去重缓存与 `SetRecycleCallback`（最后句柄释放时回调，供 C1 帧边界回收）。CTest：`Atom_Assets.ResourceManager`。
 - [x] 阶段 C2 Script：`LuaLoader::LoadScript/ReloadScript(IFileSystem, AssetPath)` 走 `IFile` + `luaL_loadbuffer`；`LoadScriptSource` 支持执行已缓存源码；`ScriptSourceLoader` 产出可共享的 `std::string` 资源。旧裸磁盘路径 API 已移除。
 - [x] 阶段 C1 Texture：`DecodedImageLoader` + `LoadTextureFileSystem` + `TextureCache`/`TextureHandle`；GPU 销毁走 `Renderer2D::EnqueueDeferredTextureDestroy` + `FlushDeferredTextureDestroys`（帧外）。MusicCard 壁纸经 NativeFileSystem+Vfs，封面走 `AcquireFromEncodedMemory`。
-- [ ] 阶段 C3 Audio：解码器从路径改为 `IFile` 流（minimp3 回调 IO / RiffWave 流接口）。
-- [ ] 阶段 D 验收示例：目录与 APKG 同一 URI 加载 Texture + Script + Audio 并断言共享。
+- [x] 阶段 C3 Audio：解码器从路径改为 `IFile` 流。`IAudioDecoder` 新增 `OpenStream(IFile&)` 纯虚并删除旧 `Open(path)`；`RiffWaveReader`/`WavProfDecoder`/`Minimp3Decoder`（回调 IO）/`SDL3WavDecoder`（全量读回退）各自实现；`AudioClipLoader` 新增 `Load(IFileSystem, AssetPath)` 与 `OpenStreaming(IFileSystem, AssetPath)` 入口，`StreamingResult` 持有 `IFile` 所有权保证流式解码器生命周期。同时确立「string 便捷层 + VFS 核心层」双轨：各加载器（AudioClipLoader/AudioClipCache/SFXPlayer/MusicPlayer）另提供 `Load(id, "res://...")` 便捷重载，内部 `AssetPath::TryParse` 后经 `Vfs::GetInstance()` 全局单例落地（2026-09-24）。
+- [x] 阶段 D 验收示例：目录与 APKG 同一 URI 加载 Texture + Script + Audio 并断言共享。`AudioClipResourceLoader`（kind=Audio）让音频与 Script/Texture 一样走 `ResourceManager`；`MusicPlayer` 新增 `Load(IFileSystem, AssetPath)` 且 `Track` 持有 `IFile`。CTest：`Atom_Assets.StageDAcceptance`（2026-09-24）。
 - [ ] APKG v2 reader + `PackageBuilder`（另立任务，约 2–3k 行）。
 - [ ] 后续增加异步加载、热重载、依赖图和内存预算（依赖 Job System 与 CORE-001）。
-- 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源（Script/Texture CPU 侧已可；Audio 与 GPU 所有权待 C1 难点/C3）。
+- 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源（已通过 `Atom_Assets.StageDAcceptance` 验证）。
 - 实施阶段划分（A/B/C/D）、待决问题与当前进度见 `Docs/Resource-System-Plan-CN.md`。
 
 ### ARCH-108：Entity 职责拆分
@@ -81,6 +81,14 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 - [ ] 使用线程安全时间格式化，Channel 避免无意义复制。
 - [ ] 音频实时路径不得同步写控制台或持有阻塞锁。
 - [ ] 后续提供 sink、异步队列和 Release 日志裁剪。
+- [ ] **启动日志丢失（2026-09-25 发现）**：`Log::LogOut` 只实时派发给已订阅 listener、不保存历史，而
+      `LogDebugger` 在 `RenderWindow` 创建后才 `OnAttach`/`Subscribe`，导致资源准备/加载阶段日志（音频解码、
+      纹理加载、脚本加载等）在订阅前已被派发丢弃。两个互补方案：
+  - **轻量 ringbuffer**（小改动、立即收益）：`Log` 单例维护最近 N 条 `LogRecord`，`LogOut` 时既实时派发又写
+    ringbuffer，`Subscribe` 时把已有 buffer 回放给新订阅者，使 LogDebugger 能补看启动日志。
+  - **文件写入 sink**（较大、长期方向）：LogSystem 升级支持落盘（异步写、路径约定、轮转/分级），LogDebugger 回归
+    「运行时实时 viewer」定位，历史回溯交给文件。与 ringbuffer 互补而非替代。
+  - 本轮决策：只记文档不动代码，二者留待后续实现。
 
 ### ARCH-112：扩展回调由单槽改为 Listener Registry
 
@@ -303,6 +311,8 @@ D:\Project\Repo\Atom\Docs\Remaining-Issues.md# Atom 未完成工作统一清单
 - [ ] 用户新增 shader 不得修改 Atom 内部 `Render/Shader/AtomShaders.cmake`；引擎只维护内置 shader 默认包。
 - [ ] 工具负责 GLSL → SPIR-V，并按目标平台生成可选 DXIL/MSL 变体及 reflection metadata。
 - [!] 本轮暂不实现编译器和外部项目 CMake 集成，先冻结资源包格式与公共 pipeline 描述。
+- 关联：圆角 SDF 蒙版「可插拔」拆分与 shader 通用/专属分层的完整设计见 `Docs/Shader-Extension-Plan-CN.md`
+  （职责边界：游戏侧不得反向修改引擎侧 `AtomShaders.cmake`）。
 
 ### CORE-009：Utilities 目录职责与命名
 

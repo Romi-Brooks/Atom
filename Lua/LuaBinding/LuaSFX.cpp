@@ -1,135 +1,105 @@
 /**
-  * @file           : LuaSFX.cpp
-  * @author         : Romi Brooks
-  * @brief          :
-  * @attention      :
-  * @date           : 2025/10/12
-  Copyright (c) 2025 Romi Brooks, All rights reserved.
+ * @file           : LuaSFX.cpp
+ * @brief          : SFX bindings under the Atom.Audio.SFX table.
+ * @attention      : Load only accepts a res:// asset-path string, resolved
+ *                   through the process-wide default Vfs. The previous split
+ *                   between "SFX" and "AudioClipCache" tables (two names for the
+ *                   same Load) is collapsed into a single surface.
 **/
 
-// Standard Library
-#include <string>
-
-// Third Party Library
+#include "ContextBridge.hpp"
 #include "lua.hpp"
 
-// Engine Headers
+#include <Log/LogSystem.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
 
-#include <Log/LogSystem.hpp>
-
-// Global bridge pointer — set by the application after constructing SFX
-// 全局桥接指针 — 由应用在构造 SFX 后设置
 namespace {
-atom::SFXPlayer* g_sfx = nullptr;
+
+auto Sfx(const atom::LuaContext& context, lua_State* L) -> atom::SFXPlayer& {
+    if (!context.sfx)
+        luaL_error(L, "SFXPlayer is not attached to the Lua context");
+    return *context.sfx;
 }
 
-auto SetLuaSFXInstance(atom::SFXPlayer& sfx) -> void {
-    g_sfx = &sfx;
-}
-
-static int lua_SFX_Load(lua_State* L) {
-    const char* sfx_id = luaL_checkstring(L, 1);
-    const char* file_path = luaL_checkstring(L, 2);
-
-    bool load_result = g_sfx->Load(sfx_id, file_path);
-
-    lua_pushboolean(L, load_result);
+int LuaSfxLoad(lua_State* L) {
+    const auto& context = *atom::GetLuaContext(L);
+    lua_pushboolean(L, Sfx(context, L).Load(luaL_checkstring(L, 1), luaL_checkstring(L, 2)));
     return 1;
 }
 
-static int lua_SFX_Play(lua_State* L) {
-    const char* sfx_id = luaL_checkstring(L, 1);
-    g_sfx->Play(sfx_id);
+int LuaSfxPlay(lua_State* L) {
+    const auto& context = *atom::GetLuaContext(L);
+    const char* id = luaL_checkstring(L, 1);
+    if (lua_isnumber(L, 2))
+        Sfx(context, L).Play(id, static_cast<float>(lua_tonumber(L, 2)));
+    else
+        Sfx(context, L).Play(id);
     return 0;
 }
 
-static int lua_SFX_Stop(lua_State* L) {
-    const char* sfx_id = luaL_checkstring(L, 1);
-    g_sfx->Stop(sfx_id);
+int LuaSfxStop(lua_State* L) {
+    Sfx(*atom::GetLuaContext(L), L).Stop(luaL_checkstring(L, 1));
     return 0;
 }
 
-static int lua_SFX_StopAll(lua_State* L) {
-    g_sfx->StopAll();
+int LuaSfxStopAll(lua_State* L) {
+    Sfx(*atom::GetLuaContext(L), L).StopAll();
     return 0;
 }
 
-static int lua_SFX_SetVolume(lua_State* L) {
-    const char* sfx_id = luaL_checkstring(L, 1);
-    float volume = static_cast<float>(luaL_checknumber(L, 2));
-
-    g_sfx->SetVolume(sfx_id, volume);
+int LuaSfxSetVolume(lua_State* L) {
+    const auto& context = *atom::GetLuaContext(L);
+    Sfx(context, L).SetVolume(luaL_checkstring(L, 1), static_cast<float>(luaL_checknumber(L, 2)));
     return 0;
 }
 
-static int lua_SFX_IsLoaded(lua_State* L) {
-    const char* sfx_id = luaL_checkstring(L, 1);
-    bool is_loaded = g_sfx->IsLoaded(sfx_id);
-
-    lua_pushboolean(L, is_loaded);
+int LuaSfxIsLoaded(lua_State* L) {
+    const auto& context = *atom::GetLuaContext(L);
+    lua_pushboolean(L, Sfx(context, L).IsLoaded(luaL_checkstring(L, 1)));
     return 1;
 }
 
-static int lua_SFX_Reset(lua_State* L) {
-    g_sfx->Reset();
+int LuaSfxUnload(lua_State* L) {
+    const auto& context = *atom::GetLuaContext(L);
+    lua_pushboolean(L, Sfx(context, L).Unload(luaL_checkstring(L, 1)));
+    return 1;
+}
+
+int LuaSfxReset(lua_State* L) {
+    Sfx(*atom::GetLuaContext(L), L).Reset();
     return 0;
 }
 
-static int lua_SFXManager_LoadSFXFiles(lua_State* L) {
-    const char* buf_id = luaL_checkstring(L, 1);
-    const char* file_path = luaL_checkstring(L, 2);
-
-    bool load_result = g_sfx->Load(buf_id, file_path);
-    lua_pushboolean(L, load_result);
+int LuaSfxGetLoadedCount(lua_State* L) {
+    const auto& context = *atom::GetLuaContext(L);
+    lua_pushinteger(L, static_cast<lua_Integer>(Sfx(context, L).GetLoadedCount()));
     return 1;
 }
 
-static int lua_SFXManager_UnloadSFX(lua_State* L) {
-    const char* buf_id = luaL_checkstring(L, 1);
-    bool unload_result = g_sfx->Unload(buf_id);
+} // namespace
 
-    lua_pushboolean(L, unload_result);
-    return 1;
-}
+namespace atom {
 
-static int lua_SFXManager_UnloadAll(lua_State* L) {
-    g_sfx->Reset();
-    return 0;
-}
-
-static int lua_SFXManager_HasSFX(lua_State* L) {
-    const char* buf_id = luaL_checkstring(L, 1);
-    bool has_buf = g_sfx->IsLoaded(buf_id);
-
-    lua_pushboolean(L, has_buf);
-    return 1;
-}
-
-static int lua_SFXManager_GetLoadedCount(lua_State* L) {
-    size_t count = g_sfx->GetLoadedCount();
-    lua_pushinteger(L, static_cast<lua_Integer>(count));
-    return 1;
-}
-
-auto RegisterSFXToLua(lua_State* L) -> void {
+auto RegisterSFXToLua(lua_State* L, LuaContext& context) -> void {
+    const int top = lua_gettop(L);
+    PushNamespace(L, {"Atom", "Audio"});
     lua_newtable(L);
-    const luaL_Reg sfx_method_list[] = {{"Load", lua_SFX_Load},           {"Play", lua_SFX_Play},
-                                        {"Stop", lua_SFX_Stop},           {"StopAll", lua_SFX_StopAll},
-                                        {"SetVolume", lua_SFX_SetVolume}, {"IsLoaded", lua_SFX_IsLoaded},
-                                        {"Reset", lua_SFX_Reset},         {nullptr, nullptr}};
 
-    luaL_setfuncs(L, sfx_method_list, 0);
+    const luaL_Reg functions[] = {{"Load", LuaSfxLoad},
+                                  {"Play", LuaSfxPlay},
+                                  {"Stop", LuaSfxStop},
+                                  {"StopAll", LuaSfxStopAll},
+                                  {"SetVolume", LuaSfxSetVolume},
+                                  {"IsLoaded", LuaSfxIsLoaded},
+                                  {"Unload", LuaSfxUnload},
+                                  {"Reset", LuaSfxReset},
+                                  {"GetLoadedCount", LuaSfxGetLoadedCount},
+                                  {nullptr, nullptr}};
+    luaL_setfuncs(L, functions, 0);
 
-    lua_setglobal(L, "SFX");
-
-    lua_newtable(L);
-    const luaL_Reg sfx_manager_method_list[] = {
-        {"LoadSFXFiles", lua_SFXManager_LoadSFXFiles},     {"UnloadSFX", lua_SFXManager_UnloadSFX},
-        {"UnloadAll", lua_SFXManager_UnloadAll},           {"HasSFX", lua_SFXManager_HasSFX},
-        {"GetLoadedCount", lua_SFXManager_GetLoadedCount}, {nullptr, nullptr}};
-    luaL_setfuncs(L, sfx_manager_method_list, 0);
-    lua_setglobal(L, "AudioClipCache");
-
-    LOG_INFO(atom::log::core::Lua, "Atom Audio SFXPlayer and AudioClipCache registered successfully.");
+    lua_setfield(L, -2, "SFX"); // Atom.Audio.SFX = functions
+    lua_settop(L, top);         // restore stack balance across registrations
+    LOG_INFO(atom::log::core::Lua, "Bound Atom.Audio.SFX");
 }
+
+} // namespace atom

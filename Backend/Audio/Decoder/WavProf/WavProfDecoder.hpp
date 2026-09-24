@@ -24,8 +24,8 @@
 namespace atom::backend::audio_decoder {
 class WavProfDecoder final : public atom::audio::IAudioDecoder {
     public:
-        [[nodiscard]] auto Open(const std::string& path) -> atom::audio::DecoderOpenStatus override;
         [[nodiscard]] auto OpenFromMemory(const void* data, std::size_t size) -> atom::audio::DecoderOpenStatus override;
+        [[nodiscard]] auto OpenStream(atom::fs::IFile& file) -> atom::audio::DecoderOpenStatus override;
         auto Close() -> void override;
         auto DecodeChunk(uint8_t* output, uint32_t max_bytes) -> uint32_t override;
         auto Rewind() -> bool override;

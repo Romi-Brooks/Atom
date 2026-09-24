@@ -5,6 +5,7 @@
 
 # IDEs
 .idea
+.workbuddy/
 
 # forward (temp)
 learning-guide

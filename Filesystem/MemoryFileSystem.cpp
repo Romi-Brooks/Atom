@@ -197,7 +197,16 @@ auto MemoryFileSystem::Remove(const AssetPath& path) -> Result {
     const auto it = impl_->nodes_.find(relative);
     if (it == impl_->nodes_.end())
         return Result::NotFound;
-    impl_->nodes_.erase(it);
+
+    // Removing a directory must not leave orphaned descendants reachable under
+    // a vanished parent. Erase the node and every path prefixed by it.
+    const std::string prefix = relative + "/";
+    for (auto node = impl_->nodes_.begin(); node != impl_->nodes_.end();) {
+        if (node->first == relative || node->first.starts_with(prefix))
+            node = impl_->nodes_.erase(node);
+        else
+            ++node;
+    }
     return Result::Success;
 }
 

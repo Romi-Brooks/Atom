@@ -72,29 +72,4 @@ auto DecodeImageMemory(std::span<const std::byte> data, const bool flip_vertical
     return result;
 }
 
-auto DecodeImageFile(const std::string& path, const bool flip_vertically) -> DecodedImage {
-    if (path.empty()) {
-        LOG_WARNING(atom::log::image::Decoder, "Image file decode rejected an empty path");
-        return {};
-    }
-    int width = 0;
-    int height = 0;
-    int channels = 0;
-    auto* raw_pixels = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-    if (!raw_pixels) {
-        const char* reason = stbi_failure_reason();
-        LOG_WARNING(atom::log::image::Decoder, "Image file decode failed ('" + path + "'): " +
-                                                          std::string{reason ? reason : "unknown stb_image error"});
-        return {};
-    }
-    const auto deleter = [](stbi_uc* pixels) { stbi_image_free(pixels); };
-    const std::unique_ptr<stbi_uc, decltype(deleter)> pixels{raw_pixels, deleter};
-    DecodedImage result = WrapResult(width, height, pixels.get(), flip_vertically);
-    if (result.IsValid())
-        LOG_DEBUG(atom::log::image::Decoder, "Decoded image file '" + path + "' (" +
-                                                        std::to_string(result.width) + "x" +
-                                                        std::to_string(result.height) + ")");
-    return result;
-}
-
 } // namespace atom::image

@@ -1,9 +1,9 @@
 # ATOM 资源系统与 VFS 实施计划（ARCH-107）
 
-> 状态：**阶段 A、B、C1、C2 已落地**；C3、D 未开工。
+> 状态：**阶段 A、B、C1、C2、C3、D 已落地**。
 > 关联：`Remaining-Issues.md` 的 ARCH-107、`Filesystem-Design-CN.md`（完整设计）。
 > 建立日期：2026-09-12
-> 进度更新：2026-09-16（C1 TextureCache + 帧边界销毁 + MusicCard）
+> 进度更新：2026-09-24（阶段 D 验收示例 + MusicPlayer VFS + AudioClipResourceLoader）
 
 ## 1. 当前状态
 
@@ -53,8 +53,6 @@
 
 ### 完全缺失（下一阶段）
 
-- C3 Audio：解码器从路径改为 `IFile` 流
-- 阶段 D 验收示例
 - APKG v2（chunk / manifest / StringTable / `PackageBuilder`）
 
 ### 消费者现状：全部仍是裸磁盘路径
@@ -119,18 +117,18 @@
 
 - **C2 Script — 已完成**：`LuaLoader` 走 `IFile` + `luaL_loadbuffer`；`ScriptSourceLoader` 提供可共享源码资源。
 - **C1 Texture — 已完成**：`DecodedImageLoader` + `TextureCache`/`TextureHandle` + 帧边界 `FlushDeferredTextureDestroys`；MusicCard 已迁移。
-- **C3 Audio — 未开始**：解码器从"路径"改为"流"。方案见第 4 节 D3。
-- **退出标准**：三条链路都不再出现 `std::filesystem` 或裸路径字符串。（Script/C1 已满足生产路径；Audio 未动；Shader 仍后端内部路径）
+- **C3 Audio — 已完成**：`IAudioDecoder` 新增 `OpenStream(IFile&)`；`RiffWaveReader` 用 `IFile::ReadAt` 流读、`Minimp3Decoder` 用 `IFile` 回调 IO、`SDL3WavDecoder` 全量读回退内存；`AudioClipLoader` 提供 `Load(IFileSystem, AssetPath)` / `OpenStreaming(IFileSystem, AssetPath)`，`StreamingResult` 持有 `IFile` 保证流式解码器生命周期。
+- **退出标准**：三条链路都不再出现 `std::filesystem` 或裸路径字符串。（Script/C1/C3 已满足生产路径；Shader 仍后端内部路径）
 
-### 阶段 D：验收与回归 — **未开始**
+### 阶段 D：验收与回归 — **已完成**
 
-- **交付物**
-  - 一个可运行的验收示例：从目录挂载与 APKG 挂载分别用同一 URI 加载 Texture + AudioClip + Script，
-    并断言共享同一实例
-  - 新增 CTest target，接入现有 `ATOM_BUILD_TESTS`
-  - CMake：新增 `Atom_Assets` target，明确 PUBLIC/PRIVATE 传播边界
-- **退出标准**：`Docs/Filesystem-Design-CN.md` 的验收标准全部可复现。
-- **风险**：低。
+- **交付物**（已落地）
+  - 可运行验收示例 `Test/Asset/StageDAcceptanceTest.cpp`：从目录挂载（MemoryFileSystem，priority 200）与 APKG 挂载（APKG v1，priority 100）分别用同一 URI 加载 Texture + Audio + Script，并断言共享同一实例；含高优先级覆盖低优先级的回归断言
+  - 新增 `AudioClipResourceLoader`（kind=Audio，委托 `AudioClipLoader::Load(IFileSystem, AssetPath)`），使音频与 Script/Texture 一样走 `ResourceManager` 统一共享
+  - `MusicPlayer` 新增 `Load(IFileSystem, AssetPath)`，`Track` 持有 `IFile` 所有权保证流式解码器生命周期
+  - 新增 CTest `Atom_Assets.StageDAcceptance`，接入 `ATOM_BUILD_TESTS`
+- **退出标准**：`Docs/Filesystem-Design-CN.md` 的验收标准可复现。（已通过 CTest 验证）
+- **附带修复**：`Utilities/Packager` 的全局 `namespace fs = std::filesystem` 别名与 `atom::fs` 命名空间冲突（因 `MusicPlayer.hpp` 引入 `FileSystem.hpp` 而暴露），已改名 `native_fs`。
 
 ## 4. 待讨论的设计决策
 
@@ -138,7 +136,7 @@
 |------|--------|------|----------|----------------|
 | D1 | APKG 范围 | 只做 v1 只读挂载 / 同时做 v2 reader + `PackageBuilder` | 只做 v1，v2 另立任务（v2 约 2–3k 行，等于重写 `Utilities/Packager`） | 已按 v1 落地 |
 | D2 | `IFile` 是否增加顺序游标 | 保持纯 `ReadAt` / 增加 `ReadNext`+`Tell` | 增加，并让 `NativeReadFile` 记录当前位置、去掉冗余 `seekg`（音频流式性能关键） | 已落地（含 `Seek`） |
-| D3 | 音频流式改造方式 | 取消流式、全量读内存 / 解码器接收 `IFile` 流适配器 | 不取消流式。`minimp3` 用 `mp3dec_ex_open_cb` 回调 IO；`RiffWaveReader` 把 `std::FILE*` 换成流接口；`SDL3Wav` 保持内存路径 | 未开始（阶段 C3） |
+| D3 | 音频流式改造方式 | 取消流式、全量读内存 / 解码器接收 `IFile` 流适配器 | 不取消流式。`minimp3` 用 `mp3dec_ex_open_cb` 回调 IO；`RiffWaveReader` 把 `std::FILE*` 换成流接口；`SDL3Wav` 保持内存路径 | 已落地（阶段 C3，2026-09-24） |
 | D4 | GPU 资源所有权 | 缓存直接销毁 / 句柄计数 + 帧边界延迟回收 | 后者：计数归零只入队，销毁统一在帧边界由渲染线程执行 | 未开始（阶段 C1） |
 | D5 | 本轮是否做缓存淘汰 | 引入 LRU / 只去重不淘汰 | 只去重不淘汰（淘汰需要内存预算，属于第 4 条） | 阶段 B：只去重，无 LRU |
 | D6 | 线程模型 | 本轮就做异步 / 本轮同步，接口预留 | 同步；接口保持"可异步化"（loader 不做线程假设，句柄可跨线程拷贝） | 阶段 B：同步 `Acquire`；句柄可拷贝 |
@@ -149,8 +147,8 @@
 |------|--------|------|------|
 | A 补完 Atom_FS | 1.2k–1.8k 行 | **已完成** | 实际约 1.5k 行（含测试），5 个 CTest |
 | B Atom_Assets | 1.0k–1.5k 行 | **已完成** | 实际约 1.1k 行（含测试），1 个 CTest |
-| C 消费者迁移 | 1.0k–1.8k 行 | 未开始 | 高风险（C3 为主） |
-| D 验收与回归 | ~0.5k 行 | 未开始 | |
+| C 消费者迁移 | 1.0k–1.8k 行 | **已完成** | 原高风险（C3 为主）；已落地 |
+| D 验收与回归 | ~0.5k 行 | **已完成** | 验收示例 + CTest + MusicPlayer VFS + AudioClipResourceLoader |
 | 合计（C+D 剩余） | **约 1.5k–2.3k 行** | — | 不含 APKG v2 |
 
 参考：当前 Atom 自有代码约 184 个文件 / 17.7k 行（不含 `ThirdParty/`），阶段 A 已计入。
@@ -168,9 +166,7 @@
 
 按建议优先级排列；括号内为复杂度。
 
-1. **(高) C3 Audio**：解码器签名从路径改为流；独立提交、独立验收。
-2. **(低–中) 阶段 D 验收示例**：目录 + APKG 挂载下用同一 URI 加载并断言共享（Script/Texture CPU 已可测；Audio 需先做 C3）。
-3. **(高) APKG v2 + PackageBuilder**：另立任务；建议在 C 验收通过后再做。
-4. **(延后) 异步 / 热重载 / 依赖图 / 内存预算 / LRU**：依赖 Job System 与 CORE-001。
-5. **(低) 帧边界 API 收紧**：CORE-001 建立后，将 `Vfs` 挂载变更与 TextureCache Flush 改为显式帧安全点。
-6. **(低) RENDER-009 对齐**：正式 RHI 的 Texture 契约落地后，复查 `TextureCache`/`GpuTextureRecord` 是否需要改绑 device。
+1. **(高) APKG v2 + PackageBuilder**：另立任务；建议在 C+D 验收通过后再做（现已通过）。
+2. **(延后) 异步 / 热重载 / 依赖图 / 内存预算 / LRU**：依赖 Job System 与 CORE-001。
+3. **(低) 帧边界 API 收紧**：CORE-001 建立后，将 `Vfs` 挂载变更与 TextureCache Flush 改为显式帧安全点。
+4. **(低) RENDER-009 对齐**：正式 RHI 的 Texture 契约落地后，复查 `TextureCache`/`GpuTextureRecord` 是否需要改绑 device。

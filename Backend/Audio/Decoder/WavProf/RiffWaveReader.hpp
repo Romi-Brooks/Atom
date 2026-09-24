@@ -17,6 +17,7 @@
 #include <string>
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
+#include <Filesystem/FileSystem.hpp>
 
 namespace atom::backend::audio_decoder {
 struct WavHeader {
@@ -41,15 +42,15 @@ class RiffWaveReader {
         RiffWaveReader(const RiffWaveReader&) = delete;
         auto operator=(const RiffWaveReader&) -> RiffWaveReader& = delete;
 
-        // Open a WAV file. The status distinguishes "this reader does not cover
-        // the encoding" (UnsupportedFormat) from broken data and I/O failures, so
-        // WavProfDecoder can report the same boundary upwards.
-        [[nodiscard]] auto Open(const std::string& path) -> atom::audio::DecoderOpenStatus;
-
         // Open a WAV stream from an in-memory buffer (e.g. an entry extracted
         // from a resource pack). The buffer is borrowed: the caller must keep it
         // alive until Close(). Returns false if the data is invalid.
         [[nodiscard]] auto OpenFromMemory(const void* data, std::size_t size) -> atom::audio::DecoderOpenStatus;
+
+        // Open a WAV stream over an already-resolved VFS file. The file is
+        // borrowed: the caller must keep it alive until Close(). Random reads go
+        // through IFile::ReadAt, so no native path is involved.
+        [[nodiscard]] auto OpenStream(atom::fs::IFile& file) -> atom::audio::DecoderOpenStatus;
 
         // Close the file.
         auto Close() -> void;
@@ -67,7 +68,7 @@ class RiffWaveReader {
 
         // Queries
         [[nodiscard]] auto IsOpen() const -> bool {
-            return fp_ != nullptr || mem_data_ != nullptr;
+            return mem_data_ != nullptr || file_ != nullptr;
         }
         [[nodiscard]] auto GetChannels() const -> uint16_t {
             return channels_;
@@ -87,7 +88,6 @@ class RiffWaveReader {
         }
 
     private:
-        FILE* fp_ = nullptr;
         size_t data_start_ = 0;
         size_t data_bytes_ = 0;
         uint16_t channels_ = 0;
@@ -100,6 +100,13 @@ class RiffWaveReader {
         const uint8_t* mem_data_ = nullptr;
         size_t mem_size_ = 0;
         size_t mem_pos_ = 0;
+
+        // Borrowed VFS file (OpenStream). Never owned: the caller must keep it
+        // alive until Close(). file_pos_ is the current read cursor, and
+        // file_size_ caches IFile::Size() for bounds checks.
+        atom::fs::IFile* file_ = nullptr;
+        uint64_t file_pos_ = 0;
+        uint64_t file_size_ = 0;
 };
 } // namespace atom::backend::audio_decoder
 

@@ -11,6 +11,8 @@
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
 #include <Media/Audio/Resources/AudioClipCache.hpp>
+#include <Filesystem/FileSystem.hpp>
+#include <Utilities/Utf8/Utf8.hpp>
 #include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
@@ -21,15 +23,14 @@
 
 namespace {
 // replace it
-constexpr auto kSFX1Path =
-    R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 1 - C.wav)";
-constexpr auto kSFX2Path =
-    R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\Cymatics - Vocal Essentials One Shot 2 - C.wav)";
+constexpr auto SFXDir = R"(D:\Sample Packs\Cymatics - Vocal Essentials\Vocal Shots\)";
+constexpr auto SFX1Name = "Cymatics - Vocal Essentials One Shot 1 - C.wav";
+constexpr auto SFX2Name = "Cymatics - Vocal Essentials One Shot 2 - C.wav";
 
 // Debugger overlay
 class SFXDebugger final : public atom::debugger::DebugPanel {
     public:
-        explicit SFXDebugger(atom::SFXPlayer& sfx) : sfx_(sfx) {}
+        explicit SFXDebugger(atom::SFXPlayer& sfx) : DebugPanel("SFXDebugger"), sfx_(sfx) {}
 
     protected:
         auto OnDrawOverlay() -> void override {
@@ -90,8 +91,23 @@ auto main() -> int {
     atom::AudioClipCache clips;
     atom::SFXPlayer sfx{clips, mixer};
 
-    sfx.Load("registerId_1", kSFX1Path);
-    sfx.Load("registerId_2", kSFX2Path);
+    // Mount the SFX directory as res:// so clips load through the VFS contract.
+    std::unique_ptr<atom::fs::NativeFileSystem> filesystem{};
+    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(SFXDir), filesystem) !=
+            atom::fs::Result::Success ||
+        !filesystem) {
+        LOG_ERROR(atom::log::audio::Music, "SFX directory unavailable: " + std::string{SFXDir});
+        return 1;
+    }
+    atom::fs::AssetPath sfx1{};
+    atom::fs::AssetPath sfx2{};
+    if (!atom::fs::AssetPath::TryParse("res://" + std::string{SFX1Name}, sfx1) ||
+        !atom::fs::AssetPath::TryParse("res://" + std::string{SFX2Name}, sfx2)) {
+        LOG_ERROR(atom::log::audio::Music, "SFX filenames are not valid AssetPath segments");
+        return 1;
+    }
+    sfx.Load("registerId_1", *filesystem, sfx1);
+    sfx.Load("registerId_2", *filesystem, sfx2);
 
     auto* sfx_screen =
         atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());

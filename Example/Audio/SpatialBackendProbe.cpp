@@ -1,4 +1,6 @@
+#include <filesystem>
 #include <memory>
+#include <string>
 
 #include <Backend/Contracts/Audio/AudioExtensions.hpp>
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
@@ -6,9 +8,11 @@
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Event/Input.hpp>
+#include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Effects/DopplerEffect.hpp>
 #include <Media/Audio/Resources/AudioClipLoader.hpp>
+#include <Utilities/Utf8/Utf8.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
 #include <Window/ScreenManager.hpp>
@@ -16,8 +20,27 @@
 #include <Window/Screen.hpp>
 
 namespace {
-
+// Absolute path of the probe clip. Its parent directory is mounted under the
+// "probe" mount so the load goes through the VFS contract (asset path) rather
+// than a raw native path.
 constexpr auto kAudioPath = R"(C:\Users\Romi\Downloads\1.mp3)";
+
+// Mounts the probe clip's directory on the process-wide Vfs and returns the
+// clip's asset path. Safe to call repeatedly; mounting the same directory again
+// is a no-op because the mount table replaces by name+backend.
+auto ProbeAssetPath() -> std::string {
+    const std::filesystem::path native{kAudioPath};
+    const std::string dir = atom::PathToUtf8(native.parent_path());
+    const std::string filename = atom::PathToUtf8(native.filename());
+
+    std::unique_ptr<atom::fs::NativeFileSystem> fs{};
+    if (atom::fs::NativeFileSystem::Create("probe", dir, fs) == atom::fs::Result::Success && fs) {
+        atom::fs::Vfs::GetInstance().UnmountAll("probe");
+        atom::fs::Vfs::GetInstance().Mount("probe", 0, std::move(fs));
+    }
+
+    return "probe://" + filename;
+}
 
 class ProbeScreen final : public atom::Screen {
     public:
@@ -39,11 +62,13 @@ class ProbeScreen final : public atom::Screen {
 
 class ProbeDebugger final : public atom::debugger::DebugPanel {
     public:
+        ProbeDebugger() : DebugPanel("ProbeDebugger") {}
+
         auto LoadSource() -> void {
             source_.reset();
             auto& runtime = atom::backend::BackendRuntime::GetInstance();
             atom::AudioClipLoader loader{runtime.AudioDecoders()};
-            const auto decoded = loader.Load(kAudioPath);
+            const auto decoded = loader.Load(ProbeAssetPath());
             if (!decoded)
                 return;
             // AcquireAudioBackend(): hold a strong reference while the source is

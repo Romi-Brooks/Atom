@@ -35,7 +35,7 @@ class LogDebugger final : public DebugPanel {
         };
 
     public:
-        LogDebugger() = default;
+        LogDebugger() : DebugPanel("LogDebugger") {}
         ~LogDebugger() override;
 
         // The attached log panel, or nullptr when none is attached /
@@ -48,10 +48,6 @@ class LogDebugger final : public DebugPanel {
         auto OnAttach(atom::RenderWindow& window) -> bool override;
         auto OnDetach() -> void override;
         auto OnDrawOverlay() -> void override;
-
-        [[nodiscard]] auto GetPanelName() const -> const char* override {
-            return "LogDebugger";
-        }
 
     private:
         std::shared_ptr<State> state_;

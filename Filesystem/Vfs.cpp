@@ -22,6 +22,11 @@ namespace {
 
 Vfs::~Vfs() = default;
 
+auto Vfs::GetInstance() -> Vfs& {
+    static Vfs instance{};
+    return instance;
+}
+
 auto Vfs::Mount(const std::string_view mount, const int priority, std::shared_ptr<IFileSystem> backend) -> Result {
     if (!backend || !IsValidMountName(mount))
         return Result::InvalidPath;

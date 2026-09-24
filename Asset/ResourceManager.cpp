@@ -6,6 +6,11 @@
 #include "ResourceManager.hpp"
 
 namespace atom::asset {
+namespace {
+// Sweep when the cache holds this many entries. Kept well above typical live
+// counts so the amortized cost stays negligible while still bounding growth.
+constexpr std::size_t kSweepThreshold = 256;
+} // namespace
 
 ResourceManager::ResourceManager(const fs::IFileSystem& filesystem) : filesystem_(&filesystem) {}
 
@@ -96,7 +101,12 @@ auto ResourceManager::AcquireRecord(const ResourceId& id, std::shared_ptr<detail
     record->hooks = hooks_;
 
     cache_[key] = CacheEntry{record, record->type};
-    SweepExpired();
+    // Lazily reap expired entries instead of rescanning the whole cache on
+    // every successful load. A stale entry is harmless: Acquire replaces it on
+    // the next miss for the same key, so sweeping only guards against unbounded
+    // growth of dead entries.
+    if (cache_.size() >= kSweepThreshold)
+        SweepExpired();
     output = std::move(record);
     return AssetResult::Success;
 }

@@ -5,6 +5,7 @@
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
+#include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Resources/AudioClipLoader.hpp>
@@ -35,7 +36,8 @@ MusicPlayer::~MusicPlayer() {
         runtime_->RemoveAudioListener(*this);
 }
 
-auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
+auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& filesystem,
+                       const atom::fs::AssetPath& path) -> bool {
     std::lock_guard lock(mutex_);
     if (tracks_.contains(id)) {
         LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
@@ -43,23 +45,20 @@ auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     }
 
     AudioClipLoader loader{*decoders_};
-    LOG_INFO(atom::log::audio::Music, "Initializing music decoder on backend '" +
-                                          (runtime_ ? runtime_->GetAudioBackendId() : std::string{"explicit"}) + "': " + file);
-    // Hold a strong reference for the whole load: it keeps the backend (and the
-    // platform subsystem it leases) alive even if another thread switches
-    // backends while this decoder is opening.
+    const std::string label{path.String()};
+    LOG_INFO(atom::log::audio::Music, "Initializing VFS music decoder on backend '" +
+                                          (runtime_ ? runtime_->GetAudioBackendId() : std::string{"explicit"}) + "': " +
+                                          label);
     auto backend = runtime_ ? runtime_->AcquireAudioBackend() : BorrowBackend(backend_);
     if (!backend) {
-        LOG_ERROR(atom::log::audio::Music, "No active audio backend, cannot load music: " + file);
+        LOG_ERROR(atom::log::audio::Music, "No active audio backend, cannot load music: " + label);
         return false;
     }
-    auto streaming = loader.OpenStreaming(file);
+    auto streaming = loader.OpenStreaming(filesystem, path);
     if (!streaming) {
-        LOG_ERROR(atom::log::audio::Music, "Failed to decode music: " + file);
+        LOG_ERROR(atom::log::audio::Music, "Failed to decode music: " + label);
         return false;
     }
-    // Read what the seek/duration API needs before the decoder is moved into the
-    // source (the reference would dangle afterwards).
     const auto& decoder_info = streaming->decoder->GetInfo();
     const auto duration_seconds =
         decoder_info.sample_rate > 0 && decoder_info.total_pcm_frames > 0
@@ -69,12 +68,25 @@ auto MusicPlayer::Load(const std::string& id, const std::string& file) -> bool {
     auto source = backend->CreateStreamingMusicSource(std::move(streaming->decoder), streaming->spec);
     if (!source) {
         LOG_ERROR(atom::log::audio::Music,
-                  "Failed to create streaming music source for track '" + id + "': " + file);
+                  "Failed to create streaming music source for track '" + id + "': " + label);
         return false;
     }
-    tracks_.emplace(id, Track{std::move(source), duration_seconds});
-    LOG_INFO(atom::log::audio::Music, "Music track loaded: " + id + " (" + file + ")");
+    // The streaming source's decoder reads from the VFS file, so the file must
+    // stay alive for as long as the track does. Own it inside the Track.
+    Track track{std::move(source), duration_seconds};
+    track.file = std::move(streaming->file);
+    tracks_.emplace(id, std::move(track));
+    LOG_INFO(atom::log::audio::Music, "Music track loaded via VFS: " + id + " (" + label + ")");
     return true;
+}
+
+auto MusicPlayer::Load(const std::string& id, const std::string& path) -> bool {
+    atom::fs::AssetPath asset_path{};
+    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
+        LOG_ERROR(atom::log::audio::Music, "Invalid asset path for music track '" + id + "': " + path);
+        return false;
+    }
+    return Load(id, atom::fs::Vfs::GetInstance(), asset_path);
 }
 
 auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filename, const void* data,

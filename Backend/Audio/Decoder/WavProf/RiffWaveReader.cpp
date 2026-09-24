@@ -11,96 +11,24 @@
 
 #include <algorithm>
 #include <cstring>
-#include <cstdio>
-
-#include <Utilities/Utf8/Utf8.hpp>
 
 namespace atom::backend::audio_decoder {
+namespace {
+
+// Reads exactly `count` bytes at `offset` from an IFile into `buffer`. Returns
+// false on any short read or I/O error, so the caller can report InvalidData or
+// IoError without a partial parse.
+auto ReadFileAt(atom::fs::IFile& file, const uint64_t offset, void* buffer, const std::size_t count) -> bool {
+    if (count == 0)
+        return true;
+    const std::span<std::byte> destination{static_cast<std::byte*>(buffer), count};
+    return file.ReadAt(offset, destination) == atom::fs::Result::Success;
+}
+
+} // namespace
 
 RiffWaveReader::~RiffWaveReader() {
     Close();
-}
-
-auto RiffWaveReader::Open(const std::string& path) -> atom::audio::DecoderOpenStatus {
-    if (fp_)
-        Close();
-
-#ifdef _WIN32
-    // Use _wfopen to support UTF-8 paths with non-ASCII characters
-    const auto wpath = atom::Utf8ToWide(path);
-    fp_ = _wfopen(wpath.c_str(), L"rb");
-#else
-    fp_ = std::fopen(path.c_str(), "rb");
-#endif
-    if (!fp_)
-        return atom::audio::DecoderOpenStatus::IoError;
-
-    WavHeader header;
-    if (std::fread(&header, 1, sizeof(WavHeader), fp_) != sizeof(WavHeader)) {
-        std::fclose(fp_);
-        fp_ = nullptr;
-        return atom::audio::DecoderOpenStatus::InvalidData;
-    }
-
-    // Validate RIFF/WAVE/fmt signatures
-    if (std::memcmp(header.chunk_id, "RIFF", 4) != 0 || std::memcmp(header.format, "WAVE", 4) != 0 ||
-        std::memcmp(header.subchunk_id, "fmt ", 4) != 0) {
-        std::fclose(fp_);
-        fp_ = nullptr;
-        return atom::audio::DecoderOpenStatus::InvalidData;
-    }
-
-    // Only uncompressed PCM (1) and IEEE float (3, 32-bit) are supported. Any
-    // other encoding is a capability boundary, not a broken file: another
-    // decoder in the chain may well handle it.
-    if (header.audio_format != 1 && !(header.audio_format == 3 && header.bits_per_sample == 32)) {
-        std::fclose(fp_);
-        fp_ = nullptr;
-        return atom::audio::DecoderOpenStatus::UnsupportedFormat;
-    }
-
-    channels_ = header.num_channels;
-    sample_rate_ = header.sample_rate;
-    bits_per_sample_ = header.bits_per_sample;
-    audio_format_ = header.audio_format;
-
-    // Skip any extra format bytes beyond the standard 16-byte fmt chunk
-    long offset = sizeof(WavHeader);
-    if (header.subchunk_size > 16) {
-        std::fseek(fp_, static_cast<long>(header.subchunk_size) - 16, SEEK_CUR);
-        offset += static_cast<long>(header.subchunk_size) - 16;
-    }
-
-    // Scan chunks until we find the "data" chunk
-    char chunk_id[4]{};
-    uint32_t chunk_size = 0;
-    while (true) {
-        if (std::fread(chunk_id, 1, 4, fp_) != 4) {
-            std::fclose(fp_);
-            fp_ = nullptr;
-            return atom::audio::DecoderOpenStatus::InvalidData;
-        }
-        if (std::fread(&chunk_size, 1, 4, fp_) != 4) {
-            std::fclose(fp_);
-            fp_ = nullptr;
-            return atom::audio::DecoderOpenStatus::InvalidData;
-        }
-        offset += 8;
-
-        if (std::memcmp(chunk_id, "data", 4) == 0)
-            break;
-
-        // Skip other chunks (e.g., "LIST", "fact")
-        std::fseek(fp_, static_cast<long>(chunk_size), SEEK_CUR);
-        offset += static_cast<long>(chunk_size);
-    }
-
-    data_start_ = static_cast<size_t>(offset);
-    data_bytes_ = chunk_size;
-
-    // Seek to start of PCM data
-    std::fseek(fp_, static_cast<long>(data_start_), SEEK_SET);
-    return atom::audio::DecoderOpenStatus::Opened;
 }
 
 auto RiffWaveReader::OpenFromMemory(const void* data, const std::size_t size) -> atom::audio::DecoderOpenStatus {
@@ -157,27 +85,83 @@ auto RiffWaveReader::OpenFromMemory(const void* data, const std::size_t size) ->
     return atom::audio::DecoderOpenStatus::InvalidData;
 }
 
-auto RiffWaveReader::Close() -> void {
-    if (fp_) {
-        std::fclose(fp_);
-        fp_ = nullptr;
+auto RiffWaveReader::OpenStream(atom::fs::IFile& file) -> atom::audio::DecoderOpenStatus {
+    Close();
+
+    const uint64_t file_size = file.Size();
+    if (file_size < sizeof(WavHeader))
+        return atom::audio::DecoderOpenStatus::InvalidData;
+
+    // Validate RIFF/WAVE/fmt signatures.
+    WavHeader header;
+    if (!ReadFileAt(file, 0, &header, sizeof(WavHeader)))
+        return atom::audio::DecoderOpenStatus::IoError;
+    if (std::memcmp(header.chunk_id, "RIFF", 4) != 0 || std::memcmp(header.format, "WAVE", 4) != 0 ||
+        std::memcmp(header.subchunk_id, "fmt ", 4) != 0)
+        return atom::audio::DecoderOpenStatus::InvalidData;
+
+    // Only uncompressed PCM (1) and IEEE float (3, 32-bit) are supported.
+    if (header.audio_format != 1 && !(header.audio_format == 3 && header.bits_per_sample == 32))
+        return atom::audio::DecoderOpenStatus::UnsupportedFormat;
+
+    channels_ = header.num_channels;
+    sample_rate_ = header.sample_rate;
+    bits_per_sample_ = header.bits_per_sample;
+    audio_format_ = header.audio_format;
+
+    // Skip any extra format bytes beyond the standard 16-byte fmt chunk.
+    uint64_t offset = sizeof(WavHeader);
+    if (header.subchunk_size > 16)
+        offset += header.subchunk_size - 16;
+
+    // Scan chunks until we find the "data" chunk.
+    while (offset + 8 <= file_size) {
+        char chunk_id[4]{};
+        uint32_t chunk_size = 0;
+        if (!ReadFileAt(file, offset, chunk_id, 4) || !ReadFileAt(file, offset + 4, &chunk_size, 4))
+            return atom::audio::DecoderOpenStatus::IoError;
+        offset += 8;
+
+        if (std::memcmp(chunk_id, "data", 4) == 0) {
+            data_start_ = static_cast<size_t>(offset);
+            data_bytes_ = static_cast<size_t>(std::min<uint64_t>(chunk_size, file_size - offset));
+            file_ = &file;
+            file_size_ = file_size;
+            file_pos_ = offset;
+            return atom::audio::DecoderOpenStatus::Opened;
+        }
+
+        // Skip other chunks (e.g., "LIST", "fact"); bail on truncated data.
+        if (chunk_size > file_size - offset)
+            return atom::audio::DecoderOpenStatus::InvalidData;
+        offset += chunk_size;
     }
+
+    return atom::audio::DecoderOpenStatus::InvalidData;
+}
+
+auto RiffWaveReader::Close() -> void {
     mem_data_ = nullptr;
     mem_size_ = 0;
     mem_pos_ = 0;
+    file_ = nullptr;
+    file_pos_ = 0;
+    file_size_ = 0;
 }
 
 auto RiffWaveReader::ReadChunk(uint8_t* buffer, const size_t max_bytes) -> size_t {
-    if (fp_) {
-        const long current_pos = std::ftell(fp_);
-        const size_t bytes_read_so_far = static_cast<size_t>(current_pos) - data_start_;
-        const size_t remaining = data_bytes_ - bytes_read_so_far;
-
+    if (file_) {
+        const uint64_t bytes_read_so_far = file_pos_ - data_start_;
+        const uint64_t remaining = data_bytes_ - bytes_read_so_far;
         if (remaining == 0)
             return 0;
 
-        const size_t to_read = (max_bytes < remaining) ? max_bytes : remaining;
-        return std::fread(buffer, 1, to_read, fp_);
+        const size_t to_read = static_cast<size_t>(std::min<uint64_t>(max_bytes, remaining));
+        const std::span<std::byte> destination{reinterpret_cast<std::byte*>(buffer), to_read};
+        if (file_->ReadAt(file_pos_, destination) != atom::fs::Result::Success)
+            return 0;
+        file_pos_ += to_read;
+        return to_read;
     }
 
     if (!mem_data_)
@@ -195,8 +179,8 @@ auto RiffWaveReader::ReadChunk(uint8_t* buffer, const size_t max_bytes) -> size_
 }
 
 auto RiffWaveReader::Rewind() -> bool {
-    if (fp_) {
-        std::fseek(fp_, static_cast<long>(data_start_), SEEK_SET);
+    if (file_) {
+        file_pos_ = data_start_;
         return true;
     }
     if (!mem_data_)
@@ -217,9 +201,8 @@ auto RiffWaveReader::SeekToByte(const std::size_t byte_offset) -> bool {
     auto clamped = std::min(byte_offset, data_bytes_);
     clamped -= clamped % bytes_per_frame;
 
-    if (fp_) {
-        if (std::fseek(fp_, static_cast<long>(data_start_ + clamped), SEEK_SET) != 0)
-            return false;
+    if (file_) {
+        file_pos_ = data_start_ + clamped;
         return true;
     }
     if (!mem_data_)

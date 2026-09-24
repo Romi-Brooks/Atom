@@ -69,7 +69,7 @@ auto RegisterLogChannelDomain(const std::string_view prefix, const std::string_v
 
 } // namespace atom
 
-static auto GetLogLevel(const LogLevel& logLevel) -> std::string {
+static auto GetLogLevel(const LogLevel& logLevel) -> const char* {
     switch (logLevel) {
     case LogLevel::ATOM_DEBUG:
         return "DEBUG";
@@ -167,7 +167,7 @@ auto Log::LogOut(const std::string_view channelPrefix, const std::string_view ch
 }
 
 auto Log::SetViewLogLevel(const LogLevel viewLogLevel) -> void {
-    LOG_INFO(atom::log::core::Logger, "Set log level to " + GetLogLevel(viewLogLevel));
+    LOG_INFO(atom::log::core::Logger, std::string{"Set log level to "} + GetLogLevel(viewLogLevel));
     auto& instance = GetLogInstance();
     std::lock_guard<std::mutex> lock(instance.log_mutex_);
     instance.view_log_level_ = viewLogLevel;

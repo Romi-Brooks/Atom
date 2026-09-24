@@ -4,6 +4,8 @@
 #include <utility>
 
 #include <Backend/Runtime/BackendRuntime.hpp>
+#include <Filesystem/Vfs.hpp>
+#include <Log/LogSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 
 namespace atom {
@@ -28,8 +30,18 @@ SFXPlayer::~SFXPlayer() {
         runtime_->RemoveAudioListener(*this);
 }
 
+auto SFXPlayer::Load(const std::string& id, const atom::fs::IFileSystem& filesystem,
+                     const atom::fs::AssetPath& path) -> bool {
+    return clips_.Load(id, filesystem, path);
+}
+
 auto SFXPlayer::Load(const std::string& id, const std::string& path) -> bool {
-    return clips_.Load(id, path);
+    atom::fs::AssetPath asset_path{};
+    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
+        LOG_ERROR(atom::log::audio::Sfx, "Invalid asset path for SFX '" + id + "': " + path);
+        return false;
+    }
+    return clips_.Load(id, atom::fs::Vfs::GetInstance(), asset_path);
 }
 auto SFXPlayer::GetOrCreatePool(const std::string& id) -> VoicePool* {
     if (const auto it = pools_.find(id); it != pools_.end())

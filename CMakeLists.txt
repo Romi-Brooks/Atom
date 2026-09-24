@@ -316,6 +316,8 @@ include(Render/Shader/AtomShaders.cmake)
         Media/Audio/Mixing/AudioMixer.hpp
         Media/Audio/Resources/AudioClipLoader.cpp
         Media/Audio/Resources/AudioClipLoader.hpp
+        Media/Audio/Resources/AudioClipResourceLoader.cpp
+        Media/Audio/Resources/AudioClipResourceLoader.hpp
         Media/Audio/Resources/AudioClipCache.cpp
         Media/Audio/Resources/AudioClipCache.hpp
         Media/Audio/Playback/MusicPlayer.cpp
@@ -360,6 +362,9 @@ target_include_directories(Atom_FS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
 # Render resources need AssetPath/IFileSystem for VFS-backed texture loads.
 target_link_libraries(Atom_Render_Resources PUBLIC Atom_FS)
+# Audio decoders and the clip loader consume IFile for VFS-backed audio (ARCH-107 C3).
+target_link_libraries(Atom_Backend_Audio PUBLIC Atom_FS)
+target_link_libraries(Atom_Media PUBLIC Atom_FS)
 
 # 7c. Resource identity, handles, loader registry, and identity-keyed cache.
 add_library(Atom_Assets STATIC
@@ -377,6 +382,9 @@ add_library(Atom_Assets STATIC
 )
 target_include_directories(Atom_Assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_Assets PUBLIC Atom_FS)
+# AudioClipResourceLoader (kind=Audio) lives in Atom_Media and extends
+# atom::asset::TypedResourceLoader, mirroring DecodedImageLoader in Atom_Image.
+target_link_libraries(Atom_Media PUBLIC Atom_Assets)
 
 # 7a. Image decoding (CPU-side; GPU upload is a separate step via Renderer2D).
 add_library(Atom_Image STATIC
@@ -474,11 +482,15 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
 # 12. Lua Binding
     add_library(Atom_Lua STATIC
             Lua/lua.hpp
-            Lua/LuaLoader.hpp
-            Lua/LuaLoader.cpp
+            Lua/LuaContext.hpp
+            Lua/BindingRegistry.hpp
+            Lua/LuaHost.hpp
+            Lua/LuaHost.cpp
+            Lua/LuaBinding/ContextBridge.hpp
             Lua/LuaBinding/LuaMusic.cpp
             Lua/LuaBinding/LuaSFX.cpp
             Lua/LuaBinding/LuaVolume.cpp
+            Lua/LuaBinding/LuaLog.cpp
     )
     target_include_directories(Atom_Lua
             PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
@@ -527,6 +539,11 @@ target_link_libraries(Example_Packaged_Music PRIVATE
 # Log channel
 add_executable(Example_Log_Channel_Demo Example/Log/LogChannelDemo.cpp Example/Log/GameChannels.hpp)
 target_link_libraries(Example_Log_Channel_Demo PRIVATE Atom_Log)
+
+# Lua scripting example (loads an external script and plays a track via Lua)
+add_executable(Example_Lua_Scripting Example/Lua/LuaScripting.cpp)
+target_link_libraries(Example_Lua_Scripting PRIVATE
+        Atom_Lua Atom_Media Atom_Log Atom_Window Atom_Debugger)
 
 # MusicCard example — Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
@@ -598,7 +615,7 @@ if(MINGW)
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
-                                Example_MusicCard Atom_Tool_Packager)
+                                Example_MusicCard Example_Lua_Scripting Atom_Tool_Packager)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()
         if(ATOM_BUILD_TESTS)

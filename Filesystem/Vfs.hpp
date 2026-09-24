@@ -29,6 +29,14 @@ class Vfs final : public IFileSystem {
         Vfs(const Vfs&) = delete;
         Vfs& operator=(const Vfs&) = delete;
 
+        // Process-wide default Vfs. String convenience entry points (e.g.
+        // MusicPlayer::Load(id, "res://...")) resolve through this instance, so
+        // callers that only ever pass asset-path strings never have to hold a
+        // Vfs handle. Configure it once at startup with Mount(); tests and tools
+        // that need isolation can still construct a local Vfs and pass it
+        // explicitly to the IFileSystem overloads.
+        static auto GetInstance() -> Vfs&;
+
         auto Mount(std::string_view mount, int priority, std::shared_ptr<IFileSystem> backend) -> Result;
         auto Unmount(std::string_view mount, const IFileSystem* backend) -> Result;
         auto UnmountAll(std::string_view mount) -> Result;
