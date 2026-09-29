@@ -189,9 +189,23 @@ auto LogDebugger::OnDrawOverlay() -> void {
 
         const std::string line = "[" + record.timestamp + "] [" + LevelName(record.level) + "] " + channel +
                                  " -> " + record.message;
+        std::string location;
+        if (!record.file.empty()) {
+            location = record.file;
+            if (record.line > 0)
+                location += ":" + std::to_string(record.line);
+            if (!record.function.empty())
+                location += " " + record.function;
+        }
         ImGui::PushStyleColor(ImGuiCol_Text, LevelColor(record.level));
         ImGui::TextUnformatted(line.c_str());
         ImGui::PopStyleColor();
+        if (!location.empty()) {
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.55f, 0.55f, 0.55f, 1.0f});
+            ImGui::TextUnformatted(location.c_str());
+            ImGui::PopStyleColor();
+        }
         displayed_record = true;
     }
     if (auto_scroll_ && was_at_bottom && displayed_record)

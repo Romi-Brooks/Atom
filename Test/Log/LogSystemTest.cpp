@@ -33,6 +33,9 @@ auto main() -> int {
             saw_info = true;
             ATOM_CHECK(record.level == atom::LogLevel::ATOM_INFO);
             ATOM_CHECK(!record.channel_name.empty());
+            ATOM_CHECK(!record.file.empty());
+            ATOM_CHECK(record.line > 0);
+            ATOM_CHECK(!record.function.empty());
         }
         if (record.message == "atom-log-error-ping") {
             saw_error = true;

@@ -148,6 +148,27 @@ Every log line starts with the domain prefix, so filtering works at any level:
 
 ---
 
+## Call-site Location (File, Line, Function)
+
+The `LOG_*` macros capture the call site's `__FILE__`, `__LINE__`, and `__FUNCTION__`
+automatically and append `(file:line in function)` to the console output, e.g.:
+
+```
+[2026-01-01 12:00:00] [INFO] Atom.Audio.Music -> Playback started (Media/Audio/MusicPlayer.cpp:142 in MusicPlayer::Play)
+```
+
+- The file path is trimmed of the source-root prefix (compile-time
+  `ATOM_SOURCE_ROOT_PREFIX` macro plus a runtime fallback), keeping only a short
+  `Module/File.cpp` form that stays stable across checkouts.
+- All three fields are written to `LogRecord` (`file` / `line` / `function`), so
+  subscribers (e.g. `LogDebugger`) can render them however they like; when
+  unspecified they are empty file, `line` 0, and empty function (e.g. the Lua
+  binding calls `LogOut` directly and leaves location to the script side).
+- Call sites need no changes — the existing `LOG_INFO(channel, msg)` signature is
+  unchanged; the macro does the capture internally.
+
+---
+
 ## Log Levels
 
 | Level | Macro | Description |

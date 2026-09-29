@@ -45,6 +45,22 @@ auto MakeChannelKey(const atom::LogChannelInfo& channel) -> std::string {
     return channel.prefix + channel.name;
 }
 
+// Runtime fallback for the compile-time ATOM_LOG_STRIP_FILE trim. __FILE__ may
+// arrive with mixed '/' and '\' separators (or already trimmed). Keep only the
+// last directory component plus the file name so console/debugger output shows
+// a short, stable "Module/File.cpp" path regardless of the checkout root.
+auto TrimSourcePath(const std::string_view path) -> std::string {
+    if (path.empty())
+        return {};
+    const auto slash = path.find_last_of("/\\");
+    if (slash == std::string_view::npos)
+        return std::string{path};
+    const auto prev_slash = path.find_last_of("/\\", slash - 1);
+    if (prev_slash == std::string_view::npos)
+        return std::string{path.substr(slash + 1)};
+    return std::string{path.substr(prev_slash + 1)};
+}
+
 } // namespace
 
 namespace atom {
@@ -130,7 +146,8 @@ auto Log::GetRegisteredChannels() -> std::vector<atom::LogChannelInfo> {
 }
 
 auto Log::LogOut(const std::string_view channelPrefix, const std::string_view channelName, const LogLevel level,
-                 const std::string& logMessage) -> void {
+                 const std::string& logMessage, const std::string_view file, const int line,
+                 const std::string_view function) -> void {
     auto& instance = GetLogInstance();
     LogRecord record;
     std::vector<Listener> listeners;
@@ -146,6 +163,9 @@ auto Log::LogOut(const std::string_view channelPrefix, const std::string_view ch
         record.channel_name = channelName;
         record.level = level;
         record.message = logMessage;
+        record.file = TrimSourcePath(file);
+        record.line = line;
+        record.function = function;
         write_to_console = level >= instance.view_log_level_;
 
         listeners.reserve(instance.listeners_.size());
@@ -154,7 +174,14 @@ auto Log::LogOut(const std::string_view channelPrefix, const std::string_view ch
 
         if (write_to_console) {
             std::cout << "[" << record.timestamp << "] [" << GetLogLevel(level) << "] " << record.channel_prefix
-                      << record.channel_name << " -> " << record.message << std::endl;
+                      << record.channel_name << " -> " << record.message;
+            if (!record.file.empty()) {
+                std::cout << " (" << record.file << ':' << record.line;
+                if (!record.function.empty())
+                    std::cout << " in " << record.function;
+                std::cout << ')';
+            }
+            std::cout << std::endl;
         }
     }
 

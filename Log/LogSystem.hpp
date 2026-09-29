@@ -42,6 +42,9 @@ struct LogRecord {
     std::string channel_name;
     LogLevel level = LogLevel::ATOM_INFO;
     std::string message;
+    std::string file;      // __FILE__ of the call site (empty when unspecified)
+    int line = 0;          // __LINE__ of the call site (0 when unspecified)
+    std::string function;  // __FUNCTION__ of the call site (empty when unspecified)
 };
 
 struct LogChannelInfo {
@@ -126,7 +129,8 @@ class Log {
         [[nodiscard]] static auto GetLogInstance() -> Log&;
 
         static auto LogOut(std::string_view channelPrefix, std::string_view channelName, LogLevel level,
-                           const std::string& logMessage) -> void;
+                           const std::string& logMessage, std::string_view file = {}, int line = 0,
+                           std::string_view function = {}) -> void;
         // Configures the process console for UTF-8 text output. This is a
         // no-op outside Windows and must be called explicitly by the host.
         static auto SetConsoleOutputUtf8() -> void;
@@ -140,17 +144,31 @@ class Log {
 };
 } // namespace atom
 
+// Trim the source-root prefix from __FILE__ at compile time so call-site
+// paths stay short and stable across checkouts. Set ATOM_SOURCE_ROOT_PREFIX to
+// your repository's canonical root (e.g. "D:/Project/Repo/Atom/") and the
+// trailing path separator is handled here; otherwise the full __FILE__ is kept.
+#ifndef ATOM_SOURCE_ROOT_PREFIX
+#define ATOM_LOG_STRIP_FILE(file) file
+#else
+#define ATOM_LOG_STRIP_FILE(file) (ATOM_SOURCE_ROOT_PREFIX "" file + sizeof(ATOM_SOURCE_ROOT_PREFIX) - 1)
+#endif
+
 #define LOG_INFO(channel, logMessage)                                                                                  \
     atom::Log::GetLogInstance().LogOut(atom::ResolveChannelPrefix(channel), atom::ResolveChannelName(channel),         \
-                                       atom::LogLevel::ATOM_INFO, logMessage)
+                                       atom::LogLevel::ATOM_INFO, logMessage, ATOM_LOG_STRIP_FILE(__FILE__), __LINE__, \
+                                       __FUNCTION__)
 #define LOG_WARNING(channel, logMessage)                                                                               \
     atom::Log::GetLogInstance().LogOut(atom::ResolveChannelPrefix(channel), atom::ResolveChannelName(channel),         \
-                                       atom::LogLevel::ATOM_WARNING, logMessage)
+                                       atom::LogLevel::ATOM_WARNING, logMessage, ATOM_LOG_STRIP_FILE(__FILE__),        \
+                                       __LINE__, __FUNCTION__)
 #define LOG_ERROR(channel, logMessage)                                                                                 \
     atom::Log::GetLogInstance().LogOut(atom::ResolveChannelPrefix(channel), atom::ResolveChannelName(channel),         \
-                                       atom::LogLevel::ATOM_ERROR, logMessage)
+                                       atom::LogLevel::ATOM_ERROR, logMessage, ATOM_LOG_STRIP_FILE(__FILE__), __LINE__, \
+                                       __FUNCTION__)
 #define LOG_DEBUG(channel, logMessage)                                                                                 \
     atom::Log::GetLogInstance().LogOut(atom::ResolveChannelPrefix(channel), atom::ResolveChannelName(channel),         \
-                                       atom::LogLevel::ATOM_DEBUG, logMessage)
+                                       atom::LogLevel::ATOM_DEBUG, logMessage, ATOM_LOG_STRIP_FILE(__FILE__), __LINE__, \
+                                       __FUNCTION__)
 
 #endif // ATOM_LOGSYSTEM_HPP
