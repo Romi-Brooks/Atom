@@ -27,6 +27,18 @@ auto RenderWindow::GetInstance() -> RenderWindow& {
     return instance;
 }
 
+namespace {
+
+// CORE-001: the ui domain is the engine's real-time authority for debugger and
+// resize-settle bookkeeping, so the window layer's own clock is not consulted
+// here. It is used only as a fallback if the domain is somehow absent.
+[[nodiscard]] auto UiSeconds(atom::window::IWindow& window) -> double {
+    const auto* ui = atom::time::TimeSystem::GetInstance().FindDomain(atom::time::domain::ui);
+    return ui != nullptr ? atom::time::ToSeconds(ui->Now()) : window.GetTimeSeconds();
+}
+
+} // namespace
+
 auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
     auto& window = backend_->Window();
     while (auto event = window.PollEvent()) {
@@ -44,7 +56,7 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
             for (const auto& entry : resize_listeners_) {
                 entry.fn(resize.width, resize.height);
             }
-            pending_resize_ = PendingResize{resize.width, resize.height, window.GetTimeSeconds()};
+            pending_resize_ = PendingResize{resize.width, resize.height, UiSeconds(window)};
         }
 
         screenManager.HandleEvent(*event);
@@ -55,7 +67,7 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
 
     if (!window.IsOpen() || !pending_resize_)
         return;
-    const double now = window.GetTimeSeconds();
+    const double now = UiSeconds(window);
     if (now - pending_resize_->last_change_seconds < resize_settle_delay_seconds)
         return;
 
@@ -132,7 +144,10 @@ auto RenderWindow::Run() -> void {
 
     while (window.IsOpen()) {
         // CORE-001 frame order:
-        //   Event -> FixedUpdate x N -> Variable Update -> Render -> Present
+        //   Tick (sample host delta) -> Event -> FixedUpdate x N -> Variable Update
+        //   -> Render -> Present
+        // Tick runs first so the delta it hands the domain clocks covers the whole
+        // previous frame, event handling included.
         const auto frame = time_system.Tick();
 
         ProcessEvents(screenManager);

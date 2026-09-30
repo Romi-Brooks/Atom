@@ -23,6 +23,30 @@ add_subdirectory(ThirdParty)
 
 include(Render/Shader/AtomShaders.cmake)
 
+# ============================================================================
+# MinGW runtime linking
+# ============================================================================
+# Both settings must be in place before the first Atom target is created and
+# before add_subdirectory(Test): CMake captures these variables per directory
+# scope, so setting them further down this file silently skips every target
+# already defined. That is exactly how the test executables ended up dynamically
+# linked against libstdc++-6.dll / libgcc_s_seh-1.dll with no copy of either DLL
+# produced anywhere, while Atom.exe got both flags and worked.
+if(MINGW)
+    # Statically link libgcc and libstdc++ so executables do not require
+    # libgcc_s_seh-1.dll / libstdc++-6.dll. Plain "-static" is avoided: this
+    # toolchain's static winpthread archive is built for UCRT and references
+    # __intrinsic_setjmpex, which the MSVCRT runtime sequence does not provide
+    # (undefined reference at link time).
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+
+    # libwinpthread stays a DLL, and Windows resolves it next to the loading
+    # executable rather than in a parent directory -- so tests built into Test/
+    # could never see the copy made for the build root. Collecting every Atom
+    # executable in one directory lets a single copy serve all of them.
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()
+
 
 # ============================================================================
 # Engine Libraries
@@ -148,7 +172,9 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/SDL3/Time/SDL3TimeSource.hpp
     )
     target_include_directories(Atom_Backend_SDL3_Core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_SDL3_Core PUBLIC Atom_3rd_SDL3)
+    # SDL3TimeSource implements backend::ITimeSource, so the contract library is
+    # a real dependency here, not just an include path that happens to resolve.
+    target_link_libraries(Atom_Backend_SDL3_Core PUBLIC Atom_3rd_SDL3 Atom_Backend_Contracts)
 
 # 3a. SDL3 window platform layer
     add_library(Atom_Backend_SDL3_Window STATIC
@@ -467,6 +493,9 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_include_directories(Atom_Core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Core INTERFACE
             Atom_Algorithm
+            # Time is consumed directly by upper layers through
+            # TimeSystem::GetInstance(), not only transitively via Atom_Window.
+            Atom_Time
             Atom_Layout
             Atom_Media
             Atom_Packager
@@ -586,19 +615,13 @@ endif()
 # Platforms Config
 # ============================================================================
 if(MINGW)
-    # Statically link libgcc and libstdc++ so executables do not require
-    # libgcc_s_seh-1.dll / libstdc++-6.dll at runtime. Plain "-static" is
-    # avoided: this toolchain's static winpthread archive is built for UCRT and
-    # references __intrinsic_setjmpex, which the MSVCRT runtime sequence does
-    # not provide (undefined reference at link time).
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
     target_link_options(Atom_Engine PRIVATE -lstdc++exp -lws2_32)
 
-    # The thread runtime stays dynamic. All executables currently use the common
-    # CMAKE_RUNTIME_OUTPUT_DIRECTORY (the build directory), so copy the DLL once
-    # into that directory instead of attaching a POST_BUILD copy to every
-    # executable. Per-target POST_BUILD copies race under Ninja when several
-    # executables link in parallel and can fail with ERROR_ACCESS_DENIED.
+    # The thread runtime stays a DLL. The MinGW block near the top of this file
+    # places every Atom executable, tests included, in CMAKE_BINARY_DIR, so copy
+    # the DLL once into that directory instead of attaching a POST_BUILD copy to
+    # every executable. Per-target POST_BUILD copies race under Ninja when
+    # several executables link in parallel and can fail with ERROR_ACCESS_DENIED.
     get_filename_component(ATOM_MINGW_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
     set(ATOM_MINGW_RUNTIME_DLL "${ATOM_MINGW_BIN_DIR}/libwinpthread-1.dll")
     if(EXISTS "${ATOM_MINGW_RUNTIME_DLL}")

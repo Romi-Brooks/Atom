@@ -51,8 +51,17 @@ class TimeSystem {
         auto Shutdown() -> void;
         [[nodiscard]] auto IsInitialized() const -> bool;
 
+        // Never null and never throws: before Initialize(), and again after
+        // Shutdown(), this is an inert clock bound to a zero-valued source, so
+        // early or late access is harmless rather than undefined.
         [[nodiscard]] auto Master() -> MasterClock&;
         [[nodiscard]] auto Master() const -> const MasterClock&;
+
+        // nullptr until Initialize() has run, and again after Shutdown(). Use
+        // this when "not initialized" is a case worth handling; Master() itself
+        // never returns null and never throws.
+        [[nodiscard]] auto TryMaster() -> MasterClock*;
+        [[nodiscard]] auto TryMaster() const -> const MasterClock*;
 
         auto CreateDomain(std::string_view name, const ClockDesc& desc) -> DomainClock&;
         [[nodiscard]] auto FindDomain(std::string_view name) -> DomainClock*;
@@ -65,9 +74,21 @@ class TimeSystem {
     private:
         TimeSystem() = default;
 
+        // Inert source bound before Initialize() and after Shutdown(). It keeps
+        // master_ dereferenceable so Master() can never hand back a null clock,
+        // mirroring BackendRuntime::Audio()'s never-null, never-throw contract.
+        struct NullTimeSource final : backend::ITimeSource {
+            [[nodiscard]] auto NowNs() const -> std::uint64_t override {
+                return 0;
+            }
+        };
+
         auto CreateDefaultDomains(const DefaultDomainConfig& config) -> void;
 
-        std::unique_ptr<MasterClock> master_;
+        // Declared before master_ on purpose: the initializer below binds the
+        // clock to this source, so Master() is valid from construction onward.
+        NullTimeSource null_source_{};
+        std::unique_ptr<MasterClock> master_ = std::make_unique<MasterClock>(null_source_);
         std::unordered_map<std::string, DomainClock> domains_;
         FrameTick last_frame_{};
         bool initialized_ = false;

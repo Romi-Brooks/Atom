@@ -26,7 +26,9 @@ auto TimeSystem::Initialize(const backend::ITimeSource& source, const DefaultDom
 
 auto TimeSystem::Shutdown() -> void {
     domains_.clear();
-    master_.reset();
+    // Re-seat to the inert source rather than resetting: Master() promises a
+    // dereferenceable clock in the shutdown state too.
+    master_ = std::make_unique<MasterClock>(null_source_);
     last_frame_ = FrameTick{};
     initialized_ = false;
 }
@@ -41,6 +43,14 @@ auto TimeSystem::Master() -> MasterClock& {
 
 auto TimeSystem::Master() const -> const MasterClock& {
     return *master_;
+}
+
+auto TimeSystem::TryMaster() -> MasterClock* {
+    return initialized_ ? master_.get() : nullptr;
+}
+
+auto TimeSystem::TryMaster() const -> const MasterClock* {
+    return initialized_ ? master_.get() : nullptr;
 }
 
 auto TimeSystem::CreateDomain(const std::string_view name, const ClockDesc& desc) -> DomainClock& {
@@ -62,7 +72,7 @@ auto TimeSystem::FindDomain(const std::string_view name) const -> const DomainCl
 }
 
 auto TimeSystem::Tick() -> FrameTick {
-    if (!master_) {
+    if (!initialized_) {
         last_frame_ = FrameTick{};
         return last_frame_;
     }

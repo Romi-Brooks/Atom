@@ -262,7 +262,6 @@ auto SDL3Window::Initialize(const std::string& title, const algo::Vec2 resolutio
         LOG_ERROR(atom::log::backend::sdl3::Window, "SDL_CreateWindow failed: " + std::string{SDL_GetError()});
         return false;
     }
-    performance_frequency_ = SDL_GetPerformanceFrequency();
     video_runtime_ = std::move(video);
     events_runtime_ = std::move(events);
     open_ = true;
@@ -290,30 +289,38 @@ auto SDL3Window::PollEvent() -> std::optional<window::IEvent> {
 }
 auto SDL3Window::SetFPS(const uint32_t fps) -> void {
     fps_limit_ = fps;
-    next_frame_counter_ = 0;
+    next_frame_ns_ = 0;
 }
 auto SDL3Window::GetFPS() const -> uint32_t {
     return fps_limit_;
 }
+auto SDL3Window::SetTimeSource(backend::ITimeSource& source) -> void {
+    time_source_ = &source;
+}
 auto SDL3Window::GetTimeSeconds() const -> double {
-    return performance_frequency_ == 0 ? 0.0
-                                       : static_cast<double>(SDL_GetPerformanceCounter()) / performance_frequency_;
+    return time_source_ != nullptr ? static_cast<double>(time_source_->NowNs()) / 1.0e9 : 0.0;
 }
 auto SDL3Window::WaitForNextFrame() -> void {
-    if (fps_limit_ == 0 || performance_frequency_ == 0)
+    if (fps_limit_ == 0 || time_source_ == nullptr)
         return;
-    const auto span = std::max<uint64_t>(1, performance_frequency_ / fps_limit_);
-    auto now = SDL_GetPerformanceCounter();
-    if (next_frame_counter_ == 0)
-        next_frame_counter_ = now + span;
-    if (now < next_frame_counter_) {
-        SDL_DelayPrecise(static_cast<uint64_t>(static_cast<long double>(next_frame_counter_ - now) * SDL_NS_PER_SECOND /
-                                               performance_frequency_));
-        now = SDL_GetPerformanceCounter();
+    auto now_ns = time_source_->NowNs();
+    // A source with no usable counter reports 0 forever, and pacing off that
+    // would grow the target without bound. Leave frame limiting off instead,
+    // matching the old behaviour when the frequency query returned 0.
+    if (now_ns == 0)
+        return;
+    // The host clock is already nanoseconds, so no counter-to-seconds conversion
+    // is needed here (that was the only reason this used to sample its own).
+    const auto frame_ns = std::max<uint64_t>(1, 1000000000ull / fps_limit_);
+    if (next_frame_ns_ == 0)
+        next_frame_ns_ = now_ns + frame_ns;
+    if (now_ns < next_frame_ns_) {
+        SDL_DelayPrecise(next_frame_ns_ - now_ns);
+        now_ns = time_source_->NowNs();
     }
-    next_frame_counter_ += span;
-    if (now > next_frame_counter_ + span)
-        next_frame_counter_ = now + span;
+    next_frame_ns_ += frame_ns;
+    if (now_ns > next_frame_ns_ + frame_ns)
+        next_frame_ns_ = now_ns + frame_ns;
 }
 auto SDL3Window::GetSize() const -> algo::Vec2 {
     int width = 0, height = 0;

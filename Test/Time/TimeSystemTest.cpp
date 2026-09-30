@@ -62,12 +62,43 @@ auto IndependentDomainsDoNotShareState() -> int {
     return 0;
 }
 
+auto MasterIsAlwaysDereferenceable() -> int {
+    auto& time_system = atom::time::TimeSystem::GetInstance();
+    time_system.Shutdown();
+
+    // Shutdown state: TryMaster() reports "not initialized", but Master() must
+    // still be dereferenceable and inert (never-null, never-throw contract).
+    ATOM_CHECK(time_system.TryMaster() == nullptr);
+    ATOM_CHECK(time_system.Master().Now() == 0);
+    ATOM_CHECK(time_system.Master().Delta() == 0);
+
+    atom::time::ManualTimeSource source;
+    source.SetNs(500'000'000ull);
+    time_system.Initialize(source);
+
+    ATOM_CHECK(time_system.TryMaster() != nullptr);
+    // Fresh epoch: host time is 500ms, master time starts at zero.
+    ATOM_CHECK(time_system.Master().Now() == 0);
+
+    source.AdvanceNs(2'000'000ull);
+    ATOM_CHECK(time_system.Master().ObserveHost() == 2'000'000);
+    ATOM_CHECK(time_system.Master().Now() == 2'000'000ull);
+
+    // Shutdown must return the accessor to a safe, non-null state again.
+    time_system.Shutdown();
+    ATOM_CHECK(time_system.TryMaster() == nullptr);
+    ATOM_CHECK(time_system.Master().Now() == 0);
+    return 0;
+}
+
 } // namespace
 
 auto main() -> int {
     if (const auto code = DefaultDomainsAndTick())
         return code;
     if (const auto code = IndependentDomainsDoNotShareState())
+        return code;
+    if (const auto code = MasterIsAlwaysDereferenceable())
         return code;
     return 0;
 }
