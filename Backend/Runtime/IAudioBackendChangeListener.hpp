@@ -23,4 +23,4 @@ class IAudioBackendChangeListener {
 
 } // namespace atom::backend
 
-#endif
+#endif // ATOM_BACKEND_RUNTIME_I_AUDIO_BACKEND_CHANGE_LISTENER_HPP

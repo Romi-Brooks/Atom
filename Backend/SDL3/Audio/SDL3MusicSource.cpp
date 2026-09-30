@@ -12,7 +12,7 @@ namespace atom::backend::sdl3 {
 
 // Target ~100 ms of audio per push — large enough to amortise resampler
 // boundary artifacts but small enough to keep latency reasonable.
-constexpr double kStreamDuration = 0.1; // seconds
+constexpr double stream_duration = 0.1; // seconds
 
 SDL3MusicSource::SDL3MusicSource(std::vector<uint8_t> pcmData, const SDL_AudioSpec& spec)
     : pcm_data_(std::move(pcmData)), spec_(spec) {}
@@ -216,11 +216,11 @@ auto SDL3MusicSource::DecodeLoop() -> void {
     // Compute a reasonable push size (~100 ms of audio) so resampler
     // boundary artifacts are minimised.  Clamp to [4096, 1 MiB].
     const auto bytes_per_frame = SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
-    const auto chunk_frames = static_cast<std::size_t>(spec_.freq * kStreamDuration);
-    const std::size_t kStreamChunk =
+    const auto chunk_frames = static_cast<std::size_t>(spec_.freq * stream_duration);
+    const std::size_t stream_chunk =
         std::clamp(chunk_frames * bytes_per_frame, std::size_t{4096}, std::size_t{1048576});
 
-    LOG_DEBUG(atom::log::backend::Audio::sdl3, "DecodeLoop started: chunk=" + std::to_string(kStreamChunk) +
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "DecodeLoop started: chunk=" + std::to_string(stream_chunk) +
                                                           " total=" + std::to_string(pcm_data_.size()) +
                                                           " loop=" + std::to_string(loop_.load()));
 
@@ -231,7 +231,7 @@ auto SDL3MusicSource::DecodeLoop() -> void {
         auto cursor = play_cursor_.load();
         if (cursor < pcm_data_.size()) {
             const auto remaining = pcm_data_.size() - cursor;
-            const auto toPush = (std::min)(kStreamChunk, remaining);
+            const auto toPush = (std::min)(stream_chunk, remaining);
 
             if (!SDL_PutAudioStreamData(stream_, pcm_data_.data() + cursor, static_cast<int>(toPush))) {
                 LOG_ERROR(atom::log::backend::Audio::sdl3,

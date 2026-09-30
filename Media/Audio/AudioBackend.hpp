@@ -18,7 +18,6 @@
 
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
-#include <Backend/Extension/AudioDecoderRegistry.hpp>
 
 namespace atom::backend {
 class IAudioBackendChangeListener;

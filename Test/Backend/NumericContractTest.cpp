@@ -23,25 +23,25 @@ auto main() -> int {
     ATOM_CHECK(!atom::numeric::IsValidVolume(inf));
 
     ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(42.0f), 42.0f, 0.0f);
-    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(-10.0f), atom::numeric::kMinVolume, 0.0f);
-    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(250.0f), atom::numeric::kMaxVolume, 0.0f);
+    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(-10.0f), atom::numeric::min_volume, 0.0f);
+    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(250.0f), atom::numeric::max_volume, 0.0f);
     // NaN/Inf must collapse to silence, never propagate into a gain.
-    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(nan), atom::numeric::kMinVolume, 0.0f);
-    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(inf), atom::numeric::kMinVolume, 0.0f);
-    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(-inf), atom::numeric::kMinVolume, 0.0f);
+    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(nan), atom::numeric::min_volume, 0.0f);
+    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(inf), atom::numeric::min_volume, 0.0f);
+    ATOM_CHECK_NEAR(atom::numeric::SanitizeVolume(-inf), atom::numeric::min_volume, 0.0f);
 
     // --- radius -------------------------------------------------------------
     ATOM_CHECK(atom::numeric::IsValidRadius(0.5f));
-    ATOM_CHECK(atom::numeric::IsValidRadius(atom::numeric::kMaxRadius));
+    ATOM_CHECK(atom::numeric::IsValidRadius(atom::numeric::max_radius));
     ATOM_CHECK(!atom::numeric::IsValidRadius(0.0f));
     ATOM_CHECK(!atom::numeric::IsValidRadius(-1.0f));
     ATOM_CHECK(!atom::numeric::IsValidRadius(nan));
-    ATOM_CHECK(!atom::numeric::IsValidRadius(atom::numeric::kMaxRadius * 2.0f));
+    ATOM_CHECK(!atom::numeric::IsValidRadius(atom::numeric::max_radius * 2.0f));
 
     ATOM_CHECK_NEAR(atom::numeric::SanitizeRadius(0.0f), 0.0f, 0.0f);
     ATOM_CHECK_NEAR(atom::numeric::SanitizeRadius(-4.0f), 0.0f, 0.0f);
     ATOM_CHECK_NEAR(atom::numeric::SanitizeRadius(nan), 0.0f, 0.0f);
-    ATOM_CHECK_NEAR(atom::numeric::SanitizeRadius(atom::numeric::kMaxRadius * 4.0f), atom::numeric::kMaxRadius,
+    ATOM_CHECK_NEAR(atom::numeric::SanitizeRadius(atom::numeric::max_radius * 4.0f), atom::numeric::max_radius,
                     0.0f);
     ATOM_CHECK_NEAR(atom::numeric::SanitizeRadius(12.0f), 12.0f, 0.0f);
 
@@ -56,22 +56,22 @@ auto main() -> int {
     ATOM_CHECK(atom::numeric::TrySanitizeOffsetSeconds(12.5f, seconds));
     ATOM_CHECK_NEAR(seconds, 12.5f, 0.0f);
     ATOM_CHECK(atom::numeric::TrySanitizeOffsetSeconds(1.0e12f, seconds));
-    ATOM_CHECK_NEAR(seconds, atom::numeric::kMaxMediaSeconds, 0.0f);
+    ATOM_CHECK_NEAR(seconds, atom::numeric::max_media_seconds, 0.0f);
 
     ATOM_CHECK_NEAR(atom::numeric::SanitizeSeconds(-1.0f), 0.0f, 0.0f);
     ATOM_CHECK_NEAR(atom::numeric::SanitizeSeconds(nan), 0.0f, 0.0f);
     ATOM_CHECK_NEAR(atom::numeric::SanitizeSeconds(3.0f), 3.0f, 0.0f);
 
     // --- voice counts -------------------------------------------------------
-    ATOM_CHECK(atom::numeric::IsValidVoiceCount(atom::numeric::kMinVoices));
-    ATOM_CHECK(atom::numeric::IsValidVoiceCount(atom::numeric::kMaxVoices));
+    ATOM_CHECK(atom::numeric::IsValidVoiceCount(atom::numeric::min_voices));
+    ATOM_CHECK(atom::numeric::IsValidVoiceCount(atom::numeric::max_voices));
     ATOM_CHECK(!atom::numeric::IsValidVoiceCount(0));
-    ATOM_CHECK(!atom::numeric::IsValidVoiceCount(atom::numeric::kMaxVoices + 1));
+    ATOM_CHECK(!atom::numeric::IsValidVoiceCount(atom::numeric::max_voices + 1));
 
-    ATOM_CHECK(atom::numeric::SanitizeVoiceCount(0) == atom::numeric::kDefaultVoices);
+    ATOM_CHECK(atom::numeric::SanitizeVoiceCount(0) == atom::numeric::default_voices);
     ATOM_CHECK(atom::numeric::SanitizeVoiceCount(0, 4) == 4);
     ATOM_CHECK(atom::numeric::SanitizeVoiceCount(1) == 1);
-    ATOM_CHECK(atom::numeric::SanitizeVoiceCount(1'000'000) == atom::numeric::kMaxVoices);
+    ATOM_CHECK(atom::numeric::SanitizeVoiceCount(1'000'000) == atom::numeric::max_voices);
 
     // --- allocation sizes ---------------------------------------------------
     std::size_t bytes = 0;
@@ -86,11 +86,11 @@ auto main() -> int {
     ATOM_CHECK(!atom::numeric::CheckedPixelBytes(0xFFFFFFFFu, 0xFFFFFFFFu, 4, bytes));
 
     ATOM_CHECK(atom::numeric::IsValidTextureSize(1, 1));
-    ATOM_CHECK(atom::numeric::IsValidTextureSize(atom::numeric::kMaxTextureDimension,
-                                                 atom::numeric::kMaxTextureDimension));
+    ATOM_CHECK(atom::numeric::IsValidTextureSize(atom::numeric::max_texture_dimension,
+                                                 atom::numeric::max_texture_dimension));
     ATOM_CHECK(!atom::numeric::IsValidTextureSize(0, 8));
     ATOM_CHECK(!atom::numeric::IsValidTextureSize(8, 0));
-    ATOM_CHECK(!atom::numeric::IsValidTextureSize(atom::numeric::kMaxTextureDimension + 1, 8));
+    ATOM_CHECK(!atom::numeric::IsValidTextureSize(atom::numeric::max_texture_dimension + 1, 8));
 
     // --- decoded image budget (total surface, not per axis) ----------------
     ATOM_CHECK(atom::numeric::IsWithinDecodedImageBudget(1, 1));

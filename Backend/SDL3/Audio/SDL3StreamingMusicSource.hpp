@@ -46,15 +46,15 @@ class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
         auto ReleaseBackendHandles() -> void override;
 
     private:
-        static constexpr std::size_t kRingBufferCapacity = 4 * 1024 * 1024; // 4 MiB
+        static constexpr std::size_t ring_buffer_capacity = 4 * 1024 * 1024; // 4 MiB
         // Target ~100 ms of audio per push (same as SDL3MusicSource).
-        static constexpr double kChunkDuration = 0.1;
-        static constexpr double kRingHighWaterDuration = 1.0;
-        static constexpr double kSDLQueueTargetDuration = 0.2;
+        static constexpr double chunk_duration = 0.1;
+        static constexpr double ring_high_water_duration = 1.0;
+        static constexpr double sdl_queue_target_duration = 0.2;
         // Minimum buffered data before pushing to SDL (2× chunk size).
         // Debug progress log cadence: one line per ~5 s of audio submitted,
         // regardless of wall-clock timing.
-        static constexpr double kProgressLogIntervalSeconds = 5.0;
+        static constexpr double progress_log_interval_seconds = 5.0;
 
         SDL_AudioStream* stream_ = nullptr;
         SDL_AudioSpec spec_{};

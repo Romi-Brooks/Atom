@@ -88,7 +88,7 @@
       `IAudioSource::SetPlayingOffset` 拒绝非有限 offset；`MusicPlayer::LoadFromMemory` 拒绝空/零长缓冲区；
       `VoicePool` 构造钳制 voice 数，`SetVoiceLimit`/`SFXPlayer::SetVoiceLimit` 显式拒绝越界值；
       `DecodeImageMemory` 先用 `stbi_info_from_memory` 预读头部，在 stb 真正分配之前按**解码后总字节数**
-      （`kMaxDecodedImageBytes`，默认 256 MiB）拒绝超限尺寸；这是总量预算而不是单轴上限，因此 1×20000 的
+      （`max_decoded_image_bytes`，默认 256 MiB）拒绝超限尺寸；这是总量预算而不是单轴上限，因此 1×20000 的
       细长条仍可解码，而 16384×16384（约 1 GiB）会被拒绝（stb 对 BMP/TGA/PSD 等格式只按 int32 乘积设上界，
       20000×20000 仍会被放行并分配约 1.2 GB）。
 - [x] 统一音量范围和非法参数处理方式。

@@ -45,4 +45,4 @@ struct Camera2D {
 
 } // namespace atom::algo
 
-#endif
+#endif // ATOM_ALGORITHM_CAMERA2D_HPP

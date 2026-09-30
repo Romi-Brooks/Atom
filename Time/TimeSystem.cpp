@@ -92,11 +92,11 @@ auto TimeSystem::CreateDefaultDomains(const DefaultDomainConfig& config) -> void
     ClockDesc ui{};
     ClockDesc audio{};
 
-    CreateDomain(domain::kGame, game);
-    CreateDomain(domain::kPhysics, physics);
-    CreateDomain(domain::kRender, render);
-    CreateDomain(domain::kUi, ui);
-    CreateDomain(domain::kAudio, audio);
+    CreateDomain(domain::game, game);
+    CreateDomain(domain::physics, physics);
+    CreateDomain(domain::render, render);
+    CreateDomain(domain::ui, ui);
+    CreateDomain(domain::audio, audio);
 }
 
 } // namespace atom::time

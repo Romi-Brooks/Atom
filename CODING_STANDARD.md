@@ -56,7 +56,15 @@ ModuleName/            # PascalCase, singular
 **Rules:**
 
 - Format: `ATOM_<NAME>_HPP`, `<NAME>` is PascalCase in all caps
+- `<NAME>` is the **file name** (`ScreenManager.hpp` → `ATOM_SCREENMANAGER_HPP`). A directory
+  component may be kept in front of it (`Backend/Contracts/Window/IWindow.hpp` →
+  `ATOM_BACKEND_CONTRACTS_WINDOW_IWINDOW_HPP`); dropping a leading `I` from an interface name is
+  accepted (`IAudioEffect.hpp` → `ATOM_AUDIO_EFFECT_HPP`). The guard must never be a stale name
+  from a previous file name — it is the only thing that tells a reader which file the block
+  belongs to.
+- `#ifndef` and `#define` are adjacent, with nothing between them
 - `#endif` must be followed by a comment with the macro name
+- `#pragma once` is not used anywhere in this repository
 
 ### 2.2 Include Order
 
@@ -87,7 +95,28 @@ headers in the following order, separated by blank lines:
 - Header files omit the self dependency and start with standard-library includes
 - Project headers use `#include <ModuleName/FileName.hpp>` syntax (relative to the project root)
 - Self (corresponding `.hpp`) uses `#include "FileName.hpp"`, placed first
-- Relative paths like `../../` are prohibited
+- Relative include paths (`../`, `../../`) are **prohibited**: always spell an engine header from
+  the project root
+- Include what you use: a file includes the header that declares each name it uses, and no file
+  includes the same header twice
+- The only exception to the grouping above is a single forward-declaration block, which belongs
+  with the project headers
+
+### 2.3 `using` and Type Aliases
+
+- A public header must **not** write `using namespace xxx;` — it pollutes the lookup scope of
+  every file that includes it
+- `using Name = Type;` declares a scoped alias in the current namespace and does not import the
+  name anywhere else; it is allowed for a deliberate API facade, a resource handle, or an in-class
+  callback type
+- A namespace-scope alias must denote **exactly the same type and unit semantics** and live in the
+  namespace that owns the API (e.g. `render::Color = color::Color`). If the coordinate system,
+  units, ownership or invariants differ, use a distinct struct/wrapper instead of an alias
+- An alias cannot be forward-declared on its own. If a public interface stores or constructs the
+  type by value, the header must include the underlying type's complete definition; when only
+  pointers or references are used, the underlying tag may be forward-declared before the alias
+- Do not add namespace-scope aliases just to shorten local code; solve a name clash with qualified
+  namespaces or a clearer type name. A new public alias must state its stable-API intent in review
 
 ---
 
@@ -100,7 +129,8 @@ headers in the following order, separated by blank lines:
 | **Namespace** | `snake_case` | `atom`, `atom::audio` |
 | **Class / Struct** | `PascalCase` | `VolumeManager`, `MusicFade`, `SFX` |
 | **Enum type** | `PascalCase` | `LogLevel`, `FadeState`, `NPCType` |
-| **Enum values** | `PascalCase` | `Idle`, `FadingOut` |
+| **Enum values** | `PascalCase` | `Idle`, `FadingOut`, `ErrorInvalidFormat` |
+| **Constants** (`const` / `constexpr`, any scope) | `snake_case` | `max_volume`, `default_recent_capacity`, `invalid_texture_2d` |
 | **Public / Private member functions** | `PascalCase` | `GetInstance()`, `Load()`, `SetVolume()` |
 | **Static member functions** | `PascalCase` | `GetInstance()`, `SetSfxVolume()` |
 | **Member variables** | `snake_case_` + trailing underscore | `music_volume_`, `current_playing_id_` |
@@ -132,7 +162,7 @@ a namespace, an internal `Channel` enum and a display prefix:
 - Display names are dotted PascalCase components (`Atom.Entity.NPC ->`).
 - Always reference a channel through its logging domain at the call site
   (e.g. `atom::log::audio::Music`). Do not introduce local aliases such as
-  `const auto& kMusicLogChannel = atom::log::audio::Music;` — they add
+  `const auto& music_log_channel = atom::log::audio::Music;` — they add
   indirection for readers without meaningful benefit.
 
 ### 3.2 Detailed Rules
@@ -142,6 +172,8 @@ a namespace, an internal `Channel` enum and a display prefix:
 - Use `snake_case`
 - Top-level namespace: `atom`
 - Sub-namespaces: `atom::audio`, `atom::video` (if further subdivision is needed)
+- `using namespace` is **forbidden in headers**; a `.cpp` may use it only for its own module's
+  namespace (or in a test), never to pull in a third-party namespace
 
 #### Classes
 
@@ -153,6 +185,8 @@ a namespace, an internal `Channel` enum and a display prefix:
 
 - Engine C++ functions use **trailing return types**: `auto FuncName() -> ReturnType`
 - Constructors, destructors, `main`, and callbacks whose signatures must match a C API are exempt
+  (the `int LuaXxx(lua_State* L)` binding functions in `Lua/LuaBinding/` are the only in-tree case)
+- The rule also covers small in-class helpers: `auto Reset() -> void`, not `void Reset()`
 - PascalCase, starting with a verb: `GetInstance()`, `Load()`, `SetVolume()`
 - Getters start with `Get`, setters start with `Set`
 - Boolean queries start with `Is` / `Has`: `IsLoaded()`, `HasSFX()`
@@ -181,6 +215,36 @@ class Music {
         std::string current_playing_id_;
         static float music_volume_;
 };
+```
+
+#### Constants
+
+- `snake_case` at every scope: namespace scope, class scope, file scope and
+  function scope
+- **No `k` prefix** and **no trailing underscore**. The trailing underscore marks
+  object state, and a constant is not object state; a class-scope constant is
+  already distinguished by the qualification at its use site
+  (`Log::default_recent_capacity`, `LayoutTree::invalid_node`)
+- `UPPER_SNAKE_CASE` stays reserved for macros — do not use it for a C++
+  constant
+- A generated constant that must be spelled through a macro cannot be
+  lowercased by the preprocessor, so the macro emits a fixed `snake_case` name
+  and relies on the one-domain-per-namespace rule above
+  (`LogChannelMacros.hpp`: `channel_names`, `channel_registered`)
+
+```cpp
+namespace atom::numeric {
+inline constexpr float max_volume = 100.0f;  // namespace scope
+}
+
+class Log {
+    public:
+        static constexpr std::size_t default_recent_capacity = 512;  // class scope
+};
+
+namespace {
+constexpr float two_pi = 6.28318530717958647692f;  // file scope
+}
 ```
 
 #### Parameters and Local Variables
@@ -343,9 +407,12 @@ clarify a concept that English cannot express faithfully.
 **/
 ```
 
-This is the current header format for new Atom files and examples. Existing
-headers are not being migrated in this phase; the SPDX/许可证 header migration
-remains a separately tracked mechanical task in `Docs/Remaining-Issues.md`.
+This is the current header format for new Atom files and examples. Every file
+added from now on carries it. Existing headers are not being migrated in this
+phase; the SPDX/license header migration is tracked as **CORE-007** in
+`Docs/Remaining-Issues.md` (current audit: 161 Atom-owned C/C++ files, 45 with
+the old header, 9 with SPDX). Do not bolt a second header style onto a file that
+is being edited for another reason — leave the migration to CORE-007.
 
 ### 6.2 Inline Comments
 

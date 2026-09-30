@@ -20,17 +20,17 @@ using TimePoint = std::uint64_t;
 // Signed nanosecond span (deltas may be clamped to 0).
 using Duration = std::int64_t;
 
-inline constexpr Duration kNanosecond = 1;
-inline constexpr Duration kMicrosecond = 1000;
-inline constexpr Duration kMillisecond = 1000000;
-inline constexpr Duration kSecond = 1000000000;
+inline constexpr Duration nanosecond = 1;
+inline constexpr Duration microsecond = 1000;
+inline constexpr Duration millisecond = 1000000;
+inline constexpr Duration second = 1000000000;
 
 [[nodiscard]] inline auto ToSeconds(const TimePoint value) -> double {
-    return static_cast<double>(value) / static_cast<double>(kSecond);
+    return static_cast<double>(value) / static_cast<double>(second);
 }
 
 [[nodiscard]] inline auto ToSeconds(const Duration value) -> double {
-    return static_cast<double>(value) / static_cast<double>(kSecond);
+    return static_cast<double>(value) / static_cast<double>(second);
 }
 
 [[nodiscard]] inline auto ToFloatSeconds(const Duration value) -> float {
@@ -38,7 +38,7 @@ inline constexpr Duration kSecond = 1000000000;
 }
 
 [[nodiscard]] inline auto FromSeconds(const double seconds) -> Duration {
-    return static_cast<Duration>(seconds * static_cast<double>(kSecond));
+    return static_cast<Duration>(seconds * static_cast<double>(second));
 }
 
 // Description of a derived domain clock.

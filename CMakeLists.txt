@@ -356,6 +356,7 @@ add_library(Atom_FS STATIC
     Filesystem/OverlayFileSystem.cpp
     Filesystem/Vfs.hpp
     Filesystem/Vfs.cpp
+    Filesystem/PackageFormat.hpp
     Filesystem/PackageFileSystem.hpp
     Filesystem/PackageFileSystem.cpp
 )

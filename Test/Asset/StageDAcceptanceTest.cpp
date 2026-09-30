@@ -12,6 +12,7 @@
 #include <Asset/ScriptSourceLoader.hpp>
 #include <Filesystem/MemoryFileSystem.hpp>
 #include <Filesystem/PackageFileSystem.hpp>
+#include <Filesystem/PackageFormat.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Media/Audio/Resources/AudioClipResourceLoader.hpp>
 #include <Media/Image/DecodedImageLoader.hpp>
@@ -43,7 +44,7 @@ auto Bytes(const std::string_view text) -> std::vector<std::byte> {
 }
 
 // Minimal valid 1x1 RGB PNG (same as ConsumerLoaderTest).
-constexpr std::array<uint8_t, 78> kTinyPng{
+constexpr std::array<uint8_t, 78> tiny_png{
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
     0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
     0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xFF, 0xFF, 0x3F, 0x00, 0x05, 0xFE, 0x02, 0xFE, 0xA7,
@@ -51,9 +52,9 @@ constexpr std::array<uint8_t, 78> kTinyPng{
 };
 
 auto TinyPngBytes() -> std::vector<std::byte> {
-    std::vector<std::byte> bytes(kTinyPng.size());
-    for (std::size_t index = 0; index < kTinyPng.size(); ++index)
-        bytes[index] = static_cast<std::byte>(kTinyPng[index]);
+    std::vector<std::byte> bytes(tiny_png.size());
+    for (std::size_t index = 0; index < tiny_png.size(); ++index)
+        bytes[index] = static_cast<std::byte>(tiny_png[index]);
     return bytes;
 }
 
@@ -139,7 +140,9 @@ auto WriteApkg(const native_fs::path& package,
         return false;
 
     output.write("APKG", 4);
-    const uint16_t version = 1;
+    // Written from the shared format contract, pinned to APKG v1.
+    static_assert(atom::fs::package_format::version == 1, "this test writes APKG v1");
+    const uint16_t version = atom::fs::package_format::version;
     output.write(reinterpret_cast<const char*>(&version), sizeof(version));
     const uint32_t count = static_cast<uint32_t>(files.size());
     output.write(reinterpret_cast<const char*>(&count), sizeof(count));

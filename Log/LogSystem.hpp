@@ -137,10 +137,10 @@ template <typename TChannel>
 class Log {
     public:
         // Recent-log replay ring: how many records Subscribe() replays.
-        static constexpr std::size_t kDefaultRecentCapacity = 512;
+        static constexpr std::size_t default_recent_capacity = 512;
         // Console queue bound. When it is full the oldest pending line is
         // dropped rather than blocking the producer; 0 accepts nothing.
-        static constexpr std::size_t kDefaultConsoleQueueCapacity = 4096;
+        static constexpr std::size_t default_console_queue_capacity = 4096;
 
     private:
         using LogListener = std::function<void(const LogRecord&)>;
@@ -173,12 +173,12 @@ class Log {
         std::vector<LogListenerEntry> listeners_;
         uint64_t next_listener_id_ = 1;
         std::deque<LogRecord> recent_records_{};
-        std::size_t recent_capacity_ = kDefaultRecentCapacity;
+        std::size_t recent_capacity_ = default_recent_capacity;
 
         std::mutex console_mutex_;
         std::condition_variable console_cv_;
         std::deque<std::string> console_queue_{};
-        std::size_t console_queue_capacity_ = kDefaultConsoleQueueCapacity;
+        std::size_t console_queue_capacity_ = default_console_queue_capacity;
         // Lines the writer has popped but not finished writing. FlushConsole()
         // must wait for this to reach zero, otherwise it can return while the
         // last line is still in the writer's local.

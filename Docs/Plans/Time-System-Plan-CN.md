@@ -56,7 +56,7 @@ Event → FixedUpdate × N (game) → Variable Update (render) → Render → Pr
 ```cpp
 auto& time = atom::time::TimeSystem::GetInstance();
 // Initialize 由 RenderWindow 绑定 backend_->TimeSource()
-auto* physics = time.FindDomain(atom::time::domain::kPhysics);
+auto* physics = time.FindDomain(atom::time::domain::physics);
 for (u32 i = 0; i < physics->LastTick().steps; ++i)
     world.Step(atom::time::ToFloatSeconds(physics->LastTick().fixed_step_ns));
 ```
@@ -79,7 +79,7 @@ for (u32 i = 0; i < physics->LastTick().steps; ++i)
 
 - SDL3 是否暴露稳定的 device delay（`SDL_GetAudioStreamQueued` 只有队列估计）。
 - 多声卡热插拔后 epoch 重建策略。
-- 是否需要独立 `Atom_Media` 音频中间件时钟，还是直接用 `kAudio` 域。
+- 是否需要独立 `Atom_Media` 音频中间件时钟，还是直接用 `audio` 域。
 
 ## 6. P4 — 渲染插值与 shader time（待做）
 

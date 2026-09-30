@@ -109,8 +109,8 @@ auto SFXPlayer::SetVoiceLimit(const std::size_t voices) -> bool {
     if (!atom::numeric::IsValidVoiceCount(voices)) {
         LOG_WARNING(atom::log::audio::Sfx,
                     "SetVoiceLimit(" + std::to_string(voices) + ") rejected: allowed range is [" +
-                        std::to_string(atom::numeric::kMinVoices) + ", " +
-                        std::to_string(atom::numeric::kMaxVoices) + "]");
+                        std::to_string(atom::numeric::min_voices) + ", " +
+                        std::to_string(atom::numeric::max_voices) + "]");
         return false;
     }
     voice_limit_ = voices;

@@ -41,4 +41,4 @@ class IRenderDevice {
 
 } // namespace atom::render
 
-#endif
+#endif // ATOM_BACKEND_CONTRACTS_RENDER_IRENDERDEVICE_HPP

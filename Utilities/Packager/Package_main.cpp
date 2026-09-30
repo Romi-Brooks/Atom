@@ -91,7 +91,7 @@ static auto PackFiles(const std::string& packName, const std::vector<std::string
              "Commencing packing... Total number of files awaiting packing:" + std::to_string(resourcePath.size()));
     const auto result = packer.Pack(resourcePath, packName, config);
 
-    if (result == Packager::Result::SUCCESS) {
+    if (result == Packager::Result::Success) {
         LOG_INFO(atom::log::utilities::Packager, "Packing successful!");
         packer.PrintPackageInfo();
         return true;
@@ -104,7 +104,7 @@ static auto PackFiles(const std::string& packName, const std::vector<std::string
 // Original unpacking function
 static auto UnpackAllToFolder(const std::string& packName) -> bool {
     Unpackager unpacker;
-    if (unpacker.Load(packName) == Unpackager::Result::SUCCESS) {
+    if (unpacker.Load(packName) == Unpackager::Result::Success) {
         unpacker.PrintPackageInfo();
         // Unpack to disk
         Unpackager::Config unpackConfig;
@@ -112,7 +112,7 @@ static auto UnpackAllToFolder(const std::string& packName) -> bool {
         unpackConfig.outputDir = "extract/";
         unpackConfig.preserveStructure = true;
         const auto result = unpacker.UnpackAll(unpackConfig);
-        if (result == Unpackager::Result::SUCCESS) {
+        if (result == Unpackager::Result::Success) {
             LOG_INFO(atom::log::utilities::Packager, "Unpacking successful!");
             return true;
         }

@@ -73,7 +73,7 @@ auto DecodeImageMemory(std::span<const std::byte> data, const bool flip_vertical
         LOG_WARNING(atom::log::image::Decoder,
                     "Image rejected before decode: " + std::to_string(probe_width) + "x" +
                         std::to_string(probe_height) + " exceeds the decoded-image budget (" +
-                        std::to_string(atom::numeric::kMaxDecodedImageBytes / (1024u * 1024u)) +
+                        std::to_string(atom::numeric::max_decoded_image_bytes / (1024u * 1024u)) +
                         " MiB of RGBA per image)");
         return {};
     }

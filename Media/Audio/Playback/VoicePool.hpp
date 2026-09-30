@@ -9,12 +9,12 @@
 namespace atom {
 // Fixed-capacity pool of interchangeable voices for one clip. The cap is part of
 // the public numeric contract (ARCH-006): it is always inside
-// [numeric::kMinVoices, numeric::kMaxVoices], so a caller cannot ask a backend
+// [numeric::min_voices, numeric::max_voices], so a caller cannot ask a backend
 // for an unbounded number of streams.
 //
 // The constructor has two possible policies and uses both deliberately:
 //  - the constructor cannot report failure, so `maximum == 0` means "use the
-//    engine default" (numeric::kDefaultVoices) and an out-of-range value is
+//    engine default" (numeric::default_voices) and an out-of-range value is
 //    clamped;
 //  - SetVoiceLimit() takes a caller-supplied value that *can* be rejected, so it
 //    returns false and leaves the cap untouched for anything outside the range.
@@ -22,13 +22,13 @@ namespace atom {
 class VoicePool final {
     public:
         VoicePool(atom::audio::IAudioBackend& backend, std::shared_ptr<const atom::audio::DecodedAudio> clip,
-                  std::size_t maximum = atom::numeric::kDefaultVoices);
+                  std::size_t maximum = atom::numeric::default_voices);
         auto Acquire() -> atom::audio::IAudioSource*;
         auto StopAll() -> void;
         auto SetVolume(float volume) -> void;
         [[nodiscard]] auto FirstActive() -> atom::audio::IAudioSource*;
 
-        // Rejects a cap outside [kMinVoices, kMaxVoices] and leaves the current
+        // Rejects a cap outside [min_voices, max_voices] and leaves the current
         // one untouched. Shrinking takes effect as voices are reaped: nothing is
         // destroyed mid-playback.
         auto SetVoiceLimit(std::size_t maximum) -> bool;
@@ -44,4 +44,4 @@ class VoicePool final {
         std::vector<std::unique_ptr<atom::audio::IAudioSource>> voices_;
 };
 } // namespace atom
-#endif
+#endif // ATOM_AUDIO_VOICE_POOL_HPP

@@ -41,8 +41,8 @@ class VfsIoStream final : public TagLib::IOStream {
             // real path, so hand back an empty wide string. TagLib only uses name()
             // for diagnostics and format auto-detection is done from the stream
             // bytes, not the name.
-            static const std::wstring kEmpty{};
-            return TagLib::FileName{kEmpty.c_str()};
+            static const std::wstring empty_file_name{};
+            return TagLib::FileName{empty_file_name.c_str()};
 #else
             return name_.c_str();
 #endif

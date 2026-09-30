@@ -17,9 +17,9 @@ namespace atom::backend::sdl3mixer {
 namespace {
 // Keep the mixer's input stream fed, but not unboundedly: once this much audio
 // is queued the decode thread sleeps instead of spinning.
-constexpr int kSDLQueueTarget = 128 * 1024;
-constexpr std::size_t kDecodeChunkBytes = 64 * 1024;
-constexpr auto kIdleSleep = std::chrono::milliseconds{5};
+constexpr int sdl_queue_target = 128 * 1024;
+constexpr std::size_t decode_chunk_bytes = 64 * 1024;
+constexpr auto idle_sleep = std::chrono::milliseconds{5};
 } // namespace
 
 SDL3MixerStreamingSource::SDL3MixerStreamingSource(std::shared_ptr<SDL3MixerContext> context,
@@ -338,13 +338,13 @@ auto SDL3MixerStreamingSource::IsValid() const -> bool {
 }
 
 auto SDL3MixerStreamingSource::DecodeLoop() -> void {
-    std::array<uint8_t, kDecodeChunkBytes> buffer{};
+    std::array<uint8_t, decode_chunk_bytes> buffer{};
     const auto bytes_per_frame =
         static_cast<std::uint64_t>(SDL_AUDIO_BYTESIZE(spec_.format)) * static_cast<std::uint64_t>(spec_.channels);
 
     while (running_.load() && state_.load() == atom::audio::AudioSourceState::Playing) {
-        if (SDL_GetAudioStreamQueued(stream_) >= kSDLQueueTarget) {
-            std::this_thread::sleep_for(kIdleSleep);
+        if (SDL_GetAudioStreamQueued(stream_) >= sdl_queue_target) {
+            std::this_thread::sleep_for(idle_sleep);
             continue;
         }
 
@@ -375,7 +375,7 @@ auto SDL3MixerStreamingSource::DecodeLoop() -> void {
         // wait for the device to drain before reporting completion.
         SDL_FlushAudioStream(stream_);
         while (running_.load() && SDL_GetAudioStreamAvailable(stream_) > 0)
-            std::this_thread::sleep_for(kIdleSleep);
+            std::this_thread::sleep_for(idle_sleep);
 
         if (running_.load() && state_.load() == atom::audio::AudioSourceState::Playing) {
             if (track_)

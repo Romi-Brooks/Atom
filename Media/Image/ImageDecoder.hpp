@@ -35,7 +35,7 @@ struct DecodedImage {
             const auto pixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
             return pixels <= max / 4u && rgba.size() == pixels * 4u;
         }
-        void Reset() {
+        auto Reset() -> void {
             width = 0;
             height = 0;
             rgba.clear();

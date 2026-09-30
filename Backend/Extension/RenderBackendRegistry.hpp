@@ -22,7 +22,7 @@ class RenderBackendRegistry final {
     public:
         using BackendFactory = std::function<std::unique_ptr<render::IRenderBackend>()>;
 
-        static constexpr RenderBackendId kDefaultBackendId = RenderBackendId::SdlGpu;
+        static constexpr RenderBackendId default_backend_id = RenderBackendId::SdlGpu;
 
         [[nodiscard]] static auto GetInstance() -> RenderBackendRegistry&;
 

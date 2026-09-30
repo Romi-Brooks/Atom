@@ -35,11 +35,11 @@ inline auto GetLuaContext(lua_State* L) -> LuaContext* {
 // controlled Lua error, never a null dereference: luaL_error() unwinds into the
 // enclosing protected call, which is the same path a bad argument takes.
 [[nodiscard]] inline auto RequireLuaContext(lua_State* L) -> const LuaContext& {
-    static const LuaContext kNoContext{};
+    static const LuaContext no_context{};
     if (const auto* context = GetLuaContext(L))
         return *context;
     luaL_error(L, "Atom Lua context is not installed on this state");
-    return kNoContext;
+    return no_context;
 }
 
 // Build (or reuse) a nested table path such as { "Atom", "Audio" } and leave

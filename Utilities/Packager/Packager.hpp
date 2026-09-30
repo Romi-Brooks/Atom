@@ -31,13 +31,13 @@ class Packager {
         };
 
         enum class Result {
-            SUCCESS,
-            ERROR_OPEN_OUTPUT,
-            ERROR_READ_FILE,
-            ERROR_INVALID_PATH,
-            ERROR_EMPTY_PACKAGE,
-            ERROR_WRITE_FAILED,
-            ERROR_ENCODING
+            Success,
+            ErrorOpenOutput,
+            ErrorReadFile,
+            ErrorInvalidPath,
+            ErrorEmptyPackage,
+            ErrorWriteFailed,
+            ErrorEncoding
         };
 
         Packager() = default;
@@ -54,9 +54,6 @@ class Packager {
     private:
         std::vector<FileEntry> file_table_;
         std::unordered_map<std::string, size_t> file_index_;
-
-        static constexpr char MAGIC[4] = {'A', 'P', 'K', 'G'};
-        static constexpr uint16_t VERSION = 1;
 
         auto NormalizePath(const std::string& path) -> std::string;
         auto GenerateInternalFilename(const native_fs::path& filePath, const Config& config) -> std::string;

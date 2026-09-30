@@ -1,5 +1,5 @@
-#ifndef ATOM_IMEDIA_DECODER_HPP
-#define ATOM_IMEDIA_DECODER_HPP
+#ifndef ATOM_BACKEND_CONTRACTS_VIDEO_IVIDEODECODER_HPP
+#define ATOM_BACKEND_CONTRACTS_VIDEO_IVIDEODECODER_HPP
 
 #include <cstdint>
 #include <string>
@@ -25,4 +25,4 @@ class IMediaDecoder {
 
 } // namespace atom::video
 
-#endif // ATOM_IMEDIA_DECODER_HPP
+#endif // ATOM_BACKEND_CONTRACTS_VIDEO_IVIDEODECODER_HPP

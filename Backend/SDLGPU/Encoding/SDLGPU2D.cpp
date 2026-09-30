@@ -12,26 +12,25 @@
 // (Primitive2D), the per-frame vertex/index staging path and the opaque
 // texture/sampler handle maps. No SDL types escape this file's interface.
 
-#include "../Device/SDLGPUDevice.hpp"
-#include "../Pipelines/SDLGPU2DPipelineFactory.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>
 #include <vector>
 
-#include <Log/LogSystem.hpp>
 #include <Backend/SDL3/Core/SDLRuntime.hpp>
+#include <Backend/SDLGPU/Device/SDLGPUDevice.hpp>
+#include <Backend/SDLGPU/Pipelines/SDLGPU2DPipelineFactory.hpp>
+#include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdlgpu {
 namespace {
 
-constexpr std::size_t kVertexStride = sizeof(render::Vertex2D);
-static_assert(kVertexStride == 32, "Vertex2D layout must stay a clean 32 bytes");
+constexpr std::size_t vertex_stride = sizeof(render::Vertex2D);
+static_assert(vertex_stride == 32, "Vertex2D layout must stay a clean 32 bytes");
 
-constexpr uint32_t kMax2DVertices = 65535;
-constexpr uint32_t kMax2DIndices = 196605;
+constexpr uint32_t max_2d_vertices = 65535;
+constexpr uint32_t max_2d_indices = 196605;
 
 } // namespace
 
@@ -236,7 +235,7 @@ auto SDLGPUDevice::CreateTexture2D(const uint32_t width, const uint32_t height) 
     if (!device_ || width == 0 || height == 0) {
         LOG_WARNING(atom::log::backend::sdl3::Render,
                     "CreateTexture2D rejected invalid device or zero-sized texture");
-        return render::kInvalidTexture2D;
+        return render::invalid_texture_2d;
     }
     SDL_GPUTextureCreateInfo info{SDL_GPU_TEXTURETYPE_2D,
                                   SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
@@ -251,7 +250,7 @@ auto SDLGPUDevice::CreateTexture2D(const uint32_t width, const uint32_t height) 
     if (!texture) {
         LOG_ERROR(atom::log::backend::sdl3::Render, "SDL_CreateGPUTexture failed for " + std::to_string(width) +
                                                                "x" + std::to_string(height) + ": " + SDL_GetError());
-        return render::kInvalidTexture2D;
+        return render::invalid_texture_2d;
     }
     const render::Texture2D handle = next_texture_2d_++;
     textures_2d_.emplace(handle, SDLGPU2DTextureEntry{texture, width, height});
@@ -367,7 +366,7 @@ auto SDLGPUDevice::DestroyTexture2D(const render::Texture2D texture) -> void {
 
 auto SDLGPUDevice::CreateSampler2D(const render::Sampler2DDesc& desc) -> render::Sampler2D {
     if (!device_)
-        return render::kInvalidSampler2D;
+        return render::invalid_sampler_2d;
     SDL_GPUSamplerCreateInfo info{};
     info.min_filter = desc.min_filter == render::Filter2D::Linear ? SDL_GPU_FILTER_LINEAR : SDL_GPU_FILTER_NEAREST;
     info.mag_filter = desc.mag_filter == render::Filter2D::Linear ? SDL_GPU_FILTER_LINEAR : SDL_GPU_FILTER_NEAREST;
@@ -381,7 +380,7 @@ auto SDLGPUDevice::CreateSampler2D(const render::Sampler2DDesc& desc) -> render:
     if (!sampler) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_CreateGPUSampler failed: " + std::string{SDL_GetError()});
-        return render::kInvalidSampler2D;
+        return render::invalid_sampler_2d;
     }
     const render::Sampler2D handle = next_sampler_2d_++;
     samplers_2d_.emplace(handle, sampler);
@@ -406,7 +405,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
         return true; // nothing to draw; EndFrame() issues the clear pass
     if (!frame.view_projection || (frame.item_count > 0 && !frame.items))
         return false;
-    if (frame.vertex_count > kMax2DVertices || frame.index_count > kMax2DIndices) {
+    if (frame.vertex_count > max_2d_vertices || frame.index_count > max_2d_indices) {
         LOG_ERROR(atom::log::backend::sdl3::Render, "Renderer2D frame exceeds the backend chunk capacity");
         return false;
     }
@@ -452,7 +451,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     }
     const bool postProcessActive = usePostProcess && selectedPipelineAvailable && postprocess_texture_;
 
-    const uint32_t vertexBytes = frame.vertex_count * static_cast<uint32_t>(kVertexStride);
+    const uint32_t vertexBytes = frame.vertex_count * static_cast<uint32_t>(vertex_stride);
     const uint32_t indexBytes = static_cast<uint32_t>(frame.index_count) * sizeof(uint32_t);
 
     // Resize the GPU vertex/index buffers when the batch outgrows them.
@@ -609,10 +608,10 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
 }
 
 auto SDLGPUDevice::GetMax2DVertices() const -> uint32_t {
-    return kMax2DVertices;
+    return max_2d_vertices;
 }
 auto SDLGPUDevice::GetMax2DIndices() const -> uint32_t {
-    return kMax2DIndices;
+    return max_2d_indices;
 }
 
 auto SDLGPUDevice::Release2DResources() -> void {

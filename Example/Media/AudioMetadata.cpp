@@ -33,12 +33,12 @@ auto main() -> int {
 
     // Mount the music directory as res:// so metadata reads go through the VFS
     // contract instead of a raw path.
-    constexpr const char* kMusicDir = R"(E:\Music)";
+    constexpr const char* music_dir = R"(E:\Music)";
     std::unique_ptr<atom::fs::NativeFileSystem> filesystem{};
-    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(kMusicDir), filesystem) !=
+    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(music_dir), filesystem) !=
             atom::fs::Result::Success ||
         !filesystem) {
-        std::cout << "Music directory unavailable: " << kMusicDir << std::endl;
+        std::cout << "Music directory unavailable: " << music_dir << std::endl;
         return 1;
     }
     // Register the mount on the process-wide default Vfs so the string

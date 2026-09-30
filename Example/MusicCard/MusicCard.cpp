@@ -1435,16 +1435,16 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         std::vector<bool> artwork_texture_attempted_;
 
         atom::layout::LayoutTree layout_tree_;
-        atom::layout::LayoutTree::NodeId root_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId card_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId cover_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId details_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId title_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId author_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId controls_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId previous_button_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId play_button_ = atom::layout::LayoutTree::kInvalidNode;
-        atom::layout::LayoutTree::NodeId next_button_ = atom::layout::LayoutTree::kInvalidNode;
+        atom::layout::LayoutTree::NodeId root_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId card_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId cover_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId details_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId title_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId author_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId controls_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId previous_button_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId play_button_ = atom::layout::LayoutTree::invalid_node;
+        atom::layout::LayoutTree::NodeId next_button_ = atom::layout::LayoutTree::invalid_node;
 
         atom::algo::Rect previous_hitbox_;
         atom::algo::Rect play_hitbox_;

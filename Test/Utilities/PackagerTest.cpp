@@ -73,17 +73,17 @@ auto main() -> int {
     pack_config.preserveStructure = true;
     pack_config.overwrite = true;
     ATOM_CHECK(packager.Pack({input_dir.string()}, package_path, pack_config) ==
-               atom::tools::Packager::Result::SUCCESS);
+               atom::tools::Packager::Result::Success);
     ATOM_CHECK(native_fs::exists(package_path));
     ATOM_CHECK(packager.GetPackedFiles().size() >= 2);
 
     // Empty pack is a controlled failure.
     atom::tools::Packager empty_packager{};
     const auto empty_path = (temp.Root() / "empty.apkg").string();
-    ATOM_CHECK(empty_packager.Pack({}, empty_path, pack_config) == atom::tools::Packager::Result::ERROR_EMPTY_PACKAGE);
+    ATOM_CHECK(empty_packager.Pack({}, empty_path, pack_config) == atom::tools::Packager::Result::ErrorEmptyPackage);
 
     atom::tools::Unpackager unpackager{};
-    ATOM_CHECK(unpackager.Load(package_path, false) == atom::tools::Unpackager::Result::SUCCESS);
+    ATOM_CHECK(unpackager.Load(package_path, false) == atom::tools::Unpackager::Result::Success);
     const auto list = unpackager.GetFileList();
     ATOM_CHECK(list.size() >= 2);
     ATOM_CHECK(!unpackager.Contains("definitely-missing.txt"));
@@ -108,16 +108,16 @@ auto main() -> int {
     ATOM_CHECK(found_beta);
 
     std::vector<atom::tools::Unpackager::MemoryFile> all{};
-    ATOM_CHECK(unpackager.ExtractAllToMemory(all) == atom::tools::Unpackager::Result::SUCCESS);
+    ATOM_CHECK(unpackager.ExtractAllToMemory(all) == atom::tools::Unpackager::Result::Success);
     ATOM_CHECK(all.size() >= 2);
 
     atom::tools::Unpackager::MemoryFile missing{};
-    ATOM_CHECK(unpackager.ExtractFileToMemory("no/such.txt", missing) != atom::tools::Unpackager::Result::SUCCESS);
+    ATOM_CHECK(unpackager.ExtractFileToMemory("no/such.txt", missing) != atom::tools::Unpackager::Result::Success);
 
     // Corrupt magic is rejected.
     const auto corrupt_path = temp.Root() / "corrupt.apkg";
     WriteText(corrupt_path, "NOTAPKG-garbage-bytes-xxxxxxxxxxxx");
     atom::tools::Unpackager corrupt{};
-    ATOM_CHECK(corrupt.Load(corrupt_path.string(), false) != atom::tools::Unpackager::Result::SUCCESS);
+    ATOM_CHECK(corrupt.Load(corrupt_path.string(), false) != atom::tools::Unpackager::Result::Success);
     return 0;
 }

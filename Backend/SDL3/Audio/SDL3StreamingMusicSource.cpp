@@ -14,7 +14,7 @@ namespace atom::backend::sdl3 {
 SDL3StreamingMusicSource::SDL3StreamingMusicSource(std::unique_ptr<atom::audio::IAudioDecoder> decoder,
                                                    const SDL_AudioSpec& spec)
     : spec_(spec), decoder_(std::move(decoder)) {
-    ring_buffer_.resize(kRingBufferCapacity);
+    ring_buffer_.resize(ring_buffer_capacity);
 }
 
 SDL3StreamingMusicSource::~SDL3StreamingMusicSource() {
@@ -44,7 +44,7 @@ auto SDL3StreamingMusicSource::ReadableBytes() const -> std::size_t {
 
 auto SDL3StreamingMusicSource::WritableBytes() const -> std::size_t {
     const auto used = ReadableBytes();
-    return used < kRingBufferCapacity ? kRingBufferCapacity - used : 0;
+    return used < ring_buffer_capacity ? ring_buffer_capacity - used : 0;
 }
 
 auto SDL3StreamingMusicSource::EnsureStream() -> bool {
@@ -290,15 +290,15 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
     SDL_ResumeAudioStreamDevice(stream_);
 
     const auto bytes_per_frame = SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
-    const auto chunk_frames = static_cast<std::size_t>(spec_.freq * kChunkDuration);
+    const auto chunk_frames = static_cast<std::size_t>(spec_.freq * chunk_duration);
     const std::size_t stream_chunk =
         std::clamp(chunk_frames * bytes_per_frame, std::size_t{4096}, std::size_t{1048576});
     const auto bytes_per_second = static_cast<std::size_t>(spec_.freq) * bytes_per_frame;
     const auto watermark =
-        std::min(kRingBufferCapacity, static_cast<std::size_t>(bytes_per_second * kRingHighWaterDuration));
+        std::min(ring_buffer_capacity, static_cast<std::size_t>(bytes_per_second * ring_high_water_duration));
     const auto sdl_queue_target =
-        std::max(stream_chunk, static_cast<std::size_t>(bytes_per_second * kSDLQueueTargetDuration));
-    const auto progress_interval_frames = static_cast<std::uint64_t>(spec_.freq * kProgressLogIntervalSeconds);
+        std::max(stream_chunk, static_cast<std::size_t>(bytes_per_second * sdl_queue_target_duration));
+    const auto progress_interval_frames = static_cast<std::uint64_t>(spec_.freq * progress_log_interval_seconds);
 
     LOG_DEBUG(atom::log::backend::Audio::sdl3,
               "DecodeLoop (streaming) started: chunk=" + std::to_string(stream_chunk) +
@@ -311,8 +311,8 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
             const auto writable = WritableBytes();
             if (writable >= stream_chunk) {
                 const auto wi = write_idx_.load();
-                auto* dst = ring_buffer_.data() + (wi % kRingBufferCapacity);
-                const auto contiguous = kRingBufferCapacity - (wi % kRingBufferCapacity);
+                auto* dst = ring_buffer_.data() + (wi % ring_buffer_capacity);
+                const auto contiguous = ring_buffer_capacity - (wi % ring_buffer_capacity);
                 const auto to_decode = std::min({writable, contiguous, stream_chunk});
 
                 const auto decoded = decoder_->DecodeChunk(dst, static_cast<std::uint32_t>(to_decode));
@@ -350,8 +350,8 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         const auto queued = queued_result > 0 ? static_cast<std::size_t>(queued_result) : 0;
         if (readable > 0 && queued < sdl_queue_target) {
             const auto ri = read_idx_.load();
-            auto* src = ring_buffer_.data() + (ri % kRingBufferCapacity);
-            const auto contiguous = kRingBufferCapacity - (ri % kRingBufferCapacity);
+            auto* src = ring_buffer_.data() + (ri % ring_buffer_capacity);
+            const auto contiguous = ring_buffer_capacity - (ri % ring_buffer_capacity);
             auto to_push = std::min({readable, contiguous, stream_chunk});
             if (eof_.load()) {
                 // At EOF, push whatever remains — don't wait for a full chunk.

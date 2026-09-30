@@ -4,11 +4,16 @@
 // Standard Library
 #include <iostream>
 
+// Engine Headers
+#include <Filesystem/PackageFormat.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
 namespace native_fs = std::filesystem;
 
 namespace atom::tools {
+// The APKG on-disk contract, shared with the reader (PackageFileSystem).
+namespace package_format = atom::fs::package_format;
+
 Unpackager::Config::Config() : verbose(false), preserveStructure(true), overwrite(true), outputDir(".") {}
 
 auto Unpackager::MemoryFile::GetData() const -> const char* {
@@ -80,24 +85,24 @@ auto Unpackager::ReadFileData(const FileEntry& entry, std::vector<char>& buffer)
     if (!package_stream_.is_open()) {
         package_stream_.open(atom::PathFromUtf8(package_path_), std::ios::binary);
         if (!package_stream_.is_open()) {
-            return Result::ERROR_OPEN_FILE;
+            return Result::ErrorOpenFile;
         }
     }
 
     package_stream_.clear();
     package_stream_.seekg(static_cast<std::streamoff>(entry.offset));
     if (!package_stream_) {
-        return Result::ERROR_READ_DATA;
+        return Result::ErrorReadData;
     }
 
     buffer.resize(entry.size);
     package_stream_.read(buffer.data(), static_cast<long long>(entry.size));
 
     if (!package_stream_) {
-        return Result::ERROR_READ_DATA;
+        return Result::ErrorReadData;
     }
 
-    return Result::SUCCESS;
+    return Result::Success;
 }
 
 auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
@@ -111,7 +116,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
     if (!native_fs::exists(package_path)) {
         if (verbose)
             std::cout << "Error: package file does not exist: " << packageFile << std::endl;
-        return Result::ERROR_OPEN_FILE;
+        return Result::ErrorOpenFile;
     }
 
     uint64_t package_size = GetFileSize(package_path_);
@@ -121,14 +126,14 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
     if (package_size < 20) {
         if (verbose)
             std::cout << "Error: file is too small to be a valid package" << std::endl;
-        return Result::ERROR_INVALID_FORMAT;
+        return Result::ErrorInvalidFormat;
     }
 
     std::ifstream input(package_path, std::ios::binary);
     if (!input.is_open()) {
         if (verbose)
             std::cout << "Error: cannot open package file" << std::endl;
-        return Result::ERROR_OPEN_FILE;
+        return Result::ErrorOpenFile;
     }
 
     // Read magic number
@@ -138,18 +143,18 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (verbose)
             std::cout << "Error: failed to read file header" << std::endl;
         input.close();
-        return Result::ERROR_INVALID_FORMAT;
+        return Result::ErrorInvalidFormat;
     }
 
     std::string magic_str(magic, 4);
     if (verbose)
         std::cout << "File magic: " << magic_str << std::endl;
 
-    if (!std::equal(std::begin(MAGIC), std::end(MAGIC), magic)) {
+    if (!std::equal(std::begin(package_format::magic), std::end(package_format::magic), magic)) {
         if (verbose)
             std::cout << "Error: invalid magic number, expected 'APKG'" << std::endl;
         input.close();
-        return Result::ERROR_INVALID_FORMAT;
+        return Result::ErrorInvalidFormat;
     }
 
     // Read version number
@@ -159,16 +164,16 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (verbose)
             std::cout << "Error: failed to read version number" << std::endl;
         input.close();
-        return Result::ERROR_INVALID_FORMAT;
+        return Result::ErrorInvalidFormat;
     }
 
     if (verbose)
         std::cout << "File version: " << version << std::endl;
-    if (version != VERSION) {
+    if (version != package_format::version) {
         if (verbose)
             std::cout << "Error: unsupported version number: " << version << std::endl;
         input.close();
-        return Result::ERROR_INVALID_FORMAT;
+        return Result::ErrorInvalidFormat;
     }
 
     // Read file count
@@ -178,7 +183,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (verbose)
             std::cout << "Error: failed to read file count" << std::endl;
         input.close();
-        return Result::ERROR_INVALID_FORMAT;
+        return Result::ErrorInvalidFormat;
     }
 
     if (verbose)
@@ -187,7 +192,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (verbose)
             std::cout << "Error: abnormal file count: " << file_count << std::endl;
         input.close();
-        return Result::ERROR_CORRUPTED_PACKAGE;
+        return Result::ErrorCorruptedPackage;
     }
 
     // Read file table offset
@@ -196,7 +201,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (verbose)
             std::cout << "Error: failed to seek to file table offset" << std::endl;
         input.close();
-        return Result::ERROR_INVALID_FORMAT;
+        return Result::ErrorInvalidFormat;
     }
 
     uint64_t table_offset;
@@ -205,7 +210,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (verbose)
             std::cout << "Error: failed to read file table offset" << std::endl;
         input.close();
-        return Result::ERROR_INVALID_FORMAT;
+        return Result::ErrorInvalidFormat;
     }
 
     if (verbose)
@@ -214,7 +219,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (verbose)
             std::cout << "Error: invalid file table offset: " << table_offset << std::endl;
         input.close();
-        return Result::ERROR_CORRUPTED_PACKAGE;
+        return Result::ErrorCorruptedPackage;
     }
 
     // Seek to file table
@@ -223,7 +228,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (verbose)
             std::cout << "Error: failed to seek to file table start" << std::endl;
         input.close();
-        return Result::ERROR_READ_FILE_TABLE;
+        return Result::ErrorReadFileTable;
     }
 
     // Read file table
@@ -239,7 +244,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         if (!input || name_length == 0 || name_length > 4096) {
             if (verbose)
                 std::cout << "Error: invalid filename length: " << name_length << std::endl;
-            return Result::ERROR_CORRUPTED_PACKAGE;
+            return Result::ErrorCorruptedPackage;
         }
 
         if (name_length > 0) {
@@ -255,11 +260,11 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
 
         const native_fs::path internal_path = atom::PathFromUtf8(entry.filename);
         if (internal_path.is_absolute() || internal_path.has_root_name()) {
-            return Result::ERROR_CORRUPTED_PACKAGE;
+            return Result::ErrorCorruptedPackage;
         }
         for (const auto& part : internal_path) {
             if (part == "..")
-                return Result::ERROR_CORRUPTED_PACKAGE;
+                return Result::ErrorCorruptedPackage;
         }
 
         // Read offset and size
@@ -267,14 +272,14 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         input.read(reinterpret_cast<char*>(&offset), sizeof(offset));
         input.read(reinterpret_cast<char*>(&size), sizeof(size));
         if (!input)
-            return Result::ERROR_CORRUPTED_PACKAGE;
+            return Result::ErrorCorruptedPackage;
 
         if (offset < 10 || offset > table_offset || size > table_offset - offset) {
             if (verbose) {
                 std::cout << "Warning: skipping invalid file entry: " << entry.filename << " (offset=" << offset
                           << ", size=" << size << ")" << std::endl;
             }
-            return Result::ERROR_CORRUPTED_PACKAGE;
+            return Result::ErrorCorruptedPackage;
         }
 
         entry.offset = offset;
@@ -284,7 +289,7 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
         uint8_t type_length;
         input.read(reinterpret_cast<char*>(&type_length), sizeof(type_length));
         if (!input)
-            return Result::ERROR_CORRUPTED_PACKAGE;
+            return Result::ErrorCorruptedPackage;
 
         if (type_length > 0) {
             std::vector<char> type_buffer(type_length);
@@ -295,11 +300,11 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
                     entry.type = ".dat";
                 }
             } else
-                return Result::ERROR_CORRUPTED_PACKAGE;
+                return Result::ErrorCorruptedPackage;
         }
 
         if (file_index_.contains(entry.filename))
-            return Result::ERROR_CORRUPTED_PACKAGE;
+            return Result::ErrorCorruptedPackage;
 
         file_table_.push_back(entry);
         file_index_[entry.filename] = file_table_.size() - 1;
@@ -308,27 +313,27 @@ auto Unpackager::Load(const std::string& packageFile, bool verbose) -> Result {
     input.close();
 
     if (file_table_.empty()) {
-        return Result::ERROR_READ_FILE_TABLE;
+        return Result::ErrorReadFileTable;
     }
 
     if (verbose) {
         std::cout << "Successfully loaded " << file_table_.size() << " file entries" << std::endl;
     }
 
-    return Result::SUCCESS;
+    return Result::Success;
 }
 
 // ==================== In-memory unpacking functionality ====================
 auto Unpackager::ExtractFileToMemory(const std::string& filename, MemoryFile& memoryFile) -> Result {
     const auto it = file_index_.find(filename);
     if (it == file_index_.end()) {
-        return Result::ERROR_FILES_NOT_FOUND;
+        return Result::ErrorFilesNotFound;
     }
 
     const FileEntry& entry = file_table_[it->second];
     std::vector<char> buffer;
     const Result result = ReadFileData(entry, buffer);
-    if (result != Result::SUCCESS) {
+    if (result != Result::Success) {
         return result;
     }
 
@@ -336,13 +341,13 @@ auto Unpackager::ExtractFileToMemory(const std::string& filename, MemoryFile& me
     memoryFile.type = entry.type;
     memoryFile.data = std::move(buffer);
 
-    return Result::SUCCESS;
+    return Result::Success;
 }
 
 auto Unpackager::ExtractFileToMemory(const std::string& filename) -> std::unique_ptr<MemoryFile> {
     auto memoryFile = std::make_unique<MemoryFile>();
     const Result result = ExtractFileToMemory(filename, *memoryFile);
-    if (result == Result::SUCCESS) {
+    if (result == Result::Success) {
         return memoryFile;
     }
     return nullptr;
@@ -355,14 +360,14 @@ auto Unpackager::ExtractFilesToMemory(const std::vector<std::string>& filenames,
     for (const auto& filename : filenames) {
         MemoryFile memoryFile;
         const Result result = ExtractFileToMemory(filename, memoryFile);
-        if (result == Result::SUCCESS) {
+        if (result == Result::Success) {
             memoryFiles.push_back(std::move(memoryFile));
         } else {
             std::cout << "Warning: failed to extract file to memory: " << filename << std::endl;
         }
     }
 
-    return memoryFiles.empty() ? Result::ERROR_FILES_NOT_FOUND : Result::SUCCESS;
+    return memoryFiles.empty() ? Result::ErrorFilesNotFound : Result::Success;
 }
 
 auto Unpackager::ExtractAllToMemory(std::vector<MemoryFile>& memoryFiles) -> Result {
@@ -371,51 +376,51 @@ auto Unpackager::ExtractAllToMemory(std::vector<MemoryFile>& memoryFiles) -> Res
     for (const auto& entry : file_table_) {
         MemoryFile memoryFile;
         const Result result = ExtractFileToMemory(entry.filename, memoryFile);
-        if (result == Result::SUCCESS) {
+        if (result == Result::Success) {
             memoryFiles.push_back(std::move(memoryFile));
         } else {
             std::cout << "Warning: failed to extract file to memory: " << entry.filename << std::endl;
         }
     }
 
-    return memoryFiles.empty() ? Result::ERROR_READ_DATA : Result::SUCCESS;
+    return memoryFiles.empty() ? Result::ErrorReadData : Result::Success;
 }
 
 auto Unpackager::GetFileData(const std::string& filename, const char** data, size_t* size) -> Result {
     if (data == nullptr || size == nullptr) {
-        return Result::ERROR_READ_DATA;
+        return Result::ErrorReadData;
     }
     const auto it = file_index_.find(filename);
     if (it == file_index_.end()) {
-        return Result::ERROR_FILES_NOT_FOUND;
+        return Result::ErrorFilesNotFound;
     }
 
     const FileEntry& entry = file_table_[it->second];
     const Result result = ReadFileData(entry, last_read_buffer_);
-    if (result != Result::SUCCESS) {
+    if (result != Result::Success) {
         return result;
     }
 
     *data = last_read_buffer_.data();
     *size = last_read_buffer_.size();
 
-    return Result::SUCCESS;
+    return Result::Success;
 }
 
 // ==================== Disk unpacking functionality ====================
 auto Unpackager::UnpackAll(const Config& config) -> Result {
     if (file_table_.empty()) {
-        return Result::ERROR_READ_FILE_TABLE;
+        return Result::ErrorReadFileTable;
     }
 
-    auto overall_result = Result::SUCCESS;
+    auto overall_result = Result::Success;
     int success_count = 0;
 
     for (const auto& entry : file_table_) {
         const Result file_result = ExtractFile(entry.filename, config);
-        if (file_result == Result::SUCCESS) {
+        if (file_result == Result::Success) {
             success_count++;
-        } else if (overall_result == Result::SUCCESS) {
+        } else if (overall_result == Result::Success) {
             overall_result = file_result;
         }
     }
@@ -434,7 +439,7 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
         if (config.verbose) {
             std::cout << "Error: file not found - " << filename << std::endl;
         }
-        return Result::ERROR_EXTRACT_FILE;
+        return Result::ErrorExtractFile;
     }
 
     const FileEntry& entry = file_table_[it->second];
@@ -453,13 +458,13 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
         if (config.verbose) {
             std::cout << "Error: failed to build output path: " << e.what() << std::endl;
         }
-        return Result::ERROR_ENCODING;
+        return Result::ErrorEncoding;
     }
 
     // Create directory
     native_fs::path output_dir = output_path.parent_path();
     if (!CreateDirectory(output_dir)) {
-        return Result::ERROR_CREATE_DIRECTORY;
+        return Result::ErrorCreateDirectory;
     }
 
     // Check if the file already exists
@@ -468,7 +473,7 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
             if (config.verbose) {
                 std::cout << "Skipped: file already exists - " << SafePathToString(output_path) << std::endl;
             }
-            return Result::SUCCESS;
+            return Result::Success;
         }
     } catch (const std::exception& e) {
         if (config.verbose) {
@@ -479,7 +484,7 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
     // Read file data
     std::vector<char> buffer;
     Result read_result = ReadFileData(entry, buffer);
-    if (read_result != Result::SUCCESS) {
+    if (read_result != Result::Success) {
         return read_result;
     }
 
@@ -492,11 +497,11 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
             std::cout << "Error: cannot create output file " << SafePathToString(output_path) << ": " << e.what()
                       << std::endl;
         }
-        return Result::ERROR_EXTRACT_FILE;
+        return Result::ErrorExtractFile;
     }
 
     if (!output.is_open()) {
-        return Result::ERROR_EXTRACT_FILE;
+        return Result::ErrorExtractFile;
     }
 
     output.write(buffer.data(), static_cast<long long>(entry.size));
@@ -506,7 +511,7 @@ auto Unpackager::ExtractFile(const std::string& filename, const Config& config) 
         std::cout << "Extracted: " << SafePathToString(output_path) << " (" << entry.size << " bytes)" << std::endl;
     }
 
-    return Result::SUCCESS;
+    return Result::Success;
 }
 
 // ==================== Query functionality ====================

@@ -40,4 +40,4 @@ class IRenderBackend {
 
 } // namespace atom::render
 
-#endif
+#endif // ATOM_BACKEND_CONTRACTS_RENDER_IRENDERBACKEND_HPP

@@ -118,4 +118,4 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
 
 } // namespace atom
 
-#endif
+#endif // ATOM_MUSIC_PLAYER_HPP

@@ -24,12 +24,12 @@
 namespace atom::render {
 namespace {
 
-constexpr float kMinZoom = 0.001f;
-constexpr float kMaxTextSize = 512.0f;
-constexpr float kAtlasSizeQuantum = 0.5f;
-constexpr uint32_t kPageSize = 1024;
-constexpr int kGlyphPadding = 2; // transparent border between glyphs
-constexpr float kTwoPi = 6.28318530717958647692f;
+constexpr float min_zoom = 0.001f;
+constexpr float max_text_size = 512.0f;
+constexpr float atlas_size_quantum = 0.5f;
+constexpr uint32_t page_size = 1024;
+constexpr int glyph_padding = 2; // transparent border between glyphs
+constexpr float two_pi = 6.28318530717958647692f;
 
 auto SameClip(const Rect& a, const Rect& b) -> bool {
     return a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height;
@@ -75,7 +75,7 @@ auto NextCodepoint(std::string_view text, std::size_t& index) -> uint32_t {
 }
 
 auto QuantizeAtlasSize(const float size_px) -> float {
-    return std::round(size_px / kAtlasSizeQuantum) * kAtlasSizeQuantum;
+    return std::round(size_px / atlas_size_quantum) * atlas_size_quantum;
 }
 
 auto IsAsciiWordCodepoint(const uint32_t codepoint) -> bool {
@@ -116,7 +116,7 @@ auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& 
     device_ = &device;
     sampler_ = context_->CreateSampler2D(
         {Filter2D::Linear, Filter2D::Linear, AddressMode2D::ClampToEdge, AddressMode2D::ClampToEdge});
-    if (sampler_ == render::kInvalidSampler2D) {
+    if (sampler_ == render::invalid_sampler_2d) {
         LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D failed to create its default sampler");
         Shutdown();
         return false;
@@ -127,8 +127,8 @@ auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& 
         Shutdown();
         return false;
     }
-    constexpr uint8_t kWhitePixel[4] = {255, 255, 255, 255};
-    UpdateTexture(*white_texture_, kWhitePixel);
+    constexpr uint8_t white_pixel[4] = {255, 255, 255, 255};
+    UpdateTexture(*white_texture_, white_pixel);
     initialized_ = true;
     LOG_INFO(atom::log::render::Renderer2D, "Renderer2D initialized (shader root: " + shader_root.string() + ")");
     return true;
@@ -147,10 +147,10 @@ auto Renderer2D::Shutdown() -> void {
     fonts_.clear();
     if (context_) {
         for (auto& texture : textures_) {
-            if (texture && texture->handle_ != render::kInvalidTexture2D)
+            if (texture && texture->handle_ != render::invalid_texture_2d)
                 context_->DestroyTexture2D(texture->handle_);
         }
-        if (sampler_ != render::kInvalidSampler2D)
+        if (sampler_ != render::invalid_sampler_2d)
             context_->DestroySampler2D(sampler_);
     }
     textures_.clear();
@@ -158,7 +158,7 @@ auto Renderer2D::Shutdown() -> void {
     clip_stack_.clear();
     layer_stack_.clear();
     white_texture_ = nullptr;
-    sampler_ = render::kInvalidSampler2D;
+    sampler_ = render::invalid_sampler_2d;
     postprocess_params_ = {};
     context_ = nullptr;
     device_ = nullptr;
@@ -182,7 +182,7 @@ auto Renderer2D::BeginFrame(const float origin_x, const float origin_y, const fl
     }
     origin_x_ = origin_x;
     origin_y_ = origin_y;
-    zoom_ = std::max(zoom, kMinZoom);
+    zoom_ = std::max(zoom, min_zoom);
     ops_.clear();
     clip_stack_.clear();
     layer_stack_.clear();
@@ -284,7 +284,7 @@ auto Renderer2D::EndFrame() -> bool {
     const auto mvp = BuildViewProjection(output_width_, output_height_);
 
     const Texture* lastTexture = nullptr;
-    render::Sampler2D lastSampler = render::kInvalidSampler2D;
+    render::Sampler2D lastSampler = render::invalid_sampler_2d;
     Rect lastClip{};
     bool lastClipEnabled = false;
     bool itemOpen = false;
@@ -302,7 +302,7 @@ auto Renderer2D::EndFrame() -> bool {
 
     for (const auto& op : expanded) {
         const Texture* texture = op.texture ? op.texture : white_texture_;
-        const auto sampler = op.sampler != render::kInvalidSampler2D ? op.sampler : sampler_;
+        const auto sampler = op.sampler != render::invalid_sampler_2d ? op.sampler : sampler_;
         const bool clipEnabled = op.has_clip;
         const Rect clip = clipEnabled ? TransformRect(op.clip) : Rect{};
 
@@ -390,7 +390,7 @@ auto Renderer2D::EndFrame() -> bool {
             const uint32_t base = static_cast<uint32_t>(chunk.vertices.size());
             chunk.vertices.push_back(Vertex2D{c[0], c[1], c[2], c[3], cx, cy, 0.0f, 0.0f});
             for (uint32_t i = 0; i <= segments; ++i) {
-                const float angle = kTwoPi * static_cast<float>(i) / static_cast<float>(segments);
+                const float angle = two_pi * static_cast<float>(i) / static_cast<float>(segments);
                 chunk.vertices.push_back(Vertex2D{c[0], c[1], c[2], c[3], cx + std::cos(angle) * radius,
                                                   cy + std::sin(angle) * radius, 0.0f, 0.0f});
             }
@@ -454,7 +454,7 @@ auto Renderer2D::EndFrame() -> bool {
             success = false;
         return true;
     });
-    if (resolve_pass == kInvalidRenderPass)
+    if (resolve_pass == invalid_render_pass)
         success = false;
     if (!graph.Execute())
         success = false;
@@ -521,13 +521,13 @@ auto Renderer2D::CreateTexture(const uint32_t width, const uint32_t height, cons
     if (!atom::numeric::IsValidTextureSize(width, height)) {
         LOG_ERROR(atom::log::render::Renderer2D,
                   "Renderer2D rejected texture size " + std::to_string(width) + "x" + std::to_string(height) +
-                      " (limit " + std::to_string(atom::numeric::kMaxTextureDimension) + " per axis)");
+                      " (limit " + std::to_string(atom::numeric::max_texture_dimension) + " per axis)");
         return nullptr;
     }
     auto texture = std::make_unique<Texture>();
     texture->owner_ = this;
     texture->handle_ = context_->CreateTexture2D(width, height);
-    if (texture->handle_ == render::kInvalidTexture2D)
+    if (texture->handle_ == render::invalid_texture_2d)
         return nullptr;
     texture->width_ = width;
     texture->height_ = height;
@@ -541,7 +541,7 @@ auto Renderer2D::CreateTexture(const uint32_t width, const uint32_t height, cons
 }
 
 auto Renderer2D::UpdateTexture(Texture& texture, const void* rgba) -> void {
-    if (!context_ || texture.owner_ != this || texture.handle_ == render::kInvalidTexture2D || !rgba)
+    if (!context_ || texture.owner_ != this || texture.handle_ == render::invalid_texture_2d || !rgba)
         return;
     const auto count = static_cast<std::size_t>(texture.width_) * texture.height_ * 4u;
     auto& pending = pending_uploads_[texture.handle_];
@@ -564,10 +564,10 @@ auto Renderer2D::DestroyTexture(Texture& texture) -> void {
         return;
     }
     const bool wasWhiteTexture = white_texture_ == &texture;
-    if (context_ && texture.handle_ != render::kInvalidTexture2D)
+    if (context_ && texture.handle_ != render::invalid_texture_2d)
         context_->DestroyTexture2D(texture.handle_);
     pending_uploads_.erase(texture.handle_);
-    texture.handle_ = render::kInvalidTexture2D;
+    texture.handle_ = render::invalid_texture_2d;
     texture.owner_ = nullptr;
     std::erase_if(textures_, [&texture](const std::unique_ptr<Texture>& entry) { return entry.get() == &texture; });
     std::erase(deferred_destroys_, &texture);
@@ -639,11 +639,11 @@ auto Renderer2D::GetWhiteTexture() const -> Texture* {
 
 auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint, const algo::Rect* source)
     -> void {
-    if (!in_frame_ || texture.owner_ != this || texture.handle_ == render::kInvalidTexture2D) {
+    if (!in_frame_ || texture.owner_ != this || texture.handle_ == render::invalid_texture_2d) {
         LOG_WARNING(atom::log::render::Renderer2D,
                     "DrawTexture rejected: in_frame=" + std::to_string(in_frame_) +
                         " owner_match=" + std::to_string(texture.owner_ == this) +
-                        " valid_handle=" + std::to_string(texture.handle_ != render::kInvalidTexture2D));
+                        " valid_handle=" + std::to_string(texture.handle_ != render::invalid_texture_2d));
         return;
     }
     // Numeric contract (ARCH-006): every quad (DrawTexture, DrawRect and the
@@ -749,7 +749,7 @@ auto Renderer2D::DrawLine(const float x0, const float y0, const float x1, const 
 auto Renderer2D::DrawText(const Font& font, const std::string_view text, const float x, const float y,
                           const Color& color, const float size_px, const float max_width) -> void {
     if (!in_frame_ || text.empty() || !font.IsValid() || !std::isfinite(x) || !std::isfinite(y) ||
-        !std::isfinite(size_px) || !std::isfinite(max_width) || size_px <= 0.0f || size_px > kMaxTextSize ||
+        !std::isfinite(size_px) || !std::isfinite(max_width) || size_px <= 0.0f || size_px > max_text_size ||
         max_width < 0.0f)
         return;
     DrawOp op{};
@@ -856,12 +856,12 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
     }
 
-    const int gw = static_cast<int>(glyph.width) + kGlyphPadding;
-    const int gh = static_cast<int>(glyph.height) + kGlyphPadding;
-    if (gw > static_cast<int>(kPageSize) || gh > static_cast<int>(kPageSize)) {
+    const int gw = static_cast<int>(glyph.width) + glyph_padding;
+    const int gh = static_cast<int>(glyph.height) + glyph_padding;
+    if (gw > static_cast<int>(page_size) || gh > static_cast<int>(page_size)) {
         LOG_WARNING(atom::log::render::Renderer2D, "Glyph U+" + std::to_string(codepoint) + " at atlas size " +
                                                        std::to_string(atlas.size_px) + " exceeds the " +
-                                                       std::to_string(kPageSize) + "px atlas page");
+                                                       std::to_string(page_size) + "px atlas page");
         return &atlas.glyphs.emplace(codepoint, glyph).first->second;
     }
     std::size_t pageIndex = atlas.pages.size();
@@ -880,11 +880,11 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
     }
     if (pageIndex == atlas.pages.size()) {
         GlyphPage page{};
-        page.size = kPageSize;
-        page.texture = CreateTexture(kPageSize, kPageSize, nullptr);
+        page.size = page_size;
+        page.texture = CreateTexture(page_size, page_size, nullptr);
         if (!page.texture)
             return &atlas.glyphs.emplace(codepoint, glyph).first->second;
-        page.rgba.assign(static_cast<std::size_t>(kPageSize) * kPageSize * 4u, 0);
+        page.rgba.assign(static_cast<std::size_t>(page_size) * page_size * 4u, 0);
         atlas.pages.push_back(std::move(page));
         pageIndex = atlas.pages.size() - 1;
     }

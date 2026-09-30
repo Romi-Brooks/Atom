@@ -27,7 +27,7 @@
 #include <Log/LogSystem.hpp>
 
 namespace {
-constexpr const char* kSourceFiles[] = {
+constexpr const char* source_files[] = {
     // replace it
     R"(E:\Music\So Far Away (feat. Jamie Scott & Romy Dya).mp3)",
     R"(E:\Music\DLSS,cny j - Feel U.mp3)",
@@ -37,7 +37,7 @@ constexpr const char* kSourceFiles[] = {
     // ref: https://github.com/ocornut/imgui/blob/master/docs/FONTS.md
     R"(E:\Music\我的歌声里 - 曲婉婷.mp3)",
 };
-constexpr const char* kPackPath = "music_demo.pak";
+constexpr const char* pack_path = "music_demo.pak";
 
 // Debugger overlay
 class PackedMusicDebugger final : public atom::debugger::DebugPanel {
@@ -148,16 +148,16 @@ auto main() -> int {
 
     // pack the selected files into a resource pack
     std::string pack_status;
-    if (!std::filesystem::exists(kPackPath)) {
+    if (!std::filesystem::exists(pack_path)) {
         atom::tools::Packager packer;
         atom::tools::Packager::Config config;
         config.verbose = true;
         // Entries use bare filenames (extensions kept, so a decoder can be selected by extension).
         config.preserveStructure = false;
 
-        const std::vector<std::string> sources(std::begin(kSourceFiles), std::end(kSourceFiles));
-        const auto result = packer.Pack(sources, kPackPath, config);
-        if (result != atom::tools::Packager::Result::SUCCESS) {
+        const std::vector<std::string> sources(std::begin(source_files), std::end(source_files));
+        const auto result = packer.Pack(sources, pack_path, config);
+        if (result != atom::tools::Packager::Result::Success) {
             LOG_ERROR(atom::log::utilities::Packager, "Packing failed, cannot continue");
             return 1;
         }
@@ -169,14 +169,14 @@ auto main() -> int {
 
     // load the pack and extract every entry into memory
     atom::tools::Unpackager unpacker;
-    if (unpacker.Load(kPackPath, /*verbose=*/true) != atom::tools::Unpackager::Result::SUCCESS) {
-        LOG_ERROR(atom::log::utilities::Packager, "Failed to load package: " + std::string(kPackPath));
+    if (unpacker.Load(pack_path, /*verbose=*/true) != atom::tools::Unpackager::Result::Success) {
+        LOG_ERROR(atom::log::utilities::Packager, "Failed to load package: " + std::string(pack_path));
         return 1;
     }
     unpacker.PrintPackageInfo();
 
     std::vector<atom::tools::Unpackager::MemoryFile> memoryFiles;
-    if (unpacker.ExtractAllToMemory(memoryFiles) != atom::tools::Unpackager::Result::SUCCESS) {
+    if (unpacker.ExtractAllToMemory(memoryFiles) != atom::tools::Unpackager::Result::Success) {
         LOG_ERROR(atom::log::utilities::Packager, "Failed to extract package contents into memory");
         return 1;
     }
@@ -219,7 +219,7 @@ auto main() -> int {
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    PackedMusicDebugger debugger{music, memoryFiles, kPackPath, pack_status};
+    PackedMusicDebugger debugger{music, memoryFiles, pack_path, pack_status};
     debugger.Attach(window);
 
     window.Run();

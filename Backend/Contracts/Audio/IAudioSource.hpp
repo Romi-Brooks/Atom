@@ -38,7 +38,7 @@ class IAudioSource {
         // already-queued audio has to be dropped.
         //
         // A non-finite `seconds` is always rejected (numeric contract, ARCH-006);
-        // finite values are clamped into [0, numeric::kMaxMediaSeconds].
+        // finite values are clamped into [0, numeric::max_media_seconds].
         virtual auto SetPlayingOffset(float seconds) -> bool = 0;
         [[nodiscard]] virtual auto GetPlayingOffset() const -> float = 0;
 

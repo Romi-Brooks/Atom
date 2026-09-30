@@ -30,12 +30,12 @@ auto LayoutTree::GetPointScaleFactor() const -> float {
 }
 
 auto LayoutTree::IsValid(const NodeId id) const -> bool {
-    return id != kInvalidNode && id <= nodes_.size() && nodes_[id - 1] != nullptr;
+    return id != invalid_node && id <= nodes_.size() && nodes_[id - 1] != nullptr;
 }
 
 auto LayoutTree::CreateNode() -> NodeId {
     nodes_.push_back(std::make_unique<LayoutNode>(config_));
-    parents_.push_back(kInvalidNode);
+    parents_.push_back(invalid_node);
     return static_cast<NodeId>(nodes_.size());
 }
 
@@ -48,7 +48,7 @@ auto LayoutTree::GetNode(const NodeId id) const -> const LayoutNode* {
 }
 
 auto LayoutTree::IsDescendant(const NodeId ancestor, const NodeId candidate) const -> bool {
-    for (auto current = parents_[candidate - 1]; current != kInvalidNode;) {
+    for (auto current = parents_[candidate - 1]; current != invalid_node;) {
         if (current == ancestor)
             return true;
         current = parents_[current - 1];
@@ -62,7 +62,7 @@ auto LayoutTree::Append(const NodeId parent, const NodeId child) -> bool {
 
 auto LayoutTree::Insert(const NodeId parent, const NodeId child, const std::size_t index) -> bool {
     if (!IsValid(parent) || !IsValid(child) || parent == child || IsDescendant(child, parent) ||
-        parents_[child - 1] != kInvalidNode) {
+        parents_[child - 1] != invalid_node) {
         LOG_WARNING(atom::log::layout::Core, "LayoutTree rejected an invalid parent/child relationship");
         return false;
     }
@@ -83,7 +83,7 @@ auto LayoutTree::Remove(const NodeId parent, const NodeId child) -> bool {
     } catch (...) {
         return false;
     }
-    parents_[child - 1] = kInvalidNode;
+    parents_[child - 1] = invalid_node;
     return true;
 }
 
@@ -91,7 +91,7 @@ auto LayoutTree::DestroyNode(const NodeId id) -> bool {
     if (!IsValid(id) || id == root_id_)
         return false;
 
-    if (parents_[id - 1] != kInvalidNode)
+    if (parents_[id - 1] != invalid_node)
         Remove(parents_[id - 1], id);
 
     std::vector<NodeId> victims;
@@ -109,7 +109,7 @@ auto LayoutTree::DestroyNode(const NodeId id) -> bool {
     std::reverse(victims.begin(), victims.end());
     for (const auto victim : victims) {
         nodes_[victim - 1].reset();
-        parents_[victim - 1] = kInvalidNode;
+        parents_[victim - 1] = invalid_node;
     }
     return true;
 }

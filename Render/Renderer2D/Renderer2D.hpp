@@ -73,7 +73,7 @@ class Renderer2D {
             private:
                 friend class Renderer2D;
                 Renderer2D* owner_ = nullptr;
-                render::Texture2D handle_ = render::kInvalidTexture2D;
+                render::Texture2D handle_ = render::invalid_texture_2d;
                 uint32_t width_ = 0;
                 uint32_t height_ = 0;
         };
@@ -105,7 +105,7 @@ class Renderer2D {
         // happens at the next EndFrame(). Returns nullptr on failure.
         //
         // The numeric contract (Backend/Contracts/Numeric/NumericContract.hpp)
-        // applies: width and height must each be in [1, kMaxTextureDimension]
+        // applies: width and height must each be in [1, max_texture_dimension]
         // (16384) and their RGBA size must be representable, otherwise the call
         // logs an error and returns nullptr.
         auto CreateTexture(uint32_t width, uint32_t height, const void* rgba = nullptr) -> Texture*;
@@ -200,7 +200,7 @@ class Renderer2D {
 
                 // Quad (axis-aligned bounds) or line (custom corners).
                 const Texture* texture = nullptr; // null -> white pixel texture
-                render::Sampler2D sampler = render::kInvalidSampler2D;
+                render::Sampler2D sampler = render::invalid_sampler_2d;
                 Rect dst{};
                 Rect source{};
                 bool has_source = false;
@@ -264,7 +264,7 @@ class Renderer2D {
 
         IRenderDevice* device_ = nullptr;
         IRender2DContext* context_ = nullptr;
-        render::Sampler2D sampler_ = render::kInvalidSampler2D;
+        render::Sampler2D sampler_ = render::invalid_sampler_2d;
         bool initialized_ = false;
         bool in_frame_ = false;
         float origin_x_ = 0.0f;
@@ -284,7 +284,7 @@ class Renderer2D {
         Texture* white_texture_ = nullptr;
 
         struct PendingUpload {
-                render::Texture2D handle = render::kInvalidTexture2D;
+                render::Texture2D handle = render::invalid_texture_2d;
                 uint32_t x = 0;
                 uint32_t y = 0;
                 uint32_t width = 0;

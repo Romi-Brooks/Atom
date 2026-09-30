@@ -56,7 +56,7 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
     if (!window.IsOpen() || !pending_resize_)
         return;
     const double now = window.GetTimeSeconds();
-    if (now - pending_resize_->last_change_seconds < kResizeSettleDelaySeconds)
+    if (now - pending_resize_->last_change_seconds < resize_settle_delay_seconds)
         return;
 
     auto settled = *pending_resize_;
@@ -140,8 +140,8 @@ auto RenderWindow::Run() -> void {
         if (!window.IsOpen())
             break;
 
-        const auto* game_clock = time_system.FindDomain(atom::time::domain::kGame);
-        const auto* render_clock = time_system.FindDomain(atom::time::domain::kRender);
+        const auto* game_clock = time_system.FindDomain(atom::time::domain::game);
+        const auto* render_clock = time_system.FindDomain(atom::time::domain::render);
 
         // Fixed-step simulation (game domain). Physics may own its own domain.
         if (game_clock) {

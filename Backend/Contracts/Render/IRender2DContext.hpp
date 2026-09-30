@@ -78,16 +78,16 @@ struct PostProcess2DParams {
 // Opaque backend resource handles; never expose backend pointers through RHI.
 using Texture2D = uint64_t;
 using Sampler2D = uint64_t;
-inline constexpr Texture2D kInvalidTexture2D = 0;
-inline constexpr Sampler2D kInvalidSampler2D = 0;
+inline constexpr Texture2D invalid_texture_2d = 0;
+inline constexpr Sampler2D invalid_sampler_2d = 0;
 
 // One indexed draw inside a submitted 2D frame.
 struct DrawItem2D {
         uint32_t first_index = 0;
         uint32_t index_count = 0;
         uint32_t vertex_offset = 0;
-        Texture2D texture = kInvalidTexture2D;
-        Sampler2D sampler = kInvalidSampler2D;
+        Texture2D texture = invalid_texture_2d;
+        Sampler2D sampler = invalid_sampler_2d;
         // Scissor in framebuffer pixels; negative width disables clipping.
         float clip_x = 0.0f;
         float clip_y = 0.0f;
@@ -120,7 +120,7 @@ class IRender2DContext {
         // Submit2DFrame.
         virtual auto Initialize2D(const std::filesystem::path& shader_root) -> bool = 0;
 
-        // Creates an empty RGBA8 texture. Returns kInvalidTexture2D on failure.
+        // Creates an empty RGBA8 texture. Returns invalid_texture_2d on failure.
         virtual auto CreateTexture2D(uint32_t width, uint32_t height) -> Texture2D = 0;
         // Uploads RGBA8 pixels (pitch = bytes per row). Must be called between
         // IRenderDevice::BeginFrame() and EndFrame().

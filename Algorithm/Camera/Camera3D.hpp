@@ -32,4 +32,4 @@ struct Camera3D {
 
 } // namespace atom::algo
 
-#endif
+#endif // ATOM_ALGORITHM_CAMERA3D_HPP

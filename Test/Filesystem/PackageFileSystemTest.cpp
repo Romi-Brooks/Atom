@@ -1,4 +1,5 @@
 #include <Filesystem/PackageFileSystem.hpp>
+#include <Filesystem/PackageFormat.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
 #include <chrono>
@@ -64,7 +65,10 @@ auto WriteApkg(const native_fs::path& package, const std::vector<std::pair<std::
         return false;
 
     output.write("APKG", 4);
-    const uint16_t version = 1;
+    // Written from the shared format contract; the explicit check below keeps
+    // this test pinned to APKG v1 even if the constant is ever bumped.
+    static_assert(atom::fs::package_format::version == 1, "this test writes APKG v1");
+    const uint16_t version = atom::fs::package_format::version;
     output.write(reinterpret_cast<const char*>(&version), sizeof(version));
     const uint32_t count = static_cast<uint32_t>(files.size());
     output.write(reinterpret_cast<const char*>(&count), sizeof(count));

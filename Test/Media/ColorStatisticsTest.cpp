@@ -16,18 +16,18 @@ auto MakeImage(const uint32_t width, const uint32_t height, const std::vector<ui
 }
 
 // Synthetic fixtures are tiny; default sample_stride=4 would skip most pixels.
-constexpr atom::image::ColorStatisticsOptions kSampleAll{.minimum_alpha = 32, .sample_stride = 1};
+constexpr atom::image::ColorStatisticsOptions sample_all{.minimum_alpha = 32, .sample_stride = 1};
 
 } // namespace
 
 auto main() -> int {
     using namespace atom::image;
 
-    ATOM_CHECK(!CalculateColorStatistics(DecodedImage{}, kSampleAll).has_value());
+    ATOM_CHECK(!CalculateColorStatistics(DecodedImage{}, sample_all).has_value());
 
     // 2x1: black then white, opaque.
     const auto two_tone = MakeImage(2, 1, {0, 0, 0, 255, 255, 255, 255, 255});
-    const auto stats = CalculateColorStatistics(two_tone, kSampleAll);
+    const auto stats = CalculateColorStatistics(two_tone, sample_all);
     ATOM_CHECK(stats.has_value());
     ATOM_CHECK(stats->minimum.r == 0 && stats->minimum.g == 0 && stats->minimum.b == 0);
     ATOM_CHECK(stats->maximum.r == 255 && stats->maximum.g == 255 && stats->maximum.b == 255);
@@ -40,13 +40,13 @@ auto main() -> int {
 
     // Transparent pixels are skipped.
     const auto mixed = MakeImage(2, 1, {0, 0, 0, 255, 255, 255, 255, 0});
-    const auto mixed_stats = CalculateColorStatistics(mixed, kSampleAll);
+    const auto mixed_stats = CalculateColorStatistics(mixed, sample_all);
     ATOM_CHECK(mixed_stats.has_value());
     ATOM_CHECK(mixed_stats->minimum.r == 0 && mixed_stats->maximum.r == 0);
 
     // All transparent -> no samples.
     const auto clear = MakeImage(2, 1, {255, 255, 255, 0, 255, 255, 255, 0});
-    ATOM_CHECK(!CalculateColorStatistics(clear, kSampleAll).has_value());
+    ATOM_CHECK(!CalculateColorStatistics(clear, sample_all).has_value());
 
     // 2x2 mid gray average.
     const auto gray = MakeImage(2, 2, {
@@ -55,7 +55,7 @@ auto main() -> int {
         50, 50, 50, 255,
         70, 70, 70, 255,
     });
-    const auto gray_stats = CalculateColorStatistics(gray, kSampleAll);
+    const auto gray_stats = CalculateColorStatistics(gray, sample_all);
     ATOM_CHECK(gray_stats.has_value());
     ATOM_CHECK(gray_stats->average.r == 40);
     ATOM_CHECK(gray_stats->minimum.r == 10);

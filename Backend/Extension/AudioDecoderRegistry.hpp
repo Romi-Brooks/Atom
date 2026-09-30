@@ -60,4 +60,4 @@ class AudioDecoderRegistry final {
 
 } // namespace atom::audio
 
-#endif
+#endif // ATOM_BACKEND_AUDIO_DECODER_REGISTRY_HPP

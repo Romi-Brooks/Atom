@@ -81,16 +81,16 @@ auto main() -> int {
     // --- ARCH-110: concurrent logging stays consistent ---------------------
     atom::Log::SetRecentCapacity(4096);
     atom::Log::ClearRecentRecords();
-    constexpr int kThreadCount = 4;
-    constexpr int kRecordsPerThread = 250;
+    constexpr int thread_count = 4;
+    constexpr int records_per_thread = 250;
     {
         std::atomic<int> delivered{0};
         auto concurrent = atom::Log::Subscribe([&delivered](const atom::LogRecord&) { delivered.fetch_add(1); });
         std::vector<std::thread> threads{};
-        threads.reserve(kThreadCount);
-        for (int t = 0; t < kThreadCount; ++t) {
+        threads.reserve(thread_count);
+        for (int t = 0; t < thread_count; ++t) {
             threads.emplace_back([t] {
-                for (int i = 0; i < kRecordsPerThread; ++i)
+                for (int i = 0; i < records_per_thread; ++i)
                     LOG_WARNING(atom::log::core::Main,
                                 "concurrent-" + std::to_string(t) + '-' + std::to_string(i));
             });
@@ -98,7 +98,7 @@ auto main() -> int {
         for (auto& thread : threads)
             thread.join();
         // No record is lost and none is duplicated across threads.
-        ATOM_CHECK(delivered.load() == kThreadCount * kRecordsPerThread);
+        ATOM_CHECK(delivered.load() == thread_count * records_per_thread);
         concurrent.Reset();
     }
 
@@ -106,7 +106,7 @@ auto main() -> int {
     // timestamp (the old std::localtime() race produced empty/garbled ones).
     const std::string expected_shape = "0000-00-00 00:00:00.000";
     const auto concurrent_records = atom::Log::GetRecentRecords();
-    ATOM_CHECK(concurrent_records.size() == static_cast<std::size_t>(kThreadCount * kRecordsPerThread));
+    ATOM_CHECK(concurrent_records.size() == static_cast<std::size_t>(thread_count * records_per_thread));
     for (const auto& record : concurrent_records) {
         ATOM_CHECK(record.timestamp.size() == expected_shape.size());
         ATOM_CHECK(record.timestamp[4] == '-');
@@ -120,7 +120,7 @@ auto main() -> int {
     //
     // FlushConsole() must not return while a line is still in the writer's hand,
     // so a flushed queue means the pending count really is zero.
-    atom::Log::SetConsoleQueueCapacity(atom::Log::kDefaultConsoleQueueCapacity);
+    atom::Log::SetConsoleQueueCapacity(atom::Log::default_console_queue_capacity);
     atom::Log::SetConsoleSinkEnabled(true);
     LOG_ERROR(atom::log::core::Main, "sink-smoke");
     atom::Log::FlushConsole();
@@ -157,7 +157,7 @@ auto main() -> int {
     ATOM_CHECK(atom::Log::GetPendingConsoleLineCount() == 0);
     ATOM_CHECK(atom::Log::GetDroppedConsoleLineCount() == dropped_before + 2);
 
-    atom::Log::SetConsoleQueueCapacity(atom::Log::kDefaultConsoleQueueCapacity);
+    atom::Log::SetConsoleQueueCapacity(atom::Log::default_console_queue_capacity);
     atom::Log::SetConsoleSinkEnabled(false);
     atom::Log::FlushConsole();
 

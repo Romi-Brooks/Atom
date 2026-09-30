@@ -17,6 +17,8 @@
 #include <vector>
 
 #include <filesystem>
+
+#include <Filesystem/PackageFormat.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
 namespace atom::fs {
@@ -24,11 +26,9 @@ namespace {
 
 namespace native_fs = std::filesystem;
 
-constexpr char kMagic[4] = {'A', 'P', 'K', 'G'};
-constexpr uint16_t kVersion = 1;
-constexpr uint64_t kMinHeaderSize = 10;
-constexpr uint32_t kMaxFileCount = 1'000'000;
-constexpr uint16_t kMaxNameLength = 4096;
+// The APKG layout (magic, version and the limits the reader enforces) lives in
+// PackageFormat.hpp so the writer and the reader cannot drift apart.
+namespace package_format = atom::fs::package_format;
 
 struct PackageEntry {
         std::string relative{};
@@ -184,7 +184,7 @@ auto PackageFileSystem::Create(const std::string_view mount, const std::string_v
     if (!native_fs::is_regular_file(package_path, error) || error)
         return Result::NotFile;
     const uintmax_t package_size = native_fs::file_size(package_path, error);
-    if (error || package_size < kMinHeaderSize + sizeof(uint64_t))
+    if (error || package_size < package_format::min_header_size + sizeof(uint64_t))
         return Result::IoError;
 
     std::ifstream input{package_path, std::ios::binary};
@@ -193,17 +193,17 @@ auto PackageFileSystem::Create(const std::string_view mount, const std::string_v
 
     char magic[4]{};
     input.read(magic, 4);
-    if (!input || !std::equal(std::begin(kMagic), std::end(kMagic), magic))
+    if (!input || !std::equal(std::begin(package_format::magic), std::end(package_format::magic), magic))
         return Result::IoError;
 
     uint16_t version = 0;
     input.read(reinterpret_cast<char*>(&version), sizeof(version));
-    if (!input || version != kVersion)
+    if (!input || version != package_format::version)
         return Result::IoError;
 
     uint32_t file_count = 0;
     input.read(reinterpret_cast<char*>(&file_count), sizeof(file_count));
-    if (!input || file_count == 0 || file_count > kMaxFileCount)
+    if (!input || file_count == 0 || file_count > package_format::max_file_count)
         return Result::IoError;
 
     input.seekg(-static_cast<std::streamoff>(sizeof(uint64_t)), std::ios::end);
@@ -211,7 +211,7 @@ auto PackageFileSystem::Create(const std::string_view mount, const std::string_v
         return Result::IoError;
     uint64_t table_offset = 0;
     input.read(reinterpret_cast<char*>(&table_offset), sizeof(table_offset));
-    if (!input || table_offset < kMinHeaderSize || table_offset >= package_size)
+    if (!input || table_offset < package_format::min_header_size || table_offset >= package_size)
         return Result::IoError;
 
     input.seekg(static_cast<std::streamoff>(table_offset));
@@ -223,7 +223,7 @@ auto PackageFileSystem::Create(const std::string_view mount, const std::string_v
     for (uint32_t index = 0; index < file_count; ++index) {
         uint16_t name_length = 0;
         input.read(reinterpret_cast<char*>(&name_length), sizeof(name_length));
-        if (!input || name_length == 0 || name_length > kMaxNameLength)
+        if (!input || name_length == 0 || name_length > package_format::max_name_length)
             return Result::IoError;
 
         std::string name(name_length, '\0');
@@ -238,7 +238,7 @@ auto PackageFileSystem::Create(const std::string_view mount, const std::string_v
         uint64_t size = 0;
         input.read(reinterpret_cast<char*>(&offset), sizeof(offset));
         input.read(reinterpret_cast<char*>(&size), sizeof(size));
-        if (!input || offset < kMinHeaderSize || offset > table_offset || size > table_offset - offset)
+        if (!input || offset < package_format::min_header_size || offset > table_offset || size > table_offset - offset)
             return Result::IoError;
 
         uint8_t type_length = 0;

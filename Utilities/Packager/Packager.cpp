@@ -6,10 +6,14 @@
 #include <iostream>
 
 // Engine Headers
+#include <Filesystem/PackageFormat.hpp>
 #include <Log/LogSystem.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
 namespace atom::tools {
+// The APKG on-disk contract, shared with the reader (PackageFileSystem).
+namespace package_format = atom::fs::package_format;
+
 Packager::Config::Config() : compress(false), verbose(false), preserveStructure(true), overwrite(true) {}
 
 auto Packager::NormalizePath(const std::string& path) -> std::string {
@@ -127,29 +131,29 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
     try {
         if (native_fs::exists(outputFile)) {
             if (!config.overwrite) {
-                return Result::ERROR_WRITE_FAILED;
+                return Result::ErrorWriteFailed;
             }
             native_fs::remove(outputFile);
         }
     } catch (const std::exception& e) {
         LOG_ERROR(atom::log::utilities::Packager,
                   "Unable to delete existing file: " + std::to_string(*e.what()));
-        return Result::ERROR_WRITE_FAILED;
+        return Result::ErrorWriteFailed;
     }
 
     std::vector<native_fs::path> allFiles;
     if (!CollectFiles(resourcePaths, allFiles, config)) {
-        return Result::ERROR_EMPTY_PACKAGE;
+        return Result::ErrorEmptyPackage;
     }
 
     std::ofstream output(atom::PathFromUtf8(outputFile), std::ios::binary);
     if (!output.is_open()) {
-        return Result::ERROR_OPEN_OUTPUT;
+        return Result::ErrorOpenOutput;
     }
 
     // Write file header
-    output.write(MAGIC, 4);
-    output.write(reinterpret_cast<const char*>(&VERSION), sizeof(VERSION));
+    output.write(package_format::magic, 4);
+    output.write(reinterpret_cast<const char*>(&package_format::version), sizeof(package_format::version));
 
     // Reserve file table position - write file count as 0 initially, update later
     uint64_t file_table_offset = output.tellp();
@@ -210,7 +214,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
 
         output.write(buffer.data(), static_cast<long long>(file_size));
         if (!output) {
-            return Result::ERROR_WRITE_FAILED;
+            return Result::ErrorWriteFailed;
         }
 
         current_offset += file_size;
@@ -227,7 +231,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
             native_fs::remove(outputFile);
         } catch (...) {
         }
-        return Result::ERROR_EMPTY_PACKAGE;
+        return Result::ErrorEmptyPackage;
     }
 
     // Record file table start position
@@ -243,7 +247,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         // Write filename
         std::string safe_filename = ToUTF8(entry.filename);
         if (safe_filename.size() > UINT16_MAX) {
-            return Result::ERROR_INVALID_PATH;
+            return Result::ErrorInvalidPath;
         }
         auto name_length = static_cast<uint16_t>(safe_filename.length());
         output.write(reinterpret_cast<const char*>(&name_length), sizeof(name_length));
@@ -258,7 +262,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         // Write file type
         std::string safe_type = ToUTF8(entry.type);
         if (safe_type.size() > UINT8_MAX) {
-            return Result::ERROR_INVALID_PATH;
+            return Result::ErrorInvalidPath;
         }
         auto type_length = static_cast<uint8_t>(safe_type.length());
         output.write(reinterpret_cast<const char*>(&type_length), sizeof(type_length));
@@ -284,12 +288,13 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
         std::string magic_str(magic, 4);
         LOG_INFO(atom::log::utilities::Packager,
                  "Verification magic number: " + magic_str + " " +
-                     (magic_str == std::string(MAGIC, 4) ? "True" : "False"));
+                     (magic_str == std::string(package_format::magic, 4) ? "True" : "False"));
 
         uint16_t version;
         verify.read(reinterpret_cast<char*>(&version), sizeof(version));
         LOG_INFO(atom::log::utilities::Packager,
-                 "Verification version: " + std::to_string(version) + " " + (version == 1 ? "True" : "False"));
+                 "Verification version: " + std::to_string(version) + " " +
+                     (version == package_format::version ? "True" : "False"));
 
         uint32_t file_count_verify;
         verify.read(reinterpret_cast<char*>(&file_count_verify), sizeof(file_count_verify));
@@ -313,7 +318,7 @@ auto Packager::Pack(const std::vector<std::string>& resourcePaths, const std::st
     LOG_INFO(atom::log::utilities::Packager,
              "Package size: " + std::to_string(table_end + sizeof(uint64_t)) + " bytes");
 
-    return Result::SUCCESS;
+    return Result::Success;
 }
 
 auto Packager::GetPackedFiles() const -> std::vector<std::string> {

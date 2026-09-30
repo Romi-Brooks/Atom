@@ -23,13 +23,13 @@ namespace {
 // Absolute path of the probe clip. Its parent directory is mounted under the
 // "probe" mount so the load goes through the VFS contract (asset path) rather
 // than a raw native path.
-constexpr auto kAudioPath = R"(C:\Users\Romi\Downloads\1.mp3)";
+constexpr auto audio_path = R"(C:\Users\Romi\Downloads\1.mp3)";
 
 // Mounts the probe clip's directory on the process-wide Vfs and returns the
 // clip's asset path. Safe to call repeatedly; mounting the same directory again
 // is a no-op because the mount table replaces by name+backend.
 auto ProbeAssetPath() -> std::string {
-    const std::filesystem::path native{kAudioPath};
+    const std::filesystem::path native{audio_path};
     const std::string dir = atom::PathToUtf8(native.parent_path());
     const std::string filename = atom::PathToUtf8(native.filename());
 
@@ -107,7 +107,7 @@ class ProbeDebugger final : public atom::debugger::DebugPanel {
                 SwitchBackend(atom::backend::AudioBackendId::Sdl3Mixer);
 
             if (!source_) {
-                ImGui::TextDisabled("No source. Check kAudioPath and reload.");
+                ImGui::TextDisabled("No source. Check audio_path and reload.");
                 if (ImGui::Button("Reload"))
                     LoadSource();
                 ImGui::End();

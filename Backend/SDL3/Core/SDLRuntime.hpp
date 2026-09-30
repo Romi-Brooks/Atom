@@ -1,5 +1,5 @@
-#ifndef ATOM_BACKEND_SDL3_SUBSYSTEM_LEASE_HPP
-#define ATOM_BACKEND_SDL3_SUBSYSTEM_LEASE_HPP
+#ifndef ATOM_BACKEND_SDL3_SDLRUNTIME_HPP
+#define ATOM_BACKEND_SDL3_SDLRUNTIME_HPP
 
 namespace atom::backend::sdl3 {
 
@@ -25,4 +25,4 @@ class SDLSubsystemLease final {
 
 } // namespace atom::backend::sdl3
 
-#endif
+#endif // ATOM_BACKEND_SDL3_SDLRUNTIME_HPP

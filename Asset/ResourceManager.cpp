@@ -9,7 +9,7 @@ namespace atom::asset {
 namespace {
 // Sweep when the cache holds this many entries. Kept well above typical live
 // counts so the amortized cost stays negligible while still bounding growth.
-constexpr std::size_t kSweepThreshold = 256;
+constexpr std::size_t sweep_threshold = 256;
 } // namespace
 
 ResourceManager::ResourceManager(const fs::IFileSystem& filesystem) : filesystem_(&filesystem) {}
@@ -105,7 +105,7 @@ auto ResourceManager::AcquireRecord(const ResourceId& id, std::shared_ptr<detail
     // every successful load. A stale entry is harmless: Acquire replaces it on
     // the next miss for the same key, so sweeping only guards against unbounded
     // growth of dead entries.
-    if (cache_.size() >= kSweepThreshold)
+    if (cache_.size() >= sweep_threshold)
         SweepExpired();
     output = std::move(record);
     return AssetResult::Success;

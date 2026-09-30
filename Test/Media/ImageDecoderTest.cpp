@@ -18,7 +18,7 @@
 namespace {
 
 // Minimal valid 1x1 RGB PNG (same fixture as ConsumerLoaderTest / Stage D).
-constexpr std::array<uint8_t, 78> kTinyPng{
+constexpr std::array<uint8_t, 78> tiny_png{
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
     0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
     0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xFF, 0xFF, 0x3F, 0x00, 0x05, 0xFE, 0x02, 0xFE, 0xA7,
@@ -31,7 +31,7 @@ constexpr std::array<uint8_t, 78> kTinyPng{
 // the dimensions, and 20000 * 20000 * 3 still fits in int32), so without the
 // ARCH-006 decoded-surface budget stbi_load_from_memory would allocate ~1.2 GB
 // before the image could be rejected.
-constexpr std::array<uint8_t, 54> kOversizedBmpHeader{
+constexpr std::array<uint8_t, 54> oversized_bmp_header{
     0x42, 0x4D,                   // "BM"
     0x36, 0x00, 0x00, 0x00,       // file size (54, ignored by the probe)
     0x00, 0x00, 0x00, 0x00,       // reserved
@@ -53,7 +53,7 @@ constexpr std::array<uint8_t, 54> kOversizedBmpHeader{
 // ~60 KB. The budget bounds the total surface, not each axis, so this must pass
 // the pre-decode guard (whether the truncated pixel data then decodes is a
 // separate matter).
-constexpr std::array<uint8_t, 54> kThinBmpHeader{
+constexpr std::array<uint8_t, 54> thin_bmp_header{
     0x42, 0x4D, 0x36, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00,
     0x28, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x20, 0x4E, 0x00, 0x00, 0x01, 0x00,
     0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -81,20 +81,20 @@ auto main() -> int {
     };
 
     // A valid image decodes to a 1x1 RGBA surface.
-    const auto tiny = atom::image::DecodeImageMemory(SpanOf(kTinyPng));
+    const auto tiny = atom::image::DecodeImageMemory(SpanOf(tiny_png));
     ATOM_CHECK(tiny.IsValid());
     ATOM_CHECK(tiny.width == 1 && tiny.height == 1);
     ATOM_CHECK(tiny.rgba.size() == 4);
 
     // The flipped variant stays valid and same-sized.
-    const auto flipped = atom::image::DecodeImageMemory(SpanOf(kTinyPng), true);
+    const auto flipped = atom::image::DecodeImageMemory(SpanOf(tiny_png), true);
     ATOM_CHECK(flipped.IsValid());
     ATOM_CHECK(flipped.width == 1 && flipped.height == 1);
 
     // ARCH-006: an oversized header is refused *before* the decode, so no
     // width*height*bpp allocation happens.
     records.clear();
-    const auto oversized = atom::image::DecodeImageMemory(SpanOf(kOversizedBmpHeader));
+    const auto oversized = atom::image::DecodeImageMemory(SpanOf(oversized_bmp_header));
     ATOM_CHECK(!oversized.IsValid());
     ATOM_CHECK(oversized.width == 0 && oversized.height == 0);
     ATOM_CHECK(saw_message("rejected before decode"));
@@ -103,7 +103,7 @@ auto main() -> int {
     // The budget is on the decoded surface as a whole, so a legitimate thin
     // strip must not be refused by the pre-decode guard.
     records.clear();
-    static_cast<void>(atom::image::DecodeImageMemory(SpanOf(kThinBmpHeader)));
+    static_cast<void>(atom::image::DecodeImageMemory(SpanOf(thin_bmp_header)));
     ATOM_CHECK(!saw_message("rejected before decode"));
 
     // Empty input fails closed before any decoder sees it.

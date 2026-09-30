@@ -45,7 +45,7 @@ class SFXPlayer final : public atom::backend::IAudioBackendChangeListener {
         [[nodiscard]] auto GetLoadedCount() const -> std::size_t;
 
         // Voice cap applied to every pool (existing and future). Rejects a value
-        // outside [numeric::kMinVoices, numeric::kMaxVoices] (ARCH-006).
+        // outside [numeric::min_voices, numeric::max_voices] (ARCH-006).
         auto SetVoiceLimit(std::size_t voices) -> bool;
         [[nodiscard]] auto GetVoiceLimit() const -> std::size_t {
             return voice_limit_;
@@ -61,9 +61,9 @@ class SFXPlayer final : public atom::backend::IAudioBackendChangeListener {
         AudioMixer& mixer_;
         atom::backend::BackendRuntime* runtime_ = nullptr;
         std::unordered_map<std::string, std::unique_ptr<VoicePool>> pools_;
-        std::size_t voice_limit_ = atom::numeric::kDefaultVoices;
+        std::size_t voice_limit_ = atom::numeric::default_voices;
 };
 
 } // namespace atom
 
-#endif
+#endif // ATOM_SFX_PLAYER_HPP

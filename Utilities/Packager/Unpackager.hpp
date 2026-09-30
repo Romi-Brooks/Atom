@@ -40,16 +40,16 @@ class Unpackager final {
 
         // Operation result
         enum class Result {
-            SUCCESS,
-            ERROR_OPEN_FILE,
-            ERROR_INVALID_FORMAT,
-            ERROR_READ_FILE_TABLE,
-            ERROR_EXTRACT_FILE,
-            ERROR_CREATE_DIRECTORY,
-            ERROR_ENCODING,
-            ERROR_CORRUPTED_PACKAGE,
-            ERROR_FILES_NOT_FOUND,
-            ERROR_READ_DATA
+            Success,
+            ErrorOpenFile,
+            ErrorInvalidFormat,
+            ErrorReadFileTable,
+            ErrorExtractFile,
+            ErrorCreateDirectory,
+            ErrorEncoding,
+            ErrorCorruptedPackage,
+            ErrorFilesNotFound,
+            ErrorReadData
         };
 
         Unpackager() = default;
@@ -84,10 +84,6 @@ class Unpackager final {
         std::ifstream package_stream_;
         // Storage backing GetFileData(); valid until the next GetFileData() call.
         std::vector<char> last_read_buffer_;
-
-        // Magic number and version
-        static constexpr char MAGIC[4] = {'A', 'P', 'K', 'G'};
-        static constexpr uint16_t VERSION = 1;
 
         // Utility functions
         auto CreateDirectory(const std::filesystem::path& dir_path) -> bool;

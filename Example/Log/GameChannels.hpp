@@ -8,7 +8,8 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#pragma once
+#ifndef ATOM_GAMECHANNELS_HPP
+#define ATOM_GAMECHANNELS_HPP
 
 #include <Log/LogSystem.hpp>
 
@@ -30,3 +31,5 @@ ATOM_DEFINE_CHANNELS(game::log::npc::ai, Channel, "Game.NPC.AI.",
     (Pathfinding, "Pathfinding"),
     (Behavior, "Behavior")
 )
+
+#endif // ATOM_GAMECHANNELS_HPP
