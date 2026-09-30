@@ -103,6 +103,11 @@ class Renderer2D {
         // Resources:
         // Creates an RGBA8 texture; rgba (w*h*4 bytes) may be null. The upload
         // happens at the next EndFrame(). Returns nullptr on failure.
+        //
+        // The numeric contract (Backend/Contracts/Numeric/NumericContract.hpp)
+        // applies: width and height must each be in [1, kMaxTextureDimension]
+        // (16384) and their RGBA size must be representable, otherwise the call
+        // logs an error and returns nullptr.
         auto CreateTexture(uint32_t width, uint32_t height, const void* rgba = nullptr) -> Texture*;
         auto UpdateTexture(Texture& texture, const void* rgba) -> void;
         auto DestroyTexture(Texture& texture) -> void;

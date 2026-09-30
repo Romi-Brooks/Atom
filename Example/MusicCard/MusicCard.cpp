@@ -1639,11 +1639,21 @@ auto main(int argc, char** argv) -> int {
     auto filesystem = std::shared_ptr<atom::fs::NativeFileSystem>{std::move(fs_owned)};
 
     auto screen = std::make_unique<MusicCardScreen>(music, std::move(paths), std::move(filesystem));
-    // Keep the derived type; LoadScreen only hands back Screen*.
-    auto* music_card_screen = screen.get();
-    [[maybe_unused]] auto* registered =
-        atom::ScreenManager::GetInstance().LoadScreen("MusicCard", std::move(screen));
-    atom::ScreenManager::GetInstance().SwitchScreen(music_card_screen);
+    const auto loaded = atom::ScreenManager::GetInstance().LoadScreen("MusicCard", std::move(screen));
+    if (loaded != atom::ScreenOpResult::Success) {
+        LOG_ERROR(atom::log::audio::Music,
+                  "Failed to register the MusicCard screen: " + std::string{atom::ToString(loaded)});
+        return 1;
+    }
+    // The manager now owns the screen; borrow the derived type back for the
+    // debugger and the shutdown hook (this example never replaces it).
+    auto* music_card_screen =
+        dynamic_cast<MusicCardScreen*>(atom::ScreenManager::GetInstance().GetScreen("MusicCard"));
+    if (music_card_screen == nullptr) {
+        LOG_ERROR(atom::log::audio::Music, "MusicCard screen disappeared after registration");
+        return 1;
+    }
+    atom::ScreenManager::GetInstance().SwitchScreen("MusicCard");
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},

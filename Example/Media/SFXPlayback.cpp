@@ -109,9 +109,8 @@ auto main() -> int {
     sfx.Load("registerId_1", *filesystem, sfx1);
     sfx.Load("registerId_2", *filesystem, sfx2);
 
-    auto* sfx_screen =
-        atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen(sfx_screen);
+    atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen("SFX");
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom Engine - SFX Playback Example", atom::algo::Vec2{720, 720},

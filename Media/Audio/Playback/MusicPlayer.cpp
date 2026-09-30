@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Filesystem/Vfs.hpp>
@@ -91,6 +92,14 @@ auto MusicPlayer::Load(const std::string& id, const std::string& path) -> bool {
 
 auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filename, const void* data,
                                  const std::size_t size) -> bool {
+    // ARCH-006: a null/short buffer with a non-zero size is a caller bug that the
+    // decoders cannot survive; reject it before any decoder sees it.
+    if (!atom::numeric::IsValidBuffer(data, size)) {
+        LOG_ERROR(atom::log::audio::Music,
+                  "LoadFromMemory rejected an empty buffer for music track '" + id + "' (" + filename + ")");
+        return false;
+    }
+
     std::lock_guard lock(mutex_);
     if (tracks_.contains(id)) {
         LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
@@ -145,7 +154,7 @@ auto MusicPlayer::Play(const std::string& id, const float volume) -> void {
         LOG_DEBUG(atom::log::audio::Music, "Play() ignored: track is already playing: " + id);
         return;
     }
-    it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
+    it->second.source->SetVolume(atom::numeric::SanitizeVolume(volume));
     it->second.source->Play();
     const auto state = it->second.source->GetState();
     if (state != atom::audio::AudioSourceState::Playing && state != atom::audio::AudioSourceState::Paused) {
@@ -198,13 +207,21 @@ auto MusicPlayer::Stop(const std::string& id) -> void {
 }
 
 auto MusicPlayer::Seek(const std::string& id, const float seconds) -> bool {
+    // ARCH-006: never hand a NaN/infinite position to the backend. A
+    // non-finite request is a failed seek, not a clamp to 0.
+    float requested = 0.0f;
+    if (!atom::numeric::TrySanitizeOffsetSeconds(seconds, requested)) {
+        LOG_WARNING(atom::log::audio::Music, "Seek() rejected a non-finite position for track " + id);
+        return false;
+    }
+
     std::lock_guard lock(mutex_);
     const auto it = tracks_.find(id);
     if (it == tracks_.end() || !it->second.source) {
         LOG_DEBUG(atom::log::audio::Music, "Seek() ignored: unknown track: " + id);
         return false;
     }
-    auto target = std::max(seconds, 0.0f);
+    auto target = requested;
     if (it->second.duration_seconds > 0.0f)
         target = std::min(target, it->second.duration_seconds);
     if (!it->second.source->SetPlayingOffset(target)) {
@@ -251,7 +268,7 @@ auto MusicPlayer::SetVolume(const std::string& id, const float volume) -> void {
     std::lock_guard lock(mutex_);
     const auto it = tracks_.find(id);
     if (it != tracks_.end() && it->second.source) {
-        it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
+        it->second.source->SetVolume(atom::numeric::SanitizeVolume(volume));
     }
 }
 

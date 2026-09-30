@@ -4,6 +4,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3 {
@@ -152,9 +153,10 @@ auto SDL3SFXSource::GetState() const -> atom::audio::AudioSourceState {
 }
 
 auto SDL3SFXSource::SetVolume(const float volume) -> void {
-    volume_ = volume;
+    // Numeric contract (ARCH-006): clamped and NaN-free before the gain is set.
+    volume_ = atom::numeric::SanitizeVolume(volume);
     if (stream_) {
-        SDL_SetAudioStreamGain(stream_, volume_ / 100.0f);
+        SDL_SetAudioStreamGain(stream_, volume_.load() / 100.0f);
     }
 }
 
@@ -176,8 +178,12 @@ auto SDL3SFXSource::SetPlayingOffset(const float seconds) -> bool {
     const auto bytes_per_frame = static_cast<std::size_t>(SDL_AUDIO_BYTESIZE(spec_.format)) * spec_.channels;
     if (bytes_per_frame == 0 || spec_.freq == 0 || pcm_data_.empty())
         return false;
-    const auto target = static_cast<std::size_t>(std::max(seconds, 0.0f) * static_cast<float>(spec_.freq)) *
-                        bytes_per_frame;
+    // Numeric contract (ARCH-006): a NaN/infinite position would make the frame
+    // conversion UB.
+    float requested = 0.0f;
+    if (!atom::numeric::TrySanitizeOffsetSeconds(seconds, requested))
+        return false;
+    const auto target = static_cast<std::size_t>(requested * static_cast<float>(spec_.freq)) * bytes_per_frame;
     feed_cursor_ = (std::min)(target, pcm_data_.size());
     drained_ = false;
     seek_pending_ = true;

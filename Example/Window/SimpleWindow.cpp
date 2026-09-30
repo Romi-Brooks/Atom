@@ -47,15 +47,20 @@ auto main() -> int {
     // Log level
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
-    // Screen Register (Best practice)
-    const auto exampleScreen = atom::ScreenManager::GetInstance().LoadScreen("Example", std::make_unique<ExampleScreen>());
-    // Select this screen
-    atom::ScreenManager::GetInstance().SwitchScreen(exampleScreen);
-    //
-    // // Usually, explicitly confirming that a screen has no post-tasks, you can construct it in place:
-    //  atom::ScreenManager::GetInstance().LoadScreen("Example", std::make_unique<ExampleScreen>());
-    // // You can also switch to the target screen using a string.
-    //  atom::ScreenManager::GetInstance().SwitchScreen("Example");
+    // Screen Register (Best practice). LoadScreen/UnloadScreen report a
+    // ScreenOpResult so a rejected duplicate registration cannot go unnoticed
+    // (ARCH-105); pass ScreenReplacePolicy::Replace to re-register a name.
+    const auto loaded =
+        atom::ScreenManager::GetInstance().LoadScreen("Example", std::make_unique<ExampleScreen>());
+    if (loaded != atom::ScreenOpResult::Success) {
+        LOG_ERROR(atom::log::core::ScreenManager,
+                  "Failed to register the example screen: " + std::string{atom::ToString(loaded)});
+        return 1;
+    }
+    // Select this screen by name; the manager owns it. Read the pointer back
+    // with GetScreen() when a raw Screen* is needed (never capture one before
+    // LoadScreen: a rejected registration destroys the screen).
+    atom::ScreenManager::GetInstance().SwitchScreen("Example");
 
     // Give a window instance
     auto& window = atom::RenderWindow::GetInstance();

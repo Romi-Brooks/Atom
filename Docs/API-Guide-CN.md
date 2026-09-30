@@ -36,10 +36,28 @@ public:
     auto Update(float delta_time) -> void override { /* game logic */ }
 };
 
-// LoadScreen 返回非拥有指针（[[nodiscard]]），SwitchScreen 可直接用它
-auto* menu = atom::ScreenManager::GetInstance().LoadScreen(
+// ScreenManager 用 shared_ptr 持有 Screen，注册/切换/出栈都返回
+// atom::ScreenOpResult，调用方可以区分「未注册」「同名冲突」「空指针」等结果。
+const auto loaded = atom::ScreenManager::GetInstance().LoadScreen(
     "menu", std::make_unique<MenuScreen>());
-atom::ScreenManager::GetInstance().SwitchScreen(menu);
+if (loaded != atom::ScreenOpResult::Success) {
+    // 可选值：Success / NotFound / NullScreen / InvalidName / NameConflict /
+    //        Unregistered / InUse / EmptyStack / AlreadyVisible
+    const auto reason = atom::ToString(loaded);
+    LOG_ERROR(atom::log::core::ScreenManager, std::string{"LoadScreen failed: "} + std::string{reason});
+    return 1;
+}
+// 按名字切换；需要裸指针时用 GetScreen() 取回（不要在 LoadScreen 之前缓存，
+// 被拒绝的注册会立刻析构传入的 Screen）。
+atom::ScreenManager::GetInstance().SwitchScreen("menu");
+auto* menu = atom::ScreenManager::GetInstance().GetScreen("menu");
+
+// 重新注册同名 Screen 必须显式声明策略：默认 Reject 返回 NameConflict；
+// Replace 会先把 active/栈上的句柄重定向到新对象，再释放旧对象。
+atom::ScreenManager::GetInstance().LoadScreen(
+    "menu", std::make_unique<MenuScreen>(), atom::ScreenReplacePolicy::Replace);
+// 卸载：仍为 active 时返回 InUse（先切走），其余情况连同引用它的栈槽一起移除。
+atom::ScreenManager::GetInstance().UnloadScreen("menu");
 
 auto& window = atom::RenderWindow::GetInstance();
 window.Initialize("My Game", atom::algo::Vec2{1280, 720}); // 默认 RenderBackendId::SdlGpu

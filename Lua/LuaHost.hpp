@@ -15,7 +15,7 @@
 
 #include "BindingRegistry.hpp"
 #include "LuaContext.hpp"
-#include "lua.hpp"
+#include <Lua/lua.hpp>
 
 #include <Filesystem/AssetPath.hpp>
 #include <Filesystem/FileSystem.hpp>

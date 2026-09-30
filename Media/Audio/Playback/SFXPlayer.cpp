@@ -56,7 +56,7 @@ auto SFXPlayer::GetOrCreatePool(const std::string& id) -> VoicePool* {
     auto backend = runtime_ ? runtime_->AcquireAudioBackend() : BorrowBackend(backend_);
     if (!backend)
         return nullptr;
-    auto pool = std::make_unique<VoicePool>(*backend, std::move(clip));
+    auto pool = std::make_unique<VoicePool>(*backend, std::move(clip), voice_limit_);
     auto* result = pool.get();
     pools_.emplace(id, std::move(pool));
     return result;
@@ -69,7 +69,7 @@ auto SFXPlayer::Play(const std::string& id, const float volume) -> void {
     auto* voice = pool ? pool->Acquire() : nullptr;
     if (!voice)
         return;
-    voice->SetVolume(std::clamp(volume, 0.0f, 100.0f));
+    voice->SetVolume(atom::numeric::SanitizeVolume(volume));
     voice->Play();
 }
 auto SFXPlayer::Stop(const std::string& id) -> void {
@@ -82,7 +82,7 @@ auto SFXPlayer::StopAll() -> void {
 }
 auto SFXPlayer::SetVolume(const std::string& id, const float volume) -> void {
     if (const auto it = pools_.find(id); it != pools_.end())
-        it->second->SetVolume(std::clamp(volume, 0.0f, 100.0f));
+        it->second->SetVolume(atom::numeric::SanitizeVolume(volume));
 }
 auto SFXPlayer::IsLoaded(const std::string& id) const -> bool {
     return clips_.Contains(id);
@@ -103,6 +103,22 @@ auto SFXPlayer::Reset() -> void {
 }
 auto SFXPlayer::GetLoadedCount() const -> std::size_t {
     return clips_.Size();
+}
+
+auto SFXPlayer::SetVoiceLimit(const std::size_t voices) -> bool {
+    if (!atom::numeric::IsValidVoiceCount(voices)) {
+        LOG_WARNING(atom::log::audio::Sfx,
+                    "SetVoiceLimit(" + std::to_string(voices) + ") rejected: allowed range is [" +
+                        std::to_string(atom::numeric::kMinVoices) + ", " +
+                        std::to_string(atom::numeric::kMaxVoices) + "]");
+        return false;
+    }
+    voice_limit_ = voices;
+    for (auto& [_, pool] : pools_) {
+        if (pool)
+            pool->SetVoiceLimit(voices);
+    }
+    return true;
 }
 
 auto SFXPlayer::OnAudioBackendChanging() -> void {

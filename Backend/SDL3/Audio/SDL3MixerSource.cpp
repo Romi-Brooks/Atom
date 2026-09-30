@@ -5,6 +5,7 @@
 #include <SDL3_mixer/SDL_mixer.h>
 
 #include "SDL3MixerContext.hpp"
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3mixer {
@@ -94,7 +95,9 @@ auto SDL3MixerSource::GetState() const -> atom::audio::AudioSourceState {
 }
 
 auto SDL3MixerSource::SetVolume(const float volume) -> void {
-    const float clamped = std::clamp(volume, 0.0f, 100.0f);
+    // Numeric contract (ARCH-006): the gain is derived from this value, so a NaN
+    // must not reach MIX_SetTrackGain.
+    const float clamped = atom::numeric::SanitizeVolume(volume);
     if (volume_.exchange(clamped) == clamped)
         return;
     if (track_)
@@ -119,7 +122,10 @@ auto SDL3MixerSource::SetPlayingOffset(const float seconds) -> bool {
     // possible (unlike the streaming sources, whose decoder has to support it).
     if (!track_ || spec_.freq <= 0)
         return false;
-    return MIX_SetTrackPlaybackPosition(track_, static_cast<Sint64>(std::max(seconds, 0.0f) * spec_.freq));
+    float requested = 0.0f;
+    if (!atom::numeric::TrySanitizeOffsetSeconds(seconds, requested))
+        return false;
+    return MIX_SetTrackPlaybackPosition(track_, static_cast<Sint64>(requested * spec_.freq));
 }
 
 auto SDL3MixerSource::GetPlayingOffset() const -> float {

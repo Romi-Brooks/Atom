@@ -15,6 +15,7 @@
 #include <cstring>
 #include <limits>
 
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
 #include <Log/LogSystem.hpp>
 #include <Render/Text/Font.hpp>
@@ -495,22 +496,32 @@ auto Renderer2D::ApplyPostProcess(const PostProcess2DParams& params) -> void {
         postprocess_params_.time = 0.0f;
     if (!std::isfinite(postprocess_params_.direction))
         postprocess_params_.direction = 0.0f;
+    // clamp(NaN) returns NaN (both comparisons are false), so the finite check
+    // has to come first — the same trap the other fields above avoid by using
+    // std::max(0.0f, x), whose argument order makes NaN collapse to 0.
+    if (!std::isfinite(postprocess_params_.progress))
+        postprocess_params_.progress = 0.0f;
     postprocess_params_.amount = std::max(0.0f, postprocess_params_.amount);
     postprocess_params_.scanline = std::max(0.0f, postprocess_params_.scanline);
     postprocess_params_.noise = std::max(0.0f, postprocess_params_.noise);
     postprocess_params_.progress = std::clamp(postprocess_params_.progress, 0.0f, 1.0f);
     postprocess_params_.intensity = std::max(0.0f, postprocess_params_.intensity);
+    // Region shape follows the same radius contract as DrawCircle.
+    postprocess_params_.corner_radius = atom::numeric::SanitizeRadius(postprocess_params_.corner_radius);
+    postprocess_params_.feather = atom::numeric::SanitizeRadius(postprocess_params_.feather);
 }
 
 // --- resources ---------------------------------------------------------------
 
 auto Renderer2D::CreateTexture(const uint32_t width, const uint32_t height, const void* rgba) -> Texture* {
-    if (!context_ || width == 0 || height == 0)
+    if (!context_)
         return nullptr;
-    const auto max = std::numeric_limits<std::size_t>::max();
-    if (static_cast<std::size_t>(height) > max / static_cast<std::size_t>(width) ||
-        static_cast<std::size_t>(width) * static_cast<std::size_t>(height) > max / 4u) {
-        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D rejected a texture whose CPU upload size overflows");
+    // Numeric contract (ARCH-006): reject dimensions whose RGBA upload size
+    // overflows std::size_t, and anything beyond the engine's texture ceiling.
+    if (!atom::numeric::IsValidTextureSize(width, height)) {
+        LOG_ERROR(atom::log::render::Renderer2D,
+                  "Renderer2D rejected texture size " + std::to_string(width) + "x" + std::to_string(height) +
+                      " (limit " + std::to_string(atom::numeric::kMaxTextureDimension) + " per axis)");
         return nullptr;
     }
     auto texture = std::make_unique<Texture>();
@@ -635,6 +646,15 @@ auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, cons
                         " valid_handle=" + std::to_string(texture.handle_ != render::kInvalidTexture2D));
         return;
     }
+    // Numeric contract (ARCH-006): every quad (DrawTexture, DrawRect and the
+    // outline/line helpers that funnel through here) must have finite geometry,
+    // otherwise the vertex stream carries NaN into the GPU.
+    if (!std::isfinite(dst.x) || !std::isfinite(dst.y) || !std::isfinite(dst.width) || !std::isfinite(dst.height))
+        return;
+    if (source != nullptr &&
+        (!std::isfinite(source->x) || !std::isfinite(source->y) || !std::isfinite(source->width) ||
+         !std::isfinite(source->height)))
+        return;
     DrawOp op{};
     op.layer = current_layer_;
     op.clip = clip_stack_.empty() ? Rect{} : clip_stack_.back();
@@ -656,6 +676,12 @@ auto Renderer2D::DrawRect(const algo::Rect& rect, const Color& color) -> void {
 }
 
 auto Renderer2D::DrawRectOutline(const algo::Rect& rect, const Color& color, const float thickness) -> void {
+    // Numeric contract (ARCH-006): std::max(NaN, 0.0f) returns NaN, so a
+    // non-finite thickness would slip through the `t <= 0` guard and produce NaN
+    // geometry. Validate the rectangle too, for the same reason.
+    if (!std::isfinite(rect.x) || !std::isfinite(rect.y) || !std::isfinite(rect.width) ||
+        !std::isfinite(rect.height) || !std::isfinite(thickness))
+        return;
     const float t = std::max(thickness, 0.0f);
     if (t <= 0.0f)
         return;
@@ -671,7 +697,10 @@ auto Renderer2D::DrawCircle(const algo::Circle2& circle, const Color& color, con
 
 auto Renderer2D::DrawCircle(const float center_x, const float center_y, const float radius, const Color& color,
                             const uint32_t segments) -> void {
-    if (!in_frame_ || radius <= 0.0f)
+    // Numeric contract (ARCH-006): a non-finite or out-of-range radius would
+    // tessellate into NaN vertices instead of simply not drawing.
+    if (!in_frame_ || !atom::numeric::IsValidRadius(radius) || !std::isfinite(center_x) ||
+        !std::isfinite(center_y))
         return;
     DrawOp op{};
     op.kind = OpKind::Circle;
@@ -688,7 +717,10 @@ auto Renderer2D::DrawCircle(const float center_x, const float center_y, const fl
 
 auto Renderer2D::DrawLine(const float x0, const float y0, const float x1, const float y1, const Color& color,
                           const float thickness) -> void {
-    if (!in_frame_ || !white_texture_ || !std::isfinite(thickness) || thickness <= 0.0f)
+    // Numeric contract (ARCH-006): a non-finite endpoint makes `length` NaN, so
+    // the `length <= 0` guard below would pass and NaN corners would be pushed.
+    if (!in_frame_ || !white_texture_ || !std::isfinite(x0) || !std::isfinite(y0) || !std::isfinite(x1) ||
+        !std::isfinite(y1) || !std::isfinite(thickness) || thickness <= 0.0f)
         return;
     const float dx = x1 - x0;
     const float dy = y1 - y0;

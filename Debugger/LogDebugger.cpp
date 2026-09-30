@@ -18,20 +18,6 @@ namespace {
 
 LogDebugger* g_log_debugger_instance = nullptr;
 
-auto LevelName(const LogLevel level) -> const char* {
-    switch (level) {
-    case LogLevel::ATOM_DEBUG:
-        return "DEBUG";
-    case LogLevel::ATOM_INFO:
-        return "INFO";
-    case LogLevel::ATOM_WARNING:
-        return "WARNING";
-    case LogLevel::ATOM_ERROR:
-        return "ERROR";
-    }
-    return "UNKNOWN";
-}
-
 auto LevelColor(const LogLevel level) -> ImVec4 {
     switch (level) {
     case LogLevel::ATOM_DEBUG:
@@ -83,6 +69,9 @@ auto LogDebugger::OnAttach(atom::RenderWindow&) -> bool {
     g_log_debugger_instance = this;
     state_ = std::make_shared<State>();
     const auto weak_state = std::weak_ptr<State>{state_};
+    // Log::Subscribe replays the buffered recent records (ARCH-110), so the
+    // resource-preparation and asset-loading lines emitted before this panel
+    // existed still show up in the viewer.
     log_connection_ = Log::Subscribe([weak_state, max_entries = max_entries_](const LogRecord& record) {
         if (const auto state = weak_state.lock()) {
             std::lock_guard<std::mutex> lock(state->mutex);
@@ -187,7 +176,7 @@ auto LogDebugger::OnDrawOverlay() -> void {
         if (text_filter_[0] != '\0' && record.message.find(text_filter_) == std::string::npos)
             continue;
 
-        const std::string line = "[" + record.timestamp + "] [" + LevelName(record.level) + "] " + channel +
+        const std::string line = "[" + record.timestamp + "] [" + atom::ToString(record.level) + "] " + channel +
                                  " -> " + record.message;
         std::string location;
         if (!record.file.empty()) {

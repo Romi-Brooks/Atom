@@ -8,7 +8,7 @@
 **/
 
 #include "ContextBridge.hpp"
-#include "lua.hpp"
+#include <Lua/lua.hpp>
 
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
@@ -22,13 +22,13 @@ auto Sfx(const atom::LuaContext& context, lua_State* L) -> atom::SFXPlayer& {
 }
 
 int LuaSfxLoad(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     lua_pushboolean(L, Sfx(context, L).Load(luaL_checkstring(L, 1), luaL_checkstring(L, 2)));
     return 1;
 }
 
 int LuaSfxPlay(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     const char* id = luaL_checkstring(L, 1);
     if (lua_isnumber(L, 2))
         Sfx(context, L).Play(id, static_cast<float>(lua_tonumber(L, 2)));
@@ -38,40 +38,40 @@ int LuaSfxPlay(lua_State* L) {
 }
 
 int LuaSfxStop(lua_State* L) {
-    Sfx(*atom::GetLuaContext(L), L).Stop(luaL_checkstring(L, 1));
+    Sfx(atom::RequireLuaContext(L), L).Stop(luaL_checkstring(L, 1));
     return 0;
 }
 
 int LuaSfxStopAll(lua_State* L) {
-    Sfx(*atom::GetLuaContext(L), L).StopAll();
+    Sfx(atom::RequireLuaContext(L), L).StopAll();
     return 0;
 }
 
 int LuaSfxSetVolume(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     Sfx(context, L).SetVolume(luaL_checkstring(L, 1), static_cast<float>(luaL_checknumber(L, 2)));
     return 0;
 }
 
 int LuaSfxIsLoaded(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     lua_pushboolean(L, Sfx(context, L).IsLoaded(luaL_checkstring(L, 1)));
     return 1;
 }
 
 int LuaSfxUnload(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     lua_pushboolean(L, Sfx(context, L).Unload(luaL_checkstring(L, 1)));
     return 1;
 }
 
 int LuaSfxReset(lua_State* L) {
-    Sfx(*atom::GetLuaContext(L), L).Reset();
+    Sfx(atom::RequireLuaContext(L), L).Reset();
     return 0;
 }
 
 int LuaSfxGetLoadedCount(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     lua_pushinteger(L, static_cast<lua_Integer>(Sfx(context, L).GetLoadedCount()));
     return 1;
 }

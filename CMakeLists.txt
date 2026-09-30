@@ -58,6 +58,7 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/Contracts/Audio/IAudioSource.hpp
         Backend/Contracts/Audio/NullAudioBackend.hpp
         Backend/Contracts/Debug/IDebugImGuiBackend.hpp
+        Backend/Contracts/Numeric/NumericContract.hpp
         Backend/Contracts/Render/IRender2DContext.hpp
         Backend/Contracts/Render/IRenderBackend.hpp
         Backend/Contracts/Render/IRenderDevice.hpp
@@ -483,6 +484,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     add_library(Atom_Lua STATIC
             Lua/lua.hpp
             Lua/LuaContext.hpp
+            Lua/LuaGuard.hpp
             Lua/BindingRegistry.hpp
             Lua/LuaHost.hpp
             Lua/LuaHost.cpp

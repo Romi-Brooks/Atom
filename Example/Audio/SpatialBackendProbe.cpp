@@ -240,9 +240,8 @@ class ProbeDebugger final : public atom::debugger::DebugPanel {
 auto main() -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
-    auto* probe_screen =
-        atom::ScreenManager::GetInstance().LoadScreen("Probe", std::make_unique<ProbeScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen(probe_screen);
+    atom::ScreenManager::GetInstance().LoadScreen("Probe", std::make_unique<ProbeScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen("Probe");
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom - Spatial Audio Backend Probe", atom::algo::Vec2{860, 780},

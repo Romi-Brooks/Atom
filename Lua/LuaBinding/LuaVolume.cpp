@@ -4,7 +4,7 @@
 **/
 
 #include "ContextBridge.hpp"
-#include "lua.hpp"
+#include <Lua/lua.hpp>
 
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
@@ -18,32 +18,32 @@ auto Mixer(const atom::LuaContext& context, lua_State* L) -> atom::AudioMixer& {
 }
 
 int LuaMixerSetMasterVolume(lua_State* L) {
-    Mixer(*atom::GetLuaContext(L), L).SetMasterVolume(static_cast<float>(luaL_checknumber(L, 1)));
+    Mixer(atom::RequireLuaContext(L), L).SetMasterVolume(static_cast<float>(luaL_checknumber(L, 1)));
     return 0;
 }
 
 int LuaMixerGetMasterVolume(lua_State* L) {
-    lua_pushnumber(L, Mixer(*atom::GetLuaContext(L), L).GetMasterVolume());
+    lua_pushnumber(L, Mixer(atom::RequireLuaContext(L), L).GetMasterVolume());
     return 1;
 }
 
 int LuaMixerSetSfxVolume(lua_State* L) {
-    Mixer(*atom::GetLuaContext(L), L).SetSFXVolume(static_cast<float>(luaL_checknumber(L, 1)));
+    Mixer(atom::RequireLuaContext(L), L).SetSFXVolume(static_cast<float>(luaL_checknumber(L, 1)));
     return 0;
 }
 
 int LuaMixerGetSfxVolume(lua_State* L) {
-    lua_pushnumber(L, Mixer(*atom::GetLuaContext(L), L).GetSFXVolume());
+    lua_pushnumber(L, Mixer(atom::RequireLuaContext(L), L).GetSFXVolume());
     return 1;
 }
 
 int LuaMixerSetMusicVolume(lua_State* L) {
-    Mixer(*atom::GetLuaContext(L), L).SetMusicVolume(static_cast<float>(luaL_checknumber(L, 1)));
+    Mixer(atom::RequireLuaContext(L), L).SetMusicVolume(static_cast<float>(luaL_checknumber(L, 1)));
     return 0;
 }
 
 int LuaMixerGetMusicVolume(lua_State* L) {
-    lua_pushnumber(L, Mixer(*atom::GetLuaContext(L), L).GetMusicVolume());
+    lua_pushnumber(L, Mixer(atom::RequireLuaContext(L), L).GetMusicVolume());
     return 1;
 }
 

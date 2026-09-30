@@ -9,7 +9,7 @@
 #ifndef ATOM_LUA_CONTEXT_BRIDGE_HPP
 #define ATOM_LUA_CONTEXT_BRIDGE_HPP
 
-#include "lua.hpp"
+#include <Lua/lua.hpp>
 
 #include <initializer_list>
 
@@ -29,6 +29,17 @@ inline auto GetLuaContext(lua_State* L) -> LuaContext* {
     auto* context = static_cast<LuaContext*>(lua_touserdata(L, -1));
     lua_pop(L, 1);
     return context;
+}
+
+// Context accessor used by every binding (ARCH-005). A missing context is a
+// controlled Lua error, never a null dereference: luaL_error() unwinds into the
+// enclosing protected call, which is the same path a bad argument takes.
+[[nodiscard]] inline auto RequireLuaContext(lua_State* L) -> const LuaContext& {
+    static const LuaContext kNoContext{};
+    if (const auto* context = GetLuaContext(L))
+        return *context;
+    luaL_error(L, "Atom Lua context is not installed on this state");
+    return kNoContext;
 }
 
 // Build (or reuse) a nested table path such as { "Atom", "Audio" } and leave

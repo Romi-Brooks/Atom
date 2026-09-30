@@ -17,7 +17,10 @@ class IAudioSource {
         virtual auto Pause() -> void = 0;
         [[nodiscard]] virtual auto GetState() const -> AudioSourceState = 0;
 
-        // Volume (range 0.0 – 100.0)
+        // Volume (range 0.0 – 100.0). Implementations apply the shared numeric
+        // contract (Backend/Contracts/Numeric/NumericContract.hpp): the value is
+        // clamped into range and a non-finite value means silence, never a NaN
+        // gain.
         virtual auto SetVolume(float volume) -> void = 0;
         [[nodiscard]] virtual auto GetVolume() const -> float = 0;
 
@@ -33,6 +36,9 @@ class IAudioSource {
         // the next Play() starts from; seeking while playing continues playback
         // from the new position and may be audible as a short gap, because
         // already-queued audio has to be dropped.
+        //
+        // A non-finite `seconds` is always rejected (numeric contract, ARCH-006);
+        // finite values are clamped into [0, numeric::kMaxMediaSeconds].
         virtual auto SetPlayingOffset(float seconds) -> bool = 0;
         [[nodiscard]] virtual auto GetPlayingOffset() const -> float = 0;
 

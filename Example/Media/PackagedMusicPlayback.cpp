@@ -204,9 +204,8 @@ auto main() -> int {
     }
 
     //  screen register
-    auto* packed_screen =
-        atom::ScreenManager::GetInstance().LoadScreen("PackedMusic", std::make_unique<PackedMusicScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen(packed_screen);
+    atom::ScreenManager::GetInstance().LoadScreen("PackedMusic", std::make_unique<PackedMusicScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen("PackedMusic");
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720},

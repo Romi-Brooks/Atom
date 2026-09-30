@@ -126,6 +126,12 @@ atom_add_test(Atom_Backend_Extension.BackendRegistry
     Backend/BackendRegistryTest.cpp
     Atom_Backend_Extension)
 
+# ARCH-006: shared public numeric boundary contract.
+atom_add_test(Atom_Backend_Contracts.NumericContract
+    Atom_Backend_Contracts_NumericContract_Tests
+    Backend/NumericContractTest.cpp
+    Atom_Backend_Contracts)
+
 # --- Media / Image / Layout / Log / Utilities ---
 atom_add_test(Atom_Media.AudioMixer
     Atom_Media_AudioMixer_Tests
@@ -146,6 +152,12 @@ atom_add_test(Atom_Media.Image.ColorStatistics
     Atom_Media_Image_ColorStatistics_Tests
     Media/ColorStatisticsTest.cpp
     Atom_Image)
+
+# ARCH-006: image header guard (no unbounded allocation from a header).
+atom_add_test(Atom_Media.Image.ImageDecoder
+    Atom_Media_Image_ImageDecoder_Tests
+    Media/ImageDecoderTest.cpp
+    Atom_Image Atom_Log)
 
 atom_add_test(Atom_Layout.LayoutTree
     Atom_Layout_LayoutTree_Tests
@@ -187,6 +199,12 @@ atom_add_test(Atom_Window.ScreenManager
     Atom_Window_ScreenManager_Tests
     Window/ScreenManagerTest.cpp
     Atom_Window)
+
+# --- Lua (ARCH-005: error handling, stack balance, null injection) ---
+atom_add_test(Atom_Lua.LuaHost
+    Atom_Lua_LuaHost_Tests
+    Lua/LuaHostTest.cpp
+    Atom_Lua Atom_FS Atom_Log)
 
 # Export list for MinGW runtime-DLL wiring in the parent CMakeLists.
 set_property(GLOBAL PROPERTY ATOM_TEST_TARGETS ${ATOM_TEST_ALL_TARGETS})

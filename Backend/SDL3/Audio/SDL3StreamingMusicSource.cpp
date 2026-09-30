@@ -6,6 +6,7 @@
 #include <SDL3/SDL.h>
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3 {
@@ -179,9 +180,11 @@ auto SDL3StreamingMusicSource::GetState() const -> atom::audio::AudioSourceState
 }
 
 auto SDL3StreamingMusicSource::SetVolume(float volume) -> void {
-    volume_.store(volume);
+    // Numeric contract (ARCH-006): clamped and NaN-free before the gain is set.
+    const float clamped = atom::numeric::SanitizeVolume(volume);
+    volume_.store(clamped);
     if (stream_) {
-        SDL_SetAudioStreamGain(stream_, volume / 100.0f);
+        SDL_SetAudioStreamGain(stream_, clamped / 100.0f);
     }
 }
 
@@ -204,8 +207,13 @@ auto SDL3StreamingMusicSource::SetPlayingOffset(const float seconds) -> bool {
     if (info.sample_rate == 0)
         return false;
 
-    const auto target_frame =
-        static_cast<std::uint64_t>(std::max(seconds, 0.0f) * static_cast<float>(info.sample_rate));
+    // Numeric contract (ARCH-006): a NaN/infinite position would make the frame
+    // conversion UB.
+    float requested = 0.0f;
+    if (!atom::numeric::TrySanitizeOffsetSeconds(seconds, requested))
+        return false;
+
+    const auto target_frame = static_cast<std::uint64_t>(requested * static_cast<float>(info.sample_rate));
 
     // "Back to the start" is always available (Rewind); anything else needs a
     // decoder that can jump. Do not pretend to seek when it cannot.
