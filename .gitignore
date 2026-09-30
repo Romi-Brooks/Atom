@@ -7,5 +7,8 @@
 .idea
 .workbuddy/
 
+# Office lock files (Excel/Word/PowerPoint owner temp files)
+~$*
+
 # forward (temp)
 learning-guide

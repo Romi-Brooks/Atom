@@ -3,7 +3,7 @@
  * @brief          : ARCH-107 Stage D — unified URI loading across directory and
  *                   package mounts, with resource sharing.
  *
- * Verifies the acceptance criterion in Docs/Filesystem-Design-CN.md: the same
+ * Verifies the acceptance criterion in Docs/Plans/Resource-System-Plan-CN.md: the same
  * URI opens from a directory mount and an APKG mount, and Texture / Audio /
  * Script all load and share a single instance through ResourceManager.
 **/
