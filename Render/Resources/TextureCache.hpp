@@ -26,13 +26,26 @@ namespace detail {
 struct GpuTextureRecord final {
         Renderer2D* renderer = nullptr;
         Renderer2D::Texture* texture = nullptr;
+        // Pool generation this texture belongs to. It keeps the renderer's
+        // liveness flag alive, so a handle released after Renderer2D::Shutdown()
+        // (or after the renderer itself is gone) can tell that `texture` is no
+        // longer a live object instead of dereferencing freed memory.
+        std::shared_ptr<Renderer2D::TexturePoolState> pool{};
 
         GpuTextureRecord() = default;
         ~GpuTextureRecord() {
             // Last handle release must not call DestroyTexture directly: the
             // release may happen mid-frame. Enqueue and let the owner flush.
-            if (renderer && texture)
+            //
+            // The pool check comes first: after Shutdown() `texture` points at
+            // freed storage and `renderer` may be gone as well, so neither may
+            // be touched in that state.
+            if (texture && IsPoolAlive() && renderer)
                 renderer->EnqueueDeferredTextureDestroy(texture);
+        }
+
+        [[nodiscard]] auto IsPoolAlive() const -> bool {
+            return pool != nullptr && pool->alive;
         }
 
         GpuTextureRecord(const GpuTextureRecord&) = delete;
@@ -44,16 +57,20 @@ struct GpuTextureRecord final {
 // Copyable handle to a cached GPU texture. The underlying Renderer2D::Texture
 // stays alive until the last handle is dropped AND FlushDeferredTextureDestroys
 // runs outside a frame.
+//
+// A handle may outlive Renderer2D::Shutdown(): it then reports itself invalid
+// and Get() returns nullptr instead of a dangling pointer, so callers that hold
+// cached textures across a renderer teardown stay safe.
 class TextureHandle final {
     public:
         TextureHandle() = default;
         explicit TextureHandle(std::shared_ptr<detail::GpuTextureRecord> record) : record_(std::move(record)) {}
 
         [[nodiscard]] auto IsValid() const -> bool {
-            return record_ && record_->texture != nullptr;
+            return record_ && record_->IsPoolAlive() && record_->texture != nullptr;
         }
         [[nodiscard]] auto Get() const -> Renderer2D::Texture* {
-            return record_ ? record_->texture : nullptr;
+            return IsValid() ? record_->texture : nullptr;
         }
         [[nodiscard]] auto GetWidth() const -> uint32_t {
             return IsValid() ? record_->texture->GetWidth() : 0;

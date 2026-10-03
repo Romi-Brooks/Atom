@@ -148,6 +148,13 @@ atom_add_test(Atom_Media.MusicCrossfade
     Media/MusicCrossfadeTest.cpp
     Atom_Media)
 
+# Track lifecycle: every Load() has a matching Unload(), so a long-running player
+# walking a library does not pin decoders/stream buffers forever.
+atom_add_test(Atom_Media.MusicPlayer
+    Atom_Media_MusicPlayer_Tests
+    Media/MusicPlayerTest.cpp
+    Atom_Media Atom_FS)
+
 atom_add_test(Atom_Media.Image.ColorStatistics
     Atom_Media_Image_ColorStatistics_Tests
     Media/ColorStatisticsTest.cpp

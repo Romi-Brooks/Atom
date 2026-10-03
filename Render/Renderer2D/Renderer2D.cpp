@@ -106,6 +106,10 @@ auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& 
         }
         return true;
     }
+    // A fresh pool generation. Handles created before a previous Shutdown()
+    // keep the old, already-cleared state, so they can never reclaim a texture
+    // that belongs to this generation.
+    texture_pool_state_ = std::make_shared<TexturePoolState>();
     context_ = dynamic_cast<IRender2DContext*>(&device);
     if (!context_ || !context_->Initialize2D(shader_root)) {
         LOG_ERROR(atom::log::render::Renderer2D,
@@ -139,6 +143,11 @@ auto Renderer2D::IsInitialized() const -> bool {
 }
 
 auto Renderer2D::Shutdown() -> void {
+    // Invalidate this pool generation first: every texture handle that is still
+    // alive must stop touching its Texture* before the objects below are freed.
+    // See TexturePoolState for why a handle can outlive Shutdown().
+    if (texture_pool_state_)
+        texture_pool_state_->alive = false;
     if (in_frame_)
         LOG_WARNING(atom::log::render::Renderer2D, "Renderer2D shutdown discarded an unfinished frame");
     deferred_destroys_.clear();

@@ -253,10 +253,10 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         }
 
         ~MusicCardScreen() override {
-            // loader_thread_ is a std::jthread: its destructor requests stop and
-            // joins, so the worker exits before renderer_/tracks_ are torn down.
+            // Stops the loader, then releases this screen's render resources and
+            // shuts the renderer down, all while its own members are still alive.
             atom::audio::RemoveAudioBackendListener(*this);
-            renderer_.Shutdown();
+            Shutdown();
         }
 
         // The runtime is about to destroy the backend that owns every source this
@@ -296,7 +296,34 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                          "); music card re-resolving tracks");
         }
 
-        auto ShutdownRenderer() -> void {
+        // Stops this screen's background loader and releases every render
+        // resource it owns. Idempotent: it runs as the window shutdown listener
+        // and again from the destructor.
+        //
+        // The loader is stopped first and joined. It calls into music_
+        // (Load/Unload) from another thread, while this screen is owned by the
+        // ScreenManager singleton and can therefore outlive the MusicPlayer that
+        // main creates; leaving a worker running into this path would let it
+        // touch a destroyed player.
+        //
+        // Render resources are released before the renderer is shut down:
+        // Renderer2D::Shutdown() destroys the GPU textures it owns, so a live
+        // TextureHandle would be left pointing at freed memory.
+        auto Shutdown() -> void {
+            loader_thread_.request_stop();
+            loader_cv_.notify_all();
+            if (loader_thread_.joinable())
+                loader_thread_.join();
+
+            background_texture_ = {};
+            for (auto& handle : artwork_textures_)
+                handle = {};
+            std::fill(artwork_texture_attempted_.begin(), artwork_texture_attempted_.end(), false);
+            interface_font_ = nullptr;
+            // Releases the GPU textures whose last handle just went away. Must
+            // run outside a frame, which is true on both call paths.
+            texture_cache_.EvictAll();
+            texture_cache_.FlushDeferredDestroys();
             renderer_.Shutdown();
         }
 
@@ -357,9 +384,16 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         // Returns a copy of the current track's display fields. The full Track
         // is never exposed by reference because the background loader may write
         // metadata at any time.
+        //
+        // The embedded artwork bytes are deliberately *not* part of this
+        // snapshot: the debug overlay reads it every frame, and copying a
+        // megabyte-sized cover per frame is pure allocator churn. Only its size
+        // and mime type cross the boundary.
         struct TrackDisplay {
                 std::string title;
                 std::string artist;
+                std::string artwork_mime_type;
+                std::size_t artwork_bytes = 0;
                 bool is_loaded = false;
                 bool metadata_loaded = false;
         };
@@ -370,15 +404,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                 return {};
             }
             const auto& t = tracks_[current_track_];
-            return {t.title, t.artist, t.is_loaded, t.metadata_loaded};
-        }
-
-        [[nodiscard]] auto GetCurrentTrack() const -> Track {
-            std::lock_guard lock{tracks_mutex_};
-            if (current_track_ >= tracks_.size()) {
-                return {};
-            }
-            return tracks_[current_track_];
+            return {t.title, t.artist, t.artwork_mime_type, t.artwork_data.size(), t.is_loaded, t.metadata_loaded};
         }
 
         [[nodiscard]] auto HasTracks() const -> bool {
@@ -492,8 +518,13 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             if (!interface_font_attempted_ && !interface_font_data_.empty()) {
                 interface_font_attempted_ = true;
                 interface_font_ = renderer_.LoadFontFromMemory(interface_font_data_);
-                if (!interface_font_)
+                if (!interface_font_) {
                     LOG_ERROR(atom::log::core::Screen, "Music card: Renderer2D rejected the selected interface font");
+                }
+                // Renderer2D copies the face into its own Font (about 20 MB for
+                // msyh.ttc), so this screen's copy is dead weight from here on.
+                interface_font_data_.clear();
+                interface_font_data_.shrink_to_fit();
             }
             EnsureBackgroundTexture();
             // Reclaim GPU textures whose last handle was dropped since the
@@ -662,9 +693,94 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             case AnimationState::Hidden:
                 break;
             }
+            MaintainResidency();
         }
 
     private:
+        // How many neighbours of the current track stay resolved. The lazy
+        // loader already resolves current ±1; keeping exactly that window
+        // resident is what bounds the example's memory: a loaded track holds a
+        // decoder, an open file handle and a streaming buffer, and every visited
+        // track would otherwise keep a decoded cover texture on the GPU as well.
+        static constexpr std::size_t residency_window = 1;
+
+        // True when `index` is inside the resident window around `center`. The
+        // library is treated as a ring, matching RequestRelativeTrack()'s wrap
+        // and the loader's own (target ± 1) prefetch set.
+        [[nodiscard]] static auto IsWithinResidencyWindow(const std::size_t index, const std::size_t center,
+                                                          const std::size_t count) -> bool {
+            if (count == 0)
+                return false;
+            const auto forward = (index + count - center) % count;
+            const auto backward = (center + count - index) % count;
+            return std::min(forward, backward) <= residency_window;
+        }
+
+        // Releases audio, metadata and GPU artwork for every track that has left
+        // the resident window. Runs on the render thread (Update) and only does
+        // work when the window actually moved.
+        auto MaintainResidency() -> void {
+            const auto count = tracks_.size();
+            if (count == 0)
+                return;
+            const auto center = pending_track_ < count ? pending_track_ : current_track_;
+            {
+                // resident_center_ is read by the loader thread (under the same
+                // mutex) when it decides whether a resolution is still wanted.
+                std::lock_guard lock{tracks_mutex_};
+                if (center == resident_center_)
+                    return;
+                resident_center_ = center;
+            }
+
+            auto released = std::size_t{0};
+            for (auto index = std::size_t{0}; index < count; ++index) {
+                if (IsWithinResidencyWindow(index, center, count))
+                    continue;
+                // The GPU handle belongs to the render thread; dropping it here
+                // enqueues the destroy that Render() flushes outside a frame.
+                if (artwork_textures_[index]) {
+                    artwork_textures_[index] = {};
+                    artwork_texture_attempted_[index] = false;
+                }
+                std::string id;
+                {
+                    std::lock_guard lock{tracks_mutex_};
+                    auto& track = tracks_[index];
+                    if (!track.metadata_loaded && !track.is_loaded)
+                        continue;
+                    id = track.id;
+                    // Clearing metadata_loaded is what makes returning to this
+                    // track re-resolve it through the same lazy path; the theme
+                    // is kept because it is presentation state, not a resource.
+                    track.is_loaded = false;
+                    track.metadata_loaded = false;
+                    track.title.clear();
+                    track.artist.clear();
+                    track.artwork_mime_type.clear();
+                    track.artwork_data.clear();
+                    track.artwork_data.shrink_to_fit();
+                }
+                // Destroys the decoder, its streaming buffer and the open file.
+                // The released track is outside the window, so it is neither
+                // playing nor about to be started.
+                music_.Unload(id);
+                ++released;
+            }
+            if (released > 0) {
+                LOG_DEBUG(atom::log::core::Screen,
+                          "Music card residency window moved to " + std::to_string(center) + ": released " +
+                              std::to_string(released) + " track(s)");
+            }
+        }
+
+        // Residency is evaluated against the window; the loader consults it
+        // before committing so a resolution that completed after the window
+        // moved on cannot re-load a track this screen just released.
+        [[nodiscard]] auto IsResidentLocked(const std::size_t index) const -> bool {
+            return IsWithinResidencyWindow(index, resident_center_, tracks_.size());
+        }
+
         auto EnsureBackgroundTexture() -> void {
             if (background_texture_ || background_texture_attempted_ || !renderer_.IsInitialized())
                 return;
@@ -1331,6 +1447,7 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
             auto artwork_mime_type = metadata ? std::move(metadata->artworkMimeType) : std::string{};
             auto artwork_data = metadata ? std::move(metadata->artworkData) : std::vector<uint8_t>{};
 
+            bool discarded = false;
             {
                 std::lock_guard lock{tracks_mutex_};
                 if (generation != cache_generation_) {
@@ -1339,15 +1456,29 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
                                  " resolved for a previous audio backend; it will be re-resolved");
                     // Ask the loader for another pass once it comes back around.
                     prefetch_requested_ = true;
-                    return;
+                    discarded = true;
+                } else if (!IsResidentLocked(index)) {
+                    // The window moved while this track was decoding. Committing
+                    // would re-load a track MaintainResidency() has just released.
+                    LOG_DEBUG(atom::log::audio::Metadata,
+                              "Discarding track " + std::to_string(index) +
+                                  " resolved outside the resident window");
+                    discarded = true;
+                } else {
+                    auto& t = tracks_[index];
+                    t.title = std::move(title);
+                    t.artist = std::move(artist);
+                    t.is_loaded = is_loaded;
+                    t.artwork_mime_type = std::move(artwork_mime_type);
+                    t.artwork_data = std::move(artwork_data);
+                    t.metadata_loaded = true;
                 }
-                auto& t = tracks_[index];
-                t.title = std::move(title);
-                t.artist = std::move(artist);
-                t.is_loaded = is_loaded;
-                t.artwork_mime_type = std::move(artwork_mime_type);
-                t.artwork_data = std::move(artwork_data);
-                t.metadata_loaded = true;
+            }
+            if (discarded) {
+                // The audio this pass opened is not wanted: release it again, so
+                // a discarded result cannot leave a resident decoder behind.
+                music_.Unload(id);
+                return;
             }
             LOG_INFO(atom::log::audio::Metadata, "Resolved track " + std::to_string(index) + " (audio=" +
                                                      std::string{is_loaded ? "loaded" : "unavailable"} + ")");
@@ -1406,6 +1537,10 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         // Incremented whenever an audio backend switch invalidates the cache, so a
         // resolution that started before the switch can be recognised and dropped.
         std::uint64_t cache_generation_ = 0;
+        // Track the resident window is currently centred on. It starts at the
+        // first track, which is what the constructor resolves synchronously and
+        // what the first loader pass prefetches (target ± 1).
+        std::size_t resident_center_ = 0;
         std::condition_variable_any loader_cv_;
         std::jthread loader_thread_;
         bool prefetch_requested_ = false;
@@ -1531,14 +1666,14 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
                 }
             }
             if (screen_.HasTracks()) {
-                const auto track = screen_.GetCurrentTrack();
+                const auto track = screen_.GetCurrentDisplay();
                 ImGui::Text("Title: %s", track.title.c_str());
                 ImGui::Text("Artist: %s", track.artist.c_str());
                 ImGui::Text("Audio: %s", track.is_loaded ? "loaded" : "visual demo only");
                 ImGui::Text("Metadata: %s", track.metadata_loaded ? "resolved" : "pending");
-                ImGui::Text("Artwork: %s%s%s (%zu bytes)", track.artwork_data.empty() ? "fallback" : "embedded",
+                ImGui::Text("Artwork: %s%s%s (%zu bytes)", track.artwork_bytes == 0 ? "fallback" : "embedded",
                             track.artwork_mime_type.empty() ? "" : ", ", track.artwork_mime_type.c_str(),
-                            track.artwork_data.size());
+                            track.artwork_bytes);
             }
 
             ImGui::Separator();
@@ -1666,7 +1801,7 @@ auto main(int argc, char** argv) -> int {
 
     MusicCardDebugger debugger{*music_card_screen};
     debugger.Attach(window);
-    auto renderer_shutdown = window.AddShutdownListener([music_card_screen] { music_card_screen->ShutdownRenderer(); });
+    auto renderer_shutdown = window.AddShutdownListener([music_card_screen] { music_card_screen->Shutdown(); });
     music_card_screen->LoadInterfaceFont();
 
     window.Run();

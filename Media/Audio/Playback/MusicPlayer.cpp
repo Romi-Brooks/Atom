@@ -73,9 +73,13 @@ auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& files
         return false;
     }
     // The streaming source's decoder reads from the VFS file, so the file must
-    // stay alive for as long as the track does. Own it inside the Track.
-    Track track{std::move(source), duration_seconds};
+    // stay alive for as long as the track does. Track declares it first for
+    // exactly that reason; it is filled in before the source so the ownership
+    // order is visible at the construction site too.
+    Track track{};
     track.file = std::move(streaming->file);
+    track.source = std::move(source);
+    track.duration_seconds = duration_seconds;
     tracks_.emplace(id, std::move(track));
     LOG_INFO(atom::log::audio::Music, "Music track loaded via VFS: " + id + " (" + label + ")");
     return true;
@@ -134,7 +138,7 @@ auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filen
                   "Failed to create streaming music source for track '" + id + "': " + filename);
         return false;
     }
-    tracks_.emplace(id, Track{std::move(source), duration_seconds});
+    tracks_.emplace(id, Track{nullptr, std::move(source), duration_seconds});
     LOG_INFO(atom::log::audio::Music,
              "Music track loaded from memory: " + id + " (" + filename + ", " + std::to_string(size) + " bytes)");
     return true;
@@ -262,6 +266,26 @@ auto MusicPlayer::Reset() -> void {
             track.source->Stop();
     tracks_.clear();
     current_playing_id_.clear();
+}
+
+auto MusicPlayer::Unload(const std::string& id) -> bool {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    if (it == tracks_.end()) {
+        LOG_DEBUG(atom::log::audio::Music, "Unload() ignored: unknown track: " + id);
+        return false;
+    }
+    // Stop before erasing: the source joins its decode thread and releases its
+    // SDL stream while the backend that owns them is still alive. Track then
+    // destroys `source` before the `file` it streams from, so the decoder never
+    // outlives or predeceases its input.
+    if (it->second.source)
+        it->second.source->Stop();
+    if (current_playing_id_ == id)
+        current_playing_id_.clear();
+    tracks_.erase(it);
+    LOG_INFO(atom::log::audio::Music, "Music track unloaded: " + id);
+    return true;
 }
 
 auto MusicPlayer::SetVolume(const std::string& id, const float volume) -> void {

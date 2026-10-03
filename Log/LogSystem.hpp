@@ -138,8 +138,12 @@ class Log {
     public:
         // Recent-log replay ring: how many records Subscribe() replays.
         static constexpr std::size_t default_recent_capacity = 512;
-        // Console queue bound. When it is full the oldest pending line is
-        // dropped rather than blocking the producer; 0 accepts nothing.
+        // Console queue bound. It bounds the *pending* lines — queued plus the
+        // one the writer has popped and is writing — so
+        // GetPendingConsoleLineCount() <= capacity always holds. When it is full
+        // the oldest pending line is dropped rather than blocking the producer
+        // (or the incoming line, when the writer already holds the only slot);
+        // 0 accepts nothing.
         static constexpr std::size_t default_console_queue_capacity = 4096;
 
     private:
@@ -232,7 +236,8 @@ class Log {
         // Bounds the pending-line queue. `0` is the degenerate bound: the sink
         // accepts nothing and counts every line as dropped. The queue is always
         // bounded, because this path is reachable from audio/render threads that
-        // must never block or grow memory without limit.
+        // must never block or grow memory without limit. Lowering the bound also
+        // trims the lines already pending, counting them as dropped.
         static auto SetConsoleQueueCapacity(std::size_t capacity) -> void;
         // Blocks until every queued console line has been *written* (not merely
         // dequeued). Intended for tools, tests and shutdown paths, never for a

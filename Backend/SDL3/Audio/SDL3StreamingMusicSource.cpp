@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <new>
 
 #include <SDL3/SDL.h>
 
@@ -14,7 +15,9 @@ namespace atom::backend::sdl3 {
 SDL3StreamingMusicSource::SDL3StreamingMusicSource(std::unique_ptr<atom::audio::IAudioDecoder> decoder,
                                                    const SDL_AudioSpec& spec)
     : spec_(spec), decoder_(std::move(decoder)) {
-    ring_buffer_.resize(ring_buffer_capacity);
+    // The ring buffer is allocated lazily by BeginDecoding(): a source that was
+    // only opened (the common case for prefetched neighbours of the current
+    // track) must not reserve megabytes of PCM it may never decode.
 }
 
 SDL3StreamingMusicSource::~SDL3StreamingMusicSource() {
@@ -36,6 +39,26 @@ auto SDL3StreamingMusicSource::ReleaseBackendHandles() -> void {
     write_idx_ = 0;
     eof_ = false;
     decode_error_ = false;
+    // A detached source will never decode again, so return its ring buffer to
+    // the allocator instead of pinning it until the source is destroyed.
+    if (!ring_buffer_.empty()) {
+        ring_buffer_.clear();
+        ring_buffer_.shrink_to_fit();
+    }
+}
+
+auto SDL3StreamingMusicSource::EnsureRingBuffer() -> bool {
+    if (!ring_buffer_.empty())
+        return true;
+    try {
+        ring_buffer_.resize(ring_buffer_capacity);
+    } catch (const std::bad_alloc&) {
+        LOG_ERROR(atom::log::audio::Music,
+                  "Failed to allocate the " + std::to_string(ring_buffer_capacity) +
+                      "-byte streaming ring buffer; playback cannot start");
+        return false;
+    }
+    return true;
 }
 
 auto SDL3StreamingMusicSource::ReadableBytes() const -> std::size_t {
@@ -81,6 +104,8 @@ auto SDL3StreamingMusicSource::Play() -> void {
     }
 
     if (state_.load() == atom::audio::AudioSourceState::Paused) {
+        if (!EnsureRingBuffer())
+            return;
         state_ = atom::audio::AudioSourceState::Playing;
         SDL_ResumeAudioStreamDevice(stream_);
         if (!thread_running_.exchange(true)) {
@@ -106,7 +131,10 @@ auto SDL3StreamingMusicSource::Play() -> void {
         position_base_frames_ = 0;
     }
 
-    BeginDecoding();
+    if (!BeginDecoding()) {
+        LOG_WARNING(atom::log::audio::Music, "Play(): could not start the decode thread");
+        return;
+    }
     LOG_INFO(atom::log::audio::Music, "Streaming playback started");
 }
 
@@ -130,7 +158,9 @@ auto SDL3StreamingMusicSource::HaltDecoding() -> void {
     decoder_positioned_ = false;
 }
 
-auto SDL3StreamingMusicSource::BeginDecoding() -> void {
+auto SDL3StreamingMusicSource::BeginDecoding() -> bool {
+    if (!EnsureRingBuffer())
+        return false;
     if (decode_thread_.joinable())
         decode_thread_.join();
     read_idx_ = 0;
@@ -145,6 +175,7 @@ auto SDL3StreamingMusicSource::BeginDecoding() -> void {
     if (!SDL_ResumeAudioStreamDevice(stream_)) {
         LOG_ERROR(atom::log::audio::Music, "SDL_ResumeAudioStreamDevice failed: " + std::string(SDL_GetError()));
     }
+    return true;
 }
 
 auto SDL3StreamingMusicSource::Stop() -> void {
@@ -241,7 +272,12 @@ auto SDL3StreamingMusicSource::SetPlayingOffset(const float seconds) -> bool {
             decoder_positioned_ = true;
             return false;
         }
-        BeginDecoding();
+        if (!BeginDecoding()) {
+            LOG_WARNING(atom::log::audio::Music,
+                        "SetPlayingOffset: seek applied, but the decode thread could not be restarted");
+            decoder_positioned_ = true;
+            return false;
+        }
     } else {
         // A later Play() must start here instead of rewinding over the seek.
         decoder_positioned_ = true;

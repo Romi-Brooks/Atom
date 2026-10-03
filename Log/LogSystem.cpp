@@ -213,7 +213,19 @@ auto Log::EnqueueConsoleLine(std::string line) -> void {
             dropped_console_lines_.fetch_add(1, std::memory_order_relaxed);
             return;
         }
-        if (console_queue_.size() >= console_queue_capacity_) {
+        // The capacity bounds every pending line, not just the ones still in the
+        // deque. The writer pops a line before writing it (it must not hold
+        // console_mutex_ across the write), so counting only
+        // console_queue_.size() here would let the backlog reach capacity + 1
+        // and break GetPendingConsoleLineCount() <= capacity.
+        if (console_queue_.size() + console_in_flight_ >= console_queue_capacity_) {
+            if (console_queue_.empty()) {
+                // The writer holds the only slot. Its line is already being
+                // written and cannot be recalled, so the incoming line is the
+                // one that has to go.
+                dropped_console_lines_.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
             // Drop the oldest pending line rather than blocking the producer:
             // this path is reachable from audio decode threads.
             console_queue_.pop_front();
@@ -401,6 +413,15 @@ auto Log::SetConsoleQueueCapacity(const std::size_t capacity) -> void {
     auto& instance = GetLogInstance();
     std::lock_guard<std::mutex> lock(instance.console_mutex_);
     instance.console_queue_capacity_ = capacity;
+    // The new bound governs the lines that are already pending too: lowering the
+    // capacity must not leave the backlog above its bound until the next log
+    // call happens to run. Trim to the bound and count what is discarded, like
+    // every other drop on this path.
+    while (!instance.console_queue_.empty() &&
+           instance.console_queue_.size() + instance.console_in_flight_ > capacity) {
+        instance.console_queue_.pop_front();
+        instance.dropped_console_lines_.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 auto Log::FlushConsole() -> void {

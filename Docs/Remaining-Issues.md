@@ -1,7 +1,7 @@
 # Atom 未完成工作统一清单
 
 > 状态：唯一有效的引擎架构整改与后续规划文档（仅记录引擎侧内容，不含 Example / 产品侧问题）。
-> 更新日期：2026-09-30
+> 更新日期：2026-10-01
 
 ## 1. 使用规则
 
@@ -110,7 +110,9 @@
       通道名/文件/函数名用 `assign()` 一次成形。
 - [x] 音频实时路径不得同步写控制台或持有阻塞锁。
       已落地：控制台输出交给专用 writer 线程 + 有界队列（默认 4096 行；满时丢最旧行，队列长度为 0 表示拒绝
-      一切，丢弃数计入 `GetDroppedConsoleLineCount()`），`LogOut` 只在锁内做「快照 listener + 写 ringbuffer」，
+      一切，丢弃数计入 `GetDroppedConsoleLineCount()`）。上限计的是**全部待写行**（已排队 + writer 已取走
+      正在写的那一行），因此 `GetPendingConsoleLineCount() <= 上限` 恒成立；调低上限同样会裁剪已排队行
+      并计入丢弃数。`LogOut` 只在锁内做「快照 listener + 写 ringbuffer」，
       不做任何 I/O，decoder/音频线程不会阻塞在控制台上；`GetPendingConsoleLineCount()` 可观察在途行数，
       `FlushConsole()` 等待「队列空 **且** 在途写完」，供工具与退出路径排空。
 - [-] 后续提供 sink、异步队列和 Release 日志裁剪。异步控制台队列已落地；文件落盘 sink（路径约定、轮转、
@@ -121,6 +123,27 @@
       ringbuffer，`Subscribe` 在锁外按顺序回放给新订阅者（回调内可再次打日志或退订）；
       `SetRecentCapacity()` / `GetRecentRecords()` / `ClearRecentRecords()` 可调可控，置 0 关闭缓冲。
       **文件写入 sink** 仍作为长期方向保留。
+
+### ARCH-117：Renderer2D 纹理句柄在 Shutdown 后悬垂（新增，2026-10-01）
+
+**背景**：`Renderer2D::Shutdown()` 会 `textures_.clear()` 销毁它持有的全部 `Texture` 对象，但
+`TextureCache` 发出的 `TextureHandle` 允许比它活得更久（Screen、资源包、缓存都不必在 renderer
+拆解前先释放句柄）。此时 `GpuTextureRecord::~GpuTextureRecord()` 仍调用
+`renderer->EnqueueDeferredTextureDestroy(texture)`，而后者第一件事就是读 `texture->owner_`
+——对已释放内存的解引用（UB）。MusicCard 示例退出时稳定复现 0xC0000005：
+`Renderer2D::Shutdown()` 释放 140 个纹理后，紧接着的 `artwork_textures_` / `background_texture_`
+析构就在该路径上崩溃（GDB 下因堆布局不同可能不崩，属典型堆布局相关 UB）。
+
+- [x] `Renderer2D` 新增 `TexturePoolState`（共享存活标志）：`Shutdown()` 先置 `alive = false`
+      再销毁纹理对象，`Initialize()` 安装全新 state，因此旧世代句柄永远无法回收新世代纹理。
+- [x] `GpuTextureRecord` 持有该 state 的 `shared_ptr`，析构时先判 `IsPoolAlive()` 再触碰
+      `texture`/`renderer`；`TextureHandle::IsValid()/Get()` 同样先判存活，Shutdown 后
+      句柄自动变为「无效且 `Get() == nullptr`」，不再交出悬垂指针。
+- [x] 回归：`Atom_Render_Resources.TextureCache` 用 stub `IRenderDevice`/`IRender2DContext`
+      覆盖三种顺序（Shutdown 后释放句柄、renderer 先析构、重新 `Initialize()` 后旧句柄仍失效）；
+      把判据还原成修复前的写法该用例会失败。
+- 约束：句柄的可见性（`IsValid` / `Get`）必须始终以池存活为准，任何绕过它直接暴露
+  `Renderer2D::Texture*` 的新 API 都会重新引入同一类悬垂。
 
 ---
 
@@ -199,6 +222,31 @@
 - [ ] 明确音频侧 Registry（工厂/解码器注册）与 Runtime（活动后端、generation、listener）的边界，与渲染侧对称。
 - [ ] 统一「上层只消费 Contract + Registry，Runtime 是唯一认识具体后端的层」这一规则，写进 CODING_STANDARD。
 - [ ] 后端切换协议（先建后换 + Quiesce + 原子替换 + generation）是否适用于渲染后端，需在 RENDER-006 前给出结论。
+
+### ARCH-118：MusicPlayer 轨道生命周期（新增，2026-10-01）
+
+**背景**：`Load()` 只为「已加载」这一侧建模，缺少对应的释放口：`tracks_` 只增不减，一旦加载，
+decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 或析构。遍历曲库的播放器
+（MusicCard 示例）会因此线性增长——实测 154 首后工作集 1051 MB 且持续上升。放大倍率的另一半在
+后端：`SDL3StreamingMusicSource` 在构造函数里**无条件** `resize(4 MiB)` 环形缓冲，而预取相邻曲目
+创建的 source 往往从不播放，等于每首白扣 4 MiB。
+
+同时 `MusicPlayer::Track` 的成员顺序（`source`、`duration`、`file`）与它自己的注释相反：
+析构顺序是 `file` 先亡、`source` 后亡，而流式解码器正是从该 `file` 读取（WavProf 按需读 64 KiB 窗口），
+属于 ARCH-117 同族的悬垂风险。
+
+- [x] 新增 `MusicPlayer::Unload(id)`：停止并销毁单条轨道，立即释放 decoder、流式缓冲与文件，
+      同步清理 `current_playing_id_`；返回是否确有该 id。这是 `Load()` 的释放半边。
+- [x] `Track` 把 `file` 声明在 `source` 之前，使 `source` 先析构、`file` 后析构，与注释一致；
+      `Load` / `LoadFromMemory` 的构造点同步改写，顺序在代码里可见。
+- [x] `SDL3StreamingMusicSource` 的环形缓冲改为首次播放时惰性分配（`EnsureRingBuffer()`，
+      失败时 `Play()`/`SetPlayingOffset()` 报告失败而不是启动一个没有缓冲的解码线程）；
+      `ReleaseBackendHandles()` 释放缓冲，不再把 4 MiB 钉到 source 析构。
+- [x] 回归：`Atom_Media.MusicPlayer` 断言 Load/Unload 往返（源计数回到 0、重复 Unload 为
+      no-op、卸载正在播放的轨道会清空 now-playing、`Reset()` 释放全部）。
+- [ ] 仍待做：`MusicPlayer` 的 `mutex_` 覆盖了整个解码器打开过程（含磁盘 IO），渲染线程调用
+      `Play`/`Stop`/`Unload` 时会被一次慢打开阻塞；后续应把慢操作移出锁外，或引入异步加载。
+- 约束：轨道级释放必须由调用方（播放器策略）决定驻留窗口，引擎不擅自丢弃 `Load` 过的轨道。
 
 ---
 

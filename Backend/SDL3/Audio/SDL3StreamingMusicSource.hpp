@@ -21,7 +21,9 @@ namespace atom::backend::sdl3 {
 /// this source owns an opened decoder and uses a fixed-capacity ring buffer
 /// to stream chunks from disk during playback.
 ///
-/// Ring buffer: fixed ~4 MiB circular buffer with separate read/write cursors.
+/// Ring buffer: circular buffer with separate read/write cursors, allocated on
+/// the first playback (a source may be created for a track that is never
+/// played, and must not reserve its buffer in that case).
 /// The decode thread fills the buffer from the decoder and a separate push
 /// path drains it into the SDL audio stream.
 class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
@@ -89,12 +91,17 @@ class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
         [[nodiscard]] auto WritableBytes() const -> std::size_t;
 
         auto EnsureStream() -> bool;
+        // Allocates the ring buffer on first use. Sources are created for
+        // prefetched neighbour tracks that may never be played, so the buffer is
+        // not allocated by the constructor.
+        auto EnsureRingBuffer() -> bool;
         auto DecodeLoop() -> void;
         // Stops the producer thread and drops everything buffered, leaving the
         // decoder untouched at its current position.
         auto HaltDecoding() -> void;
         // Starts the producer thread from the decoder's current position.
-        auto BeginDecoding() -> void;
+        // Returns false when the ring buffer could not be allocated.
+        auto BeginDecoding() -> bool;
 };
 
 } // namespace atom::backend::sdl3

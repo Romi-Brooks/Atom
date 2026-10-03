@@ -78,6 +78,26 @@ class Renderer2D {
                 uint32_t height_ = 0;
         };
 
+        // Liveness of this renderer's texture pool.
+        //
+        // Shutdown() destroys every Renderer2D::Texture, but handles that refer
+        // to those textures can outlive it: Render/Resources/TextureCache.hpp
+        // hands out shareable handles, and the code that keeps them (a Screen,
+        // a resource pack, a cache) is not required to drop them before the
+        // renderer is torn down. A stale Texture* must therefore never be
+        // dereferenced, not even to ask whether it is still owned.
+        //
+        // Every texture handle keeps this state alive and consults `alive`
+        // before it exposes or reclaims its texture. Shutdown() clears the flag
+        // and Initialize() installs a fresh state, so a handle from an earlier
+        // generation degrades to an inert value instead of a dangling pointer.
+        struct TexturePoolState final {
+                bool alive = true;
+        };
+        [[nodiscard]] auto GetTexturePoolState() const -> const std::shared_ptr<TexturePoolState>& {
+            return texture_pool_state_;
+        }
+
         Renderer2D();
         ~Renderer2D();
         Renderer2D(const Renderer2D&) = delete;
@@ -264,6 +284,9 @@ class Renderer2D {
 
         IRenderDevice* device_ = nullptr;
         IRender2DContext* context_ = nullptr;
+        // Shared with every texture handle this renderer hands out; see
+        // TexturePoolState. Replaced by Initialize(), invalidated by Shutdown().
+        std::shared_ptr<TexturePoolState> texture_pool_state_ = std::make_shared<TexturePoolState>();
         render::Sampler2D sampler_ = render::invalid_sampler_2d;
         bool initialized_ = false;
         bool in_frame_ = false;
