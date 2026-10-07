@@ -383,6 +383,7 @@ add_library(Atom_FS STATIC
     Filesystem/Vfs.hpp
     Filesystem/Vfs.cpp
     Filesystem/PackageFormat.hpp
+    Filesystem/PackageFormatV2.hpp
     Filesystem/PackageFileSystem.hpp
     Filesystem/PackageFileSystem.cpp
 )
@@ -433,6 +434,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Utilities/Packager/Unpackager.hpp
             Utilities/Packager/Packager.cpp
             Utilities/Packager/Packager.hpp
+            Utilities/Packager/PackageBuilder.cpp
+            Utilities/Packager/PackageBuilder.hpp
     )
     target_include_directories(Atom_Packager PUBLIC Utilities/Packager)
     target_link_libraries(Atom_Packager PUBLIC Atom_UTF8 Atom_Log)

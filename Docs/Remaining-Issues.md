@@ -163,7 +163,14 @@
 - [x] 阶段 C1 Texture：`DecodedImageLoader` + `LoadTextureFileSystem` + `TextureCache`/`TextureHandle`；GPU 销毁走 `Renderer2D::EnqueueDeferredTextureDestroy` + `FlushDeferredTextureDestroys`（帧外）。
 - [x] 阶段 C3 Audio：解码器从路径改为 `IFile` 流。`IAudioDecoder` 新增 `OpenStream(IFile&)` 纯虚并删除旧 `Open(path)`；`RiffWaveReader`/`WavProfDecoder`/`Minimp3Decoder`（回调 IO）/`SDL3WavDecoder`（全量读回退）各自实现；`AudioClipLoader` 新增 `Load(IFileSystem, AssetPath)` 与 `OpenStreaming(IFileSystem, AssetPath)` 入口，`StreamingResult` 持有 `IFile` 所有权保证流式解码器生命周期。同时确立「string 便捷层 + VFS 核心层」双轨：各加载器另提供 `Load(id, "res://...")` 便捷重载，内部 `AssetPath::TryParse` 后经 `Vfs::GetInstance()` 全局单例落地。
 - [x] 阶段 D 验收：目录与 APKG 同一 URI 加载 Texture + Script + Audio 并断言共享。`AudioClipResourceLoader`（kind=Audio）让音频与 Script/Texture 一样走 `ResourceManager`；`MusicPlayer` 新增 `Load(IFileSystem, AssetPath)` 且 `Track` 持有 `IFile`。CTest：`Atom_Assets.StageDAcceptance`。
-- [ ] APKG v2 reader + `PackageBuilder`（另立任务，约 2–3k 行）。
+- [x] APKG v2 reader + `PackageBuilder` 第一阶段落地（`feat-packager` 分支）：格式契约 `Filesystem/PackageFormatV2.hpp`
+      （固定 64 字节头 + 数据区 + manifest 段目录：string/chunk/asset/dir 四段，FNV-1a-64 哈希，UTF-8 路径校验
+      读写共享）；`PackageBuilder` 先校验全量计划（重复 AssetPath 在任何写入前报错）再写临时文件、回读校验
+      header/manifest/chunk 哈希后原子替换；相同输入产出字节一致（确定性 UUID 取自 manifest 哈希）。
+      `PackageFileSystem` 按 version 分发：v1 走冻结旧路径，v2 用真实目录表支撑 Stat/List，`OpenRead`
+      返回跨 chunk 的 IFile（store-only，拒绝未知压缩算法）。CTest：`Atom_Packager.PackageBuilderV2`。
+      未做：压缩算法（format 已预留 compression 字段，当前仅 store）、多 chunk 写端（读端已支持跨 chunk）、
+      tags/依赖/cook 元数据段（manifest 段目录可前向扩展）、APKG v2 的 `packager_tool` CLI 接入。
 - [ ] 后续增加异步加载、热重载、依赖图和内存预算（依赖 Job System）。
 - 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源（已通过 `Atom_Assets.StageDAcceptance` 验证）。
 - 实施阶段划分（A/B/C/D）、待决问题与当前进度见 `Docs/Plans/Resource-System-Plan-CN.md`。
