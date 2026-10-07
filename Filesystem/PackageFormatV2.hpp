@@ -128,6 +128,24 @@ inline constexpr std::uint16_t scene = 9;
 inline constexpr std::uint16_t video = 10;
 } // namespace asset_kind
 
+// Human-readable name for an asset kind, shared by the writer, the reader and
+// tooling (e.g. the packager GUI). Falls back to "Unknown" for out-of-range.
+[[nodiscard]] inline auto KindName(std::uint16_t kind) -> const char* {
+    switch (kind) {
+    case asset_kind::texture: return "Texture";
+    case asset_kind::audio: return "Audio";
+    case asset_kind::shader: return "Shader";
+    case asset_kind::config: return "Config";
+    case asset_kind::script: return "Script";
+    case asset_kind::font: return "Font";
+    case asset_kind::model: return "Model";
+    case asset_kind::scene: return "Scene";
+    case asset_kind::video: return "Video";
+    case asset_kind::binary: return "Binary";
+    default: return "Unknown";
+    }
+}
+
 // Directory table entry (24 bytes):
 //   name_str u32     string table index of the bare directory name ("" = root)
 //   parent u32       directory index of the parent (root uses no_parent)

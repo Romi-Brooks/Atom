@@ -40,6 +40,8 @@ struct PackageEntry {
         std::string relative{};
         uint64_t offset = 0;
         uint64_t size = 0;
+        std::uint16_t kind = pf2::asset_kind::unknown; // v2 only; v1 stays unknown
+        uint64_t content_hash = 0;                     // v2 only; v1 stays 0
 };
 
 [[nodiscard]] auto NormalizeRelative(std::string_view relative) -> std::string {
@@ -487,6 +489,8 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
             std::string path{};
             uint32_t parent_dir = 0;
             uint64_t logical_size = 0;
+            std::uint16_t kind = pf2::asset_kind::unknown;
+            uint64_t content_hash = 0;
             uint32_t chunk_start = 0;
             uint32_t chunk_count = 0;
     };
@@ -510,6 +514,7 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
             const uint16_t kind = pf2::ReadU16(row + 16);
             const uint16_t flags = pf2::ReadU16(row + 18);
             const uint64_t logical_size = pf2::ReadU64(row + 20);
+            const uint64_t content_hash = pf2::ReadU64(row + 28);
             const uint32_t chunk_start = pf2::ReadU32(row + 36);
             const uint32_t chunk_count = pf2::ReadU32(row + 40);
 
@@ -527,7 +532,7 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
             if (pf2::Fnva(path) != path_hash)
                 return Result::IoError;
 
-            asset_rows.push_back(V2AssetRow{path, parent_dir, logical_size, chunk_start, chunk_count});
+            asset_rows.push_back(V2AssetRow{path, parent_dir, logical_size, kind, content_hash, chunk_start, chunk_count});
         }
     }
 
@@ -617,7 +622,8 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
 
         if (!manifest.file_index.emplace(row.path, manifest.files.size()).second)
             return Result::IoError;
-        manifest.files.push_back(PackageEntry{row.path, spans.front().offset, row.logical_size});
+        manifest.files.push_back(
+            PackageEntry{row.path, spans.front().offset, row.logical_size, row.kind, row.content_hash});
         manifest.file_spans.push_back(std::move(spans));
     }
 
@@ -856,6 +862,15 @@ auto PackageFileSystem::List(const AssetPath& directory, std::vector<DirectoryEn
     for (auto& [name, entry] : merged)
         output.push_back(std::move(entry));
     std::ranges::sort(output, {}, &DirectoryEntry::name);
+    return Result::Success;
+}
+
+auto PackageFileSystem::EnumerateAssets(std::vector<PackagedAssetInfo>& output) const -> Result {
+    output.clear();
+    output.reserve(impl_->entries_.size());
+    for (const PackageEntry& entry : impl_->entries_)
+        output.push_back(PackagedAssetInfo{entry.relative, entry.kind, entry.size, entry.content_hash});
+    std::ranges::sort(output, {}, &PackagedAssetInfo::path);
     return Result::Success;
 }
 

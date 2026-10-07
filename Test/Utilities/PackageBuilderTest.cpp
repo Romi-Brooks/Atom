@@ -10,6 +10,7 @@
 #include <Utilities/Packager/PackageBuilder.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Filesystem/PackageFileSystem.hpp>
+#include <Filesystem/PackageFormatV2.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -237,6 +238,41 @@ auto main() -> int {
         // Missing entries stay missing.
         ATOM_CHECK(atom::fs::AssetPath::TryParse("res://no/such.txt", path));
         ATOM_CHECK(package->Stat(path, info) == atom::fs::Result::NotFound);
+    }
+
+    // ---- EnumerateAssets reports kind / size / hash for tooling ----
+    {
+        std::unique_ptr<atom::fs::PackageFileSystem> package{};
+        ATOM_CHECK(atom::fs::PackageFileSystem::Create("res", package_path.string(), package) ==
+                   atom::fs::Result::Success);
+
+        std::vector<atom::fs::PackagedAssetInfo> assets{};
+        ATOM_CHECK(package->EnumerateAssets(assets) == atom::fs::Result::Success);
+        ATOM_CHECK(assets.size() == 5);
+
+        const auto find = [&](const std::string& path) -> const atom::fs::PackagedAssetInfo* {
+            for (const auto& asset : assets)
+                if (asset.path == path)
+                    return &asset;
+            return nullptr;
+        };
+
+        const auto* png = find("textures/ui/button.png");
+        ATOM_CHECK(png != nullptr);
+        ATOM_CHECK(png->kind == atom::fs::package_format_v2::asset_kind::texture);
+        ATOM_CHECK(png->size == std::string("\x89PNG-fake-bytes").size());
+
+        const auto* wav = find("audio/theme.wav");
+        ATOM_CHECK(wav != nullptr);
+        ATOM_CHECK(wav->kind == atom::fs::package_format_v2::asset_kind::audio);
+
+        const auto* txt = find("root.txt");
+        ATOM_CHECK(txt != nullptr);
+        ATOM_CHECK(txt->kind == atom::fs::package_format_v2::asset_kind::binary);
+
+        // Content hash matches the stored chunk hash for a known file.
+        const std::string root_content = "root-level";
+        ATOM_CHECK(txt->content_hash == atom::fs::package_format_v2::Fnva(root_content));
     }
 
     // ---- Corruption is detected ----
