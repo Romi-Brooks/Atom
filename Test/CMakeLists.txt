@@ -201,6 +201,11 @@ atom_add_test(Atom_Packager.RoundTrip
     Utilities/PackagerTest.cpp
     Atom_Packager)
 
+atom_add_test(Atom_Packager.PackageBuilderV2
+    Atom_Packager_PackageBuilderV2_Tests
+    Utilities/PackageBuilderTest.cpp
+    Atom_Packager Atom_FS)
+
 # --- Window ---
 atom_add_test(Atom_Window.ScreenManager
     Atom_Window_ScreenManager_Tests

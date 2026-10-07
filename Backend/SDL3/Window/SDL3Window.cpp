@@ -262,6 +262,9 @@ auto SDL3Window::Initialize(const std::string& title, const algo::Vec2 resolutio
         LOG_ERROR(atom::log::backend::sdl3::Window, "SDL_CreateWindow failed: " + std::string{SDL_GetError()});
         return false;
     }
+    // SDL3 starts with text input disabled; enable it so SDL_EVENT_TEXT_INPUT
+    // flows (the debugger overlay forwards it to ImGui AddInputCharactersUTF8).
+    SDL_StartTextInput(window_);
     video_runtime_ = std::move(video);
     events_runtime_ = std::move(events);
     open_ = true;

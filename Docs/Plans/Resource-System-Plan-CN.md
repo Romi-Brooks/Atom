@@ -1,6 +1,6 @@
 # ATOM 资源系统与 VFS 设计及实施计划（ARCH-107）
 
-> 状态：**阶段 A、B、C1、C2、C3、D 已落地**；APKG v2 未开始。
+> 状态：**阶段 A、B、C1、C2、C3、D 已落地**；APKG v2 第一阶段（store-only + 单 chunk 写端）已落地于 `feat-packager` 分支。
 > 关联：`Remaining-Issues.md` 的 ARCH-107。
 > 建立日期：2026-09-12
 > 进度更新：2026-09-29（合并原 `Filesystem-Design-CN.md` 与 `Resource-System-Plan-CN.md`）
@@ -161,6 +161,12 @@ kind = "config"
 ### 完全缺失（下一阶段）
 
 - APKG v2（chunk / manifest / StringTable / `PackageBuilder`）
+
+> **2026-10-07 更新（feat-packager 分支）**：APKG v2 第一阶段已落地——格式契约
+> `Filesystem/PackageFormatV2.hpp`（固定头 + 数据区 + manifest 段目录，string/chunk/asset/dir 四段）、
+> `PackageBuilder`（计划先校验、临时文件 + 回读校验 + 原子替换、确定性输出）、`PackageFileSystem` v2 读取
+> （真实目录表 Stat/List、跨 chunk IFile、store-only）。剩余：压缩算法、多 chunk 写端、tags/依赖/cook 段。
+> `packager_tool` 已接入 v2：`packager_tool pack2 <input> <out> [package_path]` 非交互子命令。
 
 ## 8. 范围边界
 
