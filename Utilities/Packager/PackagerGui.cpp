@@ -1,11 +1,12 @@
 /**
   * @file           : PackagerGui.cpp
   * @brief          : Standalone ImGui-based packager tool (APKG v1/v2).
-  * @attention      : Two panels in one window:
-  *                     - APKG Browser: open an existing package and browse its
-  *                       directory tree with per-file kind coloring and sizes.
-  *                     - APKG Builder: pick a source directory, optional package
-  *                       prefix, and output path, then build a v2 package.
+  * @attention      : A single full-window tool (no floating ImGui windows):
+  *                     - A deterministic full-viewport shell, fixed in place
+  *                       (no move/resize/titlebar), independent of imgui.ini.
+  *                     - One tab bar: "Open Package" (browse a package tree
+  *                       with per-kind coloring) and "New Package" (pick a
+  *                       source directory and build a v2 package).
   *                   Reuses the engine's DebugPanel overlay + SDL_GPU ImGui
   *                   backend, so no custom window loop is needed.
   * @date           : 2026/10/7
@@ -147,33 +148,44 @@ class PackagerPanel final : public atom::debugger::DebugPanel {
         }
 
     private:
-        // --- APKG browser state ---
-        std::string package_path_{};
+        // ImGui::InputText requires a persistent buffer across frames; these
+        // member arrays keep the edit state stable (a per-frame stack buffer
+        // would reset the text every frame).
+        char package_path_buf_[1024]{};
+        char source_dir_buf_[1024]{};
+        char output_path_buf_[1024]{};
+        char prefix_buf_[256]{};
+
+        // --- Open Package state ---
         std::unique_ptr<atom::fs::PackageFileSystem> package_{};
         std::vector<atom::fs::PackagedAssetInfo> assets_{};
         TreeNode tree_root_{};
         std::string browse_status_{"No package loaded"};
 
-        // --- APKG builder state ---
-        std::string source_dir_{};
-        std::string output_path_{};
-        std::string package_prefix_{};
+        // --- New Package state ---
         std::string pack_status_{};
-        bool show_browser_ = false;
 
         // --- Native directory browser state ---
         struct BrowserEntry {
                 std::string name{};
                 std::string path{};
         };
+        bool show_browser_ = false;
         std::string browser_dir_{};
         std::string browser_last_dir_{};
         std::vector<BrowserEntry> browser_entries_{};
 
-        auto OpenPackage(const std::string& path) -> void {
+        auto OpenPackage() -> void {
             package_.reset();
             assets_.clear();
             tree_root_ = TreeNode{};
+
+            const std::string path = package_path_buf_;
+            if (path.empty()) {
+                browse_status_ = "Enter a package path first";
+                return;
+            }
+
             std::unique_ptr<atom::fs::PackageFileSystem> package{};
             const atom::fs::Result result = atom::fs::PackageFileSystem::Create("res", path, package);
             if (result != atom::fs::Result::Success) {
@@ -189,35 +201,39 @@ class PackagerPanel final : public atom::debugger::DebugPanel {
             assets_ = std::move(list);
             for (const auto& asset : assets_)
                 InsertPath(tree_root_, asset);
-            package_path_ = path;
             browse_status_ = "Loaded " + std::to_string(assets_.size()) + " assets";
         }
 
         auto DoPack() -> void {
             pack_status_.clear();
-            if (source_dir_.empty() || output_path_.empty()) {
-                pack_status_ = "Error: source directory and output path are both required";
+            const std::string source = source_dir_buf_;
+            const std::string output = output_path_buf_;
+            if (source.empty() || output.empty()) {
+                pack_status_ = "Source directory and output path are both required";
                 return;
             }
+
             atom::tools::PackageBuilder builder{};
             atom::tools::PackageBuilder::Config config{};
             config.verbose = true;
             config.overwrite = true;
 
+            const std::string prefix = prefix_buf_;
             const atom::tools::PackageBuilder::Result add =
-                builder.AddDirectory(source_dir_, package_prefix_.empty() ? std::string{} : package_prefix_);
+                builder.AddDirectory(source, prefix.empty() ? std::string{} : prefix);
             if (add != atom::tools::PackageBuilder::Result::Success) {
                 pack_status_ = std::string{"AddDirectory failed: "} + BuildResultName(add);
                 return;
             }
             const std::size_t count = builder.PlannedFiles().size();
-            const atom::tools::PackageBuilder::Result build = builder.Build(output_path_, config);
+            const atom::tools::PackageBuilder::Result build = builder.Build(output, config);
             if (build != atom::tools::PackageBuilder::Result::Success) {
                 pack_status_ = std::string{"Build failed: "} + BuildResultName(build);
                 return;
             }
-            pack_status_ = "Packed " + std::to_string(count) + " files -> " + output_path_;
-            OpenPackage(output_path_);
+            pack_status_ = "Packed " + std::to_string(count) + " files -> " + output;
+            std::snprintf(package_path_buf_, sizeof(package_path_buf_), "%s", output.c_str());
+            OpenPackage();
         }
 
         auto RefreshBrowser() -> void {
@@ -252,9 +268,9 @@ class PackagerPanel final : public atom::debugger::DebugPanel {
                 browser_dir_ = atom::PathToUtf8(parent);
                 return;
             }
-            if (ImGui::Button("Use this directory")) {
-                source_dir_ = browser_dir_;
-            }
+            ImGui::SameLine();
+            if (ImGui::Button("Use this directory"))
+                std::snprintf(source_dir_buf_, sizeof(source_dir_buf_), "%s", browser_dir_.c_str());
             ImGui::Separator();
 
             for (const auto& entry : browser_entries_) {
@@ -279,54 +295,65 @@ class PackagerPanel final : public atom::debugger::DebugPanel {
             ImGui::TextDisabled("  %s  %s", pf2::KindName(node.kind), FormatSize(node.size).c_str());
         }
 
+        auto DrawOpenTab() -> void {
+            ImGui::InputText("Package path", package_path_buf_, sizeof(package_path_buf_));
+            ImGui::SameLine();
+            if (ImGui::Button("Open"))
+                OpenPackage();
+            ImGui::Separator();
+
+            if (!package_) {
+                ImGui::TextDisabled("%s", browse_status_.c_str());
+                return;
+            }
+            ImGui::TextDisabled("%s", browse_status_.c_str());
+            ImGui::Separator();
+            for (const auto& [name, child] : tree_root_.children)
+                DrawNode(child);
+        }
+
+        auto DrawNewTab() -> void {
+            ImGui::InputText("Source directory", source_dir_buf_, sizeof(source_dir_buf_));
+            ImGui::SameLine();
+            if (ImGui::Button("Browse..."))
+                show_browser_ = !show_browser_;
+            if (show_browser_) {
+                ImGui::Indent();
+                DrawBrowser();
+                ImGui::Unindent();
+            }
+
+            ImGui::InputText("Output .apkg", output_path_buf_, sizeof(output_path_buf_));
+            ImGui::InputText("Package prefix (optional)", prefix_buf_, sizeof(prefix_buf_));
+
+            if (ImGui::Button("Pack"))
+                DoPack();
+            if (!pack_status_.empty())
+                ImGui::TextWrapped("%s", pack_status_.c_str());
+        }
+
     protected:
         auto OnDrawOverlay() -> void override {
-            // Text input helper: syncs a std::string through a fixed ImGui buffer.
-            const auto text_input = [](const char* label, std::string& value) {
-                char buffer[1024]{};
-                std::snprintf(buffer, sizeof(buffer), "%s", value.c_str());
-                if (ImGui::InputText(label, buffer, sizeof(buffer)))
-                    value = buffer;
-            };
+            // Deterministic full-window shell: fixed in place, follows the main
+            // viewport, and never relies on imgui.ini (mirrors PanelLayout's
+            // "declared default geometry" convention).
+            const ImGuiViewport* viewport = ImGui::GetMainViewport();
+            ImGui::SetNextWindowPos(viewport->WorkPos);
+            ImGui::SetNextWindowSize(viewport->WorkSize);
+            ImGui::Begin("Atom Packager", nullptr,
+                         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+                             ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-            ImGui::Begin("APKG Browser");
-            {
-                text_input("Package path", package_path_);
-                ImGui::SameLine();
-                if (ImGui::Button("Open"))
-                    OpenPackage(package_path_);
-
-                ImGui::Separator();
-                if (!package_) {
-                    ImGui::TextDisabled("%s", browse_status_.c_str());
-                } else {
-                    ImGui::TextDisabled("%s", browse_status_.c_str());
-                    ImGui::Separator();
-                    for (const auto& [name, child] : tree_root_.children)
-                        DrawNode(child);
+            if (ImGui::BeginTabBar("##packager_tabs")) {
+                if (ImGui::BeginTabItem("Open Package")) {
+                    DrawOpenTab();
+                    ImGui::EndTabItem();
                 }
-            }
-            ImGui::End();
-
-            ImGui::Begin("APKG Builder");
-            {
-                text_input("Source directory", source_dir_);
-                ImGui::SameLine();
-                if (ImGui::Button("Browse..."))
-                    show_browser_ = !show_browser_;
-                if (show_browser_) {
-                    ImGui::Indent();
-                    DrawBrowser();
-                    ImGui::Unindent();
+                if (ImGui::BeginTabItem("New Package")) {
+                    DrawNewTab();
+                    ImGui::EndTabItem();
                 }
-
-                text_input("Output .apkg", output_path_);
-                text_input("Package prefix (optional)", package_prefix_);
-
-                if (ImGui::Button("Pack"))
-                    DoPack();
-                if (!pack_status_.empty())
-                    ImGui::TextWrapped("%s", pack_status_.c_str());
+                ImGui::EndTabBar();
             }
             ImGui::End();
         }
