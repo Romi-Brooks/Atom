@@ -165,8 +165,8 @@ kind = "config"
 > **2026-10-07 更新（feat-packager 分支）**：APKG v2 第一阶段已落地——格式契约
 > `Filesystem/PackageFormatV2.hpp`（固定头 + 数据区 + manifest 段目录，string/chunk/asset/dir 四段）、
 > `PackageBuilder`（计划先校验、临时文件 + 回读校验 + 原子替换、确定性输出）、`PackageFileSystem` v2 读取
-> （真实目录表 Stat/List、跨 chunk IFile、store-only）。剩余：压缩算法、多 chunk 写端、tags/依赖/cook 段、
-> `packager_tool` CLI 接入 v2。
+> （真实目录表 Stat/List、跨 chunk IFile、store-only）。剩余：压缩算法、多 chunk 写端、tags/依赖/cook 段。
+> `packager_tool` 已接入 v2：`packager_tool pack2 <input> <out> [package_path]` 非交互子命令。
 
 ## 8. 范围边界
 

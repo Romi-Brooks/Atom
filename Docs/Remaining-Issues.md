@@ -170,7 +170,9 @@
       `PackageFileSystem` 按 version 分发：v1 走冻结旧路径，v2 用真实目录表支撑 Stat/List，`OpenRead`
       返回跨 chunk 的 IFile（store-only，拒绝未知压缩算法）。CTest：`Atom_Packager.PackageBuilderV2`。
       未做：压缩算法（format 已预留 compression 字段，当前仅 store）、多 chunk 写端（读端已支持跨 chunk）、
-      tags/依赖/cook 元数据段（manifest 段目录可前向扩展）、APKG v2 的 `packager_tool` CLI 接入。
+      tags/依赖/cook 元数据段（manifest 段目录可前向扩展）。
+      已接入：`packager_tool pack2 <input> <output.apkg> [package_path]` 子命令（非交互，Windows 下经
+      `GetCommandLineW`/`CommandLineToArgvW` 取宽参转 UTF-8，规避中文窄 argv 的 GBK 破坏；交互菜单仍为 v1）。
 - [ ] 后续增加异步加载、热重载、依赖图和内存预算（依赖 Job System）。
 - 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源（已通过 `Atom_Assets.StageDAcceptance` 验证）。
 - 实施阶段划分（A/B/C/D）、待决问题与当前进度见 `Docs/Plans/Resource-System-Plan-CN.md`。
