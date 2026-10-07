@@ -602,6 +602,13 @@ target_link_libraries(Example_Spatial_Backend_Probe PRIVATE Atom_Media Atom_Wind
 set_target_properties(Atom_Tool_Packager PROPERTIES OUTPUT_NAME packager_tool)
 target_link_libraries(Atom_Tool_Packager PRIVATE Atom_Packager)
 
+# Standalone ImGui packager tool (browse existing packages + build v2 packages).
+add_executable(Atom_Tool_PackagerGui
+        Utilities/Packager/PackagerGui.cpp
+)
+set_target_properties(Atom_Tool_PackagerGui PROPERTIES OUTPUT_NAME packager_gui)
+target_link_libraries(Atom_Tool_PackagerGui PRIVATE Atom_Window Atom_Debugger Atom_Packager Atom_FS)
+
 include(CTest)
 # Third-party projects may force the generic BUILD_TESTING cache option off.
 # Atom-owned tests use an independent option so that project coverage is not
@@ -644,7 +651,8 @@ if(MINGW)
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
-                                Example_MusicCard Example_Lua_Scripting Atom_Tool_Packager)
+                                Example_MusicCard Example_Lua_Scripting Atom_Tool_Packager
+                               Atom_Tool_PackagerGui)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()
         if(ATOM_BUILD_TESTS)

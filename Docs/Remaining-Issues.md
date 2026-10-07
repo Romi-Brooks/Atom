@@ -173,6 +173,9 @@
       tags/依赖/cook 元数据段（manifest 段目录可前向扩展）。
       已接入：`packager_tool pack2 <input> <output.apkg> [package_path]` 子命令（非交互，Windows 下经
       `GetCommandLineW`/`CommandLineToArgvW` 取宽参转 UTF-8，规避中文窄 argv 的 GBK 破坏；交互菜单仍为 v1）。
+      另新增独立 GUI 工具 `packager_gui`（`Utilities/Packager/PackagerGui.cpp`）：复用引擎 DebugPanel overlay +
+      SDL_GPU ImGui 后端，左侧浏览 .apkg 目录树（读端新增 `EnumerateAssets` 暴露 path/kind/size/hash，按
+      kind 着色分类），右侧选源目录（内置 std::filesystem 导航器）+ 输出路径 + 前缀打包，打包后自动打开。
 - [ ] 后续增加异步加载、热重载、依赖图和内存预算（依赖 Job System）。
 - 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源（已通过 `Atom_Assets.StageDAcceptance` 验证）。
 - 实施阶段划分（A/B/C/D）、待决问题与当前进度见 `Docs/Plans/Resource-System-Plan-CN.md`。
