@@ -1,12 +1,12 @@
 /**
   * @file           : PackagerGui.cpp
-  * @brief          : Standalone ImGui-based packager tool (APKG v1/v2).
+  * @brief          : Standalone ImGui-based packager tool (APKG).
   * @attention      : A single full-window tool (no floating ImGui windows):
   *                     - A deterministic full-viewport shell, fixed in place
   *                       (no move/resize/titlebar), independent of imgui.ini.
   *                     - One tab bar: "Open Package" (browse a package tree
   *                       with per-kind coloring) and "New Package" (pick a
-  *                       source directory and build a v2 package).
+  *                       source directory and build a package).
   *                   Reuses the engine's DebugPanel overlay + SDL_GPU ImGui
   *                   backend, so no custom window loop is needed.
   * @date           : 2026/10/7
@@ -32,12 +32,12 @@
 #include <Utilities/Packager/PackageBuilder.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 #include <Filesystem/PackageFileSystem.hpp>
-#include <Filesystem/PackageFormatV2.hpp>
+#include <Filesystem/PackageFormat.hpp>
 
 namespace {
 
 namespace native_fs = std::filesystem;
-namespace pf2 = atom::fs::package_format_v2;
+namespace pf = atom::fs::package_format;
 
 [[nodiscard]] auto FsResultName(atom::fs::Result result) -> const char* {
     switch (result) {
@@ -69,13 +69,13 @@ namespace pf2 = atom::fs::package_format_v2;
 
 [[nodiscard]] auto KindColor(std::uint16_t kind) -> ImVec4 {
     switch (kind) {
-    case pf2::asset_kind::texture: return {0.35f, 0.90f, 0.45f, 1.0f};
-    case pf2::asset_kind::audio: return {0.45f, 0.65f, 1.00f, 1.0f};
-    case pf2::asset_kind::shader: return {0.80f, 0.50f, 1.00f, 1.0f};
-    case pf2::asset_kind::config: return {1.00f, 0.85f, 0.35f, 1.0f};
-    case pf2::asset_kind::script: return {0.35f, 0.90f, 0.90f, 1.0f};
-    case pf2::asset_kind::font: return {1.00f, 0.45f, 0.80f, 1.0f};
-    case pf2::asset_kind::model: return {1.00f, 0.60f, 0.30f, 1.0f};
+    case pf::asset_kind::texture: return {0.35f, 0.90f, 0.45f, 1.0f};
+    case pf::asset_kind::audio: return {0.45f, 0.65f, 1.00f, 1.0f};
+    case pf::asset_kind::shader: return {0.80f, 0.50f, 1.00f, 1.0f};
+    case pf::asset_kind::config: return {1.00f, 0.85f, 0.35f, 1.0f};
+    case pf::asset_kind::script: return {0.35f, 0.90f, 0.90f, 1.0f};
+    case pf::asset_kind::font: return {1.00f, 0.45f, 0.80f, 1.0f};
+    case pf::asset_kind::model: return {1.00f, 0.60f, 0.30f, 1.0f};
     default: return {0.65f, 0.65f, 0.65f, 1.0f}; // binary / unknown
     }
 }
@@ -95,7 +95,7 @@ namespace pf2 = atom::fs::package_format_v2;
 struct TreeNode {
         std::string name{};
         bool is_dir = false;
-        std::uint16_t kind = pf2::asset_kind::unknown;
+        std::uint16_t kind = pf::asset_kind::unknown;
         std::uint64_t size = 0;
         std::map<std::string, TreeNode> children{};
 };
@@ -292,7 +292,7 @@ class PackagerPanel final : public atom::debugger::DebugPanel {
             }
             ImGui::TextColored(KindColor(node.kind), "%s", node.name.c_str());
             ImGui::SameLine();
-            ImGui::TextDisabled("  %s  %s", pf2::KindName(node.kind), FormatSize(node.size).c_str());
+            ImGui::TextDisabled("  %s  %s", pf::KindName(node.kind), FormatSize(node.size).c_str());
         }
 
         auto DrawOpenTab() -> void {

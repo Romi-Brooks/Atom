@@ -11,13 +11,16 @@
 
 #include <filesystem>
 #include <iterator>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include <Event/Input.hpp>
+#include <Filesystem/PackageFileSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Utilities/Packager/Packager.hpp>
-#include <Utilities/Packager/Unpackager.hpp>
+#include <Utilities/Packager/PackageBuilder.hpp>
+#include <Utilities/Utf8/Utf8.hpp>
 #include <Window/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Window/Screen.hpp>
@@ -37,14 +40,20 @@ constexpr const char* source_files[] = {
     // ref: https://github.com/ocornut/imgui/blob/master/docs/FONTS.md
     R"(E:\Music\我的歌声里 - 曲婉婷.mp3)",
 };
-constexpr const char* pack_path = "music_demo.pak";
+constexpr const char* pack_path = "music_demo.apkg";
+
+// One packed entry's in-memory payload, extracted from the APKG package.
+struct PackEntry {
+        std::string filename{}; // package-relative name (extension kept)
+        std::vector<std::byte> data{};
+};
 
 // Debugger overlay
 class PackedMusicDebugger final : public atom::debugger::DebugPanel {
     public:
-        PackedMusicDebugger(atom::MusicPlayer& music, const std::vector<atom::tools::Unpackager::MemoryFile>& files,
+        PackedMusicDebugger(atom::MusicPlayer& music, const std::vector<PackEntry>& entries,
                             std::string packPath, std::string packStatus)
-            : DebugPanel("PackedMusicDebugger"), music_(music), files_(files), pack_path_(std::move(packPath)),
+            : DebugPanel("PackedMusicDebugger"), music_(music), entries_(entries), pack_path_(std::move(packPath)),
               pack_status_(std::move(packStatus)) {}
 
     protected:
@@ -56,21 +65,21 @@ class PackedMusicDebugger final : public atom::debugger::DebugPanel {
 
             ImGui::TextUnformatted(pack_path_.c_str());
             ImGui::TextUnformatted(pack_status_.c_str());
-            ImGui::Text("Entries: %zu (all loaded into memory)", files_.size());
+            ImGui::Text("Entries: %zu (all loaded into memory)", entries_.size());
             ImGui::Separator();
 
-            // One row per pack entry: name, type, size + play/stop
-            for (std::size_t i = 0; i < files_.size(); ++i) {
-                const auto& file = files_[i];
+            // One row per pack entry: name, size + play/stop
+            for (std::size_t i = 0; i < entries_.size(); ++i) {
+                const auto& entry = entries_[i];
                 const std::string id = "track_" + std::to_string(i);
 
                 ImGui::PushID(static_cast<int>(i));
                 const bool loaded = music_.IsLoaded(id);
                 const bool playing = music_.IsNowPlaying(id);
 
-                ImGui::TextUnformatted(file.filename.c_str());
+                ImGui::TextUnformatted(entry.filename.c_str());
                 ImGui::SameLine();
-                ImGui::TextDisabled("[%s, %.1f KB]", file.type.c_str(), static_cast<double>(file.GetSize()) / 1024.0);
+                ImGui::TextDisabled("[%.1f KB]", static_cast<double>(entry.data.size()) / 1024.0);
 
                 if (loaded) {
                     if (playing) {
@@ -87,8 +96,6 @@ class PackedMusicDebugger final : public atom::debugger::DebugPanel {
             }
 
             ImGui::Text("Now playing: %s", music_.GetNowPlaying().c_str());
-            // In-memory tracks report their length and support the same seek API as
-            // file-backed tracks (the decoder is chosen by extension either way).
             const auto now_playing = music_.GetNowPlaying();
             if (!now_playing.empty()) {
                 auto position = music_.GetPlayingOffset(now_playing);
@@ -116,7 +123,7 @@ class PackedMusicDebugger final : public atom::debugger::DebugPanel {
 
     private:
         atom::MusicPlayer& music_;
-        const std::vector<atom::tools::Unpackager::MemoryFile>& files_;
+        const std::vector<PackEntry>& entries_;
         std::string pack_path_;
         std::string pack_status_;
 };
@@ -146,39 +153,54 @@ auto main() -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
-    // pack the selected files into a resource pack
+    // Pack the selected files into an APKG package on first run.
     std::string pack_status;
     if (!std::filesystem::exists(pack_path)) {
-        atom::tools::Packager packer;
-        atom::tools::Packager::Config config;
+        atom::tools::PackageBuilder builder;
+        for (const auto* source : source_files) {
+            const std::string name = std::filesystem::path{source}.filename().string();
+            if (builder.AddFile(source, name) != atom::tools::PackageBuilder::Result::Success) {
+                LOG_ERROR(atom::log::utilities::Packager, "Failed to queue file for packing: " + std::string{source});
+                return 1;
+            }
+        }
+        atom::tools::PackageBuilder::Config config;
         config.verbose = true;
-        // Entries use bare filenames (extensions kept, so a decoder can be selected by extension).
-        config.preserveStructure = false;
-
-        const std::vector<std::string> sources(std::begin(source_files), std::end(source_files));
-        const auto result = packer.Pack(sources, pack_path, config);
-        if (result != atom::tools::Packager::Result::Success) {
+        if (builder.Build(pack_path, config) != atom::tools::PackageBuilder::Result::Success) {
             LOG_ERROR(atom::log::utilities::Packager, "Packing failed, cannot continue");
             return 1;
         }
-        packer.PrintPackageInfo();
-        pack_status = "Packed fresh (" + std::to_string(packer.GetPackedFiles().size()) + " files)";
+        pack_status = "Packed fresh (" + std::to_string(builder.PlannedFiles().size()) + " files)";
     } else {
-        pack_status = "Reusing existing pack (delete music_demo.pak to rebuild)";
+        pack_status = "Reusing existing pack (delete music_demo.apkg to rebuild)";
     }
 
-    // load the pack and extract every entry into memory
-    atom::tools::Unpackager unpacker;
-    if (unpacker.Load(pack_path, /*verbose=*/true) != atom::tools::Unpackager::Result::Success) {
-        LOG_ERROR(atom::log::utilities::Packager, "Failed to load package: " + std::string(pack_path));
+    // Mount the package and extract every entry into memory.
+    std::unique_ptr<atom::fs::PackageFileSystem> package{};
+    if (atom::fs::PackageFileSystem::Create("res", pack_path, package) != atom::fs::Result::Success || !package) {
+        LOG_ERROR(atom::log::utilities::Packager, "Failed to open package: " + std::string{pack_path});
         return 1;
     }
-    unpacker.PrintPackageInfo();
 
-    std::vector<atom::tools::Unpackager::MemoryFile> memoryFiles;
-    if (unpacker.ExtractAllToMemory(memoryFiles) != atom::tools::Unpackager::Result::Success) {
-        LOG_ERROR(atom::log::utilities::Packager, "Failed to extract package contents into memory");
+    std::vector<atom::fs::PackagedAssetInfo> assets{};
+    if (package->EnumerateAssets(assets) != atom::fs::Result::Success) {
+        LOG_ERROR(atom::log::utilities::Packager, "Failed to enumerate package contents");
         return 1;
+    }
+
+    std::vector<PackEntry> entries;
+    entries.reserve(assets.size());
+    for (const auto& asset : assets) {
+        atom::fs::AssetPath asset_path{};
+        if (!atom::fs::AssetPath::TryParse("res://" + asset.path, asset_path))
+            continue;
+        std::unique_ptr<atom::fs::IFile> file{};
+        if (package->OpenRead(asset_path, file) != atom::fs::Result::Success || !file)
+            continue;
+        std::vector<std::byte> data(file->Size());
+        if (file->ReadNext(data) != atom::fs::Result::Success)
+            continue;
+        entries.push_back(PackEntry{asset.path, std::move(data)});
     }
 
     // stream-decode & play straight from memory
@@ -186,16 +208,16 @@ auto main() -> int {
     atom::MusicPlayer music{mixer};
 
     std::size_t loadedCount = 0;
-    for (std::size_t i = 0; i < memoryFiles.size(); ++i) {
-        const auto& file = memoryFiles[i];
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        const auto& entry = entries[i];
         const std::string id = "track_" + std::to_string(i);
-        // The buffer is borrowed by LoadFromMemory: memoryFiles outlives every
+        // The buffer is borrowed by LoadFromMemory: `entries` outlives every
         // track for the whole program lifetime, satisfying the contract.
-        if (music.LoadFromMemory(id, file.filename, file.GetData(), file.GetSize())) {
+        if (music.LoadFromMemory(id, entry.filename, entry.data.data(), entry.data.size())) {
             ++loadedCount;
-            LOG_INFO(atom::log::audio::Music, "Track ready (in-memory): " + file.filename);
+            LOG_INFO(atom::log::audio::Music, "Track ready (in-memory): " + entry.filename);
         } else {
-            LOG_WARNING(atom::log::audio::Music, "Track load failed: " + file.filename);
+            LOG_WARNING(atom::log::audio::Music, "Track load failed: " + entry.filename);
         }
     }
     if (loadedCount == 0) {
@@ -211,15 +233,12 @@ auto main() -> int {
     window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720},
                       atom::backend::RenderBackendId::SdlGpu);
 
-    // It is recommended to limit the FPS when creating the window,
-    // or define a custom FPS limit; otherwise it will significantly
-    // consume GPU/CPU resources.
     window.SetFPS(60);
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    PackedMusicDebugger debugger{music, memoryFiles, pack_path, pack_status};
+    PackedMusicDebugger debugger{music, entries, pack_path, pack_status};
     debugger.Attach(window);
 
     window.Run();

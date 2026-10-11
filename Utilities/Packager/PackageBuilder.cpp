@@ -1,6 +1,6 @@
 /**
   * @file           : PackageBuilder.cpp
-  * @brief          : APKG v2 package writer implementation.
+  * @brief          : APKG package writer implementation.
 **/
 
 // Self Dependency
@@ -21,13 +21,13 @@
 #include <filesystem>
 
 // Engine Headers
-#include <Filesystem/PackageFormatV2.hpp>
+#include <Filesystem/PackageFormat.hpp>
 #include <Log/LogSystem.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
 namespace atom::tools {
 
-namespace pf2 = atom::fs::package_format_v2;
+namespace pf = atom::fs::package_format;
 namespace native_fs = std::filesystem;
 
 namespace {
@@ -40,42 +40,42 @@ constexpr std::size_t io_block_size = 64 * 1024;
 [[nodiscard]] auto InferKind(const std::string& package_path) -> std::uint16_t {
     const std::size_t dot = package_path.rfind('.');
     if (dot == std::string::npos)
-        return pf2::asset_kind::binary;
+        return pf::asset_kind::binary;
     std::string ext = package_path.substr(dot + 1);
     std::ranges::transform(ext, ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
     if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "bmp" || ext == "tga")
-        return pf2::asset_kind::texture;
+        return pf::asset_kind::texture;
     if (ext == "wav" || ext == "mp3" || ext == "ogg" || ext == "flac")
-        return pf2::asset_kind::audio;
+        return pf::asset_kind::audio;
     if (ext == "glsl" || ext == "spv" || ext == "vert" || ext == "frag" || ext == "comp")
-        return pf2::asset_kind::shader;
+        return pf::asset_kind::shader;
     if (ext == "toml" || ext == "json" || ext == "xml" || ext == "ini" || ext == "cfg" || ext == "yaml" || ext == "yml")
-        return pf2::asset_kind::config;
+        return pf::asset_kind::config;
     if (ext == "lua")
-        return pf2::asset_kind::script;
+        return pf::asset_kind::script;
     if (ext == "ttf" || ext == "otf")
-        return pf2::asset_kind::font;
+        return pf::asset_kind::font;
     if (ext == "obj" || ext == "gltf" || ext == "glb" || ext == "fbx")
-        return pf2::asset_kind::model;
-    return pf2::asset_kind::binary;
+        return pf::asset_kind::model;
+    return pf::asset_kind::binary;
 }
 
 void AppendU16(std::vector<std::byte>& out, std::uint16_t value) {
     std::byte bytes[2];
-    pf2::WriteU16(bytes, value);
+    pf::WriteU16(bytes, value);
     out.insert(out.end(), std::begin(bytes), std::end(bytes));
 }
 
 void AppendU32(std::vector<std::byte>& out, std::uint32_t value) {
     std::byte bytes[4];
-    pf2::WriteU32(bytes, value);
+    pf::WriteU32(bytes, value);
     out.insert(out.end(), std::begin(bytes), std::end(bytes));
 }
 
 void AppendU64(std::vector<std::byte>& out, std::uint64_t value) {
     std::byte bytes[8];
-    pf2::WriteU64(bytes, value);
+    pf::WriteU64(bytes, value);
     out.insert(out.end(), std::begin(bytes), std::end(bytes));
 }
 
@@ -91,7 +91,7 @@ void AppendBytes(std::vector<std::byte>& out, const void* data, std::size_t size
 struct DirNode {
         std::string name{};                  // bare directory name, "" for root
         std::string full_path{};             // package-relative dir path, "" for root
-        std::uint32_t parent = pf2::no_parent;
+        std::uint32_t parent = pf::no_parent;
         std::vector<std::uint32_t> children{}; // dir indices, sorted by name
         std::vector<std::uint32_t> assets{};   // asset indices, sorted by path
 
@@ -104,7 +104,7 @@ struct AssetPlan {
         std::string native_path{};
         std::string package_path{};
         std::uint32_t parent_dir = 0; // assigned dir index (after BFS)
-        std::uint16_t kind = pf2::asset_kind::binary;
+        std::uint16_t kind = pf::asset_kind::binary;
         std::uint64_t logical_size = 0;
         std::uint64_t content_hash = 0;
         std::uint64_t data_offset = 0; // absolute file offset of its single chunk
@@ -154,17 +154,17 @@ class StringTable {
 auto EnsureDirectory(std::vector<DirNode>& nodes, std::unordered_map<std::string, std::uint32_t>& by_path,
                      const std::string& dir_path) -> std::uint32_t {
     if (dir_path.empty())
-        return pf2::root_directory;
+        return pf::root_directory;
     if (const auto it = by_path.find(dir_path); it != by_path.end())
         return it->second;
 
-    const std::string parent_path{pf2::PackagePathParent(dir_path)};
+    const std::string parent_path{pf::PackagePathParent(dir_path)};
     const std::uint32_t parent_index = EnsureDirectory(nodes, by_path, parent_path);
 
     const auto index = static_cast<std::uint32_t>(nodes.size());
     by_path.emplace(dir_path, index);
     DirNode node{};
-    node.name = std::string{pf2::PackagePathName(dir_path)};
+    node.name = std::string{pf::PackagePathName(dir_path)};
     node.full_path = dir_path;
     node.parent = parent_index;
     nodes.push_back(std::move(node));
@@ -179,7 +179,7 @@ PackageBuilder::Config::Config() = default;
 auto PackageBuilder::AddFile(const std::string& native_path_utf8, const std::string& package_path) -> Result {
     if (!atom::IsValidUtf8(native_path_utf8) || !atom::IsValidUtf8(package_path))
         return Result::ErrorInvalidPath;
-    if (!pf2::IsValidPackagePath(package_path))
+    if (!pf::IsValidPackagePath(package_path))
         return Result::ErrorInvalidPath;
 
     std::error_code error;
@@ -195,7 +195,7 @@ auto PackageBuilder::AddDirectory(const std::string& native_dir_utf8, const std:
     if (!atom::IsValidUtf8(native_dir_utf8) || !atom::IsValidUtf8(package_prefix))
         return Result::ErrorInvalidPath;
     const std::string prefix = NormalizeSlashes(package_prefix);
-    if (!prefix.empty() && !pf2::IsValidPackagePath(prefix))
+    if (!prefix.empty() && !pf::IsValidPackagePath(prefix))
         return Result::ErrorInvalidPath;
 
     std::error_code error;
@@ -218,7 +218,7 @@ auto PackageBuilder::AddDirectory(const std::string& native_dir_utf8, const std:
         std::string package_path = NormalizeSlashes(atom::PathToUtf8(relative));
         if (!prefix.empty())
             package_path = prefix + "/" + package_path;
-        if (!pf2::IsValidPackagePath(package_path))
+        if (!pf::IsValidPackagePath(package_path))
             return Result::ErrorInvalidPath;
 
         files_.push_back(PlannedFile{atom::PathToUtf8(entry.path()), std::move(package_path)});
@@ -260,7 +260,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
             assets.push_back(std::move(plan));
         }
     }
-    if (assets.size() > pf2::max_asset_count)
+    if (assets.size() > pf::max_asset_count)
         return Result::ErrorInvalidPath;
     std::ranges::sort(assets, {}, &AssetPlan::package_path);
 
@@ -268,13 +268,13 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
     std::vector<DirNode> dirs(1);
     std::unordered_map<std::string, std::uint32_t> dir_by_path;
     for (std::uint32_t i = 0; i < assets.size(); ++i) {
-        const std::string parent{pf2::PackagePathParent(assets[i].package_path)};
+        const std::string parent{pf::PackagePathParent(assets[i].package_path)};
         const std::uint32_t node = EnsureDirectory(dirs, dir_by_path, parent);
         // Temporarily stores the creation-order dir index; replaced after BFS.
         assets[i].parent_dir = node;
         dirs[node].assets.push_back(i);
     }
-    if (dirs.size() > pf2::max_directory_count)
+    if (dirs.size() > pf::max_directory_count)
         return Result::ErrorInvalidPath;
 
     // BFS re-indexing so each node's children occupy a contiguous range.
@@ -288,7 +288,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
         bfs_order.reserve(dirs.size());
         std::vector<std::uint32_t> old_to_new(dirs.size(), 0);
         std::queue<std::uint32_t> queue;
-        queue.push(pf2::root_directory);
+        queue.push(pf::root_directory);
         while (!queue.empty()) {
             const std::uint32_t old_index = queue.front();
             queue.pop();
@@ -304,7 +304,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
             DirNode node = dirs[old_index];
             for (auto& child : node.children)
                 child = old_to_new[child];
-            if (node.parent != pf2::no_parent)
+            if (node.parent != pf::no_parent)
                 node.parent = old_to_new[node.parent];
             node.first_child = node.children.empty() ? 0 : node.children.front();
             // BFS assigns children consecutively; assert the invariant holds.
@@ -361,10 +361,10 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
         return Result::ErrorOpenOutput;
 
     // Reserve the fixed header.
-    std::array<std::byte, pf2::header_size> header_block{};
+    std::array<std::byte, pf::header_size> header_block{};
     output.write(reinterpret_cast<const char*>(header_block.data()), header_block.size());
 
-    std::uint64_t data_offset = pf2::header_size;
+    std::uint64_t data_offset = pf::header_size;
     std::vector<char> block(io_block_size);
     for (auto& asset : assets) {
         std::ifstream input(atom::PathFromUtf8(asset.native_path), std::ios::binary | std::ios::ate);
@@ -383,7 +383,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
         asset.data_offset = data_offset;
         input.seekg(0, std::ios::beg);
 
-        std::uint64_t hash = pf2::fnv_offset_basis;
+        std::uint64_t hash = pf::fnv_offset_basis;
         std::uint64_t remaining = asset.logical_size;
         while (remaining > 0) {
             const auto want = static_cast<std::streamsize>(std::min<std::uint64_t>(remaining, io_block_size));
@@ -399,7 +399,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
                 native_fs::remove(temp_path, error);
                 return Result::ErrorWriteFailed;
             }
-            hash = pf2::FnvaUpdate(hash, block.data(), static_cast<std::size_t>(want));
+            hash = pf::FnvaUpdate(hash, block.data(), static_cast<std::size_t>(want));
             remaining -= static_cast<std::uint64_t>(want);
             data_offset += static_cast<std::uint64_t>(want);
         }
@@ -407,7 +407,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
 
         if (config.verbose)
             LOG_INFO(atom::log::utilities::Packager,
-                     "Packing(v2): " + asset.package_path + " (" + std::to_string(asset.logical_size) + " bytes)");
+                     "Packing: " + asset.package_path + " (" + std::to_string(asset.logical_size) + " bytes)");
     }
 
     // ---- Manifest ----
@@ -422,7 +422,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
     for (const auto& asset : assets)
         asset_path_refs.push_back(strings.Intern(asset.package_path));
 
-    if (strings.Count() > pf2::max_string_count || strings.BlobSize() > pf2::max_string_blob_size) {
+    if (strings.Count() > pf::max_string_count || strings.BlobSize() > pf::max_string_blob_size) {
         output.close();
         native_fs::remove(temp_path, error);
         return Result::ErrorInvalidPath;
@@ -444,7 +444,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
         AppendU64(chunk_section, asset.logical_size); // stored == logical (store)
         AppendU64(chunk_section, asset.logical_size);
         AppendU64(chunk_section, asset.content_hash);
-        AppendU16(chunk_section, pf2::compression_store);
+        AppendU16(chunk_section, pf::compression_store);
         AppendU16(chunk_section, 0);
         AppendU32(chunk_section, 0);
     }
@@ -453,7 +453,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
     AppendU32(asset_section, static_cast<std::uint32_t>(assets.size()));
     for (std::uint32_t i = 0; i < assets.size(); ++i) {
         const auto& asset = assets[i];
-        AppendU64(asset_section, pf2::Fnva(asset.package_path));
+        AppendU64(asset_section, pf::Fnva(asset.package_path));
         AppendU32(asset_section, asset_path_refs[i]);
         AppendU32(asset_section, asset.parent_dir);
         AppendU16(asset_section, asset.kind);
@@ -477,26 +477,26 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
     }
 
     std::vector<std::byte> manifest;
-    AppendBytes(manifest, pf2::manifest_magic, 4);
+    AppendBytes(manifest, pf::manifest_magic, 4);
     constexpr std::uint32_t section_count = 4;
     AppendU32(manifest, section_count);
 
-    const std::uint64_t directory_size = 4 + 4 + section_count * pf2::section_entry_size;
+    const std::uint64_t directory_size = 4 + 4 + section_count * pf::section_entry_size;
     const std::uint64_t string_offset = directory_size;
     const std::uint64_t chunk_offset = string_offset + string_section.size();
     const std::uint64_t asset_offset = chunk_offset + chunk_section.size();
     const std::uint64_t dir_offset = asset_offset + asset_section.size();
 
-    AppendU32(manifest, pf2::section_kind::string_table);
+    AppendU32(manifest, pf::section_kind::string_table);
     AppendU64(manifest, string_offset);
     AppendU64(manifest, string_section.size());
-    AppendU32(manifest, pf2::section_kind::chunk_table);
+    AppendU32(manifest, pf::section_kind::chunk_table);
     AppendU64(manifest, chunk_offset);
     AppendU64(manifest, chunk_section.size());
-    AppendU32(manifest, pf2::section_kind::asset_table);
+    AppendU32(manifest, pf::section_kind::asset_table);
     AppendU64(manifest, asset_offset);
     AppendU64(manifest, asset_section.size());
-    AppendU32(manifest, pf2::section_kind::directory_table);
+    AppendU32(manifest, pf::section_kind::directory_table);
     AppendU64(manifest, dir_offset);
     AppendU64(manifest, dir_section.size());
 
@@ -505,7 +505,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
     manifest.insert(manifest.end(), asset_section.begin(), asset_section.end());
     manifest.insert(manifest.end(), dir_section.begin(), dir_section.end());
 
-    if (manifest.size() > pf2::max_manifest_size) {
+    if (manifest.size() > pf::max_manifest_size) {
         output.close();
         native_fs::remove(temp_path, error);
         return Result::ErrorInvalidPath;
@@ -523,26 +523,26 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
 
     // ---- Header ----
 
-    const std::uint64_t manifest_hash = pf2::Fnva(manifest.data(), manifest.size());
+    const std::uint64_t manifest_hash = pf::Fnva(manifest.data(), manifest.size());
 
     // Deterministic UUID: derived from the manifest hash and asset count, so
     // identical inputs produce byte-identical packages.
-    std::byte* uuid_out = header_block.data() + pf2::header_field::uuid;
+    std::byte* uuid_out = header_block.data() + pf::header_field::uuid;
     for (int i = 0; i < 16; ++i) {
         const auto shift = static_cast<unsigned>((i % 8) * 8);
-        const auto source = i < 8 ? manifest_hash : manifest_hash ^ pf2::FnvaUpdate(pf2::fnv_offset_basis, &total_size, sizeof(total_size));
+        const auto source = i < 8 ? manifest_hash : manifest_hash ^ pf::FnvaUpdate(pf::fnv_offset_basis, &total_size, sizeof(total_size));
         uuid_out[i] = std::byte((source >> shift) & 0xFF);
     }
 
-    std::memcpy(header_block.data() + pf2::header_field::magic, pf2::magic, 4);
-    pf2::WriteU16(header_block.data() + pf2::header_field::version, pf2::version);
-    pf2::WriteU16(header_block.data() + pf2::header_field::flags, 0);
-    pf2::WriteU64(header_block.data() + pf2::header_field::data_offset, pf2::header_size);
-    pf2::WriteU64(header_block.data() + pf2::header_field::manifest_offset, manifest_offset);
-    pf2::WriteU64(header_block.data() + pf2::header_field::manifest_size, manifest.size());
-    pf2::WriteU64(header_block.data() + pf2::header_field::manifest_hash, manifest_hash);
-    pf2::WriteU64(header_block.data() + pf2::header_field::header_hash,
-                  pf2::Fnva(header_block.data(), pf2::header_hash_coverage));
+    std::memcpy(header_block.data() + pf::header_field::magic, pf::magic, 4);
+    pf::WriteU16(header_block.data() + pf::header_field::version, pf::version);
+    pf::WriteU16(header_block.data() + pf::header_field::flags, 0);
+    pf::WriteU64(header_block.data() + pf::header_field::data_offset, pf::header_size);
+    pf::WriteU64(header_block.data() + pf::header_field::manifest_offset, manifest_offset);
+    pf::WriteU64(header_block.data() + pf::header_field::manifest_size, manifest.size());
+    pf::WriteU64(header_block.data() + pf::header_field::manifest_hash, manifest_hash);
+    pf::WriteU64(header_block.data() + pf::header_field::header_hash,
+                  pf::Fnva(header_block.data(), pf::header_hash_coverage));
 
     output.seekp(0, std::ios::beg);
     output.write(reinterpret_cast<const char*>(header_block.data()), header_block.size());
@@ -561,14 +561,14 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
             native_fs::remove(temp_path, error);
             return Result::ErrorVerificationFailed;
         }
-        std::array<std::byte, pf2::header_size> header_check{};
+        std::array<std::byte, pf::header_size> header_check{};
         verify.read(reinterpret_cast<char*>(header_check.data()), header_check.size());
         if (!verify) {
             native_fs::remove(temp_path, error);
             return Result::ErrorVerificationFailed;
         }
-        const std::uint64_t stored_header_hash = pf2::ReadU64(header_check.data() + pf2::header_field::header_hash);
-        const std::uint64_t computed_header_hash = pf2::Fnva(header_check.data(), pf2::header_hash_coverage);
+        const std::uint64_t stored_header_hash = pf::ReadU64(header_check.data() + pf::header_field::header_hash);
+        const std::uint64_t computed_header_hash = pf::Fnva(header_check.data(), pf::header_hash_coverage);
         if (stored_header_hash != computed_header_hash) {
             native_fs::remove(temp_path, error);
             return Result::ErrorVerificationFailed;
@@ -577,7 +577,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
         std::vector<std::byte> manifest_check(manifest.size());
         verify.seekg(static_cast<std::streamoff>(manifest_offset), std::ios::beg);
         verify.read(reinterpret_cast<char*>(manifest_check.data()), static_cast<std::streamsize>(manifest_check.size()));
-        if (!verify || pf2::Fnva(manifest_check.data(), manifest_check.size()) != manifest_hash) {
+        if (!verify || pf::Fnva(manifest_check.data(), manifest_check.size()) != manifest_hash) {
             native_fs::remove(temp_path, error);
             return Result::ErrorVerificationFailed;
         }
@@ -585,7 +585,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
         // Re-hash every chunk payload from disk.
         for (const auto& asset : assets) {
             verify.seekg(static_cast<std::streamoff>(asset.data_offset), std::ios::beg);
-            std::uint64_t hash = pf2::fnv_offset_basis;
+            std::uint64_t hash = pf::fnv_offset_basis;
             std::uint64_t remaining = asset.logical_size;
             while (remaining > 0) {
                 const auto want = static_cast<std::streamsize>(std::min<std::uint64_t>(remaining, io_block_size));
@@ -594,7 +594,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
                     native_fs::remove(temp_path, error);
                     return Result::ErrorVerificationFailed;
                 }
-                hash = pf2::FnvaUpdate(hash, block.data(), static_cast<std::size_t>(want));
+                hash = pf::FnvaUpdate(hash, block.data(), static_cast<std::size_t>(want));
                 remaining -= static_cast<std::uint64_t>(want);
             }
             if (hash != asset.content_hash) {
@@ -618,7 +618,7 @@ auto PackageBuilder::Build(const std::string& output_utf8, const Config& config)
         return Result::ErrorWriteFailed;
 
     LOG_INFO(atom::log::utilities::Packager,
-             "Packing(v2) completed: " + output_utf8 + " (" + std::to_string(assets.size()) + " assets, " +
+             "Packing completed: " + output_utf8 + " (" + std::to_string(assets.size()) + " assets, " +
                  std::to_string(total_size) + " bytes)");
     return Result::Success;
 }

@@ -36,11 +36,6 @@ atom_add_test(Atom_FS.OverlayVfs
     Filesystem/OverlayVfsTest.cpp
     Atom_FS)
 
-atom_add_test(Atom_FS.PackageFileSystem
-    Atom_FS_PackageFileSystem_Tests
-    Filesystem/PackageFileSystemTest.cpp
-    Atom_FS)
-
 atom_add_test(Atom_FS.VfsMount
     Atom_FS_VfsMount_Tests
     Filesystem/VfsMountTest.cpp
@@ -71,7 +66,7 @@ atom_add_test(Atom_Assets.ScriptSourceLoader
 atom_add_test(Atom_Assets.StageDAcceptance
     Atom_Assets_StageDAcceptance_Tests
     Asset/StageDAcceptanceTest.cpp
-    Atom_Media Atom_Image Atom_Backend_Extension Atom_FS Atom_UTF8)
+    Atom_Media Atom_Image Atom_Backend_Extension Atom_FS Atom_UTF8 Atom_Packager)
 
 # --- Render ---
 atom_add_test(Atom_Render_Resources.TextureCache
@@ -202,13 +197,8 @@ atom_add_test(Atom_UTF8.Utf8
     Utilities/Utf8Test.cpp
     Atom_UTF8)
 
-atom_add_test(Atom_Packager.RoundTrip
-    Atom_Packager_RoundTrip_Tests
-    Utilities/PackagerTest.cpp
-    Atom_Packager)
-
-atom_add_test(Atom_Packager.PackageBuilderV2
-    Atom_Packager_PackageBuilderV2_Tests
+atom_add_test(Atom_Packager.PackageBuilder
+    Atom_Packager_PackageBuilder_Tests
     Utilities/PackageBuilderTest.cpp
     Atom_Packager Atom_FS)
 

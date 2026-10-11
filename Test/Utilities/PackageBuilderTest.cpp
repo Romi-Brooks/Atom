@@ -1,16 +1,16 @@
 /**
   * @file           : PackageBuilderTest.cpp
-  * @brief          : APKG v2 builder <-> reader round-trip tests.
+  * @brief          : APKG builder <-> reader round-trip tests.
   * @attention      : The writer (PackageBuilder, Atom_Packager) and the reader
   *                   (PackageFileSystem, Atom_FS) only share the header-only
-  *                   contract in Filesystem/PackageFormatV2.hpp.
+  *                   contract in Filesystem/PackageFormat.hpp.
 **/
 
 #include <Test/Support/TestHelpers.hpp>
 #include <Utilities/Packager/PackageBuilder.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Filesystem/PackageFileSystem.hpp>
-#include <Filesystem/PackageFormatV2.hpp>
+#include <Filesystem/PackageFormat.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -29,7 +29,7 @@ class TemporaryDirectory final {
         [[nodiscard]] static auto Create(TemporaryDirectory& output) -> bool {
             std::error_code error;
             const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
-            const auto root = native_fs::temp_directory_path(error) / ("atom_apkg_v2_test_" + std::to_string(nonce));
+            const auto root = native_fs::temp_directory_path(error) / ("atom_apkg_test_" + std::to_string(nonce));
             if (error || native_fs::exists(root, error))
                 return false;
             if (!native_fs::create_directories(root, error) || error)
@@ -169,7 +169,7 @@ auto main() -> int {
         ATOM_CHECK(first_bytes == second_bytes);
     }
 
-    // ---- Round-trip through the v2 reader ----
+    // ---- Round-trip through the reader ----
     {
         std::unique_ptr<atom::fs::PackageFileSystem> package{};
         ATOM_CHECK(atom::fs::PackageFileSystem::Create("res", package_path.string(), package) ==
@@ -259,20 +259,20 @@ auto main() -> int {
 
         const auto* png = find("textures/ui/button.png");
         ATOM_CHECK(png != nullptr);
-        ATOM_CHECK(png->kind == atom::fs::package_format_v2::asset_kind::texture);
+        ATOM_CHECK(png->kind == atom::fs::package_format::asset_kind::texture);
         ATOM_CHECK(png->size == std::string("\x89PNG-fake-bytes").size());
 
         const auto* wav = find("audio/theme.wav");
         ATOM_CHECK(wav != nullptr);
-        ATOM_CHECK(wav->kind == atom::fs::package_format_v2::asset_kind::audio);
+        ATOM_CHECK(wav->kind == atom::fs::package_format::asset_kind::audio);
 
         const auto* txt = find("root.txt");
         ATOM_CHECK(txt != nullptr);
-        ATOM_CHECK(txt->kind == atom::fs::package_format_v2::asset_kind::binary);
+        ATOM_CHECK(txt->kind == atom::fs::package_format::asset_kind::binary);
 
         // Content hash matches the stored chunk hash for a known file.
         const std::string root_content = "root-level";
-        ATOM_CHECK(txt->content_hash == atom::fs::package_format_v2::Fnva(root_content));
+        ATOM_CHECK(txt->content_hash == atom::fs::package_format::Fnva(root_content));
     }
 
     // ---- Corruption is detected ----

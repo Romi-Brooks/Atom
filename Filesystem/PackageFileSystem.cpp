@@ -1,8 +1,8 @@
 /**
   * @file           : PackageFileSystem.cpp
   * @brief          : APKG package backend implementation.
-  * @attention      : Reads APKG v1 (frozen, trailing file table) and APKG v2
-  *                   (fixed header + manifest, see Filesystem/PackageFormatV2.hpp).
+  * @attention      : Reads the APKG container (fixed header + manifest, see
+  *                   Filesystem/PackageFormat.hpp).
 **/
 
 #include "PackageFileSystem.hpp"
@@ -13,7 +13,6 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
-#include <map>
 #include <string>
 #include <system_error>
 #include <unordered_map>
@@ -23,7 +22,6 @@
 #include <filesystem>
 
 #include <Filesystem/PackageFormat.hpp>
-#include <Filesystem/PackageFormatV2.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
 namespace atom::fs {
@@ -31,17 +29,14 @@ namespace {
 
 namespace native_fs = std::filesystem;
 
-// The APKG v1 layout (magic, version and the limits the reader enforces) lives
-// in PackageFormat.hpp so the writer and the reader cannot drift apart.
-namespace package_format = atom::fs::package_format;
-namespace pf2 = atom::fs::package_format_v2;
+namespace pf = atom::fs::package_format;
 
 struct PackageEntry {
         std::string relative{};
         uint64_t offset = 0;
         uint64_t size = 0;
-        std::uint16_t kind = pf2::asset_kind::unknown; // v2 only; v1 stays unknown
-        uint64_t content_hash = 0;                     // v2 only; v1 stays 0
+        std::uint16_t kind = pf::asset_kind::unknown;
+        uint64_t content_hash = 0;
 };
 
 [[nodiscard]] auto NormalizeRelative(std::string_view relative) -> std::string {
@@ -54,102 +49,17 @@ struct PackageEntry {
     return normalized;
 }
 
-[[nodiscard]] auto IsSafePackageRelative(const std::string& relative) -> bool {
-    if (relative.empty())
-        return false;
-    if (relative.find('\0') != std::string::npos)
-        return false;
-    if (relative.starts_with('/') || relative.contains("//"))
-        return false;
-
-    const native_fs::path path = atom::PathFromUtf8(relative);
-    if (path.is_absolute() || path.has_root_name())
-        return false;
-    for (const auto& part : path) {
-        if (part == ".." || part == ".")
-            return false;
-    }
-    return true;
-}
-
-// Single-span file used by the v1 reader.
-class PackageReadFile final : public IFile {
-    public:
-        PackageReadFile(std::ifstream stream, const uint64_t base, const uint64_t size)
-            : stream_(std::move(stream)), base_(base), size_(size) {}
-
-        [[nodiscard]] auto IsOpen() const -> bool {
-            return stream_.is_open();
-        }
-        [[nodiscard]] auto Size() const -> uint64_t override {
-            return size_;
-        }
-        [[nodiscard]] auto Tell() const -> uint64_t override {
-            return position_;
-        }
-
-        auto Seek(const uint64_t offset) -> Result override {
-            if (offset > size_)
-                return Result::OutOfRange;
-            position_ = offset;
-            return Result::Success;
-        }
-
-        auto ReadAt(const uint64_t offset, const std::span<std::byte> destination) -> Result override {
-            if (!RangeFits(offset, destination.size()))
-                return Result::OutOfRange;
-            if (destination.empty())
-                return Result::Success;
-
-            stream_.clear();
-            stream_.seekg(static_cast<std::streamoff>(base_ + offset), std::ios::beg);
-            if (!stream_)
-                return Result::IoError;
-            stream_.read(reinterpret_cast<char*>(destination.data()), static_cast<std::streamsize>(destination.size()));
-            return stream_ ? Result::Success : Result::IoError;
-        }
-
-        auto ReadNext(std::span<std::byte> destination) -> Result override {
-            if (!RangeFits(position_, destination.size()))
-                return Result::OutOfRange;
-            if (destination.empty())
-                return Result::Success;
-
-            stream_.clear();
-            stream_.seekg(static_cast<std::streamoff>(base_ + position_), std::ios::beg);
-            if (!stream_)
-                return Result::IoError;
-            stream_.read(reinterpret_cast<char*>(destination.data()), static_cast<std::streamsize>(destination.size()));
-            if (!stream_)
-                return Result::IoError;
-            position_ += destination.size();
-            return Result::Success;
-        }
-
-    private:
-        [[nodiscard]] auto RangeFits(const uint64_t offset, const std::size_t length) const -> bool {
-            return offset <= size_ && length <= size_ - offset &&
-                   offset <= static_cast<uint64_t>(std::numeric_limits<std::streamoff>::max()) &&
-                   length <= static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max());
-        }
-
-        std::ifstream stream_{};
-        uint64_t base_ = 0;
-        uint64_t size_ = 0;
-        uint64_t position_ = 0;
-};
-
-// One stored chunk of a v2 asset. compression == store, so stored == logical.
+// One stored chunk of an asset. compression == store, so stored == logical.
 struct ChunkSpan {
         uint64_t offset = 0; // absolute file offset
         uint64_t size = 0;
 };
 
-// Multi-span file used by the v2 reader: an asset is a run of chunks whose
+// Multi-span file used by the reader: an asset is a run of chunks whose
 // logical bytes concatenate into the asset content.
-class PackageReadFileV2 final : public IFile {
+class PackageReadFile final : public IFile {
     public:
-        PackageReadFileV2(std::ifstream stream, std::vector<ChunkSpan> spans, const uint64_t size)
+        PackageReadFile(std::ifstream stream, std::vector<ChunkSpan> spans, const uint64_t size)
             : stream_(std::move(stream)), spans_(std::move(spans)), size_(size) {}
 
         [[nodiscard]] auto IsOpen() const -> bool {
@@ -225,10 +135,10 @@ class PackageReadFileV2 final : public IFile {
         uint64_t position_ = 0;
 };
 
-struct V2Directory {
+struct Directory {
         std::string name{};      // bare name, "" for root
         std::string full_path{}; // package-relative path, "" for root
-        uint32_t parent = pf2::no_parent;
+        uint32_t parent = pf::no_parent;
         uint32_t first_child = 0;
         uint32_t child_count = 0;
         uint32_t first_asset = 0;
@@ -236,71 +146,7 @@ struct V2Directory {
 };
 
 // ---------------------------------------------------------------------------
-// v1 loading (frozen format, unchanged behavior)
-// ---------------------------------------------------------------------------
-
-auto LoadV1(std::ifstream& input, const uint64_t package_size, std::vector<PackageEntry>& entries,
-            std::unordered_map<std::string, std::size_t>& index) -> Result {
-    uint32_t file_count = 0;
-    input.read(reinterpret_cast<char*>(&file_count), sizeof(file_count));
-    if (!input || file_count == 0 || file_count > package_format::max_file_count)
-        return Result::IoError;
-
-    input.seekg(-static_cast<std::streamoff>(sizeof(uint64_t)), std::ios::end);
-    if (!input)
-        return Result::IoError;
-    uint64_t table_offset = 0;
-    input.read(reinterpret_cast<char*>(&table_offset), sizeof(table_offset));
-    if (!input || table_offset < package_format::min_header_size || table_offset >= package_size)
-        return Result::IoError;
-
-    input.seekg(static_cast<std::streamoff>(table_offset));
-    if (!input)
-        return Result::IoError;
-
-    entries.reserve(file_count);
-    for (uint32_t i = 0; i < file_count; ++i) {
-        uint16_t name_length = 0;
-        input.read(reinterpret_cast<char*>(&name_length), sizeof(name_length));
-        if (!input || name_length == 0 || name_length > package_format::max_name_length)
-            return Result::IoError;
-
-        std::string name(name_length, '\0');
-        input.read(name.data(), name_length);
-        if (!input || !atom::IsValidUtf8(name))
-            return Result::IoError;
-        name = NormalizeRelative(name);
-        if (!IsSafePackageRelative(name))
-            return Result::IoError;
-
-        uint64_t offset = 0;
-        uint64_t size = 0;
-        input.read(reinterpret_cast<char*>(&offset), sizeof(offset));
-        input.read(reinterpret_cast<char*>(&size), sizeof(size));
-        if (!input || offset < package_format::min_header_size || offset > table_offset || size > table_offset - offset)
-            return Result::IoError;
-
-        uint8_t type_length = 0;
-        input.read(reinterpret_cast<char*>(&type_length), sizeof(type_length));
-        if (!input)
-            return Result::IoError;
-        if (type_length > 0) {
-            std::string type(type_length, '\0');
-            input.read(type.data(), type_length);
-            if (!input)
-                return Result::IoError;
-        }
-
-        if (index.contains(name))
-            return Result::IoError;
-        index[name] = entries.size();
-        entries.push_back(PackageEntry{name, offset, size});
-    }
-    return Result::Success;
-}
-
-// ---------------------------------------------------------------------------
-// v2 loading (fixed header + manifest)
+// Loading (fixed header + manifest)
 // ---------------------------------------------------------------------------
 
 [[nodiscard]] auto ReadExactAt(std::ifstream& input, const uint64_t offset, std::byte* destination,
@@ -313,43 +159,43 @@ auto LoadV1(std::ifstream& input, const uint64_t package_size, std::vector<Packa
     return static_cast<bool>(input);
 }
 
-struct V2Manifest {
+struct Manifest {
         std::vector<std::string> strings{};
         std::vector<ChunkSpan> chunks{}; // one entry per chunk table row
         std::vector<PackageEntry> files{};
         std::vector<std::vector<ChunkSpan>> file_spans{}; // parallel to files
-        std::vector<V2Directory> dirs{};
+        std::vector<Directory> dirs{};
         std::unordered_map<std::string, std::size_t> file_index{};
         std::unordered_map<std::string, std::uint32_t> dir_index{};
 };
 
-auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manifest) -> Result {
-    if (package_size < pf2::header_size)
+auto LoadManifest(std::ifstream& input, const uint64_t package_size, Manifest& manifest) -> Result {
+    if (package_size < pf::header_size)
         return Result::IoError;
 
     // ---- Header ----
-    std::array<std::byte, pf2::header_size> header{};
+    std::array<std::byte, pf::header_size> header{};
     if (!ReadExactAt(input, 0, header.data(), header.size()))
         return Result::IoError;
-    if (!std::equal(std::begin(pf2::magic), std::end(pf2::magic),
-                    reinterpret_cast<const char*>(header.data() + pf2::header_field::magic)))
+    if (!std::equal(std::begin(pf::magic), std::end(pf::magic),
+                    reinterpret_cast<const char*>(header.data() + pf::header_field::magic)))
         return Result::IoError;
-    if (pf2::ReadU16(header.data() + pf2::header_field::version) != pf2::version)
+    if (pf::ReadU16(header.data() + pf::header_field::version) != pf::version)
         return Result::IoError;
-    if (pf2::ReadU16(header.data() + pf2::header_field::flags) != 0)
+    if (pf::ReadU16(header.data() + pf::header_field::flags) != 0)
         return Result::IoError;
-    if (pf2::ReadU64(header.data() + pf2::header_field::header_hash) !=
-        pf2::Fnva(header.data(), pf2::header_hash_coverage))
+    if (pf::ReadU64(header.data() + pf::header_field::header_hash) !=
+        pf::Fnva(header.data(), pf::header_hash_coverage))
         return Result::IoError;
 
-    const uint64_t data_offset = pf2::ReadU64(header.data() + pf2::header_field::data_offset);
-    const uint64_t manifest_offset = pf2::ReadU64(header.data() + pf2::header_field::manifest_offset);
-    const uint64_t manifest_size = pf2::ReadU64(header.data() + pf2::header_field::manifest_size);
-    const uint64_t manifest_hash = pf2::ReadU64(header.data() + pf2::header_field::manifest_hash);
+    const uint64_t data_offset = pf::ReadU64(header.data() + pf::header_field::data_offset);
+    const uint64_t manifest_offset = pf::ReadU64(header.data() + pf::header_field::manifest_offset);
+    const uint64_t manifest_size = pf::ReadU64(header.data() + pf::header_field::manifest_size);
+    const uint64_t manifest_hash = pf::ReadU64(header.data() + pf::header_field::manifest_hash);
 
-    if (data_offset < pf2::header_size || manifest_offset < data_offset)
+    if (data_offset < pf::header_size || manifest_offset < data_offset)
         return Result::IoError;
-    if (manifest_size < 8 || manifest_size > pf2::max_manifest_size)
+    if (manifest_size < 8 || manifest_size > pf::max_manifest_size)
         return Result::IoError;
     if (manifest_offset > package_size || manifest_size > package_size - manifest_offset)
         return Result::IoError;
@@ -358,16 +204,16 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
     std::vector<std::byte> region(manifest_size);
     if (!ReadExactAt(input, manifest_offset, region.data(), region.size()))
         return Result::IoError;
-    if (pf2::Fnva(region.data(), region.size()) != manifest_hash)
+    if (pf::Fnva(region.data(), region.size()) != manifest_hash)
         return Result::IoError;
-    if (!std::equal(std::begin(pf2::manifest_magic), std::end(pf2::manifest_magic),
+    if (!std::equal(std::begin(pf::manifest_magic), std::end(pf::manifest_magic),
                     reinterpret_cast<const char*>(region.data())))
         return Result::IoError;
 
-    const uint32_t section_count = pf2::ReadU32(region.data() + 4);
-    if (section_count == 0 || section_count > pf2::max_section_count)
+    const uint32_t section_count = pf::ReadU32(region.data() + 4);
+    if (section_count == 0 || section_count > pf::max_section_count)
         return Result::IoError;
-    const uint64_t directory_size = 8 + static_cast<uint64_t>(section_count) * pf2::section_entry_size;
+    const uint64_t directory_size = 8 + static_cast<uint64_t>(section_count) * pf::section_entry_size;
     if (directory_size > manifest_size)
         return Result::IoError;
 
@@ -382,31 +228,31 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
     SectionRef dir_section{};
 
     for (uint32_t i = 0; i < section_count; ++i) {
-        const std::byte* entry = region.data() + 8 + static_cast<uint64_t>(i) * pf2::section_entry_size;
-        const uint32_t kind = pf2::ReadU32(entry);
-        const uint64_t offset = pf2::ReadU64(entry + 4);
-        const uint64_t size = pf2::ReadU64(entry + 12);
+        const std::byte* entry = region.data() + 8 + static_cast<uint64_t>(i) * pf::section_entry_size;
+        const uint32_t kind = pf::ReadU32(entry);
+        const uint64_t offset = pf::ReadU64(entry + 4);
+        const uint64_t size = pf::ReadU64(entry + 12);
         if (offset < directory_size || offset > manifest_size || size > manifest_size - offset)
             return Result::IoError;
 
         SectionRef ref{offset, size, true};
         switch (kind) {
-        case pf2::section_kind::string_table:
+        case pf::section_kind::string_table:
             if (string_section.present)
                 return Result::IoError;
             string_section = ref;
             break;
-        case pf2::section_kind::chunk_table:
+        case pf::section_kind::chunk_table:
             if (chunk_section.present)
                 return Result::IoError;
             chunk_section = ref;
             break;
-        case pf2::section_kind::asset_table:
+        case pf::section_kind::asset_table:
             if (asset_section.present)
                 return Result::IoError;
             asset_section = ref;
             break;
-        case pf2::section_kind::directory_table:
+        case pf::section_kind::directory_table:
             if (dir_section.present)
                 return Result::IoError;
             dir_section = ref;
@@ -423,22 +269,22 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
         const std::byte* section = region.data() + string_section.offset;
         if (string_section.size < 4)
             return Result::IoError;
-        const uint32_t count = pf2::ReadU32(section);
-        if (count == 0 || count > pf2::max_string_count)
+        const uint32_t count = pf::ReadU32(section);
+        if (count == 0 || count > pf::max_string_count)
             return Result::IoError;
-        const uint64_t index_size = 4 + static_cast<uint64_t>(count) * pf2::string_ref_size;
+        const uint64_t index_size = 4 + static_cast<uint64_t>(count) * pf::string_ref_size;
         if (index_size > string_section.size)
             return Result::IoError;
         const uint64_t blob_size = string_section.size - index_size;
-        if (blob_size > pf2::max_string_blob_size)
+        if (blob_size > pf::max_string_blob_size)
             return Result::IoError;
         const std::byte* blob = section + index_size;
 
         manifest.strings.reserve(count);
         for (uint32_t i = 0; i < count; ++i) {
-            const std::byte* ref = section + 4 + static_cast<uint64_t>(i) * pf2::string_ref_size;
-            const uint32_t offset = pf2::ReadU32(ref);
-            const uint32_t length = pf2::ReadU32(ref + 4);
+            const std::byte* ref = section + 4 + static_cast<uint64_t>(i) * pf::string_ref_size;
+            const uint32_t offset = pf::ReadU32(ref);
+            const uint32_t length = pf::ReadU32(ref + 4);
             if (offset > blob_size || length > blob_size - offset)
                 return Result::IoError;
             std::string value(reinterpret_cast<const char*>(blob + offset), length);
@@ -455,23 +301,23 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
         const std::byte* section = region.data() + chunk_section.offset;
         if (chunk_section.size < 4)
             return Result::IoError;
-        const uint32_t count = pf2::ReadU32(section);
-        if (count > pf2::max_chunk_count)
+        const uint32_t count = pf::ReadU32(section);
+        if (count > pf::max_chunk_count)
             return Result::IoError;
-        if (4 + static_cast<uint64_t>(count) * pf2::chunk_entry_size != chunk_section.size)
+        if (4 + static_cast<uint64_t>(count) * pf::chunk_entry_size != chunk_section.size)
             return Result::IoError;
 
         manifest.chunks.reserve(count);
         for (uint32_t i = 0; i < count; ++i) {
-            const std::byte* row = section + 4 + static_cast<uint64_t>(i) * pf2::chunk_entry_size;
-            const uint64_t chunk_data_offset = pf2::ReadU64(row);
-            const uint64_t stored_size = pf2::ReadU64(row + 8);
-            const uint64_t logical_size = pf2::ReadU64(row + 16);
+            const std::byte* row = section + 4 + static_cast<uint64_t>(i) * pf::chunk_entry_size;
+            const uint64_t chunk_data_offset = pf::ReadU64(row);
+            const uint64_t stored_size = pf::ReadU64(row + 8);
+            const uint64_t logical_size = pf::ReadU64(row + 16);
             // content_hash (row + 24) is verified by tools, not on the read path.
-            const uint16_t compression = pf2::ReadU16(row + 32);
-            const uint16_t flags = pf2::ReadU16(row + 34);
+            const uint16_t compression = pf::ReadU16(row + 32);
+            const uint16_t flags = pf::ReadU16(row + 34);
 
-            if (compression != pf2::compression_store)
+            if (compression != pf::compression_store)
                 return Result::IoError;
             if (stored_size != logical_size)
                 return Result::IoError;
@@ -485,40 +331,40 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
     }
 
     // ---- Asset table ----
-    struct V2AssetRow {
+    struct AssetRow {
             std::string path{};
             uint32_t parent_dir = 0;
             uint64_t logical_size = 0;
-            std::uint16_t kind = pf2::asset_kind::unknown;
+            std::uint16_t kind = pf::asset_kind::unknown;
             uint64_t content_hash = 0;
             uint32_t chunk_start = 0;
             uint32_t chunk_count = 0;
     };
-    std::vector<V2AssetRow> asset_rows;
+    std::vector<AssetRow> asset_rows;
     {
         const std::byte* section = region.data() + asset_section.offset;
         if (asset_section.size < 4)
             return Result::IoError;
-        const uint32_t count = pf2::ReadU32(section);
-        if (count == 0 || count > pf2::max_asset_count)
+        const uint32_t count = pf::ReadU32(section);
+        if (count == 0 || count > pf::max_asset_count)
             return Result::IoError;
-        if (4 + static_cast<uint64_t>(count) * pf2::asset_entry_size != asset_section.size)
+        if (4 + static_cast<uint64_t>(count) * pf::asset_entry_size != asset_section.size)
             return Result::IoError;
 
         asset_rows.reserve(count);
         for (uint32_t i = 0; i < count; ++i) {
-            const std::byte* row = section + 4 + static_cast<uint64_t>(i) * pf2::asset_entry_size;
-            const uint64_t path_hash = pf2::ReadU64(row);
-            const uint32_t path_str = pf2::ReadU32(row + 8);
-            const uint32_t parent_dir = pf2::ReadU32(row + 12);
-            const uint16_t kind = pf2::ReadU16(row + 16);
-            const uint16_t flags = pf2::ReadU16(row + 18);
-            const uint64_t logical_size = pf2::ReadU64(row + 20);
-            const uint64_t content_hash = pf2::ReadU64(row + 28);
-            const uint32_t chunk_start = pf2::ReadU32(row + 36);
-            const uint32_t chunk_count = pf2::ReadU32(row + 40);
+            const std::byte* row = section + 4 + static_cast<uint64_t>(i) * pf::asset_entry_size;
+            const uint64_t path_hash = pf::ReadU64(row);
+            const uint32_t path_str = pf::ReadU32(row + 8);
+            const uint32_t parent_dir = pf::ReadU32(row + 12);
+            const uint16_t kind = pf::ReadU16(row + 16);
+            const uint16_t flags = pf::ReadU16(row + 18);
+            const uint64_t logical_size = pf::ReadU64(row + 20);
+            const uint64_t content_hash = pf::ReadU64(row + 28);
+            const uint32_t chunk_start = pf::ReadU32(row + 36);
+            const uint32_t chunk_count = pf::ReadU32(row + 40);
 
-            if (flags != 0 || kind > pf2::asset_kind::video)
+            if (flags != 0 || kind > pf::asset_kind::video)
                 return Result::IoError;
             if (path_str >= manifest.strings.size())
                 return Result::IoError;
@@ -527,12 +373,12 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
                 return Result::IoError;
 
             const std::string& path = manifest.strings[path_str];
-            if (!pf2::IsValidPackagePath(path))
+            if (!pf::IsValidPackagePath(path))
                 return Result::IoError;
-            if (pf2::Fnva(path) != path_hash)
+            if (pf::Fnva(path) != path_hash)
                 return Result::IoError;
 
-            asset_rows.push_back(V2AssetRow{path, parent_dir, logical_size, kind, content_hash, chunk_start, chunk_count});
+            asset_rows.push_back(AssetRow{path, parent_dir, logical_size, kind, content_hash, chunk_start, chunk_count});
         }
     }
 
@@ -541,21 +387,21 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
         const std::byte* section = region.data() + dir_section.offset;
         if (dir_section.size < 4)
             return Result::IoError;
-        const uint32_t count = pf2::ReadU32(section);
-        if (count == 0 || count > pf2::max_directory_count)
+        const uint32_t count = pf::ReadU32(section);
+        if (count == 0 || count > pf::max_directory_count)
             return Result::IoError;
-        if (4 + static_cast<uint64_t>(count) * pf2::directory_entry_size != dir_section.size)
+        if (4 + static_cast<uint64_t>(count) * pf::directory_entry_size != dir_section.size)
             return Result::IoError;
 
         manifest.dirs.resize(count);
         for (uint32_t i = 0; i < count; ++i) {
-            const std::byte* row = section + 4 + static_cast<uint64_t>(i) * pf2::directory_entry_size;
-            const uint32_t name_str = pf2::ReadU32(row);
-            const uint32_t parent = pf2::ReadU32(row + 4);
-            const uint32_t first_child = pf2::ReadU32(row + 8);
-            const uint32_t child_count = pf2::ReadU32(row + 12);
-            const uint32_t first_asset = pf2::ReadU32(row + 16);
-            const uint32_t asset_count = pf2::ReadU32(row + 20);
+            const std::byte* row = section + 4 + static_cast<uint64_t>(i) * pf::directory_entry_size;
+            const uint32_t name_str = pf::ReadU32(row);
+            const uint32_t parent = pf::ReadU32(row + 4);
+            const uint32_t first_child = pf::ReadU32(row + 8);
+            const uint32_t child_count = pf::ReadU32(row + 12);
+            const uint32_t first_asset = pf::ReadU32(row + 16);
+            const uint32_t asset_count = pf::ReadU32(row + 20);
 
             if (name_str >= manifest.strings.size())
                 return Result::IoError;
@@ -564,7 +410,7 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
             if (asset_count > 0 && (first_asset >= asset_rows.size() || asset_count > asset_rows.size() - first_asset))
                 return Result::IoError;
 
-            V2Directory& dir = manifest.dirs[i];
+            Directory& dir = manifest.dirs[i];
             dir.name = manifest.strings[name_str];
             dir.parent = parent;
             dir.first_child = first_child;
@@ -575,13 +421,13 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
 
         // Root: index 0, empty name, no parent. Every other node must point at
         // an already-seen parent, which both bounds depth and kills cycles.
-        V2Directory& root = manifest.dirs[pf2::root_directory];
-        if (!root.name.empty() || root.parent != pf2::no_parent)
+        Directory& root = manifest.dirs[pf::root_directory];
+        if (!root.name.empty() || root.parent != pf::no_parent)
             return Result::IoError;
-        manifest.dir_index.emplace("", pf2::root_directory);
+        manifest.dir_index.emplace("", pf::root_directory);
         for (uint32_t i = 1; i < count; ++i) {
-            V2Directory& dir = manifest.dirs[i];
-            if (dir.parent == pf2::no_parent || dir.parent >= i)
+            Directory& dir = manifest.dirs[i];
+            if (dir.parent == pf::no_parent || dir.parent >= i)
                 return Result::IoError;
             if (dir.name.empty() || dir.name.find('/') != std::string::npos)
                 return Result::IoError;
@@ -597,12 +443,12 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
     manifest.files.reserve(asset_rows.size());
     manifest.file_spans.reserve(asset_rows.size());
     for (uint32_t i = 0; i < asset_rows.size(); ++i) {
-        const V2AssetRow& row = asset_rows[i];
+        const AssetRow& row = asset_rows[i];
         if (row.parent_dir >= manifest.dirs.size())
             return Result::IoError;
 
         // The asset's parent chain must match its path prefix.
-        const std::string expected_parent{pf2::PackagePathParent(row.path)};
+        const std::string expected_parent{pf::PackagePathParent(row.path)};
         const auto dir_it = manifest.dir_index.find(expected_parent);
         if (dir_it == manifest.dir_index.end() || dir_it->second != row.parent_dir)
             return Result::IoError;
@@ -629,7 +475,7 @@ auto LoadV2(std::ifstream& input, const uint64_t package_size, V2Manifest& manif
 
     // Directory asset runs must reference the assets that claim them.
     for (uint32_t i = 0; i < manifest.dirs.size(); ++i) {
-        const V2Directory& dir = manifest.dirs[i];
+        const Directory& dir = manifest.dirs[i];
         for (uint32_t a = 0; a < dir.asset_count; ++a) {
             if (asset_rows[dir.first_asset + a].parent_dir != i)
                 return Result::IoError;
@@ -664,15 +510,10 @@ class PackageFileSystem::Impl final {
             if (!stream.is_open())
                 return nullptr;
 
-            if (!is_v2_) {
-                auto file = std::make_unique<PackageReadFile>(std::move(stream), entry.offset, entry.size);
-                return file->IsOpen() ? std::move(file) : nullptr;
-            }
-
             const auto it = index_.find(entry.relative);
-            if (it == index_.end() || it->second >= v2_spans_.size())
+            if (it == index_.end() || it->second >= spans_.size())
                 return nullptr;
-            auto file = std::make_unique<PackageReadFileV2>(std::move(stream), v2_spans_[it->second], entry.size);
+            auto file = std::make_unique<PackageReadFile>(std::move(stream), spans_[it->second], entry.size);
             return file->IsOpen() ? std::move(file) : nullptr;
         }
 
@@ -681,11 +522,10 @@ class PackageFileSystem::Impl final {
         std::vector<PackageEntry> entries_{};
         std::unordered_map<std::string, std::size_t> index_{};
 
-        // v2 only: real directory table and per-file chunk spans.
-        bool is_v2_ = false;
-        std::vector<V2Directory> v2_dirs_{};
-        std::unordered_map<std::string, std::uint32_t> v2_dir_index_{};
-        std::vector<std::vector<ChunkSpan>> v2_spans_{}; // parallel to entries_
+        // Directory table and per-file chunk spans.
+        std::vector<Directory> dirs_{};
+        std::unordered_map<std::string, std::uint32_t> dir_index_{};
+        std::vector<std::vector<ChunkSpan>> spans_{}; // parallel to entries_
 };
 
 PackageFileSystem::PackageFileSystem(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
@@ -708,43 +548,24 @@ auto PackageFileSystem::Create(const std::string_view mount, const std::string_v
     if (!native_fs::is_regular_file(package_path, error) || error)
         return Result::NotFile;
     const uintmax_t package_size = native_fs::file_size(package_path, error);
-    if (error || package_size < package_format::min_header_size + sizeof(uint64_t))
+    if (error || package_size < pf::header_size)
         return Result::IoError;
 
     std::ifstream input{package_path, std::ios::binary};
     if (!input.is_open())
         return Result::IoError;
 
-    char magic[4]{};
-    input.read(magic, 4);
-    if (!input || !std::equal(std::begin(package_format::magic), std::end(package_format::magic), magic))
-        return Result::IoError;
-
-    uint16_t version = 0;
-    input.read(reinterpret_cast<char*>(&version), sizeof(version));
-    if (!input)
-        return Result::IoError;
-
     auto impl = std::make_unique<Impl>(std::string{mount}, atom::PathToUtf8(package_path));
 
-    if (version == package_format::version) {
-        const Result loaded = LoadV1(input, package_size, impl->entries_, impl->index_);
-        if (loaded != Result::Success)
-            return loaded;
-    } else if (version == pf2::version) {
-        V2Manifest manifest{};
-        const Result loaded = LoadV2(input, package_size, manifest);
-        if (loaded != Result::Success)
-            return loaded;
-        impl->is_v2_ = true;
-        impl->entries_ = std::move(manifest.files);
-        impl->index_ = std::move(manifest.file_index);
-        impl->v2_dirs_ = std::move(manifest.dirs);
-        impl->v2_dir_index_ = std::move(manifest.dir_index);
-        impl->v2_spans_ = std::move(manifest.file_spans);
-    } else {
-        return Result::IoError;
-    }
+    Manifest manifest{};
+    const Result loaded = LoadManifest(input, package_size, manifest);
+    if (loaded != Result::Success)
+        return loaded;
+    impl->entries_ = std::move(manifest.files);
+    impl->index_ = std::move(manifest.file_index);
+    impl->dirs_ = std::move(manifest.dirs);
+    impl->dir_index_ = std::move(manifest.dir_index);
+    impl->spans_ = std::move(manifest.file_spans);
 
     output = std::unique_ptr<PackageFileSystem>{new PackageFileSystem{std::move(impl)}};
     return Result::Success;
@@ -766,20 +587,9 @@ auto PackageFileSystem::Stat(const AssetPath& path, FileInfo& output) const -> R
         return Result::Success;
     }
 
-    if (impl_->is_v2_) {
-        if (impl_->v2_dir_index_.contains(relative)) {
-            output = {EntryType::Directory, 0};
-            return Result::Success;
-        }
-        return Result::NotFound;
-    }
-
-    const std::string prefix = relative + "/";
-    for (const PackageEntry& entry : impl_->entries_) {
-        if (entry.relative.starts_with(prefix)) {
-            output = {EntryType::Directory, 0};
-            return Result::Success;
-        }
+    if (impl_->dir_index_.contains(relative)) {
+        output = {EntryType::Directory, 0};
+        return Result::Success;
     }
     return Result::NotFound;
 }
@@ -813,54 +623,20 @@ auto PackageFileSystem::List(const AssetPath& directory, std::vector<DirectoryEn
     if (info.type != EntryType::Directory)
         return Result::NotDirectory;
 
-    if (impl_->is_v2_) {
-        const std::string relative = directory.IsRoot() ? std::string{} : NormalizeRelative(directory.Relative());
-        const auto dir_it = impl_->v2_dir_index_.find(relative);
-        if (dir_it == impl_->v2_dir_index_.end())
-            return Result::NotFound;
-        const V2Directory& dir = impl_->v2_dirs_[dir_it->second];
+    const std::string relative = directory.IsRoot() ? std::string{} : NormalizeRelative(directory.Relative());
+    const auto dir_it = impl_->dir_index_.find(relative);
+    if (dir_it == impl_->dir_index_.end())
+        return Result::NotFound;
+    const Directory& dir = impl_->dirs_[dir_it->second];
 
-        output.reserve(dir.child_count + dir.asset_count);
-        for (uint32_t c = 0; c < dir.child_count; ++c)
-            output.push_back(DirectoryEntry{impl_->v2_dirs_[dir.first_child + c].name, {EntryType::Directory, 0}});
-        for (uint32_t a = 0; a < dir.asset_count; ++a) {
-            const PackageEntry& entry = impl_->entries_[dir.first_asset + a];
-            output.push_back(
-                DirectoryEntry{std::string{pf2::PackagePathName(entry.relative)}, {EntryType::File, entry.size}});
-        }
-        std::ranges::sort(output, {}, &DirectoryEntry::name);
-        return Result::Success;
+    output.reserve(dir.child_count + dir.asset_count);
+    for (uint32_t c = 0; c < dir.child_count; ++c)
+        output.push_back(DirectoryEntry{impl_->dirs_[dir.first_child + c].name, {EntryType::Directory, 0}});
+    for (uint32_t a = 0; a < dir.asset_count; ++a) {
+        const PackageEntry& entry = impl_->entries_[dir.first_asset + a];
+        output.push_back(
+            DirectoryEntry{std::string{pf::PackagePathName(entry.relative)}, {EntryType::File, entry.size}});
     }
-
-    const std::string prefix = directory.IsRoot() ? std::string{} : NormalizeRelative(directory.Relative()) + "/";
-    std::map<std::string, DirectoryEntry> merged{};
-    for (const PackageEntry& entry : impl_->entries_) {
-        if (!prefix.empty()) {
-            if (!entry.relative.starts_with(prefix))
-                continue;
-            const std::string remainder = entry.relative.substr(prefix.size());
-            if (remainder.empty())
-                continue;
-            const std::size_t slash = remainder.find('/');
-            const std::string name = remainder.substr(0, slash == std::string::npos ? remainder.size() : slash);
-            if (slash == std::string::npos)
-                merged.insert_or_assign(name, DirectoryEntry{name, {EntryType::File, entry.size}});
-            else
-                merged.try_emplace(name, DirectoryEntry{name, {EntryType::Directory, 0}});
-            continue;
-        }
-
-        const std::size_t slash = entry.relative.find('/');
-        const std::string name = entry.relative.substr(0, slash == std::string::npos ? entry.relative.size() : slash);
-        if (slash == std::string::npos)
-            merged.insert_or_assign(name, DirectoryEntry{name, {EntryType::File, entry.size}});
-        else
-            merged.try_emplace(name, DirectoryEntry{name, {EntryType::Directory, 0}});
-    }
-
-    output.reserve(merged.size());
-    for (auto& [name, entry] : merged)
-        output.push_back(std::move(entry));
     std::ranges::sort(output, {}, &DirectoryEntry::name);
     return Result::Success;
 }

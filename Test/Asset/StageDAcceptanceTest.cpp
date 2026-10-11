@@ -12,13 +12,13 @@
 #include <Asset/ScriptSourceLoader.hpp>
 #include <Filesystem/MemoryFileSystem.hpp>
 #include <Filesystem/PackageFileSystem.hpp>
-#include <Filesystem/PackageFormat.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Media/Audio/Resources/AudioClipResourceLoader.hpp>
 #include <Media/Image/DecodedImageLoader.hpp>
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Test/Support/TestHelpers.hpp>
+#include <Utilities/Packager/PackageBuilder.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
 #include <array>
@@ -132,46 +132,32 @@ class TemporaryDirectory final {
         native_fs::path root_{};
 };
 
-// Minimal APKG v1 writer (mirrors Utilities/Packager, binary-safe).
+// Writes the test assets to disk and packs them into an APKG package via the
+// engine's PackageBuilder, mirroring the real packaging pipeline.
 auto WriteApkg(const native_fs::path& package,
                const std::vector<std::pair<std::string, std::vector<std::byte>>>& files) -> bool {
-    std::ofstream output{package, std::ios::binary | std::ios::trunc};
-    if (!output.is_open())
+    // Stage each asset as a real file under a scratch directory so
+    // PackageBuilder can read them back by path.
+    TemporaryDirectory scratch{};
+    if (!TemporaryDirectory::Create(scratch))
         return false;
 
-    output.write("APKG", 4);
-    // Written from the shared format contract, pinned to APKG v1.
-    static_assert(atom::fs::package_format::version == 1, "this test writes APKG v1");
-    const uint16_t version = atom::fs::package_format::version;
-    output.write(reinterpret_cast<const char*>(&version), sizeof(version));
-    const uint32_t count = static_cast<uint32_t>(files.size());
-    output.write(reinterpret_cast<const char*>(&count), sizeof(count));
-
-    struct Row {
-            std::string name{};
-            uint64_t offset = 0;
-            uint64_t size = 0;
-    };
-    std::vector<Row> rows{};
-    rows.reserve(files.size());
+    atom::tools::PackageBuilder builder{};
     for (const auto& [name, data] : files) {
-        Row row{name, static_cast<uint64_t>(output.tellp()), data.size()};
+        const native_fs::path file_path = scratch.Root() / name;
+        std::error_code error;
+        native_fs::create_directories(file_path.parent_path(), error);
+        if (error)
+            return false;
+        std::ofstream output{file_path, std::ios::binary | std::ios::trunc};
+        if (!output.is_open())
+            return false;
         output.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
-        rows.push_back(std::move(row));
+        output.close();
+        if (builder.AddFile(atom::PathToUtf8(file_path), name) != atom::tools::PackageBuilder::Result::Success)
+            return false;
     }
-
-    const auto table_offset = static_cast<uint64_t>(output.tellp());
-    for (const auto& row : rows) {
-        const auto name_length = static_cast<uint16_t>(row.name.size());
-        output.write(reinterpret_cast<const char*>(&name_length), sizeof(name_length));
-        output.write(row.name.data(), name_length);
-        output.write(reinterpret_cast<const char*>(&row.offset), sizeof(row.offset));
-        output.write(reinterpret_cast<const char*>(&row.size), sizeof(row.size));
-        const uint8_t type_length = 0;
-        output.write(reinterpret_cast<const char*>(&type_length), sizeof(type_length));
-    }
-    output.write(reinterpret_cast<const char*>(&table_offset), sizeof(table_offset));
-    return static_cast<bool>(output);
+    return builder.Build(atom::PathToUtf8(package)) == atom::tools::PackageBuilder::Result::Success;
 }
 
 } // namespace

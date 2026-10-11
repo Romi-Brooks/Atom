@@ -1,7 +1,7 @@
 /**
   * @file           : PackageBuilder.hpp
-  * @brief          : APKG v2 package writer.
-  * @attention      : Writes the layout defined in Filesystem/PackageFormatV2.hpp;
+  * @brief          : APKG package writer.
+  * @attention      : Writes the layout defined in Filesystem/PackageFormat.hpp;
   *                   never restate format constants here. The v1 Packager class
   *                   stays untouched for compatibility.
   *
@@ -51,7 +51,7 @@ class PackageBuilder {
 
         // Queues one native file under an explicit package path
         // ("textures/ui/button.png"). The package path must satisfy
-        // package_format_v2::IsValidPackagePath.
+        // package_format::IsValidPackagePath.
         auto AddFile(const std::string& native_path_utf8, const std::string& package_path) -> Result;
 
         // Recursively queues a native directory; package paths are the
