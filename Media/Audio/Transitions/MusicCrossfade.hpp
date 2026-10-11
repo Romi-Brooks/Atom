@@ -69,4 +69,4 @@ class MusicCrossfade final {
         Callback callback_;
 };
 } // namespace atom::audio
-#endif
+#endif // ATOM_MUSIC_CROSSFADE_HPP

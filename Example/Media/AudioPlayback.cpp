@@ -171,9 +171,8 @@ auto main() -> int {
     music.Load("registerId_1", *filesystem, music1);
     music.Load("registerId_2", *filesystem, music2);
 
-    auto* music_screen =
-        atom::ScreenManager::GetInstance().LoadScreen("MusicPlayback", std::make_unique<MusicScreen>(music_fade));
-    atom::ScreenManager::GetInstance().SwitchScreen(music_screen);
+    atom::ScreenManager::GetInstance().LoadScreen("MusicPlayback", std::make_unique<MusicScreen>(music_fade));
+    atom::ScreenManager::GetInstance().SwitchScreen("MusicPlayback");
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},

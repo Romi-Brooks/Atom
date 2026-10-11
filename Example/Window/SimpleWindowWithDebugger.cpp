@@ -78,11 +78,18 @@ auto main() -> int {
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
     // Screen Register
-    auto* example_screen = atom::ScreenManager::GetInstance().LoadScreen(
-        "ExampleScreen", std::make_unique<ExampleScreen>());
+    if (const auto loaded = atom::ScreenManager::GetInstance().LoadScreen(
+            "ExampleScreen", std::make_unique<ExampleScreen>());
+        loaded != atom::ScreenOpResult::Success) {
+        LOG_ERROR(atom::log::core::ScreenManager,
+                  "Failed to register the example screen: " + std::string{atom::ToString(loaded)});
+        return 1;
+    }
 
-    // Select this screen
-    atom::ScreenManager::GetInstance().SwitchScreen(example_screen);
+    // Select this screen (the manager owns the instance; borrow it back for the
+    // screen-scoped debug panel below).
+    auto* example_screen = atom::ScreenManager::GetInstance().GetScreen("ExampleScreen");
+    atom::ScreenManager::GetInstance().SwitchScreen("ExampleScreen");
 
     // Give a window instance
     auto& window = atom::RenderWindow::GetInstance();

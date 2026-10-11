@@ -14,7 +14,7 @@ auto RenderBackendRuntime::GetInstance() -> RenderBackendRuntime& {
 }
 
 auto RenderBackendRuntime::EnsureDefaultRenderBackend() -> void {
-    const auto id = RenderBackendRegistry::kDefaultBackendId;
+    const auto id = RenderBackendRegistry::default_backend_id;
     const auto id_string = ToString(id);
 
     auto& registry = RenderBackendRegistry::GetInstance();

@@ -32,4 +32,4 @@ class BackendRegistry final {
 
 } // namespace atom::backend
 
-#endif
+#endif // ATOM_BACKEND_REGISTRY_BACKEND_REGISTRY_HPP

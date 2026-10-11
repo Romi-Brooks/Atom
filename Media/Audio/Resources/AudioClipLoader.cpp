@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
@@ -56,6 +57,13 @@ auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::s
     if (dot == std::string::npos) {
         LOG_WARNING(atom::log::audio::Music,
                     std::string{operation} + ": no file extension, cannot select a decoder: " + label);
+        return nullptr;
+    }
+
+    // Numeric contract (ARCH-006): a null pointer with a non-zero length, or an
+    // empty buffer, is a caller bug that no decoder should have to survive.
+    if (!atom::numeric::IsValidBuffer(memory_data, memory_size)) {
+        LOG_WARNING(atom::log::audio::Music, std::string{operation} + ": empty or null memory buffer for: " + label);
         return nullptr;
     }
 

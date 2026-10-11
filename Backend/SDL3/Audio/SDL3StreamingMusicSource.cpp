@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <new>
 
 #include <SDL3/SDL.h>
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3 {
@@ -13,7 +15,9 @@ namespace atom::backend::sdl3 {
 SDL3StreamingMusicSource::SDL3StreamingMusicSource(std::unique_ptr<atom::audio::IAudioDecoder> decoder,
                                                    const SDL_AudioSpec& spec)
     : spec_(spec), decoder_(std::move(decoder)) {
-    ring_buffer_.resize(kRingBufferCapacity);
+    // The ring buffer is allocated lazily by BeginDecoding(): a source that was
+    // only opened (the common case for prefetched neighbours of the current
+    // track) must not reserve megabytes of PCM it may never decode.
 }
 
 SDL3StreamingMusicSource::~SDL3StreamingMusicSource() {
@@ -35,6 +39,26 @@ auto SDL3StreamingMusicSource::ReleaseBackendHandles() -> void {
     write_idx_ = 0;
     eof_ = false;
     decode_error_ = false;
+    // A detached source will never decode again, so return its ring buffer to
+    // the allocator instead of pinning it until the source is destroyed.
+    if (!ring_buffer_.empty()) {
+        ring_buffer_.clear();
+        ring_buffer_.shrink_to_fit();
+    }
+}
+
+auto SDL3StreamingMusicSource::EnsureRingBuffer() -> bool {
+    if (!ring_buffer_.empty())
+        return true;
+    try {
+        ring_buffer_.resize(ring_buffer_capacity);
+    } catch (const std::bad_alloc&) {
+        LOG_ERROR(atom::log::audio::Music,
+                  "Failed to allocate the " + std::to_string(ring_buffer_capacity) +
+                      "-byte streaming ring buffer; playback cannot start");
+        return false;
+    }
+    return true;
 }
 
 auto SDL3StreamingMusicSource::ReadableBytes() const -> std::size_t {
@@ -43,7 +67,7 @@ auto SDL3StreamingMusicSource::ReadableBytes() const -> std::size_t {
 
 auto SDL3StreamingMusicSource::WritableBytes() const -> std::size_t {
     const auto used = ReadableBytes();
-    return used < kRingBufferCapacity ? kRingBufferCapacity - used : 0;
+    return used < ring_buffer_capacity ? ring_buffer_capacity - used : 0;
 }
 
 auto SDL3StreamingMusicSource::EnsureStream() -> bool {
@@ -80,6 +104,8 @@ auto SDL3StreamingMusicSource::Play() -> void {
     }
 
     if (state_.load() == atom::audio::AudioSourceState::Paused) {
+        if (!EnsureRingBuffer())
+            return;
         state_ = atom::audio::AudioSourceState::Playing;
         SDL_ResumeAudioStreamDevice(stream_);
         if (!thread_running_.exchange(true)) {
@@ -105,7 +131,10 @@ auto SDL3StreamingMusicSource::Play() -> void {
         position_base_frames_ = 0;
     }
 
-    BeginDecoding();
+    if (!BeginDecoding()) {
+        LOG_WARNING(atom::log::audio::Music, "Play(): could not start the decode thread");
+        return;
+    }
     LOG_INFO(atom::log::audio::Music, "Streaming playback started");
 }
 
@@ -129,7 +158,9 @@ auto SDL3StreamingMusicSource::HaltDecoding() -> void {
     decoder_positioned_ = false;
 }
 
-auto SDL3StreamingMusicSource::BeginDecoding() -> void {
+auto SDL3StreamingMusicSource::BeginDecoding() -> bool {
+    if (!EnsureRingBuffer())
+        return false;
     if (decode_thread_.joinable())
         decode_thread_.join();
     read_idx_ = 0;
@@ -144,6 +175,7 @@ auto SDL3StreamingMusicSource::BeginDecoding() -> void {
     if (!SDL_ResumeAudioStreamDevice(stream_)) {
         LOG_ERROR(atom::log::audio::Music, "SDL_ResumeAudioStreamDevice failed: " + std::string(SDL_GetError()));
     }
+    return true;
 }
 
 auto SDL3StreamingMusicSource::Stop() -> void {
@@ -179,9 +211,11 @@ auto SDL3StreamingMusicSource::GetState() const -> atom::audio::AudioSourceState
 }
 
 auto SDL3StreamingMusicSource::SetVolume(float volume) -> void {
-    volume_.store(volume);
+    // Numeric contract (ARCH-006): clamped and NaN-free before the gain is set.
+    const float clamped = atom::numeric::SanitizeVolume(volume);
+    volume_.store(clamped);
     if (stream_) {
-        SDL_SetAudioStreamGain(stream_, volume / 100.0f);
+        SDL_SetAudioStreamGain(stream_, clamped / 100.0f);
     }
 }
 
@@ -204,8 +238,13 @@ auto SDL3StreamingMusicSource::SetPlayingOffset(const float seconds) -> bool {
     if (info.sample_rate == 0)
         return false;
 
-    const auto target_frame =
-        static_cast<std::uint64_t>(std::max(seconds, 0.0f) * static_cast<float>(info.sample_rate));
+    // Numeric contract (ARCH-006): a NaN/infinite position would make the frame
+    // conversion UB.
+    float requested = 0.0f;
+    if (!atom::numeric::TrySanitizeOffsetSeconds(seconds, requested))
+        return false;
+
+    const auto target_frame = static_cast<std::uint64_t>(requested * static_cast<float>(info.sample_rate));
 
     // "Back to the start" is always available (Rewind); anything else needs a
     // decoder that can jump. Do not pretend to seek when it cannot.
@@ -233,7 +272,12 @@ auto SDL3StreamingMusicSource::SetPlayingOffset(const float seconds) -> bool {
             decoder_positioned_ = true;
             return false;
         }
-        BeginDecoding();
+        if (!BeginDecoding()) {
+            LOG_WARNING(atom::log::audio::Music,
+                        "SetPlayingOffset: seek applied, but the decode thread could not be restarted");
+            decoder_positioned_ = true;
+            return false;
+        }
     } else {
         // A later Play() must start here instead of rewinding over the seek.
         decoder_positioned_ = true;
@@ -282,15 +326,15 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
     SDL_ResumeAudioStreamDevice(stream_);
 
     const auto bytes_per_frame = SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
-    const auto chunk_frames = static_cast<std::size_t>(spec_.freq * kChunkDuration);
+    const auto chunk_frames = static_cast<std::size_t>(spec_.freq * chunk_duration);
     const std::size_t stream_chunk =
         std::clamp(chunk_frames * bytes_per_frame, std::size_t{4096}, std::size_t{1048576});
     const auto bytes_per_second = static_cast<std::size_t>(spec_.freq) * bytes_per_frame;
     const auto watermark =
-        std::min(kRingBufferCapacity, static_cast<std::size_t>(bytes_per_second * kRingHighWaterDuration));
+        std::min(ring_buffer_capacity, static_cast<std::size_t>(bytes_per_second * ring_high_water_duration));
     const auto sdl_queue_target =
-        std::max(stream_chunk, static_cast<std::size_t>(bytes_per_second * kSDLQueueTargetDuration));
-    const auto progress_interval_frames = static_cast<std::uint64_t>(spec_.freq * kProgressLogIntervalSeconds);
+        std::max(stream_chunk, static_cast<std::size_t>(bytes_per_second * sdl_queue_target_duration));
+    const auto progress_interval_frames = static_cast<std::uint64_t>(spec_.freq * progress_log_interval_seconds);
 
     LOG_DEBUG(atom::log::backend::Audio::sdl3,
               "DecodeLoop (streaming) started: chunk=" + std::to_string(stream_chunk) +
@@ -303,8 +347,8 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
             const auto writable = WritableBytes();
             if (writable >= stream_chunk) {
                 const auto wi = write_idx_.load();
-                auto* dst = ring_buffer_.data() + (wi % kRingBufferCapacity);
-                const auto contiguous = kRingBufferCapacity - (wi % kRingBufferCapacity);
+                auto* dst = ring_buffer_.data() + (wi % ring_buffer_capacity);
+                const auto contiguous = ring_buffer_capacity - (wi % ring_buffer_capacity);
                 const auto to_decode = std::min({writable, contiguous, stream_chunk});
 
                 const auto decoded = decoder_->DecodeChunk(dst, static_cast<std::uint32_t>(to_decode));
@@ -342,8 +386,8 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         const auto queued = queued_result > 0 ? static_cast<std::size_t>(queued_result) : 0;
         if (readable > 0 && queued < sdl_queue_target) {
             const auto ri = read_idx_.load();
-            auto* src = ring_buffer_.data() + (ri % kRingBufferCapacity);
-            const auto contiguous = kRingBufferCapacity - (ri % kRingBufferCapacity);
+            auto* src = ring_buffer_.data() + (ri % ring_buffer_capacity);
+            const auto contiguous = ring_buffer_capacity - (ri % ring_buffer_capacity);
             auto to_push = std::min({readable, contiguous, stream_chunk});
             if (eof_.load()) {
                 // At EOF, push whatever remains — don't wait for a full chunk.

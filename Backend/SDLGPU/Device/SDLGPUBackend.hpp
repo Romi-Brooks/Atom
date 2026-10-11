@@ -34,4 +34,4 @@ class SDLGPUBackend final : public render::IRenderBackend {
 
 } // namespace atom::backend::sdlgpu
 
-#endif
+#endif // ATOM_BACKEND_SDLGPU_BACKEND_HPP

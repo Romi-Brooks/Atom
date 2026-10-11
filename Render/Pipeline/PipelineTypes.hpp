@@ -19,8 +19,8 @@ namespace atom::render {
 // frontend only stores and passes these opaque values.
 using ShaderProgramHandle = uint64_t;
 using PipelineHandle = uint64_t;
-inline constexpr ShaderProgramHandle kInvalidShaderProgram = 0;
-inline constexpr PipelineHandle kInvalidPipeline = 0;
+inline constexpr ShaderProgramHandle invalid_shader_program = 0;
+inline constexpr PipelineHandle invalid_pipeline = 0;
 
 enum class VertexFormat : uint8_t {
     Float1,
@@ -70,8 +70,8 @@ struct DepthStencilState {
 // The common graphics-pipeline description used by Renderer2D/Renderer3D.
 // Backend adapters translate this into SDL_GPU/Vulkan/D3D/Metal state.
 struct GraphicsPipelineDesc {
-    ShaderProgramHandle vertex_shader = kInvalidShaderProgram;
-    ShaderProgramHandle fragment_shader = kInvalidShaderProgram;
+    ShaderProgramHandle vertex_shader = invalid_shader_program;
+    ShaderProgramHandle fragment_shader = invalid_shader_program;
     VertexLayout vertex_layout{};
     BlendState blend{};
     RasterState raster{};

@@ -82,7 +82,7 @@ class RenderWindow {
                 double last_change_seconds = 0.0;
         };
         std::optional<PendingResize> pending_resize_{};
-        static constexpr double kResizeSettleDelaySeconds = 0.2;
+        static constexpr double resize_settle_delay_seconds = 0.2;
 
         // --- Listener registry storage (multi-slot) ---
         struct EventListenerEntry {

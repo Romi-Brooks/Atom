@@ -6,7 +6,7 @@
 **/
 
 #include "ContextBridge.hpp"
-#include "lua.hpp"
+#include <Lua/lua.hpp>
 
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
@@ -27,49 +27,49 @@ auto Crossfade(const atom::LuaContext& context, lua_State* L) -> atom::audio::Mu
 }
 
 int LuaMusicLoad(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     lua_pushboolean(L, Music(context, L).Load(luaL_checkstring(L, 1), luaL_checkstring(L, 2)));
     return 1;
 }
 
 int LuaMusicPlay(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     Music(context, L).Play(luaL_checkstring(L, 1), static_cast<float>(luaL_optnumber(L, 2, 100.0)));
     return 0;
 }
 
 int LuaMusicStop(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     Music(context, L).Stop(luaL_checkstring(L, 1));
     return 0;
 }
 
 int LuaMusicSetVolume(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     Music(context, L).SetVolume(luaL_checkstring(L, 1), static_cast<float>(luaL_checknumber(L, 2)));
     return 0;
 }
 
 int LuaMusicIsLoaded(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     lua_pushboolean(L, Music(context, L).IsLoaded(luaL_checkstring(L, 1)));
     return 1;
 }
 
 int LuaMusicCrossfade(lua_State* L) {
-    const auto& context = *atom::GetLuaContext(L);
+    const auto& context = atom::RequireLuaContext(L);
     lua_pushboolean(L, Crossfade(context, L).Switch(luaL_checkstring(L, 1),
                                                     static_cast<float>(luaL_optnumber(L, 2, 2.0))));
     return 1;
 }
 
 int LuaMusicCancelTransition(lua_State* L) {
-    Crossfade(*atom::GetLuaContext(L), L).Cancel();
+    Crossfade(atom::RequireLuaContext(L), L).Cancel();
     return 0;
 }
 
 int LuaMusicGetTransitionProgress(lua_State* L) {
-    lua_pushnumber(L, Crossfade(*atom::GetLuaContext(L), L).GetProgress());
+    lua_pushnumber(L, Crossfade(atom::RequireLuaContext(L), L).GetProgress());
     return 1;
 }
 

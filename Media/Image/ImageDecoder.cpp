@@ -9,9 +9,12 @@
 
 #include "ImageDecoder.hpp"
 
+#include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <memory>
 
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Log/LogSystem.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -52,6 +55,29 @@ auto DecodeImageMemory(std::span<const std::byte> data, const bool flip_vertical
         LOG_WARNING(atom::log::image::Decoder, "Image memory input is empty or exceeds stb_image limits");
         return {};
     }
+
+    // Peek at the header before decoding: stbi_load_from_memory allocates
+    // width * height * 4 bytes up front, so an untrusted dimension must be
+    // rejected before that allocation happens (ARCH-006: no unbounded
+    // allocation driven by a file header). The budget is on the decoded surface
+    // as a whole, not per axis, so a legitimate thin strip still decodes. A
+    // header that cannot be probed is left to the real decode, which reports its
+    // own failure.
+    int probe_width = 0;
+    int probe_height = 0;
+    int probe_channels = 0;
+    if (stbi_info_from_memory(reinterpret_cast<const stbi_uc*>(data.data()), static_cast<int>(data.size()),
+                              &probe_width, &probe_height, &probe_channels) &&
+        !atom::numeric::IsWithinDecodedImageBudget(static_cast<std::uint32_t>(std::max(probe_width, 0)),
+                                                   static_cast<std::uint32_t>(std::max(probe_height, 0)))) {
+        LOG_WARNING(atom::log::image::Decoder,
+                    "Image rejected before decode: " + std::to_string(probe_width) + "x" +
+                        std::to_string(probe_height) + " exceeds the decoded-image budget (" +
+                        std::to_string(atom::numeric::max_decoded_image_bytes / (1024u * 1024u)) +
+                        " MiB of RGBA per image)");
+        return {};
+    }
+
     int width = 0;
     int height = 0;
     int channels = 0;

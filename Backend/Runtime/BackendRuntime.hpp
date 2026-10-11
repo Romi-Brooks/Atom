@@ -92,4 +92,4 @@ class BackendRuntime final {
 
 } // namespace atom::backend
 
-#endif
+#endif // ATOM_BACKEND_RUNTIME_BACKEND_RUNTIME_HPP

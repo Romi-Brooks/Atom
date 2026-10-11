@@ -27,7 +27,7 @@ namespace atom::layout {
 class LayoutTree final {
     public:
         using NodeId = uint32_t;
-        static constexpr NodeId kInvalidNode = 0;
+        static constexpr NodeId invalid_node = 0;
 
         explicit LayoutTree(bool use_web_defaults = true);
         ~LayoutTree() = default;
@@ -63,7 +63,7 @@ class LayoutTree final {
         LayoutConfig config_;
         std::vector<std::unique_ptr<LayoutNode>> nodes_{};
         std::vector<NodeId> parents_{};
-        NodeId root_id_ = kInvalidNode;
+        NodeId root_id_ = invalid_node;
 };
 
 } // namespace atom::layout

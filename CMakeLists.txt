@@ -23,6 +23,30 @@ add_subdirectory(ThirdParty)
 
 include(Render/Shader/AtomShaders.cmake)
 
+# ============================================================================
+# MinGW runtime linking
+# ============================================================================
+# Both settings must be in place before the first Atom target is created and
+# before add_subdirectory(Test): CMake captures these variables per directory
+# scope, so setting them further down this file silently skips every target
+# already defined. That is exactly how the test executables ended up dynamically
+# linked against libstdc++-6.dll / libgcc_s_seh-1.dll with no copy of either DLL
+# produced anywhere, while Atom.exe got both flags and worked.
+if(MINGW)
+    # Statically link libgcc and libstdc++ so executables do not require
+    # libgcc_s_seh-1.dll / libstdc++-6.dll. Plain "-static" is avoided: this
+    # toolchain's static winpthread archive is built for UCRT and references
+    # __intrinsic_setjmpex, which the MSVCRT runtime sequence does not provide
+    # (undefined reference at link time).
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+
+    # libwinpthread stays a DLL, and Windows resolves it next to the loading
+    # executable rather than in a parent directory -- so tests built into Test/
+    # could never see the copy made for the build root. Collecting every Atom
+    # executable in one directory lets a single copy serve all of them.
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()
+
 
 # ============================================================================
 # Engine Libraries
@@ -58,6 +82,7 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/Contracts/Audio/IAudioSource.hpp
         Backend/Contracts/Audio/NullAudioBackend.hpp
         Backend/Contracts/Debug/IDebugImGuiBackend.hpp
+        Backend/Contracts/Numeric/NumericContract.hpp
         Backend/Contracts/Render/IRender2DContext.hpp
         Backend/Contracts/Render/IRenderBackend.hpp
         Backend/Contracts/Render/IRenderDevice.hpp
@@ -88,6 +113,18 @@ include(Render/Shader/AtomShaders.cmake)
     target_include_directories(Atom_Time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Time PUBLIC Atom_Backend_Contracts)
 
+# 0d. Concurrency — work-stealing job scheduler over a fixed worker pool.
+#     Standalone foundation with no dependency on Log/Time/backend; every
+#     subsystem (audio decode, asset loading, physics, AI) can schedule work
+#     through it. Header-only deque + job types, with a compiled scheduler.
+    add_library(Atom_Concurrency STATIC
+        Concurrency/Job.hpp
+        Concurrency/WorkStealingDeque.hpp
+        Concurrency/JobSystem.hpp
+        Concurrency/JobSystem.cpp
+    )
+    target_include_directories(Atom_Concurrency PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 # 1. Log
     add_library(Atom_Log STATIC
             Log/LogSystem.cpp
@@ -97,6 +134,11 @@ include(Render/Shader/AtomShaders.cmake)
     )
     target_include_directories(Atom_Log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Log PUBLIC Atom_Backend_Contracts)
+
+    # The job scheduler logs lifecycle + swallowed-exception diagnostics, so it
+    # depends on the log runtime. PUBLIC so any JobSystem consumer (e.g. the
+    # standalone tour example) links the log symbols transitively.
+    target_link_libraries(Atom_Concurrency PUBLIC Atom_Log)
 
 # 2. Algorithm
     add_library(Atom_Algorithm STATIC
@@ -147,7 +189,9 @@ include(Render/Shader/AtomShaders.cmake)
         Backend/SDL3/Time/SDL3TimeSource.hpp
     )
     target_include_directories(Atom_Backend_SDL3_Core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_SDL3_Core PUBLIC Atom_3rd_SDL3)
+    # SDL3TimeSource implements backend::ITimeSource, so the contract library is
+    # a real dependency here, not just an include path that happens to resolve.
+    target_link_libraries(Atom_Backend_SDL3_Core PUBLIC Atom_3rd_SDL3 Atom_Backend_Contracts)
 
 # 3a. SDL3 window platform layer
     add_library(Atom_Backend_SDL3_Window STATIC
@@ -355,6 +399,7 @@ add_library(Atom_FS STATIC
     Filesystem/OverlayFileSystem.cpp
     Filesystem/Vfs.hpp
     Filesystem/Vfs.cpp
+    Filesystem/PackageFormat.hpp
     Filesystem/PackageFileSystem.hpp
     Filesystem/PackageFileSystem.cpp
 )
@@ -401,10 +446,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
 
 # 8. Packager
     add_library(Atom_Packager STATIC
-            Utilities/Packager/Unpackager.cpp
-            Utilities/Packager/Unpackager.hpp
-            Utilities/Packager/Packager.cpp
-            Utilities/Packager/Packager.hpp
+            Utilities/Packager/PackageBuilder.cpp
+            Utilities/Packager/PackageBuilder.hpp
     )
     target_include_directories(Atom_Packager PUBLIC Utilities/Packager)
     target_link_libraries(Atom_Packager PUBLIC Atom_UTF8 Atom_Log)
@@ -445,6 +488,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Debugger/PanelLayout.hpp
             Debugger/PanelLayout.cpp
             Debugger/Overlay.hpp
+            Debugger/JobSystemDebugger.hpp
+            Debugger/JobSystemDebugger.cpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     if(ATOM_ENABLE_DEBUGGER STREQUAL "ON")
@@ -454,7 +499,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
         target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=0)
         target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=0)
     endif()
-    target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3)
+    target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3 Atom_Concurrency)
     target_link_libraries(Atom_Debugger PRIVATE Atom_Backend_SDLGPU_Debug)
     if(WIN32)
         target_link_libraries(Atom_Debugger PUBLIC opengl32 gdi32)
@@ -465,6 +510,10 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_include_directories(Atom_Core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Core INTERFACE
             Atom_Algorithm
+            # Time is consumed directly by upper layers through
+            # TimeSystem::GetInstance(), not only transitively via Atom_Window.
+            Atom_Time
+            Atom_Concurrency
             Atom_Layout
             Atom_Media
             Atom_Packager
@@ -483,6 +532,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     add_library(Atom_Lua STATIC
             Lua/lua.hpp
             Lua/LuaContext.hpp
+            Lua/LuaGuard.hpp
             Lua/BindingRegistry.hpp
             Lua/LuaHost.hpp
             Lua/LuaHost.cpp
@@ -529,7 +579,11 @@ target_link_libraries(Example_Simple_Window_Debug PRIVATE Atom_Window Atom_Debug
 
 # Audio metadata example (uses the engine's AudioMetadataReader)
 add_executable(Example_Audio_Metadata Example/Media/AudioMetadata.cpp)
-target_link_libraries(Example_Audio_Metadata PRIVATE Atom_Media)
+target_link_libraries(Example_Audio_Metadata PRIVATE Atom_Media Atom_Concurrency)
+
+# Job system tutorial — a self-contained walkthrough of the scheduler API.
+add_executable(Example_Job_System_Tour Example/Concurrency/JobSystemTour.cpp)
+target_link_libraries(Example_Job_System_Tour PRIVATE Atom_Concurrency)
 
 # Resource-pack playback example
 add_executable(Example_Packaged_Music Example/Media/PackagedMusicPlayback.cpp)
@@ -548,7 +602,13 @@ target_link_libraries(Example_Lua_Scripting PRIVATE
 # MusicCard example — Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
 # and an optional ImGui overlay for debug controls.
-add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp)
+add_executable(Example_MusicCard
+    Example/MusicCard/MusicCard.cpp
+    Example/MusicCard/MusicCardScreen.cpp
+    Example/MusicCard/MusicCardTypes.hpp
+    Example/MusicCard/MusicCardScreen.hpp
+    Example/MusicCard/MusicCardDebugger.hpp
+)
 target_link_libraries(Example_MusicCard PRIVATE
     Atom_Media Atom_Window Atom_Debugger Atom_Layout Atom_Renderer2D Atom_Render_Resources Atom_Image)
 target_compile_definitions(Example_MusicCard PRIVATE
@@ -567,6 +627,13 @@ target_link_libraries(Example_Spatial_Backend_Probe PRIVATE Atom_Media Atom_Wind
 set_target_properties(Atom_Tool_Packager PROPERTIES OUTPUT_NAME packager_tool)
 target_link_libraries(Atom_Tool_Packager PRIVATE Atom_Packager)
 
+# Standalone ImGui packager tool (browse existing packages + build v2 packages).
+add_executable(Atom_Tool_PackagerGui
+        Utilities/Packager/PackagerGui.cpp
+)
+set_target_properties(Atom_Tool_PackagerGui PROPERTIES OUTPUT_NAME packager_gui)
+target_link_libraries(Atom_Tool_PackagerGui PRIVATE Atom_Window Atom_Debugger Atom_Packager Atom_FS)
+
 include(CTest)
 # Third-party projects may force the generic BUILD_TESTING cache option off.
 # Atom-owned tests use an independent option so that project coverage is not
@@ -583,19 +650,13 @@ endif()
 # Platforms Config
 # ============================================================================
 if(MINGW)
-    # Statically link libgcc and libstdc++ so executables do not require
-    # libgcc_s_seh-1.dll / libstdc++-6.dll at runtime. Plain "-static" is
-    # avoided: this toolchain's static winpthread archive is built for UCRT and
-    # references __intrinsic_setjmpex, which the MSVCRT runtime sequence does
-    # not provide (undefined reference at link time).
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
     target_link_options(Atom_Engine PRIVATE -lstdc++exp -lws2_32)
 
-    # The thread runtime stays dynamic. All executables currently use the common
-    # CMAKE_RUNTIME_OUTPUT_DIRECTORY (the build directory), so copy the DLL once
-    # into that directory instead of attaching a POST_BUILD copy to every
-    # executable. Per-target POST_BUILD copies race under Ninja when several
-    # executables link in parallel and can fail with ERROR_ACCESS_DENIED.
+    # The thread runtime stays a DLL. The MinGW block near the top of this file
+    # places every Atom executable, tests included, in CMAKE_BINARY_DIR, so copy
+    # the DLL once into that directory instead of attaching a POST_BUILD copy to
+    # every executable. Per-target POST_BUILD copies race under Ninja when
+    # several executables link in parallel and can fail with ERROR_ACCESS_DENIED.
     get_filename_component(ATOM_MINGW_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
     set(ATOM_MINGW_RUNTIME_DLL "${ATOM_MINGW_BIN_DIR}/libwinpthread-1.dll")
     if(EXISTS "${ATOM_MINGW_RUNTIME_DLL}")
@@ -615,7 +676,9 @@ if(MINGW)
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
-                                Example_MusicCard Example_Lua_Scripting Atom_Tool_Packager)
+                                Example_MusicCard Example_Lua_Scripting Example_Job_System_Tour
+                               Atom_Tool_Packager
+                               Atom_Tool_PackagerGui)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()
         if(ATOM_BUILD_TESTS)

@@ -133,8 +133,8 @@ auto main() -> int {
     else
         LOG_INFO(atom::log::audio::Music, "Track 'song_1' registered by the Lua script (now playing)");
 
-    auto* lua_screen = atom::ScreenManager::GetInstance().LoadScreen("LuaScripting", std::make_unique<LuaScreen>());
-    atom::ScreenManager::GetInstance().SwitchScreen(lua_screen);
+    atom::ScreenManager::GetInstance().LoadScreen("LuaScripting", std::make_unique<LuaScreen>());
+    atom::ScreenManager::GetInstance().SwitchScreen("LuaScripting");
 
     auto& window = atom::RenderWindow::GetInstance();
     window.Initialize("Atom - Lua Scripting Example", atom::algo::Vec2{720, 720},

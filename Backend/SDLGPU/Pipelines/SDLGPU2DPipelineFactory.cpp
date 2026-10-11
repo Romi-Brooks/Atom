@@ -21,8 +21,8 @@
 namespace atom::backend::sdlgpu {
 namespace {
 
-constexpr std::size_t kVertexStride = sizeof(render::Vertex2D);
-static_assert(kVertexStride == 32, "Vertex2D layout must stay a clean 32 bytes");
+constexpr std::size_t vertex_stride = sizeof(render::Vertex2D);
+static_assert(vertex_stride == 32, "Vertex2D layout must stay a clean 32 bytes");
 
 auto CreatePostProcessPipeline(SDL_GPUDevice* device, SDL_GPUTextureFormat target_format, SDL_GPUShader* vertex,
                                SDL_GPUShader* fragment, const char* label) -> SDL_GPUGraphicsPipeline* {
@@ -84,7 +84,7 @@ auto CreateSDLGPU2DPipelineSet(SDL_GPUDevice* device, const SDL_GPUTextureFormat
         return false;
     }
 
-    SDL_GPUVertexBufferDescription buffer{0, static_cast<uint32_t>(kVertexStride), SDL_GPU_VERTEXINPUTRATE_VERTEX, 0};
+    SDL_GPUVertexBufferDescription buffer{0, static_cast<uint32_t>(vertex_stride), SDL_GPU_VERTEXINPUTRATE_VERTEX, 0};
     const std::array<SDL_GPUVertexAttribute, 3> attributes{{
         {0, 0, SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, 0},
         {1, 0, SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, sizeof(float) * 4},

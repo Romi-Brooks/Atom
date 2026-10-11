@@ -8,7 +8,7 @@
 namespace atom::asset {
 namespace {
 
-void SetError(ResourceIdError* error, const ResourceIdError value) {
+auto SetError(ResourceIdError* error, const ResourceIdError value) -> void {
     if (error)
         *error = value;
 }

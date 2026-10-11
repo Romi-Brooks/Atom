@@ -3,7 +3,7 @@
  * @brief          : ARCH-107 Stage D — unified URI loading across directory and
  *                   package mounts, with resource sharing.
  *
- * Verifies the acceptance criterion in Docs/Filesystem-Design-CN.md: the same
+ * Verifies the acceptance criterion in Docs/Plans/Resource-System-Plan-CN.md: the same
  * URI opens from a directory mount and an APKG mount, and Texture / Audio /
  * Script all load and share a single instance through ResourceManager.
 **/
@@ -18,6 +18,7 @@
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Test/Support/TestHelpers.hpp>
+#include <Utilities/Packager/PackageBuilder.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
 #include <array>
@@ -43,7 +44,7 @@ auto Bytes(const std::string_view text) -> std::vector<std::byte> {
 }
 
 // Minimal valid 1x1 RGB PNG (same as ConsumerLoaderTest).
-constexpr std::array<uint8_t, 78> kTinyPng{
+constexpr std::array<uint8_t, 78> tiny_png{
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
     0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
     0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xFF, 0xFF, 0x3F, 0x00, 0x05, 0xFE, 0x02, 0xFE, 0xA7,
@@ -51,9 +52,9 @@ constexpr std::array<uint8_t, 78> kTinyPng{
 };
 
 auto TinyPngBytes() -> std::vector<std::byte> {
-    std::vector<std::byte> bytes(kTinyPng.size());
-    for (std::size_t index = 0; index < kTinyPng.size(); ++index)
-        bytes[index] = static_cast<std::byte>(kTinyPng[index]);
+    std::vector<std::byte> bytes(tiny_png.size());
+    for (std::size_t index = 0; index < tiny_png.size(); ++index)
+        bytes[index] = static_cast<std::byte>(tiny_png[index]);
     return bytes;
 }
 
@@ -131,44 +132,32 @@ class TemporaryDirectory final {
         native_fs::path root_{};
 };
 
-// Minimal APKG v1 writer (mirrors Utilities/Packager, binary-safe).
+// Writes the test assets to disk and packs them into an APKG package via the
+// engine's PackageBuilder, mirroring the real packaging pipeline.
 auto WriteApkg(const native_fs::path& package,
                const std::vector<std::pair<std::string, std::vector<std::byte>>>& files) -> bool {
-    std::ofstream output{package, std::ios::binary | std::ios::trunc};
-    if (!output.is_open())
+    // Stage each asset as a real file under a scratch directory so
+    // PackageBuilder can read them back by path.
+    TemporaryDirectory scratch{};
+    if (!TemporaryDirectory::Create(scratch))
         return false;
 
-    output.write("APKG", 4);
-    const uint16_t version = 1;
-    output.write(reinterpret_cast<const char*>(&version), sizeof(version));
-    const uint32_t count = static_cast<uint32_t>(files.size());
-    output.write(reinterpret_cast<const char*>(&count), sizeof(count));
-
-    struct Row {
-            std::string name{};
-            uint64_t offset = 0;
-            uint64_t size = 0;
-    };
-    std::vector<Row> rows{};
-    rows.reserve(files.size());
+    atom::tools::PackageBuilder builder{};
     for (const auto& [name, data] : files) {
-        Row row{name, static_cast<uint64_t>(output.tellp()), data.size()};
+        const native_fs::path file_path = scratch.Root() / name;
+        std::error_code error;
+        native_fs::create_directories(file_path.parent_path(), error);
+        if (error)
+            return false;
+        std::ofstream output{file_path, std::ios::binary | std::ios::trunc};
+        if (!output.is_open())
+            return false;
         output.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
-        rows.push_back(std::move(row));
+        output.close();
+        if (builder.AddFile(atom::PathToUtf8(file_path), name) != atom::tools::PackageBuilder::Result::Success)
+            return false;
     }
-
-    const auto table_offset = static_cast<uint64_t>(output.tellp());
-    for (const auto& row : rows) {
-        const auto name_length = static_cast<uint16_t>(row.name.size());
-        output.write(reinterpret_cast<const char*>(&name_length), sizeof(name_length));
-        output.write(row.name.data(), name_length);
-        output.write(reinterpret_cast<const char*>(&row.offset), sizeof(row.offset));
-        output.write(reinterpret_cast<const char*>(&row.size), sizeof(row.size));
-        const uint8_t type_length = 0;
-        output.write(reinterpret_cast<const char*>(&type_length), sizeof(type_length));
-    }
-    output.write(reinterpret_cast<const char*>(&table_offset), sizeof(table_offset));
-    return static_cast<bool>(output);
+    return builder.Build(atom::PathToUtf8(package)) == atom::tools::PackageBuilder::Result::Success;
 }
 
 } // namespace

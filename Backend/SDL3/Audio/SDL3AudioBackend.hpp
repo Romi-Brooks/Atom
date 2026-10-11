@@ -36,4 +36,4 @@ class SDL3AudioBackend final : public atom::audio::IAudioBackend {
 
 } // namespace atom::backend::sdl3
 
-#endif
+#endif // ATOM_BACKEND_SDL3_AUDIO_BACKEND_HPP

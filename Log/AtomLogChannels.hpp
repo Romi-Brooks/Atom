@@ -61,4 +61,7 @@ ATOM_DEFINE_CHANNELS(atom::log::backend::sdl3, Channel, "Atom.SDL3.Backend.", (V
 // Level-2
 ATOM_DEFINE_CHANNELS(atom::log::utilities, Channel, "Atom.Utilities.", (Packager, "Packager"))
 
+// Level-2
+ATOM_DEFINE_CHANNELS(atom::log::concurrency, Channel, "Atom.Concurrency.", (JobSystem, "JobSystem"))
+
 #endif // ATOM_ATOMLOGCHANNELS_HPP

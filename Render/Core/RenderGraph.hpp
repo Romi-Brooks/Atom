@@ -18,7 +18,7 @@
 namespace atom::render {
 
 using RenderPassId = uint32_t;
-inline constexpr RenderPassId kInvalidRenderPass = 0;
+inline constexpr RenderPassId invalid_render_pass = 0;
 
 struct RenderPassDesc {
     std::string name{};

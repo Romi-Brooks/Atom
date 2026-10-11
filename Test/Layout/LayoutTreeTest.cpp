@@ -5,12 +5,12 @@ auto main() -> int {
     using namespace atom::layout;
 
     LayoutTree tree{};
-    ATOM_CHECK(tree.Root() != LayoutTree::kInvalidNode);
+    ATOM_CHECK(tree.Root() != LayoutTree::invalid_node);
     ATOM_CHECK(tree.GetNode(tree.Root()) != nullptr);
-    ATOM_CHECK(tree.GetNode(LayoutTree::kInvalidNode) == nullptr);
+    ATOM_CHECK(tree.GetNode(LayoutTree::invalid_node) == nullptr);
 
     const auto child = tree.CreateNode();
-    ATOM_CHECK(child != LayoutTree::kInvalidNode);
+    ATOM_CHECK(child != LayoutTree::invalid_node);
     ATOM_CHECK(child != tree.Root());
     ATOM_CHECK(tree.GetNode(child) != nullptr);
 

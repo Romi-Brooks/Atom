@@ -148,6 +148,24 @@ LOG_INFO("Debug.temp", "Just trying something");
 
 ---
 
+## 调用点定位（文件与行号）
+
+`LOG_*` 宏会自动捕获调用点的 `__FILE__`、`__LINE__`、`__FUNCTION__`，并在控制台
+输出末尾追加 `(文件:行号 in 函数名)`，例如：
+
+```
+[2026-01-01 12:00:00] [INFO] Atom.Audio.Music -> Playback started (Media/Audio/MusicPlayer.cpp:142 in MusicPlayer::Play)
+```
+
+- 文件路径会裁剪掉源码根前缀（编译期 `ATOM_SOURCE_ROOT_PREFIX` 宏 + 运行时兜底），
+  只保留 `模块/文件.cpp` 形式的短路径，跨 checkout 保持稳定。
+- 三个定位字段同时写入 `LogRecord`（`file` / `line` / `function`），订阅方
+  （如 `LogDebugger`）可自行展示；未指定时为 `file` 空、`line` 为 0、`function` 空
+  （例如 Lua 绑定直接调用 `LogOut` 的场景，定位信息由脚本侧自行决定）。
+- 调用点无需任何改动——现有 `LOG_INFO(channel, msg)` 签名保持不变，宏内部完成捕获。
+
+---
+
 ## 日志级别
 
 | 级别 | 宏 | 说明 |

@@ -12,6 +12,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <Backend/Contracts/Time/ITimeSource.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
 #include <Backend/SDL3/Core/SDLRuntime.hpp>
 
@@ -31,11 +32,16 @@ class SDL3Window final : public window::IWindow {
         [[nodiscard]] auto GetSize() const -> algo::Vec2 override;
         [[nodiscard]] auto GetNativeWindow() const -> SDL_Window*;
 
+        // Bind the backend's host clock. The window deliberately owns no counter
+        // of its own: one ITimeSource keeps frame pacing and atom::time on the
+        // same epoch (CORE-001).
+        auto SetTimeSource(backend::ITimeSource& source) -> void;
+
     private:
         SDL_Window* window_ = nullptr;
+        backend::ITimeSource* time_source_ = nullptr;
         uint32_t fps_limit_ = 60;
-        uint64_t performance_frequency_ = 0;
-        uint64_t next_frame_counter_ = 0;
+        uint64_t next_frame_ns_ = 0;
         bool open_ = false;
         SDLSubsystemLease video_runtime_;
         SDLSubsystemLease events_runtime_;

@@ -24,10 +24,15 @@ auto RegisterLogChannelDomain(std::string_view prefix, const std::string_view* n
 
 } // namespace atom
 
+// The generated companion symbols (channel_names / channel_registered) are
+// snake_case like every other value in the engine, which means they are not
+// uniquified by the enum name. That is safe because a channel domain owns its
+// namespace (see CODING_STANDARD.md 3.1.1): one namespace holds exactly one
+// ATOM_DEFINE_CHANNELS block.
 #define ATOM_CHANNEL_RUNTIME_REGISTRATION(EnumName, DomainPrefix)                                                     \
-    inline const bool k##EnumName##Registered = [] {                                                               \
-        ::atom::RegisterLogChannelDomain(DomainPrefix, k##EnumName##Names, std::size(k##EnumName##Names));          \
-        return true;                                                                                               \
+    inline const bool channel_registered = [] {                                                                     \
+        ::atom::RegisterLogChannelDomain(DomainPrefix, channel_names, std::size(channel_names));                     \
+        return true;                                                                                                 \
     }();
 #else
 #define ATOM_CHANNEL_RUNTIME_REGISTRATION(EnumName, DomainPrefix)
@@ -140,15 +145,15 @@ auto RegisterLogChannelDomain(std::string_view prefix, const std::string_view* n
         COUNT                                                                                                          \
     };                                                                                                                 \
     ATOM_FOR_EACH(ATOM_CHANNEL_VALUE_ENTRY, __VA_ARGS__)                                                              \
-    inline constexpr std::string_view k##EnumName##Names[] = {                                                         \
+    inline constexpr std::string_view channel_names[] = {                                                             \
         ATOM_FOR_EACH(ATOM_CHANNEL_NAME_ENTRY, __VA_ARGS__)                                                            \
     };                                                                                                                 \
     ATOM_CHANNEL_RUNTIME_REGISTRATION(EnumName, DomainPrefix)                                                         \
     [[nodiscard]] constexpr auto GetChannelName(const EnumName channel) -> std::string_view {                          \
-        if (static_cast<std::size_t>(channel) >= std::size(k##EnumName##Names)) {                                      \
+        if (static_cast<std::size_t>(channel) >= std::size(channel_names)) {                                           \
             return "Unknown";                                                                                          \
         }                                                                                                              \
-        return k##EnumName##Names[static_cast<std::size_t>(channel)];                                                  \
+        return channel_names[static_cast<std::size_t>(channel)];                                                       \
     }                                                                                                                  \
     [[nodiscard]] constexpr auto GetChannelPrefix(const EnumName) -> std::string_view { return DomainPrefix; }         \
     } // namespace DomainNs

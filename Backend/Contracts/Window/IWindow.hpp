@@ -77,4 +77,4 @@ class IWindow {
 
 } // namespace atom::window
 
-#endif
+#endif // ATOM_BACKEND_CONTRACTS_WINDOW_IWINDOW_HPP

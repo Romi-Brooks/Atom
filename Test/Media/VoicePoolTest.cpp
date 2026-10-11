@@ -1,8 +1,10 @@
 #include <Backend/Contracts/Audio/NullAudioBackend.hpp>
 #include <Backend/Contracts/Audio/AudioTypes.hpp>
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Media/Audio/Playback/VoicePool.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
+#include <limits>
 #include <memory>
 
 auto main() -> int {
@@ -17,9 +19,27 @@ auto main() -> int {
     ATOM_CHECK(pool.FirstActive() == nullptr);
     pool.StopAll();
     pool.SetVolume(50.0f);
+    ATOM_CHECK(pool.GetVoiceLimit() == 4);
 
-    // Maximum is clamped to at least one; null backend still yields nullptr.
+    // Constructor vs setter policy (ARCH-006): the constructor cannot report
+    // failure, so 0 means "engine default" and out-of-range values are clamped;
+    // the setter takes a caller-supplied value and rejects anything outside the
+    // contract range. Both behaviours are intentional and documented on VoicePool.
     atom::VoicePool tiny{backend, clip, 0};
+    ATOM_CHECK(tiny.GetVoiceLimit() == atom::numeric::default_voices);
     ATOM_CHECK(tiny.Acquire() == nullptr);
+    atom::VoicePool huge{backend, clip, 1'000'000};
+    ATOM_CHECK(huge.GetVoiceLimit() == atom::numeric::max_voices);
+
+    ATOM_CHECK(!pool.SetVoiceLimit(0));
+    ATOM_CHECK(!pool.SetVoiceLimit(atom::numeric::max_voices + 1));
+    ATOM_CHECK(pool.GetVoiceLimit() == 4);
+    ATOM_CHECK(pool.SetVoiceLimit(atom::numeric::max_voices));
+    ATOM_CHECK(pool.GetVoiceLimit() == atom::numeric::max_voices);
+    ATOM_CHECK(pool.SetVoiceLimit(2));
+    ATOM_CHECK(pool.GetVoiceLimit() == 2);
+
+    // A non-finite volume is collapsed to silence by VoicePool::SetVolume.
+    pool.SetVolume(std::numeric_limits<float>::quiet_NaN());
     return 0;
 }

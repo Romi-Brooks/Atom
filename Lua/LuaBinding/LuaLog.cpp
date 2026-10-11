@@ -9,26 +9,27 @@
 **/
 
 #include "ContextBridge.hpp"
-#include "lua.hpp"
+#include <Lua/lua.hpp>
 
 #include <string>
+#include <utility>
 
 #include <Log/LogSystem.hpp>
+#include <Lua/LuaGuard.hpp>
 
 namespace {
 
 // Concatenate every argument on the stack (like Lua's print) into one message.
 // Argument 1 is the first value; the binding function passes the argument count
-// so this helper can consume the whole call frame.
+// so this helper can consume the whole call frame. Conversion goes through
+// AppendLuaValue(), so a failing __tostring cannot longjmp past the message
+// buffer and a non-string value is still printed (ARCH-005).
 auto ConcatArguments(lua_State* L, int count) -> std::string {
     std::string message;
     for (int i = 1; i <= count; ++i) {
         if (i > 1)
             message += '\t';
-        size_t len = 0;
-        const char* text = luaL_tolstring(L, i, &len);
-        message.append(text, len);
-        lua_pop(L, 1); // drop the tolstring copy
+        atom::AppendLuaValue(L, i, message);
     }
     return message;
 }
@@ -36,9 +37,9 @@ auto ConcatArguments(lua_State* L, int count) -> std::string {
 template <atom::LogLevel Level>
 int LuaLogEmit(lua_State* L) {
     const int count = lua_gettop(L);
-    const std::string message = ConcatArguments(L, count);
+    std::string message = ConcatArguments(L, count);
     atom::Log::LogOut(atom::ResolveChannelPrefix(atom::log::core::Lua),
-                      atom::ResolveChannelName(atom::log::core::Lua), Level, message);
+                      atom::ResolveChannelName(atom::log::core::Lua), Level, std::move(message));
     return 0;
 }
 

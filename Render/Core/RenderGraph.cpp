@@ -17,7 +17,7 @@ namespace atom::render {
 
 auto RenderGraph::AddPass(RenderPassDesc desc, ExecuteFunction execute) -> RenderPassId {
     if (!execute || executing_)
-        return kInvalidRenderPass;
+        return invalid_render_pass;
     passes_.push_back(Pass{std::move(desc), std::move(execute)});
     return static_cast<RenderPassId>(passes_.size());
 }
@@ -32,7 +32,7 @@ auto RenderGraph::Execute() -> bool {
     std::vector<std::vector<std::size_t>> outgoing(count);
     for (std::size_t index = 0; index < count; ++index) {
         for (const auto dependency : passes_[index].desc.dependencies) {
-            if (dependency == kInvalidRenderPass || dependency > count) {
+            if (dependency == invalid_render_pass || dependency > count) {
                 executing_ = false;
                 return false;
             }

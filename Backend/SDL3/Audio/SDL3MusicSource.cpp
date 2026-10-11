@@ -5,13 +5,14 @@
 
 #include <SDL3/SDL.h>
 
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3 {
 
 // Target ~100 ms of audio per push — large enough to amortise resampler
 // boundary artifacts but small enough to keep latency reasonable.
-constexpr double kStreamDuration = 0.1; // seconds
+constexpr double stream_duration = 0.1; // seconds
 
 SDL3MusicSource::SDL3MusicSource(std::vector<uint8_t> pcmData, const SDL_AudioSpec& spec)
     : pcm_data_(std::move(pcmData)), spec_(spec) {}
@@ -149,9 +150,11 @@ auto SDL3MusicSource::GetState() const -> atom::audio::AudioSourceState {
 }
 
 auto SDL3MusicSource::SetVolume(float volume) -> void {
-    volume_.store(volume);
+    // Numeric contract (ARCH-006): clamped and NaN-free before the gain is set.
+    const float clamped = atom::numeric::SanitizeVolume(volume);
+    volume_.store(clamped);
     if (stream_) {
-        SDL_SetAudioStreamGain(stream_, volume / 100.0f);
+        SDL_SetAudioStreamGain(stream_, clamped / 100.0f);
     }
 }
 
@@ -171,8 +174,13 @@ auto SDL3MusicSource::SetPlayingOffset(const float seconds) -> bool {
     const auto bytes_per_frame = static_cast<std::size_t>(SDL_AUDIO_BYTESIZE(spec_.format)) * spec_.channels;
     if (spec_.freq == 0 || bytes_per_frame == 0 || pcm_data_.empty())
         return false;
+    // Numeric contract (ARCH-006): a NaN/infinite position would make the frame
+    // conversion UB.
+    float requested = 0.0f;
+    if (!atom::numeric::TrySanitizeOffsetSeconds(seconds, requested))
+        return false;
     const auto total_frames = pcm_data_.size() / bytes_per_frame;
-    const auto target_frame = static_cast<std::size_t>(std::max(seconds, 0.0f) * static_cast<float>(spec_.freq));
+    const auto target_frame = static_cast<std::size_t>(requested * static_cast<float>(spec_.freq));
     play_cursor_ = (std::min)(target_frame, total_frames) * bytes_per_frame;
     finished_ = false;
     // Drop audio the decode thread already queued, otherwise the old position
@@ -208,11 +216,11 @@ auto SDL3MusicSource::DecodeLoop() -> void {
     // Compute a reasonable push size (~100 ms of audio) so resampler
     // boundary artifacts are minimised.  Clamp to [4096, 1 MiB].
     const auto bytes_per_frame = SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
-    const auto chunk_frames = static_cast<std::size_t>(spec_.freq * kStreamDuration);
-    const std::size_t kStreamChunk =
+    const auto chunk_frames = static_cast<std::size_t>(spec_.freq * stream_duration);
+    const std::size_t stream_chunk =
         std::clamp(chunk_frames * bytes_per_frame, std::size_t{4096}, std::size_t{1048576});
 
-    LOG_DEBUG(atom::log::backend::Audio::sdl3, "DecodeLoop started: chunk=" + std::to_string(kStreamChunk) +
+    LOG_DEBUG(atom::log::backend::Audio::sdl3, "DecodeLoop started: chunk=" + std::to_string(stream_chunk) +
                                                           " total=" + std::to_string(pcm_data_.size()) +
                                                           " loop=" + std::to_string(loop_.load()));
 
@@ -223,7 +231,7 @@ auto SDL3MusicSource::DecodeLoop() -> void {
         auto cursor = play_cursor_.load();
         if (cursor < pcm_data_.size()) {
             const auto remaining = pcm_data_.size() - cursor;
-            const auto toPush = (std::min)(kStreamChunk, remaining);
+            const auto toPush = (std::min)(stream_chunk, remaining);
 
             if (!SDL_PutAudioStreamData(stream_, pcm_data_.data() + cursor, static_cast<int>(toPush))) {
                 LOG_ERROR(atom::log::backend::Audio::sdl3,

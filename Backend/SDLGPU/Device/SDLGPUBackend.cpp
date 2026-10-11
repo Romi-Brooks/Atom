@@ -15,6 +15,9 @@ SDLGPUBackend::~SDLGPUBackend() {
     Shutdown();
 }
 auto SDLGPUBackend::Initialize(const std::string& title, const algo::Vec2 resolution) -> bool {
+    // One host clock for the whole backend: the window paces frames from the
+    // very ITimeSource that atom::time::TimeSystem binds to (CORE-001).
+    window_.SetTimeSource(time_source_);
     if (!window_.Initialize(title, resolution))
         return false;
     if (!device_.Initialize(window_.GetNativeWindow())) {

@@ -73,10 +73,30 @@ class Renderer2D {
             private:
                 friend class Renderer2D;
                 Renderer2D* owner_ = nullptr;
-                render::Texture2D handle_ = render::kInvalidTexture2D;
+                render::Texture2D handle_ = render::invalid_texture_2d;
                 uint32_t width_ = 0;
                 uint32_t height_ = 0;
         };
+
+        // Liveness of this renderer's texture pool.
+        //
+        // Shutdown() destroys every Renderer2D::Texture, but handles that refer
+        // to those textures can outlive it: Render/Resources/TextureCache.hpp
+        // hands out shareable handles, and the code that keeps them (a Screen,
+        // a resource pack, a cache) is not required to drop them before the
+        // renderer is torn down. A stale Texture* must therefore never be
+        // dereferenced, not even to ask whether it is still owned.
+        //
+        // Every texture handle keeps this state alive and consults `alive`
+        // before it exposes or reclaims its texture. Shutdown() clears the flag
+        // and Initialize() installs a fresh state, so a handle from an earlier
+        // generation degrades to an inert value instead of a dangling pointer.
+        struct TexturePoolState final {
+                bool alive = true;
+        };
+        [[nodiscard]] auto GetTexturePoolState() const -> const std::shared_ptr<TexturePoolState>& {
+            return texture_pool_state_;
+        }
 
         Renderer2D();
         ~Renderer2D();
@@ -103,6 +123,11 @@ class Renderer2D {
         // Resources:
         // Creates an RGBA8 texture; rgba (w*h*4 bytes) may be null. The upload
         // happens at the next EndFrame(). Returns nullptr on failure.
+        //
+        // The numeric contract (Backend/Contracts/Numeric/NumericContract.hpp)
+        // applies: width and height must each be in [1, max_texture_dimension]
+        // (16384) and their RGBA size must be representable, otherwise the call
+        // logs an error and returns nullptr.
         auto CreateTexture(uint32_t width, uint32_t height, const void* rgba = nullptr) -> Texture*;
         auto UpdateTexture(Texture& texture, const void* rgba) -> void;
         auto DestroyTexture(Texture& texture) -> void;
@@ -195,7 +220,7 @@ class Renderer2D {
 
                 // Quad (axis-aligned bounds) or line (custom corners).
                 const Texture* texture = nullptr; // null -> white pixel texture
-                render::Sampler2D sampler = render::kInvalidSampler2D;
+                render::Sampler2D sampler = render::invalid_sampler_2d;
                 Rect dst{};
                 Rect source{};
                 bool has_source = false;
@@ -259,7 +284,10 @@ class Renderer2D {
 
         IRenderDevice* device_ = nullptr;
         IRender2DContext* context_ = nullptr;
-        render::Sampler2D sampler_ = render::kInvalidSampler2D;
+        // Shared with every texture handle this renderer hands out; see
+        // TexturePoolState. Replaced by Initialize(), invalidated by Shutdown().
+        std::shared_ptr<TexturePoolState> texture_pool_state_ = std::make_shared<TexturePoolState>();
+        render::Sampler2D sampler_ = render::invalid_sampler_2d;
         bool initialized_ = false;
         bool in_frame_ = false;
         float origin_x_ = 0.0f;
@@ -279,7 +307,7 @@ class Renderer2D {
         Texture* white_texture_ = nullptr;
 
         struct PendingUpload {
-                render::Texture2D handle = render::kInvalidTexture2D;
+                render::Texture2D handle = render::invalid_texture_2d;
                 uint32_t x = 0;
                 uint32_t y = 0;
                 uint32_t width = 0;

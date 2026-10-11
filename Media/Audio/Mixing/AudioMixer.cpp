@@ -1,11 +1,12 @@
 #include "AudioMixer.hpp"
 
-#include <Algorithm/Math/Scalar.hpp>
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 
 namespace atom {
 
 inline auto AudioMixer::ClampVolume(const float volume) -> float {
-    return atom::algo::Clamp(volume, 0.0f, 100.0f);
+    // NaN must not survive: every consumer multiplies this value into a gain.
+    return atom::numeric::SanitizeVolume(volume);
 }
 
 auto AudioMixer::SetMasterVolume(const float volume) -> void {

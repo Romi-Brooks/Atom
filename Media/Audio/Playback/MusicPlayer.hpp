@@ -77,6 +77,18 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
         [[nodiscard]] auto IsSeekable(const std::string& id) const -> bool;
 
         auto Reset() -> void;
+
+        // Stops and destroys a single loaded track: its decoder, its streaming
+        // buffers and the file it streams from are released immediately instead
+        // of living on until Reset() or destruction. Returns false when the id
+        // is not loaded.
+        //
+        // This is the release half of Load(). A player that walks a large
+        // library must call it (or Reset()), because a loaded track keeps a
+        // decoder, an open file handle and the streaming source's buffers
+        // resident for the lifetime of the player otherwise.
+        auto Unload(const std::string& id) -> bool;
+
         auto SetVolume(const std::string& id, float volume) -> void;
         auto SetLooping(const std::string& id, bool loop) -> void;
         [[nodiscard]] auto IsLooping(const std::string& id) const -> bool;
@@ -95,14 +107,15 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
 
     private:
         struct Track {
+                // Owns the underlying VFS file when the track was opened from a
+                // stream (Load(IFileSystem, AssetPath)). Declared before `source`
+                // so that it outlives it: the decoder streams from this file, so
+                // destroying the file first would leave the decoder reading freed
+                // storage while the source tears itself down.
+                std::unique_ptr<atom::fs::IFile> file;
                 std::unique_ptr<atom::audio::IAudioSource> source;
                 // Seconds; 0 when the decoder could not report the length.
                 float duration_seconds = 0.0f;
-                // Owns the underlying VFS file when the track was opened from a
-                // stream (Load(IFileSystem, AssetPath)). Must outlive `source`
-                // (whose decoder reads from it); kept alongside the source and
-                // destroyed after it. Null for the path and memory entry points.
-                std::unique_ptr<atom::fs::IFile> file;
         };
 
         atom::audio::IAudioBackend* backend_;
@@ -118,4 +131,4 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
 
 } // namespace atom
 
-#endif
+#endif // ATOM_MUSIC_PLAYER_HPP

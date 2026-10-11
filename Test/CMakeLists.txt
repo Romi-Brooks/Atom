@@ -36,11 +36,6 @@ atom_add_test(Atom_FS.OverlayVfs
     Filesystem/OverlayVfsTest.cpp
     Atom_FS)
 
-atom_add_test(Atom_FS.PackageFileSystem
-    Atom_FS_PackageFileSystem_Tests
-    Filesystem/PackageFileSystemTest.cpp
-    Atom_FS)
-
 atom_add_test(Atom_FS.VfsMount
     Atom_FS_VfsMount_Tests
     Filesystem/VfsMountTest.cpp
@@ -71,7 +66,7 @@ atom_add_test(Atom_Assets.ScriptSourceLoader
 atom_add_test(Atom_Assets.StageDAcceptance
     Atom_Assets_StageDAcceptance_Tests
     Asset/StageDAcceptanceTest.cpp
-    Atom_Media Atom_Image Atom_Backend_Extension Atom_FS Atom_UTF8)
+    Atom_Media Atom_Image Atom_Backend_Extension Atom_FS Atom_UTF8 Atom_Packager)
 
 # --- Render ---
 atom_add_test(Atom_Render_Resources.TextureCache
@@ -126,6 +121,12 @@ atom_add_test(Atom_Backend_Extension.BackendRegistry
     Backend/BackendRegistryTest.cpp
     Atom_Backend_Extension)
 
+# ARCH-006: shared public numeric boundary contract.
+atom_add_test(Atom_Backend_Contracts.NumericContract
+    Atom_Backend_Contracts_NumericContract_Tests
+    Backend/NumericContractTest.cpp
+    Atom_Backend_Contracts)
+
 # --- Media / Image / Layout / Log / Utilities ---
 atom_add_test(Atom_Media.AudioMixer
     Atom_Media_AudioMixer_Tests
@@ -142,10 +143,23 @@ atom_add_test(Atom_Media.MusicCrossfade
     Media/MusicCrossfadeTest.cpp
     Atom_Media)
 
+# Track lifecycle: every Load() has a matching Unload(), so a long-running player
+# walking a library does not pin decoders/stream buffers forever.
+atom_add_test(Atom_Media.MusicPlayer
+    Atom_Media_MusicPlayer_Tests
+    Media/MusicPlayerTest.cpp
+    Atom_Media Atom_FS)
+
 atom_add_test(Atom_Media.Image.ColorStatistics
     Atom_Media_Image_ColorStatistics_Tests
     Media/ColorStatisticsTest.cpp
     Atom_Image)
+
+# ARCH-006: image header guard (no unbounded allocation from a header).
+atom_add_test(Atom_Media.Image.ImageDecoder
+    Atom_Media_Image_ImageDecoder_Tests
+    Media/ImageDecoderTest.cpp
+    Atom_Image Atom_Log)
 
 atom_add_test(Atom_Layout.LayoutTree
     Atom_Layout_LayoutTree_Tests
@@ -172,21 +186,33 @@ atom_add_test(Atom_Time.TimeSystem
     Time/TimeSystemTest.cpp
     Atom_Time)
 
+# --- Concurrency ---
+atom_add_test(Atom_Concurrency.JobSystem
+    Atom_Concurrency_JobSystem_Tests
+    Concurrency/JobSystemTest.cpp
+    Atom_Concurrency)
+
 atom_add_test(Atom_UTF8.Utf8
     Atom_UTF8_Utf8_Tests
     Utilities/Utf8Test.cpp
     Atom_UTF8)
 
-atom_add_test(Atom_Packager.RoundTrip
-    Atom_Packager_RoundTrip_Tests
-    Utilities/PackagerTest.cpp
-    Atom_Packager)
+atom_add_test(Atom_Packager.PackageBuilder
+    Atom_Packager_PackageBuilder_Tests
+    Utilities/PackageBuilderTest.cpp
+    Atom_Packager Atom_FS)
 
 # --- Window ---
 atom_add_test(Atom_Window.ScreenManager
     Atom_Window_ScreenManager_Tests
     Window/ScreenManagerTest.cpp
     Atom_Window)
+
+# --- Lua (ARCH-005: error handling, stack balance, null injection) ---
+atom_add_test(Atom_Lua.LuaHost
+    Atom_Lua_LuaHost_Tests
+    Lua/LuaHostTest.cpp
+    Atom_Lua Atom_FS Atom_Log)
 
 # Export list for MinGW runtime-DLL wiring in the parent CMakeLists.
 set_property(GLOBAL PROPERTY ATOM_TEST_TARGETS ${ATOM_TEST_ALL_TARGETS})

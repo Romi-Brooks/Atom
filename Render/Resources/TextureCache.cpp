@@ -66,6 +66,7 @@ auto TextureCache::AcquireDecoded(const std::string_view cache_key, const image:
 
     auto record = std::make_shared<detail::GpuTextureRecord>();
     record->renderer = renderer_;
+    record->pool = renderer_->GetTexturePoolState();
     record->texture = texture;
     cache_[std::string{cache_key}] = record;
     SweepExpired();

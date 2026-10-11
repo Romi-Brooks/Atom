@@ -19,7 +19,7 @@
 
 #include <Backend/Contracts/Render/IRender2DContext.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
-#include "../Pipelines/SDLGPU2DPipelineFactory.hpp"
+#include <Backend/SDLGPU/Pipelines/SDLGPU2DPipelineFactory.hpp>
 
 namespace atom::backend::sdlgpu {
 
@@ -121,4 +121,4 @@ class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2
 
 } // namespace atom::backend::sdlgpu
 
-#endif
+#endif // ATOM_BACKEND_SDLGPU_DEVICE_HPP

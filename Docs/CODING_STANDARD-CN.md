@@ -59,7 +59,13 @@ ModuleName/            # 模块名，PascalCase，单数
 **规则：**
 
 - 格式：`ATOM_<NAME>_HPP`，`<NAME>` 为全大写 PascalCase
+- `<NAME>` 取**文件名**（`ScreenManager.hpp` → `ATOM_SCREENMANAGER_HPP`）。可以在前面保留目录分量
+  （`Backend/Contracts/Window/IWindow.hpp` → `ATOM_BACKEND_CONTRACTS_WINDOW_IWINDOW_HPP`）；接口名去掉
+  开头的 `I` 也可以接受（`IAudioEffect.hpp` → `ATOM_AUDIO_EFFECT_HPP`）。禁止使用改名前的旧名字——
+  这个宏是读者判断代码块归属的唯一依据。
+- `#ifndef` 与 `#define` 必须相邻，中间不得插入其他内容
 - `#endif` 后必须添加注释宏名
+- 本仓库任何位置都不使用 `#pragma once`
 
 ### 2.2 Include 顺序
 
@@ -89,7 +95,9 @@ include 按以下分组顺序排列，每组空一行：
 - 头文件没有自身依赖，从标准库 include 开始
 - 项目内头文件使用 `#include <ModuleName/FileName.hpp>` 语法（以项目根为基准）
 - 自身头文件（对应的 `.hpp`）使用 `#include "FileName.hpp"`，置于最前
-- 禁止使用 `../../` 相对路径
+- **禁止**相对 include 路径（`../`、`../../`）：引擎头文件一律以项目根为基准书写
+- 按需包含（include what you use）：用到的每个名字都要包含声明它的头文件，且同一文件不得重复包含同一头文件
+- 上述分组的唯一例外是前置声明块，它归入「项目头文件」组
 
 ### 2.3 `using` 与类型别名
 
@@ -111,6 +119,7 @@ include 按以下分组顺序排列，每组空一行：
 | **类 / 结构体**     | `PascalCase`         | `VolumeManager`、`MusicFade`、`SFX`      |
 | **枚举类型**        | `PascalCase`         | `LogLevel`、`FadeState`、`NPCType`       |
 | **枚举值**         | `PascalCase`         | `Idle`、`FadingOut`                     |
+| **常量**（`const` / `constexpr`，任意作用域） | `snake_case` | `max_volume`、`default_recent_capacity`、`invalid_texture_2d` |
 | **公有 / 私有成员函数** | `PascalCase`         | `GetInstance()`、`Load()`、`SetVolume()` |
 | **静态成员函数**      | `PascalCase`         | `GetInstance()`、`SetSfxVolume()`       |
 | **成员变量**        | `snake_case_` + 尾下划线 | `music_volume_`、`current_playing_id_`  |
@@ -139,7 +148,7 @@ include 按以下分组顺序排列，每组空一行：
   使用其规范的注册 ID（`sdl3`、`sdl3_mixer`），以保证日志通道和运行时后端 ID 一致。
 - 显示名使用 `.` 分隔的 PascalCase（`Atom.Entity.NPC ->`）
 - 调用处一律通过日志域直接写通道值（如 `atom::log::audio::Music`），不要定义局部别名
-  （如 `const auto& kMusicLogChannel = atom::log::audio::Music;`）——别名虽然让调用更短，
+  （如 `const auto& music_log_channel = atom::log::audio::Music;`）——别名虽然让调用更短，
   但会给接手的人增加一层间接跳转，收益有限。
 
 ### 3.2 详细规则
@@ -149,6 +158,8 @@ include 按以下分组顺序排列，每组空一行：
 - 使用 `snake_case`
 - 顶层命名空间：`atom`
 - 子命名空间：`atom::audio`、`atom::video`（若需细分）
+- 头文件中**禁止** `using namespace`；`.cpp` 中也只允许用于自身模块的命名空间（或测试文件），
+  不得用它引入第三方命名空间
 
 #### 类
 
@@ -160,6 +171,8 @@ include 按以下分组顺序排列，每组空一行：
 
 - 引擎 C++ 函数使用**后置返回类型**：`auto FuncName() -> ReturnType`
 - 构造函数、析构函数、`main` 和签名必须匹配 C API 的回调函数除外
+  （仓库内唯一例外是 `Lua/LuaBinding/` 里的 `int LuaXxx(lua_State* L)` 绑定函数）
+- 该规则同样覆盖类内的小工具函数：写 `auto Reset() -> void`，不写 `void Reset()`
 - PascalCase，动词开头：`GetInstance()`、`Load()`、`SetVolume()`
 - getter 以 `Get` 开头，setter 以 `Set` 开头
 - 布尔查询以 `Is` / `Has` 开头：`IsLoaded()`、`HasSFX()`
@@ -188,6 +201,31 @@ class Music {
         std::string current_playing_id_;
         static float music_volume_;
 };
+```
+
+#### 常量
+
+- 任意作用域（命名空间、类、文件、函数）统一 `snake_case`
+- **不使用 `k` 前缀**，**也不加尾下划线**：尾下划线标记的是对象状态，而常量不是对象状态；
+  类作用域常量在使用处总是带限定名（`Log::default_recent_capacity`、`LayoutTree::invalid_node`），
+  已经足以与局部变量区分
+- `UPPER_SNAKE_CASE` 保留给宏，不要用它命名 C++ 常量
+- 由宏生成、必须经预处理器拼接的常量无法被转成小写，因此宏改为输出固定的 `snake_case` 名字，
+  并依赖上面「一个域拥有一个命名空间」的约束（`LogChannelMacros.hpp`：`channel_names`、`channel_registered`）
+
+```cpp
+namespace atom::numeric {
+inline constexpr float max_volume = 100.0f;  // 命名空间作用域
+}
+
+class Log {
+    public:
+        static constexpr std::size_t default_recent_capacity = 512;  // 类作用域
+};
+
+namespace {
+constexpr float two_pi = 6.28318530717958647692f;  // 文件作用域
+}
 ```
 
 #### 参数与局部变量
@@ -348,8 +386,10 @@ auto GetValue()const -> float;        // 缺少空格
 **/
 ```
 
-这是当前新建 Atom 源文件和示例使用的文头格式。现有文件暂不批量迁移；
-SPDX/许可证文头迁移仍作为独立的机械任务记录在 `Docs/Remaining-Issues.md`。
+这是当前新建 Atom 源文件和示例使用的文头格式。**此后新增的文件必须带此文件头**。现有文件暂不批量迁移；
+SPDX/许可证文头迁移作为 **CORE-007** 独立记录在 `Docs/Remaining-Issues.md`（当前审计：Atom 自有 C/C++
+文件 161 个，其中 45 个仍是旧文头，9 个已有 SPDX）。不要因为改别的问题而顺手给文件加第二种文头风格——
+迁移统一交给 CORE-007。
 
 ### 6.2 行内注释
 

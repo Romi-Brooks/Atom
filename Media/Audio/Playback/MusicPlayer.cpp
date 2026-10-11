@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Filesystem/Vfs.hpp>
@@ -72,9 +73,13 @@ auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& files
         return false;
     }
     // The streaming source's decoder reads from the VFS file, so the file must
-    // stay alive for as long as the track does. Own it inside the Track.
-    Track track{std::move(source), duration_seconds};
+    // stay alive for as long as the track does. Track declares it first for
+    // exactly that reason; it is filled in before the source so the ownership
+    // order is visible at the construction site too.
+    Track track{};
     track.file = std::move(streaming->file);
+    track.source = std::move(source);
+    track.duration_seconds = duration_seconds;
     tracks_.emplace(id, std::move(track));
     LOG_INFO(atom::log::audio::Music, "Music track loaded via VFS: " + id + " (" + label + ")");
     return true;
@@ -91,6 +96,14 @@ auto MusicPlayer::Load(const std::string& id, const std::string& path) -> bool {
 
 auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filename, const void* data,
                                  const std::size_t size) -> bool {
+    // ARCH-006: a null/short buffer with a non-zero size is a caller bug that the
+    // decoders cannot survive; reject it before any decoder sees it.
+    if (!atom::numeric::IsValidBuffer(data, size)) {
+        LOG_ERROR(atom::log::audio::Music,
+                  "LoadFromMemory rejected an empty buffer for music track '" + id + "' (" + filename + ")");
+        return false;
+    }
+
     std::lock_guard lock(mutex_);
     if (tracks_.contains(id)) {
         LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
@@ -125,7 +138,7 @@ auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filen
                   "Failed to create streaming music source for track '" + id + "': " + filename);
         return false;
     }
-    tracks_.emplace(id, Track{std::move(source), duration_seconds});
+    tracks_.emplace(id, Track{nullptr, std::move(source), duration_seconds});
     LOG_INFO(atom::log::audio::Music,
              "Music track loaded from memory: " + id + " (" + filename + ", " + std::to_string(size) + " bytes)");
     return true;
@@ -145,7 +158,7 @@ auto MusicPlayer::Play(const std::string& id, const float volume) -> void {
         LOG_DEBUG(atom::log::audio::Music, "Play() ignored: track is already playing: " + id);
         return;
     }
-    it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
+    it->second.source->SetVolume(atom::numeric::SanitizeVolume(volume));
     it->second.source->Play();
     const auto state = it->second.source->GetState();
     if (state != atom::audio::AudioSourceState::Playing && state != atom::audio::AudioSourceState::Paused) {
@@ -198,13 +211,21 @@ auto MusicPlayer::Stop(const std::string& id) -> void {
 }
 
 auto MusicPlayer::Seek(const std::string& id, const float seconds) -> bool {
+    // ARCH-006: never hand a NaN/infinite position to the backend. A
+    // non-finite request is a failed seek, not a clamp to 0.
+    float requested = 0.0f;
+    if (!atom::numeric::TrySanitizeOffsetSeconds(seconds, requested)) {
+        LOG_WARNING(atom::log::audio::Music, "Seek() rejected a non-finite position for track " + id);
+        return false;
+    }
+
     std::lock_guard lock(mutex_);
     const auto it = tracks_.find(id);
     if (it == tracks_.end() || !it->second.source) {
         LOG_DEBUG(atom::log::audio::Music, "Seek() ignored: unknown track: " + id);
         return false;
     }
-    auto target = std::max(seconds, 0.0f);
+    auto target = requested;
     if (it->second.duration_seconds > 0.0f)
         target = std::min(target, it->second.duration_seconds);
     if (!it->second.source->SetPlayingOffset(target)) {
@@ -247,11 +268,31 @@ auto MusicPlayer::Reset() -> void {
     current_playing_id_.clear();
 }
 
+auto MusicPlayer::Unload(const std::string& id) -> bool {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    if (it == tracks_.end()) {
+        LOG_DEBUG(atom::log::audio::Music, "Unload() ignored: unknown track: " + id);
+        return false;
+    }
+    // Stop before erasing: the source joins its decode thread and releases its
+    // SDL stream while the backend that owns them is still alive. Track then
+    // destroys `source` before the `file` it streams from, so the decoder never
+    // outlives or predeceases its input.
+    if (it->second.source)
+        it->second.source->Stop();
+    if (current_playing_id_ == id)
+        current_playing_id_.clear();
+    tracks_.erase(it);
+    LOG_INFO(atom::log::audio::Music, "Music track unloaded: " + id);
+    return true;
+}
+
 auto MusicPlayer::SetVolume(const std::string& id, const float volume) -> void {
     std::lock_guard lock(mutex_);
     const auto it = tracks_.find(id);
     if (it != tracks_.end() && it->second.source) {
-        it->second.source->SetVolume(std::clamp(volume, 0.0f, 100.0f));
+        it->second.source->SetVolume(atom::numeric::SanitizeVolume(volume));
     }
 }
 

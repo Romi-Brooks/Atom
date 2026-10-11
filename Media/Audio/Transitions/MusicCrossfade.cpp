@@ -16,6 +16,7 @@
 
 #include <Algorithm/Interpolation/Easing.hpp>
 #include <Algorithm/Math/Scalar.hpp>
+#include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 
@@ -42,7 +43,12 @@ auto FormatSeconds(const float seconds) -> std::string {
 }
 
 auto MusicCrossfade::Start(const std::string& target, const MusicCrossfadeConfig& config) -> bool {
-    if (!player_.IsLoaded(target) || config.fade_out_duration < 0.0f || config.fade_in_duration < 0.0f) {
+    // ARCH-006: a NaN duration would pass a plain `< 0` check and then propagate
+    // into every volume write of the fade.
+    const bool durations_invalid = !atom::numeric::IsFinite(config.fade_out_duration) ||
+                                   !atom::numeric::IsFinite(config.fade_in_duration) ||
+                                   config.fade_out_duration < 0.0f || config.fade_in_duration < 0.0f;
+    if (!player_.IsLoaded(target) || durations_invalid) {
         LOG_ERROR(atom::log::audio::PlugMusicFade,
                   "MusicCrossfade: fade failed: target '" + target + "' not loaded or invalid duration");
         EnterState(MusicTransitionState::Failed);
@@ -59,6 +65,8 @@ auto MusicCrossfade::Start(const std::string& target, const MusicCrossfadeConfig
     from_id_ = player_.GetNowPlaying();
     to_id_ = target;
     config_ = config;
+    config_.fade_out_duration = atom::numeric::SanitizeSeconds(config_.fade_out_duration);
+    config_.fade_in_duration = atom::numeric::SanitizeSeconds(config_.fade_in_duration);
     elapsed_ = 0.0f;
     peak_volume_ = player_.GetMusicVolume();
     if (from_id_ == to_id_) {
@@ -84,7 +92,11 @@ auto MusicCrossfade::Start(const std::string& target, const MusicCrossfadeConfig
 }
 
 auto MusicCrossfade::Switch(const std::string& target, const float duration) -> bool {
-    const auto phase = std::max(0.0f, duration * 0.5f);
+    if (!atom::numeric::IsFinite(duration)) {
+        LOG_ERROR(atom::log::audio::PlugMusicFade, "MusicCrossfade: fade duration is not a finite number");
+        return false;
+    }
+    const auto phase = atom::numeric::SanitizeSeconds(duration) * 0.5f;
     return Start(target, MusicCrossfadeConfig{phase, phase});
 }
 
