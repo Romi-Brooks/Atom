@@ -191,6 +191,12 @@ atom_add_test(Atom_Time.TimeSystem
     Time/TimeSystemTest.cpp
     Atom_Time)
 
+# --- Concurrency ---
+atom_add_test(Atom_Concurrency.JobSystem
+    Atom_Concurrency_JobSystem_Tests
+    Concurrency/JobSystemTest.cpp
+    Atom_Concurrency)
+
 atom_add_test(Atom_UTF8.Utf8
     Atom_UTF8_Utf8_Tests
     Utilities/Utf8Test.cpp

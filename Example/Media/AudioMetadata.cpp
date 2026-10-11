@@ -12,7 +12,9 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
+#include <Concurrency/JobSystem.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
@@ -45,13 +47,36 @@ auto main() -> int {
     // convenience entry point resolves against it.
     atom::fs::Vfs::GetInstance().Mount("res", 0, std::move(filesystem));
 
-    for (const auto* filename : sample_files) {
+    // Resolve every file's metadata in parallel through the engine's job
+    // system. Each Read() opens its own file handle (TagLib-backed, VFS-
+    // mediated), so the reads are independent and safe to run concurrently;
+    // scheduling them as jobs demonstrates the engine's generic task API for
+    // exactly the kind of off-main-thread work that would otherwise stall a
+    // frame in a real application.
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    jobs.Configure(); // default: hardware_concurrency() - 1 workers
+    jobs.Start();
+
+    std::vector<atom::job::JobHandle> handles;
+    handles.reserve(std::size(sample_files));
+    std::vector<std::optional<atom::audio::AudioMetadata>> results(std::size(sample_files));
+    for (std::size_t i = 0; i < std::size(sample_files); ++i) {
+        handles.push_back(jobs.Schedule([i, &results] {
+            const std::string asset_path = std::string{"res://"} + sample_files[i];
+            results[i] = atom::audio::AudioMetadataReader::Read(asset_path);
+        }));
+    }
+    // Block until all metadata reads finish; the main thread helps run pending
+    // jobs rather than idling.
+    jobs.WaitAll(handles);
+
+    for (std::size_t i = 0; i < std::size(sample_files); ++i) {
+        const auto* filename = sample_files[i];
         std::cout << "========================================" << std::endl;
         std::cout << filename << std::endl;
         std::cout << "========================================" << std::endl;
 
-        const std::string asset_path = std::string{"res://"} + filename;
-        const auto meta = atom::audio::AudioMetadataReader::Read(asset_path);
+        const auto& meta = results[i];
         if (!meta) {
             std::cout << "(no metadata)" << std::endl << std::endl;
             continue;
@@ -73,5 +98,6 @@ auto main() -> int {
         std::cout << std::endl;
     }
 
+    jobs.Shutdown();
     return 0;
 }

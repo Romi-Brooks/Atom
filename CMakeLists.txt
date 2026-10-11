@@ -113,6 +113,18 @@ endif()
     target_include_directories(Atom_Time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Time PUBLIC Atom_Backend_Contracts)
 
+# 0d. Concurrency — work-stealing job scheduler over a fixed worker pool.
+#     Standalone foundation with no dependency on Log/Time/backend; every
+#     subsystem (audio decode, asset loading, physics, AI) can schedule work
+#     through it. Header-only deque + job types, with a compiled scheduler.
+    add_library(Atom_Concurrency STATIC
+        Concurrency/Job.hpp
+        Concurrency/WorkStealingDeque.hpp
+        Concurrency/JobSystem.hpp
+        Concurrency/JobSystem.cpp
+    )
+    target_include_directories(Atom_Concurrency PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 # 1. Log
     add_library(Atom_Log STATIC
             Log/LogSystem.cpp
@@ -122,6 +134,11 @@ endif()
     )
     target_include_directories(Atom_Log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Log PUBLIC Atom_Backend_Contracts)
+
+    # The job scheduler logs lifecycle + swallowed-exception diagnostics, so it
+    # depends on the log runtime. PUBLIC so any JobSystem consumer (e.g. the
+    # standalone tour example) links the log symbols transitively.
+    target_link_libraries(Atom_Concurrency PUBLIC Atom_Log)
 
 # 2. Algorithm
     add_library(Atom_Algorithm STATIC
@@ -476,6 +493,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Debugger/PanelLayout.hpp
             Debugger/PanelLayout.cpp
             Debugger/Overlay.hpp
+            Debugger/JobSystemDebugger.hpp
+            Debugger/JobSystemDebugger.cpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     if(ATOM_ENABLE_DEBUGGER STREQUAL "ON")
@@ -485,7 +504,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
         target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=0)
         target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=0)
     endif()
-    target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3)
+    target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3 Atom_Concurrency)
     target_link_libraries(Atom_Debugger PRIVATE Atom_Backend_SDLGPU_Debug)
     if(WIN32)
         target_link_libraries(Atom_Debugger PUBLIC opengl32 gdi32)
@@ -499,6 +518,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             # Time is consumed directly by upper layers through
             # TimeSystem::GetInstance(), not only transitively via Atom_Window.
             Atom_Time
+            Atom_Concurrency
             Atom_Layout
             Atom_Media
             Atom_Packager
@@ -564,7 +584,11 @@ target_link_libraries(Example_Simple_Window_Debug PRIVATE Atom_Window Atom_Debug
 
 # Audio metadata example (uses the engine's AudioMetadataReader)
 add_executable(Example_Audio_Metadata Example/Media/AudioMetadata.cpp)
-target_link_libraries(Example_Audio_Metadata PRIVATE Atom_Media)
+target_link_libraries(Example_Audio_Metadata PRIVATE Atom_Media Atom_Concurrency)
+
+# Job system tutorial — a self-contained walkthrough of the scheduler API.
+add_executable(Example_Job_System_Tour Example/Concurrency/JobSystemTour.cpp)
+target_link_libraries(Example_Job_System_Tour PRIVATE Atom_Concurrency)
 
 # Resource-pack playback example
 add_executable(Example_Packaged_Music Example/Media/PackagedMusicPlayback.cpp)
@@ -583,7 +607,13 @@ target_link_libraries(Example_Lua_Scripting PRIVATE
 # MusicCard example — Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
 # and an optional ImGui overlay for debug controls.
-add_executable(Example_MusicCard Example/MusicCard/MusicCard.cpp)
+add_executable(Example_MusicCard
+    Example/MusicCard/MusicCard.cpp
+    Example/MusicCard/MusicCardScreen.cpp
+    Example/MusicCard/MusicCardTypes.hpp
+    Example/MusicCard/MusicCardScreen.hpp
+    Example/MusicCard/MusicCardDebugger.hpp
+)
 target_link_libraries(Example_MusicCard PRIVATE
     Atom_Media Atom_Window Atom_Debugger Atom_Layout Atom_Renderer2D Atom_Render_Resources Atom_Image)
 target_compile_definitions(Example_MusicCard PRIVATE
@@ -651,7 +681,8 @@ if(MINGW)
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
-                                Example_MusicCard Example_Lua_Scripting Atom_Tool_Packager
+                                Example_MusicCard Example_Lua_Scripting Example_Job_System_Tour
+                               Atom_Tool_Packager
                                Atom_Tool_PackagerGui)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
         endforeach()

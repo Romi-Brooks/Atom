@@ -288,6 +288,46 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 - [ ] 避免混用静默返回、bool、异常和仅日志记录。
 - [ ] 错误信息包含模块、操作、资源路径和底层错误。
 
+### 4.1b 并发（Job System，新增 2026-10-11）
+
+> 背景：`Concurrency/` 模块（`Job.hpp` / `WorkStealingDeque.hpp` / `JobSystem.hpp/.cpp`）已落地为引擎
+> 通用底层任务调度设施（固定 worker 池 + Chase-Lev work-stealing + 依赖 counter + 三级优先级 + 主线程协助）。
+> 首版已通过单测（单 job / 依赖链 / 并发累加 / 主线程协助 / 优先级 / 多线程并发提交 / 嵌套提交 / shutdown）
+> 与 200 次压力测试。以下为工业化阶段（step 较小）的后续优化点，按优先级排序。
+
+### CONCURRENCY-001：任务优先级细分与抢占语义（P2）
+
+- [ ] 当前仅 Low/Normal/High 三级，且优先级只影响「入队顺序」、无抢占（运行中的 Normal 不会为 High 让位）。
+      对「高优先级必须即时响应」的场景（如音频 underrun 抢救）仍不够；评估是否引入抢占或至少明确并文档化该语义。
+- [ ] `Priority` 目前在 `PushToPool` 里按 High/非 High 二分，`Low` 与 `Normal` 实际等价；补齐 Low 的降级调度（空闲时才跑）。
+
+### CONCURRENCY-002：work-stealing 本地队列的调度策略（P2）
+
+- [ ] 首版已接通本地队列（worker 内提交走 lock-free LIFO，跨线程走共享池，窃取走 FIFO），但 `RunOne` 的窃取
+      起点固定为 `(idx+1)%n`，无随机化/负载探测；高竞争下可能重复扫描同一队列。评估随机起点或 steal 计数反馈。
+- [ ] 本地队列容量固定 256，满时 fallback 共享池；评估动态扩缩容或分块（chunked queue）降低 fallback 频率。
+
+### CONCURRENCY-003：等待语义与忙等消除（P2）
+
+- [ ] `HelpWhileWaiting` 在无可运行 job 时 `std::this_thread::yield()` 忙等；若目标 job 已被 shutdown 丢弃，
+      依赖 `running_` 早退防护已避免死锁，但仍有空转。评估引入条件变量/信号量统一等待，减少主线程空转与功耗。
+- [ ] `WaitAll` 当前逐次 `WaitFor`（串行 wait），语义正确但非批量；评估一次等待多个 handle 的批量原语。
+
+### CONCURRENCY-004：可观测性与诊断（P2）
+
+- [ ] 暴露 per-worker 队列深度、窃取次数、任务执行时长等统计，供 Debugger overlay 显示（对齐 Log 的 dropped 计数风格）。
+- [ ] `PendingJobCount()` 目前是全局原子计数，无法区分「排队中」与「执行中」；补充细分计数。
+
+### CONCURRENCY-005：异常与取消语义（P2/P3）
+
+- [ ] 当前 job 抛异常被 `catch (...)` 静默吞掉，调用方无感知。评估提供 `on_error` 回调或把异常记录到 handle，供诊断。
+- [ ] 依赖链上若某一依赖被丢弃（如 shutdown），下游 dependent 的 complete 语义需明确（当前会标 complete，但未执行 body）。
+
+### CONCURRENCY-006：fiber / 同步原语（P3，暂缓）
+
+- [ ] 当前为普通线程 work-stealing，无用户态 fiber。若未来需要「同步等待不阻塞 OS 线程」的协程式调度，
+      再评估自研 fiber 或引入成熟库；短期不做。
+
 ### 4.2 音频
 
 ### AUDIO-001：Mixer / Bus 增益传播
