@@ -117,6 +117,20 @@ auto JobSystem::Shutdown() -> void {
             worker->thread.join();
     }
     workers_.clear();
+
+    // Mark jobs still sitting in a worker's local queue complete before the
+    // queues are destroyed, mirroring the pool handling below. Without this, a
+    // handle to a locally-queued job never completes and a later WaitFor()
+    // spins forever (the workers are already gone, so nothing will ever run it).
+    for (auto& queue : queues_) {
+        while (true) {
+            auto item = queue->Steal();
+            if (!item)
+                break;
+            (*item)->complete.store(true, std::memory_order_release);
+            (*item)->unfinished.store(0, std::memory_order_release);
+        }
+    }
     queues_.clear();
 
     // Drop any stranded jobs. Handles remain valid (their completion is
@@ -179,6 +193,7 @@ auto JobSystem::Schedule(std::string name, std::function<void()> fn, const Prior
     // registration is done under the dependency's mutex and re-checks its
     // completion flag: a completed dependency counts as satisfied immediately
     // instead of waiting on a continuation that will never be drained.
+    std::size_t already_done_count = 0;
     for (auto& dep_job : valid_deps) {
         bool already_done = false;
         {
@@ -190,14 +205,20 @@ auto JobSystem::Schedule(std::string name, std::function<void()> fn, const Prior
             }
         }
         if (already_done) {
+            ++already_done_count;
             job->unfinished.fetch_sub(1, std::memory_order_acq_rel);
         }
     }
 
-    // If the job is now runnable (its own body is all that remains), submit it.
-    // This is the single decision point: either it was scheduled with no
-    // unresolved dependencies, or every dependency was already complete.
-    if (job->unfinished.load(std::memory_order_acquire) == 1) {
+    // Submit only when *every* dependency was already complete at registration
+    // time. Deciding on a racy re-read of `unfinished` would double-submit: a
+    // dependency completing between the continuation registration above and
+    // that check both decrements `unfinished` to 1 AND signals (submits) the
+    // job, so the second submission would run the body twice. Counting the
+    // dependencies this thread satisfied is local and race-free: if any
+    // dependency is still outstanding, that dependency's completion is the
+    // single owner of the submission.
+    if (already_done_count == valid_deps.size()) {
         SubmitRunnable(job);
     }
 
