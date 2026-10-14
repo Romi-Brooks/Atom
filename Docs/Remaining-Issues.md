@@ -294,6 +294,13 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 > 通用底层任务调度设施（固定 worker 池 + Chase-Lev work-stealing + 依赖 counter + 三级优先级 + 主线程协助）。
 > 首版已通过单测（单 job / 依赖链 / 并发累加 / 主线程协助 / 优先级 / 多线程并发提交 / 嵌套提交 / shutdown）
 > 与 200 次压力测试。以下为工业化阶段（step 较小）的后续优化点，按优先级排序。
+>
+> **2026-10-15 审查修复（保留实施历史）**：
+> - [x] `Schedule()` 双重提交竞态（P0）：末尾曾用 `unfinished == 1` 做竞态判断，依赖恰在「注册
+>       continuation」与「最终判断」之间完成时会被双重提交、body 执行两次（压力测试 600001/600000 复现）。
+>       已改为本地 `already_done_count == valid_deps.size()` 判断，修复后 8/8 次压力测试通过。
+> - [x] `Shutdown()` 丢弃 worker 本地队列任务（P1）：原只标记共享池任务 complete，本地队列任务被
+>       `queues_.clear()` 直接丢弃、句柄永不 complete。已补齐清空前逐个 `Steal()` 标记 complete。
 
 ### CONCURRENCY-001：任务优先级细分与抢占语义（P2）
 
@@ -327,6 +334,33 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 
 - [ ] 当前为普通线程 work-stealing，无用户态 fiber。若未来需要「同步等待不阻塞 OS 线程」的协程式调度，
       再评估自研 fiber 或引入成熟库；短期不做。
+
+### CONCURRENCY-007：Shutdown 不解析完整依赖图（P1，新增 2026-10-15）
+
+**背景**：`Shutdown()` 只把「已在队列中的任务」（共享池 + worker 本地队列）标记 complete，但**不会
+drain continuation**。一个等待依赖（`unfinished > 1`）的任务从未被提交、不在任何队列里；若其依赖在
+shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` 永远为 false，之后 `WaitFor` 永久自旋。
+
+- [ ] shutdown 时沿 continuation 递归标记（或显式清空依赖图），保证「每个已提交句柄最终可观察为完成」。
+- [ ] 明确语义：shutdown 丢弃的依赖链上，下游任务应视为「完成（未执行 body）」还是「失败」，并配单测
+      覆盖依赖链 + 提前 shutdown 的组合。
+
+### CONCURRENCY-008：Schedule 在 Shutdown 后仍接受提交（P1，新增 2026-10-15）
+
+**背景**：`Schedule()` 不检查 `running_`，文档虽声明 Shutdown 后「停止接受工作」但未强制。此类任务进
+共享池后永无 worker 消费，`WaitFor` 命中「未运行」分支的 busy-yield 并永久自旋。
+
+- [ ] 明确并强制语义：Shutdown 后 `Schedule` 返回空句柄（或断言/报错），并在 `WaitFor` 的未运行分支提供
+      可终止的等待（如返回 bool 或超时），避免无限自旋。
+- [ ] 覆盖「Schedule before Start / between Shutdown and Start」的生命周期边界测试。
+
+### CONCURRENCY-009：诊断计数器下溢与死代码（P3，新增 2026-10-15）
+
+- [ ] `pending_count_` 为 `atomic<std::size_t>`，任何一次重复 `fetch_sub` 会下溢为 SIZE_MAX，污染
+      `PendingJobCount()`；改有符号类型或在 `fetch_sub` 前钳制。（重复执行的根因已在 2026-10-15 修复，
+      计数器本身的回绕防护仍未做。）
+- [ ] `CurrentWorkerIndex()` 是死代码（`SubmitRunnable` 直接读 `thread_local g_worker_index`），删除或改用它。
+- [ ] `WorkerCount()` 无同步读 `workers_.size()`，Start/Shutdown 并发调用时是数据竞争；返回稳定快照或加锁。
 
 ### 4.2 音频
 
