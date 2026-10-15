@@ -382,6 +382,11 @@ auto MusicCardScreen::Render(atom::render::IRenderDevice& device) -> void {
     }
 }
 
+// INPUT: this screen stays on the event path on purpose. FindAction() matches
+// the event's modifier snapshot, so {Space, None} fires for Space alone and not
+// for Shift+Space. The polling path (IsActionPressed) checks the modifiers held
+// at read time instead, and is for continuous input: see
+// Example/Input/InputDemo.cpp.
 auto MusicCardScreen::HandleEvent(const atom::window::IEvent& event) -> bool {
     if (event.type == atom::window::EventType::KeyPressed) {
         const auto& key = std::get<atom::window::KeyEvent>(event.data);
@@ -412,7 +417,7 @@ auto MusicCardScreen::HandleEvent(const atom::window::IEvent& event) -> bool {
 
     if (event.type == atom::window::EventType::MouseButtonPressed) {
         const auto& mouse = std::get<atom::window::MouseEvent>(event.data);
-        if (mouse.button != atom::event::MouseButton::Left)
+        if (mouse.button != atom::input::MouseButton::Left)
             return false;
         if (previous_hitbox_.Contains(mouse.x, mouse.y)) {
             Previous();

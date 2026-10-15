@@ -5,6 +5,7 @@
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
 #include <Backend/Extension/DebugImGuiBackendRegistry.hpp>
 #include <Debugger/DebuggerConfig.hpp>
+#include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Window/RenderWindow.hpp>
 
@@ -57,8 +58,21 @@ auto OverlayManager::EnsureInitialized() -> bool {
             if (panel.callback)
                 panel.callback();
         }
-        if (backend_)
+        if (backend_) {
+            // This is the *debug* consumer of the engine's UI-capture contract
+            // (see InputSystem). Game UI - a chat box, a menu - calls the same
+            // entry point from its own code, so the semantics of
+            // IsMouseCapturedByUi()/IsKeyboardCapturedByUi() do not depend on the
+            // debugger being built in.
+            //
+            // Only the mouse is reported here. The debug overlay has no text
+            // field, and reporting ImGui's WantCaptureKeyboard would claim the
+            // whole keyboard just because a panel has focus, which is not what
+            // "the game UI owns the keyboard" means for gameplay.
+            atom::input::InputSystem::GetInstance().SetUiCapture(backend_->WantsMouse(), false, false,
+                                                                 "ImGui debug overlay");
             backend_->Render();
+        }
     }));
     shutdown_connection_ = std::make_unique<ListenerConnection>(window_.AddShutdownListener([this] {
         ShutdownBackend();

@@ -104,6 +104,7 @@ submodule。如果没有使用 `--recurse-submodules` 克隆，请在配置 CMak
 | `Example_SFX_Playback` | 音效播放（Voice Pool 重叠播放） |
 | `Example_Audio_Metadata` | 通过引擎 AudioMetadataReader 读取音频标签与属性 |
 | `Example_Packaged_Music` | 资源包打包 → 加载到内存 → 流式播放（MP3/WAV） |
+| `Example_Input_Demo` | 输入系统验收样例：按住移动 / 鼠标拖拽 / ActionMap 动作边沿，面板实时显示按键与鼠标状态。**新代码要用输入，先看这个文件** |
 
 ***
 

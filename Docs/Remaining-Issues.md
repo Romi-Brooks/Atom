@@ -278,9 +278,35 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 
 ### CORE-002：InputSystem
 
-- [ ] 建立按帧维护的按下、持续、释放状态。
-- [ ] 支持动作映射，避免业务代码直接依赖 SDL keycode。
-- 现状：`Event/Input.hpp`（Key/MouseButton/KeyModifiers）与 `Event/ActionMap.hpp`（键位到 Action 的映射）已有雏形，但缺按帧维护的输入状态与多设备合并。
+- [x] 建立按帧维护的按下、持续、释放状态。（2026-10-15：`Input/InputSystem` 落地，单例 + BeginFrame/ProcessEvent + 键/鼠标三态 + chord/action 查询，含单测）
+- [x] 支持动作映射，避免业务代码直接依赖 SDL keycode。（`Input/ActionMap` 由 `Event/` 迁入，`atom::input` 命名空间）
+- [x] 接入 `RenderWindow::Run()`：`ProcessEvents()` 在事件轮询前调用一次 `InputSystem::BeginFrame()`，每个规范化事件先经
+      `InputSystem::ProcessEvent()` 再分发给监听器与 Screen，因此 `HandleEvent` 内读到的就是当前事件的状态。
+      由此**业务代码不得再自行调用 `BeginFrame()`**（同一帧调用两次会把真实的按下边沿提前结算成 Held）。
+- [x] 修复首版三处缺陷（2026-10-15 复查）：未映射 scancode 译成 `Key::Unknown`（值为 0）会被写进 `keys_[0]`，
+      污染真实按键，现已显式丢弃；窗口失焦后 SDL 不再发 key-up，按住的方向键会永久卡在 Held，现由
+      `EventType::FocusChanged` 分支调用 `Reset()` 释放；`Reset()` 不再清空鼠标坐标（失焦时鼠标有真实位置，
+      清零会让重新聚焦后的首次移动算出虚构的 delta），丢弃基线改为显式调用 `ResetMousePosition()`。
+      回归用例已覆盖这三种情形。
+- [ ] 多设备合并（键盘 + 手柄）与手柄支持。
+- [x] UI 抢输入契约（2026-10-15 落地，2026-10-15 修正方向）：游戏内 UI（聊天框、菜单）与调试层都会吃键盘，
+      引擎原先没有任何口径，导致「拖着调试面板动、方块跟着跑」和「聊天框打字时角色还在走」两类问题。
+      现提供**与 UI 框架无关**的 `InputSystem::SetUiCapture(mouse, keyboard, text_input, source)` 与三个查询：
+      `IsMouseCapturedByUi()` 挡鼠标类输入、`IsKeyboardCapturedByUi()` 挡一次性命令、`IsTextInputCapturedByUi()`
+      挡持续输入（按住移动）。**状态机不做屏蔽**，始终如实报告物理设备状态，是否让位由业务决定。
+      调试覆盖层是这套契约的一个消费者（`OverlayManager` 每帧只上报鼠标捕获，来源名 `ImGui debug overlay`）；
+      `IDebugImGuiBackend` 因此只保留 `WantsMouse()`，不再暴露 `WantCaptureKeyboard`/`WantTextInput`——调试层
+      不应该参与定义游戏的输入语义，Release 构建里它根本不存在。
+      已知代价：调试覆盖层在 overlay 回调里上报，对「刚开始拖拽的那一帧」晚一帧；游戏 UI 在自己的 Update 里上报，无此延迟。
+- [ ] 捕获来源目前是**单槽**（后写覆盖）。当前只有游戏 UI 与调试层两个来源且职责不重叠，够用；等出现第三个
+      会同时抢键盘的 UI 层（如背包 + 聊天）时，需要改成按来源聚合或引用计数。
+- [ ] ImGui 文本输入与游戏按键的进一步协同：目前只提供「键盘/文本是否被 UI 捕获」的布尔判定，尚未提供
+      「这次按键已被文本框消费、不要进 ActionMap」的逐事件口径，需要时再补。
+- 现状：`Input/Key.hpp`（Key/MouseButton/KeyModifiers）、`Input/ActionMap.hpp`（键位到 Action）与
+      `Input/InputSystem`（按帧状态 + UI 捕获）已就绪，主循环已接线；`Example/Input/InputDemo.cpp` 是可运行验收
+      样例（按住移动 / 拖拽 / 动作边沿 / chord / 游戏内聊天框抢输入，外加实时状态面板）。多设备与手柄待做。
+      两种读输入方式（事件 vs 轮询）的分工写在 `Input/InputSystem.hpp` 文件头与 `Docs/API-Guide-CN.md`
+      的「输入」一节，每个 `Example` 里使用输入的位置也标了 INPUT 注释。
 
 ### CORE-004：统一错误模型
 

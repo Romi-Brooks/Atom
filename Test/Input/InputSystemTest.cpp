@@ -1,0 +1,308 @@
+/**
+ * @file           : InputSystemTest.cpp
+ * @brief          : Correctness tests for the per-frame input state machine.
+ *
+ * Covers the InputSystem's core contract independently of any backend:
+ *   - key pressed / held / released edges across frames
+ *   - key repeat does not re-raise the pressed edge
+ *   - mouse position, delta (baseline-aware), and wheel accumulation
+ *   - mouse button edges
+ *   - chord queries with modifiers
+ *   - action queries over an ActionMap
+ *   - Reset() keeps the cursor position, ResetMousePosition() drops the baseline
+ *   - Key::Unknown is dropped instead of aliasing slot 0
+ *   - focus loss releases every held key and button
+ *   - UI capture flags are reported without rewriting the raw device state
+ */
+
+#include <Input/InputSystem.hpp>
+
+#include <Backend/Contracts/Window/IWindow.hpp>
+#include <Test/Support/TestHelpers.hpp>
+
+namespace {
+using atom::input::ActionMap;
+using atom::input::InputSystem;
+using atom::input::Key;
+using atom::input::KeyModifiers;
+using atom::input::KeyState;
+using atom::input::MouseButton;
+using atom::window::EventType;
+using atom::window::IEvent;
+using atom::window::KeyEvent;
+using atom::window::MouseEvent;
+using atom::window::MouseWheelEvent;
+
+auto MakeKey(const EventType type, const Key key, const KeyModifiers mods = KeyModifiers::None,
+             const bool repeat = false) -> IEvent {
+    IEvent event{};
+    event.type = type;
+    event.data = KeyEvent{key, mods, repeat};
+    return event;
+}
+
+auto MakeMouseMove(const float x, const float y) -> IEvent {
+    IEvent event{};
+    event.type = EventType::MouseMoved;
+    event.data = MouseEvent{x, y, MouseButton::Unknown};
+    return event;
+}
+
+auto MakeMouseButton(const EventType type, const MouseButton button) -> IEvent {
+    IEvent event{};
+    event.type = type;
+    event.data = MouseEvent{0.0f, 0.0f, button};
+    return event;
+}
+
+auto MakeWheel(const float x, const float y) -> IEvent {
+    IEvent event{};
+    event.type = EventType::MouseWheel;
+    event.data = MouseWheelEvent{x, y};
+    return event;
+}
+
+enum class Action { Jump, Pause };
+
+} // namespace
+
+auto main() -> int {
+    auto& input = InputSystem::GetInstance();
+    input.Reset();
+
+    // --- 1. Key edges across frames --------------------------------------
+    {
+        input.BeginFrame();
+        ATOM_CHECK(!input.IsKeyPressed(Key::Space));
+        ATOM_CHECK(!input.IsKeyHeld(Key::Space));
+
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::Space));
+        ATOM_CHECK(input.IsKeyPressed(Key::Space));
+        ATOM_CHECK(input.IsKeyHeld(Key::Space));
+        ATOM_CHECK(!input.IsKeyReleased(Key::Space));
+        ATOM_CHECK(input.GetKeyState(Key::Space) == KeyState::Pressed);
+
+        // Next frame: the pressed edge settles into held.
+        input.BeginFrame();
+        ATOM_CHECK(!input.IsKeyPressed(Key::Space));
+        ATOM_CHECK(input.IsKeyHeld(Key::Space));
+
+        input.ProcessEvent(MakeKey(EventType::KeyReleased, Key::Space));
+        ATOM_CHECK(input.IsKeyReleased(Key::Space));
+        ATOM_CHECK(!input.IsKeyHeld(Key::Space));
+
+        // Next frame: released settles into up.
+        input.BeginFrame();
+        ATOM_CHECK(!input.IsKeyReleased(Key::Space));
+        ATOM_CHECK(input.GetKeyState(Key::Space) == KeyState::Up);
+    }
+
+    // --- 2. Key repeat does not re-raise the pressed edge -----------------
+    {
+        input.Reset();
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::A));
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::A, KeyModifiers::None, true));
+        ATOM_CHECK(input.IsKeyPressed(Key::A));
+
+        input.BeginFrame();
+        ATOM_CHECK(!input.IsKeyPressed(Key::A));
+        ATOM_CHECK(input.IsKeyHeld(Key::A));
+        input.ProcessEvent(MakeKey(EventType::KeyReleased, Key::A));
+        ATOM_CHECK(input.IsKeyReleased(Key::A));
+    }
+
+    // --- 3. Mouse position, delta, and wheel ------------------------------
+    {
+        input.Reset();
+        input.BeginFrame();
+        // First move establishes a baseline; no fabricated delta.
+        input.ProcessEvent(MakeMouseMove(100.0f, 100.0f));
+        ATOM_CHECK(input.GetMousePosition().GetX() == 100.0f);
+        ATOM_CHECK(input.GetMouseDelta().GetX() == 0.0f);
+        ATOM_CHECK(input.GetMouseDelta().GetY() == 0.0f);
+
+        input.ProcessEvent(MakeMouseMove(110.0f, 105.0f));
+        ATOM_CHECK(input.GetMouseDelta().GetX() == 10.0f);
+        ATOM_CHECK(input.GetMouseDelta().GetY() == 5.0f);
+
+        input.ProcessEvent(MakeWheel(0.0f, 2.0f));
+        ATOM_CHECK(input.GetMouseWheel().GetY() == 2.0f);
+
+        // Next frame clears delta and wheel.
+        input.BeginFrame();
+        ATOM_CHECK(input.GetMouseDelta().GetX() == 0.0f);
+        ATOM_CHECK(input.GetMouseWheel().GetY() == 0.0f);
+        // Position persists.
+        ATOM_CHECK(input.GetMousePosition().GetX() == 110.0f);
+    }
+
+    // --- 4. Mouse button edges --------------------------------------------
+    {
+        input.Reset();
+        input.BeginFrame();
+        input.ProcessEvent(MakeMouseButton(EventType::MouseButtonPressed, MouseButton::Left));
+        ATOM_CHECK(input.IsMousePressed(MouseButton::Left));
+        ATOM_CHECK(input.IsMouseHeld(MouseButton::Left));
+
+        input.BeginFrame();
+        ATOM_CHECK(input.IsMouseHeld(MouseButton::Left));
+        ATOM_CHECK(!input.IsMousePressed(MouseButton::Left));
+
+        input.ProcessEvent(MakeMouseButton(EventType::MouseButtonReleased, MouseButton::Left));
+        ATOM_CHECK(input.IsMouseReleased(MouseButton::Left));
+        ATOM_CHECK(!input.IsMouseHeld(MouseButton::Left));
+    }
+
+    // --- 5. Chord queries with modifiers ----------------------------------
+    {
+        input.Reset();
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::LeftControl));
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::S));
+
+        // Ctrl+S requires the Control modifier to be held.
+        ATOM_CHECK(input.IsChordPressed({Key::S, KeyModifiers::Control}));
+        // Without Control held, the chord is not satisfied.
+        input.ProcessEvent(MakeKey(EventType::KeyReleased, Key::LeftControl));
+        input.ProcessEvent(MakeKey(EventType::KeyReleased, Key::S));
+        input.BeginFrame();
+
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::S));
+        ATOM_CHECK(!input.IsChordPressed({Key::S, KeyModifiers::Control}));
+        input.ProcessEvent(MakeKey(EventType::KeyReleased, Key::S));
+    }
+
+    // --- 6. Action queries over an ActionMap ------------------------------
+    {
+        ActionMap<Action> map{};
+        ATOM_CHECK(map.Bind({Key::Space}, Action::Jump));
+        ATOM_CHECK(map.Bind({Key::Up}, Action::Jump));
+        ATOM_CHECK(map.Bind({Key::Escape}, Action::Pause));
+
+        input.Reset();
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::Space));
+        ATOM_CHECK(input.IsActionPressed(map, Action::Jump));
+        ATOM_CHECK(!input.IsActionPressed(map, Action::Pause));
+        ATOM_CHECK(input.IsActionHeld(map, Action::Jump));
+
+        // Arrow alternative for the same action.
+        input.ProcessEvent(MakeKey(EventType::KeyReleased, Key::Space));
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::Up));
+        ATOM_CHECK(input.IsActionPressed(map, Action::Jump));
+        input.ProcessEvent(MakeKey(EventType::KeyReleased, Key::Up));
+    }
+
+    // --- 7. Reset clears key/button state but keeps the cursor position -----
+    {
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::W));
+        input.ProcessEvent(MakeMouseMove(400.0f, 300.0f));
+        input.Reset();
+        ATOM_CHECK(!input.IsKeyHeld(Key::W));
+        ATOM_CHECK(input.GetKeyState(Key::W) == KeyState::Up);
+        // The cursor keeps a real position while the window is unfocused, so
+        // Reset() must not invent a position of (0, 0): the next motion would
+        // otherwise report a bogus delta from the origin.
+        ATOM_CHECK(input.GetMousePosition().GetX() == 400.0f);
+        ATOM_CHECK(input.GetMouseDelta().GetX() == 0.0f);
+
+        // Dropping the baseline explicitly re-arms the "first move" path.
+        input.ResetMousePosition();
+        ATOM_CHECK(input.GetMousePosition().GetX() == 0.0f);
+        input.ProcessEvent(MakeMouseMove(50.0f, 60.0f));
+        ATOM_CHECK(input.GetMouseDelta().GetX() == 0.0f);
+    }
+
+    // --- 8. Unknown keys are dropped, not folded into slot 0 ---------------
+    {
+        input.Reset();
+        input.BeginFrame();
+        // An unmapped scancode arrives as Key::Unknown, which is also slot 0.
+        // Folding it in would press whatever key sits at index 0.
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::Unknown));
+        input.ProcessEvent(MakeKey(EventType::KeyReleased, Key::A));
+        ATOM_CHECK(input.GetKeyState(Key::Unknown) == KeyState::Up);
+        ATOM_CHECK(input.GetKeyState(Key::A) == KeyState::Up);
+    }
+
+    // --- 9. Losing focus releases everything ------------------------------
+    {
+        input.Reset();
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::W));
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::LeftShift));
+        input.ProcessEvent(MakeMouseButton(EventType::MouseButtonPressed, MouseButton::Left));
+        ATOM_CHECK(input.IsKeyHeld(Key::W));
+        ATOM_CHECK(input.IsMouseHeld(MouseButton::Left));
+
+        // The OS stops sending key-up events once the window is unfocused, so
+        // the engine folds the focus loss into a release instead.
+        IEvent lost{};
+        lost.type = EventType::FocusChanged;
+        lost.data = atom::window::FocusEvent{false};
+        input.ProcessEvent(lost);
+        ATOM_CHECK(!input.IsKeyHeld(Key::W));
+        ATOM_CHECK(!input.IsKeyHeld(Key::LeftShift));
+        ATOM_CHECK(!input.IsMouseHeld(MouseButton::Left));
+
+        // Regaining focus must be a no-op on its own.
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::W));
+        IEvent gained{};
+        gained.type = EventType::FocusChanged;
+        gained.data = atom::window::FocusEvent{true};
+        input.ProcessEvent(gained);
+        ATOM_CHECK(input.IsKeyHeld(Key::W));
+    }
+
+    // --- 10. UI capture is reported but never rewrites the raw state --------
+    {
+        input.Reset();
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::W));
+        input.ProcessEvent(MakeMouseButton(EventType::MouseButtonPressed, MouseButton::Left));
+
+        ATOM_CHECK(!input.IsMouseCapturedByUi());
+        ATOM_CHECK(!input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(!input.IsTextInputCapturedByUi());
+        ATOM_CHECK(input.UiCaptureSource().empty());
+
+        // The overlay layer claiming the mouse does not change what the device
+        // reports: application code decides what to do with the two facts.
+        input.SetUiCapture(true, false, false, "ImGui overlay");
+        ATOM_CHECK(input.IsMouseCapturedByUi());
+        ATOM_CHECK(!input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(input.UiCaptureSource() == "ImGui overlay");
+        ATOM_CHECK(input.IsMouseHeld(MouseButton::Left));
+        ATOM_CHECK(input.IsKeyHeld(Key::W));
+
+        // Coarse keyboard ownership (a focused panel) and the narrow text-input
+        // gate are independent: only the field being typed into sets the latter.
+        input.SetUiCapture(false, true, false, "ImGui overlay");
+        ATOM_CHECK(input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(!input.IsTextInputCapturedByUi());
+
+        input.SetUiCapture(false, true, true, "ImGui overlay");
+        ATOM_CHECK(input.IsTextInputCapturedByUi());
+
+        // Releasing the claim drops the stale source name with it.
+        input.SetUiCapture(false, false, false, "ImGui overlay");
+        ATOM_CHECK(!input.IsMouseCapturedByUi());
+        ATOM_CHECK(!input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(!input.IsTextInputCapturedByUi());
+        ATOM_CHECK(input.UiCaptureSource().empty());
+
+        // Losing focus clears any capture claim already made.
+        input.SetUiCapture(true, true, true, "ImGui overlay");
+        IEvent lost{};
+        lost.type = EventType::FocusChanged;
+        lost.data = atom::window::FocusEvent{false};
+        input.ProcessEvent(lost);
+        ATOM_CHECK(!input.IsMouseCapturedByUi());
+        ATOM_CHECK(!input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(!input.IsTextInputCapturedByUi());
+    }
+
+    return 0;
+}

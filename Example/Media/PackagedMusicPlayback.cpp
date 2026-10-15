@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include <Event/Input.hpp>
+#include <Input/Key.hpp>
 #include <Filesystem/PackageFileSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
@@ -134,10 +134,21 @@ class PackedMusicScreen final : public atom::Screen {
             device.Clear(atom::render::Color{30, 30, 60});
         }
 
+        // INPUT: two paths exist and they are not interchangeable.
+        //
+        //   This one (event style) - a discrete command that must fire once per
+        //   press and wants the exact event payload, here "Escape went down".
+        //   Returning true consumes the event.
+        //
+        //   input::InputSystem (polling style) - anything continuous: "is this
+        //   key held", "how far did the mouse move", "was a chord pressed this
+        //   frame", and the only way to ask the same question from more than one
+        //   place in a frame. Add <Input/InputSystem.hpp> and read it from
+        //   Update()/FixedUpdate().
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
-                if (key.key == atom::event::Key::Escape) {
+                if (key.key == atom::input::Key::Escape) {
                     atom::RenderWindow::GetInstance().Shutdown();
                     return true;
                 }

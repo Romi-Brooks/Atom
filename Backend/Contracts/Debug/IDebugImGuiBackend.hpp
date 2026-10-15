@@ -25,6 +25,14 @@ class IDebugImGuiBackend {
         // Feeds one normalized Atom event to the ImGui platform backend.
         virtual auto ProcessEvent(const window::IEvent& event) -> void = 0;
 
+        // True while the ImGui frame wants to own the mouse (a panel is being
+        // dragged, an item is being edited, the cursor is over an ImGui window).
+        // The overlay manager forwards this to InputSystem::SetUiCapture so that
+        // dragging a debug panel does not also drag the scene. This is the only
+        // capture query the debugger needs: game UI reports its own capture
+        // through the public InputSystem API instead of through this contract.
+        [[nodiscard]] virtual auto WantsMouse() const -> bool = 0;
+
         // Tears down the ImGui context.
         virtual auto Shutdown() -> void = 0;
 };

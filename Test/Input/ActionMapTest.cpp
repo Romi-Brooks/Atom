@@ -1,4 +1,4 @@
-#include <Event/ActionMap.hpp>
+#include <Input/ActionMap.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 namespace {
@@ -8,7 +8,7 @@ enum class Action { Jump, Pause };
 } // namespace
 
 auto main() -> int {
-    using namespace atom::event;
+    using namespace atom::input;
 
     ActionMap<Action> map{};
     ATOM_CHECK(map.Bind({Key::Space, KeyModifiers::None}, Action::Jump));

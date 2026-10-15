@@ -11,6 +11,7 @@
 
 #include <Backend/Extension/RenderBackendRegistry.hpp>
 #include <Backend/Runtime/RenderBackendRuntime.hpp>
+#include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom {
@@ -41,9 +42,20 @@ namespace {
 
 auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
     auto& window = backend_->Window();
+
+    // CORE-002: the engine owns the per-frame input edges. BeginFrame() runs
+    // once per poll, before any event is folded in, so Pressed/Released are
+    // observable for exactly one frame by screens, listeners and fixed updates.
+    auto& input = atom::input::InputSystem::GetInstance();
+    input.BeginFrame();
+
     while (auto event = window.PollEvent()) {
         if (event->type == atom::window::EventType::None)
             continue;
+
+        // Fold the normalized event into the frame state before dispatching it,
+        // so a listener that reads InputSystem during HandleEvent sees itself.
+        input.ProcessEvent(*event);
 
         for (const auto& entry : event_listeners_) {
             entry.fn(*event);

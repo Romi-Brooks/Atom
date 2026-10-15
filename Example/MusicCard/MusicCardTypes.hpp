@@ -22,7 +22,7 @@
 
 #include <Algorithm/Color/ColorMath.hpp>
 #include <Algorithm/Geometry/Rect.hpp>
-#include <Event/ActionMap.hpp>
+#include <Input/ActionMap.hpp>
 #include <Filesystem/AssetPath.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Image/Analysis/ColorStatistics.hpp>
@@ -39,15 +39,15 @@ inline constexpr auto WallpaperPath = R"(C:\Users\Romi\Pictures\Wallpapper\31779
 
 enum class MusicCardAction { Quit, Previous, Next, TogglePlayback, ToggleCorner, ToggleVisibility };
 
-[[nodiscard]] inline auto GetMusicCardBindings() -> const atom::event::ActionMap<MusicCardAction>& {
+[[nodiscard]] inline auto GetMusicCardBindings() -> const atom::input::ActionMap<MusicCardAction>& {
     static const auto bindings = [] {
-        atom::event::ActionMap<MusicCardAction> result;
-        result.Bind({atom::event::Key::Escape}, MusicCardAction::Quit);
-        result.Bind({atom::event::Key::Left}, MusicCardAction::Previous);
-        result.Bind({atom::event::Key::Right}, MusicCardAction::Next);
-        result.Bind({atom::event::Key::Space}, MusicCardAction::TogglePlayback);
-        result.Bind({atom::event::Key::C}, MusicCardAction::ToggleCorner);
-        result.Bind({atom::event::Key::H}, MusicCardAction::ToggleVisibility);
+        atom::input::ActionMap<MusicCardAction> result;
+        result.Bind({atom::input::Key::Escape}, MusicCardAction::Quit);
+        result.Bind({atom::input::Key::Left}, MusicCardAction::Previous);
+        result.Bind({atom::input::Key::Right}, MusicCardAction::Next);
+        result.Bind({atom::input::Key::Space}, MusicCardAction::TogglePlayback);
+        result.Bind({atom::input::Key::C}, MusicCardAction::ToggleCorner);
+        result.Bind({atom::input::Key::H}, MusicCardAction::ToggleVisibility);
         return result;
     }();
     return bindings;

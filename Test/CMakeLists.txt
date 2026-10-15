@@ -105,10 +105,15 @@ atom_add_test(Atom_Color.ColorMath
     Algorithm/ColorMathTest.cpp
     Atom_Color)
 
-atom_add_test(Atom_Event.ActionMap
-    Atom_Event_ActionMap_Tests
-    Event/ActionMapTest.cpp
-    Atom_Event)
+atom_add_test(Atom_Input.ActionMap
+    Atom_Input_ActionMap_Tests
+    Input/ActionMapTest.cpp
+    Atom_Input)
+
+atom_add_test(Atom_Input.InputSystem
+    Atom_Input_InputSystem_Tests
+    Input/InputSystemTest.cpp
+    Atom_InputSystem)
 
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry

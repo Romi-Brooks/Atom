@@ -7,7 +7,7 @@
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Runtime/BackendRuntime.hpp>
-#include <Event/Input.hpp>
+#include <Input/Key.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Effects/DopplerEffect.hpp>
@@ -50,10 +50,21 @@ class ProbeScreen final : public atom::Screen {
 
         auto Update(float) -> void override {}
 
+        // INPUT: two paths exist and they are not interchangeable.
+        //
+        //   This one (event style) - a discrete command that must fire once per
+        //   press and wants the exact event payload, here "Escape went down".
+        //   Returning true consumes the event.
+        //
+        //   input::InputSystem (polling style) - anything continuous: "is this
+        //   key held", "how far did the mouse move", "was a chord pressed this
+        //   frame", and the only way to ask the same question from more than one
+        //   place in a frame. Add <Input/InputSystem.hpp> and read it from
+        //   Update()/FixedUpdate().
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
             if (event.type != atom::window::EventType::KeyPressed)
                 return false;
-            if (std::get<atom::window::KeyEvent>(event.data).key != atom::event::Key::Escape)
+            if (std::get<atom::window::KeyEvent>(event.data).key != atom::input::Key::Escape)
                 return false;
             atom::RenderWindow::GetInstance().Shutdown();
             return true;

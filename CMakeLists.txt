@@ -51,13 +51,13 @@ endif()
 # ============================================================================
 # Engine Libraries
 # ============================================================================
-# 0. Event primitives (header-only, no platform/backend dependency).
-    add_library(Atom_Event INTERFACE)
-    target_sources(Atom_Event INTERFACE
-        Event/Input.hpp
-        Event/ActionMap.hpp
+# 0. Input value types (header-only, no platform/backend dependency).
+    add_library(Atom_Input INTERFACE)
+    target_sources(Atom_Input INTERFACE
+        Input/Key.hpp
+        Input/ActionMap.hpp
     )
-    target_include_directories(Atom_Event INTERFACE
+    target_include_directories(Atom_Input INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
@@ -97,7 +97,16 @@ endif()
     target_include_directories(Atom_Backend_Contracts INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Color Atom_Event)
+    target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Color Atom_Input)
+
+# 0b. Input system — per-frame keyboard/mouse state folded from the window
+#     event stream. Consumes window::IEvent, so it sits above the contracts.
+    add_library(Atom_InputSystem STATIC
+        Input/InputSystem.hpp
+        Input/InputSystem.cpp
+    )
+    target_include_directories(Atom_InputSystem PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_InputSystem PUBLIC Atom_Backend_Contracts)
 
 # 0c. Time (master + domain clocks, fixed-step policy)
     add_library(Atom_Time STATIC
@@ -466,6 +475,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_include_directories(Atom_Window PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Window PUBLIC
         Atom_Backend_Contracts
+        Atom_InputSystem
         Atom_Log
         Atom_Algorithm
         Atom_Time)
@@ -615,6 +625,15 @@ target_compile_definitions(Example_MusicCard PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_MusicCard Atom_Shaders)
 
+# CORE-002 acceptance example — a box moved by the per-frame InputSystem, plus
+# an overlay that prints the raw state. Proves the main loop feeds the input
+# state machine, so the screen never touches SDL or Window events itself.
+add_executable(Example_Input_Demo Example/Input/InputDemo.cpp)
+target_link_libraries(Example_Input_Demo PRIVATE Atom_Window Atom_Debugger Atom_Renderer2D)
+target_compile_definitions(Example_Input_Demo PRIVATE
+    ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
+add_dependencies(Example_Input_Demo Atom_Shaders)
+
 # ============================================================================
 # Tools
 # ============================================================================
@@ -677,6 +696,7 @@ if(MINGW)
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
                                 Example_MusicCard Example_Lua_Scripting Example_Job_System_Tour
+                                Example_Input_Demo
                                Atom_Tool_Packager
                                Atom_Tool_PackagerGui)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)

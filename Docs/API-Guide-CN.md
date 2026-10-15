@@ -125,6 +125,80 @@ auto resizeConn = window.AddResizeListener([](uint32_t w, uint32_t h) { /* 窗�
 // conn / resizeConn 析构时自动移除对应监听器
 ```
 
+## 输入
+
+引擎有**两条**读输入的路径，它们不能互相替代。选错的典型后果是：拿事件去表达「按住」，最后自己在成员变量里手写一套 bool 数组；或者拿轮询去表达一次性命令，结果长按连发。
+
+| | 事件方式 `Screen::HandleEvent(IEvent)` | 轮询方式 `input::InputSystem` |
+|---|---|---|
+| 拿到的东西 | 一个事件、一次发生 | 一帧结算后的整体状态 |
+| 适合 | 一次性命令，并且需要事件本身的载荷（修饰键快照、点击时的鼠标坐标） | 持续输入：按住状态、鼠标位移、滚轮累积、每帧边沿 |
+| 不适合 | 「按住」「移动了多少」「这一帧累积了多少」——事件是点，没有时长 | 需要精确匹配「按下那一刻的修饰键」的场景 |
+| 修饰键语义 | 事件里的快照，可精确匹配（`Ctrl+S` 且没按别的） | 按**读的时候**的按住状态判定，所以修饰键先按后按都能触发 |
+| 能否拦截事件 | 能。返回 `true` 后不再分发给下层 Screen | 不能。状态是全局的 |
+| 一帧读多次 | 不方便，事件只来一次 | 天然支持，多处读到的一致 |
+
+判断标准：**一个命令由一条事件决定，就写在 `HandleEvent`；一帧要读多次、或者跟按住时长有关的，就写在 `Update`/`FixedUpdate` 里读 `InputSystem`。**
+
+轮询方式由引擎主循环自动驱动，`RenderWindow::Run()` 在事件轮询前调用一次 `BeginFrame()`，每个规范化事件先进入状态机再分发给 Screen，所以 **业务代码不要自己再调 `BeginFrame()`**——同一帧调两次会把真实的按下边沿提前结算成 `Held`。
+
+```cpp
+#include <Input/ActionMap.hpp>
+#include <Input/InputSystem.hpp>
+
+enum class Action { Jump, Pause };
+
+atom::input::ActionMap<Action> actions;
+actions.Bind({atom::input::Key::Space}, Action::Jump);
+actions.Bind({atom::input::Key::Escape}, Action::Pause);
+
+// Update() / FixedUpdate() 里读：
+auto& input = atom::input::InputSystem::GetInstance();
+if (input.IsKeyHeld(atom::input::Key::W)) { /* 按住移动 */ }
+if (input.IsActionPressed(actions, Action::Jump)) { /* 这一帧刚好按下，只触发一次 */ }
+if (input.IsMouseHeld(atom::input::MouseButton::Left)) { /* 拖动 */ }
+const auto delta = input.GetMouseDelta();
+```
+
+窗口失焦时引擎会自动调用 `Reset()` 释放所有按键，避免方向键卡在按住状态（SDL 失焦后不再发 key-up）。鼠标坐标不在 `Reset()` 范围内：失焦时鼠标仍有真实位置，清零会让重新聚焦后的第一次移动算出虚构的 delta；需要丢弃基线时显式调用 `ResetMousePosition()`。
+
+### UI 抢输入（聊天框、菜单、调试面板）
+
+只要游戏里有会吃键盘的界面——聊天框、背包、菜单——就必须回答一个问题：这次按键是给 UI 的，还是给游戏的。引擎不替你做这个决定，但把事实告诉你。这套机制**跟 UI 框架无关**：游戏自己的 UI 直接调用，调试层的 ImGui 只是其中一个调用者，所以 Debug 构建和 Release 构建的语义完全一致。
+
+```cpp
+auto& input = atom::input::InputSystem::GetInstance();
+
+// UI 层声明自己当前占了什么（每帧一次）。第一个参数是鼠标，
+// 后两个分别是「键盘输入上下文」和「正在编辑文本」。
+input.SetUiCapture(/*mouse=*/false, /*keyboard=*/chat_open, /*text_input=*/chat_open, "chat box");
+```
+
+三个标志的粒度不同，用途也不同：
+
+| 标志 | 判据 | 该挡什么 |
+|---|---|---|
+| `IsMouseCapturedByUi()` | 有面板正被拖动 / 鼠标在 UI 上 | 点击、拖拽类输入 |
+| `IsKeyboardCapturedByUi()` | 某个 UI 持有键盘上下文 | **一次性命令**（快捷键、R、Space）。聊天框开着时敲 r，不该同时触发"重置视角" |
+| `IsTextInputCapturedByUi()` | 正在编辑文本 | **持续输入**（按住 WASD 移动）。打字时角色必须停住，但仅仅是"点了下面板"不该冻住角色 |
+
+`InputSystem` 本身**不做屏蔽**：`IsMouseHeld`、`IsKeyHeld` 始终如实回答物理设备的状态，是否让位由业务决定。这是刻意的——"点一下调试面板算不算点了一下游戏"是游戏策略，不是引擎策略。
+
+```cpp
+// 移动（持续输入）用窄粒度
+if (!input.IsTextInputCapturedByUi()) {
+    if (input.IsKeyHeld(atom::input::Key::W)) { /* 前进 */ }
+}
+// 一次性命令用粗粒度
+if (!input.IsKeyboardCapturedByUi() && input.IsActionPressed(actions, Action::Jump)) { /* 跳 */ }
+```
+
+文本本身不走按键查询，走 `EventType::TextInput` 事件（在 `Screen::HandleEvent` 里读 `TextInputEvent`），这样任意键盘布局和输入法都能正常工作。
+
+调试覆盖层用的是同一个入口：`OverlayManager` 每帧把 ImGui 的鼠标捕获状态写进去（来源名 `ImGui debug overlay`），所以拖动调试面板不会连带拖动场景。**注意它只声明鼠标**——调试面板没有文本输入，而 ImGui 的 `WantCaptureKeyboard` 语义是"任何面板有焦点"，拿它当"游戏 UI 持有键盘"会让所有 Release 构建里根本不存在的调试层影响输入语义。
+
+完整可运行样例：`Example/Input/InputDemo.cpp`（target `Example_Input_Demo`）——WASD/方向键按住移动方块、鼠标拖拽、Space/R/Escape 走 ActionMap，按 T 打开一个**游戏内的聊天框**（用 Renderer2D 画的），打开后 R/Space 一律不生效、打字时 WASD 停住、Enter 发送、Escape 关闭。面板实时打印按键状态、鼠标增量与三个捕获标志。
+
 ## Renderer2D 与图片
 
 `Renderer2D` 通过薄的 `IRender2DContext` 使用当前设备，业务代码不接触 SDL_GPU
@@ -391,6 +465,7 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 | `BackendRuntime` | `GetInstance()` | 全局 Backend 选择与热切换 |
 | `RenderWindow` | `GetInstance()` + `Initialize(title, size, RenderBackendId)` | 窗口和主循环门面；默认 `RenderBackendId::SdlGpu` |
 | `ScreenManager` | `GetInstance()` | Screen 注册、切换与调度 |
+| `InputSystem` | `InputSystem::GetInstance()` | 按帧输入状态（按住/边沿/鼠标/UI 捕获）；`HandleEvent` 与它的分工见「输入」一节 |
 | `AudioMixer` | 普通实例 | Master/Music/SFX 分类音量 |
 | `MusicPlayer` | `MusicPlayer(mixer)` | 默认使用全局音频后端与引擎默认解码器 |
 | `AudioClipCache` | 默认构造 | 默认使用全局解码器注册表 |

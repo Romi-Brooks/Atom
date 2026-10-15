@@ -17,8 +17,8 @@
 namespace atom::backend::sdl3 {
 
 namespace {
-auto TranslateKey(const SDL_Scancode scancode) -> event::Key {
-    using event::Key;
+auto TranslateKey(const SDL_Scancode scancode) -> input::Key {
+    using input::Key;
     switch (scancode) {
     case SDL_SCANCODE_A:
         return Key::A;
@@ -169,33 +169,33 @@ auto TranslateKey(const SDL_Scancode scancode) -> event::Key {
     }
 }
 
-auto TranslateModifiers(const SDL_Keymod modifiers) -> event::KeyModifiers {
-    auto result = event::KeyModifiers::None;
+auto TranslateModifiers(const SDL_Keymod modifiers) -> input::KeyModifiers {
+    auto result = input::KeyModifiers::None;
     if (modifiers & SDL_KMOD_ALT)
-        result = result | event::KeyModifiers::Alt;
+        result = result | input::KeyModifiers::Alt;
     if (modifiers & SDL_KMOD_CTRL)
-        result = result | event::KeyModifiers::Control;
+        result = result | input::KeyModifiers::Control;
     if (modifiers & SDL_KMOD_SHIFT)
-        result = result | event::KeyModifiers::Shift;
+        result = result | input::KeyModifiers::Shift;
     if (modifiers & SDL_KMOD_GUI)
-        result = result | event::KeyModifiers::Super;
+        result = result | input::KeyModifiers::Super;
     return result;
 }
 
-auto TranslateMouseButton(const uint8_t button) -> event::MouseButton {
+auto TranslateMouseButton(const uint8_t button) -> input::MouseButton {
     switch (button) {
     case SDL_BUTTON_LEFT:
-        return event::MouseButton::Left;
+        return input::MouseButton::Left;
     case SDL_BUTTON_MIDDLE:
-        return event::MouseButton::Middle;
+        return input::MouseButton::Middle;
     case SDL_BUTTON_RIGHT:
-        return event::MouseButton::Right;
+        return input::MouseButton::Right;
     case SDL_BUTTON_X1:
-        return event::MouseButton::X1;
+        return input::MouseButton::X1;
     case SDL_BUTTON_X2:
-        return event::MouseButton::X2;
+        return input::MouseButton::X2;
     default:
-        return event::MouseButton::Unknown;
+        return input::MouseButton::Unknown;
     }
 }
 
@@ -214,7 +214,7 @@ auto TranslateEvent(const SDL_Event& event) -> window::IEvent {
         break;
     case SDL_EVENT_MOUSE_MOTION:
         result.type = window::EventType::MouseMoved;
-        result.data = window::MouseEvent{event.motion.x, event.motion.y, event::MouseButton::Unknown};
+        result.data = window::MouseEvent{event.motion.x, event.motion.y, input::MouseButton::Unknown};
         break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP:
