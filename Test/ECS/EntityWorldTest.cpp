@@ -419,5 +419,47 @@ auto main() -> int {
         ATOM_CHECK(active_count == 1);
     }
 
+    // --- 11. Validation must not depend on assertions being enabled --------
+    {
+        // The facade's checks are the first line of defence and must survive
+        // NDEBUG, because the storage backend's own assertions do not. In a Debug
+        // build the backend would abort on these misuses, so a bug here would be
+        // masked; in a Release build it would be silent corruption or a crash.
+        // Running the same expectations in both configurations is what proves the
+        // facade is not leaning on the backend's assertions.
+        auto world = MakeWorld();
+        const auto original = world->CreateEntity();
+        ATOM_CHECK(world->Emplace<Position>(original, Position{{1.0f, 1.0f}}).has_value());
+        ATOM_CHECK(world->Destroy(original).has_value());
+
+        const auto recycled = world->CreateEntity();
+        ATOM_CHECK(recycled.Index() == original.Index());
+        ATOM_CHECK(recycled.Generation() != original.Generation());
+
+        // Every one of these is undefined behaviour or state corruption if it
+        // reaches the backend unchecked.
+        ATOM_CHECK(world->TryGet<Position>(original) == nullptr);
+        ATOM_CHECK(!world->Get<Position>(original).has_value());
+        ATOM_CHECK(!world->Has<Position>(original));
+        ATOM_CHECK(!world->Emplace<Position>(original, Position{}).has_value());
+        ATOM_CHECK(!world->Remove<Position>(original).has_value());
+        ATOM_CHECK(!world->Destroy(original).has_value());
+
+        // The live handle in the recycled slot is untouched by all of that.
+        ATOM_CHECK(!world->Has<Position>(recycled));
+        ATOM_CHECK(world->Emplace<Position>(recycled, Position{{2.0f, 2.0f}}).has_value());
+        ATOM_CHECK(!world->Emplace<Position>(recycled, Position{{9.0f, 9.0f}}).has_value());
+        ATOM_CHECK(world->TryGet<Position>(recycled)->value.GetX() == 2.0f);
+
+#if defined(NDEBUG)
+        // Recorded so a reviewer can tell which configuration produced a failure
+        // in CI, where the Release build defines NDEBUG and the Debug build does
+        // not.
+        std::cout << "entity-world validation checked with NDEBUG defined\n";
+#else
+        std::cout << "entity-world validation checked with assertions enabled\n";
+#endif
+    }
+
     return 0;
 }

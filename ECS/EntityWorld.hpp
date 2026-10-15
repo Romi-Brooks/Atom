@@ -52,10 +52,16 @@
 namespace atom::ecs {
 
 // Components live in relocatable pools, so they must be movable and destructible.
-// Empty types are allowed: that is the usual way to express a tag.
 template <typename T>
 concept Component = std::is_move_constructible_v<T> && std::is_move_assignable_v<T> && std::is_destructible_v<T> &&
                     !std::is_reference_v<T>;
+
+// A component that carries a value. An empty type is a tag instead: presence is the
+// whole datum, so there is nothing to read, write or replace. Splitting the two
+// concepts is what makes `TryGet<Tag>()` a compile error rather than a pointer to
+// nothing, and it is checked here rather than in each body.
+template <typename T>
+concept ValueComponent = Component<T> && !std::is_empty_v<T>;
 
 class EntityWorld final {
     public:
@@ -85,35 +91,43 @@ class EntityWorld final {
         // Entities created and not yet destroyed.
         [[nodiscard]] auto AliveCount() const noexcept -> std::size_t;
 
-        // Slots freed by Destroy(), newest last. For diagnostics and tests.
+        // Slots not currently backing a live entity, including the reserved index 0.
+        // For diagnostics and tests, not for reasoning about the entity space.
         [[nodiscard]] auto FreeSlotCount() const noexcept -> std::size_t;
 
         // --- components -----------------------------------------------------
 
+        // Presence and lifecycle apply to value components and tags alike.
         template <Component T> [[nodiscard]] auto Has(Entity entity) const -> bool;
 
         // Null when the entity is dead or does not own the component. Never
         // crashes, unlike the backend's own accessor.
-        template <Component T> [[nodiscard]] auto TryGet(Entity entity) noexcept -> T*;
+        //
+        // Value components only: a tag has no value to point at.
+        template <ValueComponent T> [[nodiscard]] auto TryGet(Entity entity) noexcept -> T*;
 
         // Typed access that distinguishes the reasons, for callers that want to
         // tell "the entity is gone" from "the component is absent".
-        template <Component T> [[nodiscard]] auto Get(Entity entity) -> Result<T*>;
+        template <ValueComponent T> [[nodiscard]] auto Get(Entity entity) -> Result<T*>;
 
         // Adds a component. Fails when the entity is dead or already owns one, so
-        // a silent overwrite is impossible by construction. Use
-        // EmplaceOrReplace() when replacing is what you mean.
+        // a silent overwrite is impossible by construction. Works for tags too:
+        // `Emplace<Active>(entity)` is how an entity is marked.
         template <Component T, typename... Args> auto Emplace(Entity entity, Args&&... args) -> Result<void>;
 
-        template <Component T, typename... Args> auto EmplaceOrReplace(Entity entity, Args&&... args) -> Result<void>;
+        // Replace means "overwrite the stored value", which only exists for a value
+        // component. For a tag, removing and re-adding is a no-op; use Remove.
+        template <ValueComponent T, typename... Args> auto EmplaceOrReplace(Entity entity, Args&&... args)
+            -> Result<void>;
 
         // Removal is idempotent: "make it absent" is satisfied either way.
         template <Component T> auto Remove(Entity entity) -> Result<void>;
 
         // Overwrites the value of a component that must already be present.
-        template <Component T> auto Patch(Entity entity, const T& value) -> Result<void>;
+        template <ValueComponent T> auto Patch(Entity entity, const T& value) -> Result<void>;
 
-        // Number of entities owning T.
+        // Number of entities owning T. Works for tags: it counts entities marked
+        // with the tag.
         template <Component T> [[nodiscard]] auto CountOf() const -> std::size_t;
 
         // Empty types are tags: presence is the whole datum.
@@ -123,11 +137,10 @@ class EntityWorld final {
 
         // --- iteration ------------------------------------------------------
 
-        // What a component type is presented as to a visitor: a span over the
-        // single instance that belongs to the entity being visited. Using a span
-        // (length 1) rather than a reference keeps the parameter list uniform and
-        // keeps the loop body writable, and it means an empty tag type fits the
-        // same shape (a length-0 span) without special-casing at the call site.
+        // What a component type is presented as to a visitor: a span over the single
+        // instance that belongs to the entity being visited. A span (length 1) rather
+        // than a reference keeps the parameter list uniform and keeps the loop body
+        // writable. Only value components can be listed; see ForEach below.
         template <typename T> using VisitValue = std::span<T>;
 
         // The typed visit callback. Parameters are the entity, then one
@@ -163,7 +176,7 @@ class EntityWorld final {
         };
 
         // Visits every entity owning all of the listed components.
-        template <Component... Ts> auto ForEach(Visit<Ts...> visit) -> Result<void>;
+        template <ValueComponent... Ts> auto ForEach(Visit<Ts...> visit) -> Result<void>;
 
         // --- per-entity collection ------------------------------------------
 
@@ -203,7 +216,7 @@ class EntityWorld final {
         // only callers and they check first. Defined in the .cpp and explicitly
         // instantiated for the components listed in ECS/Components.hpp.
         template <Component T> [[nodiscard]] auto BackendHas(Entity entity) const -> bool;
-        template <Component T> [[nodiscard]] auto BackendGet(Entity entity) noexcept -> T*;
+        template <ValueComponent T> [[nodiscard]] auto BackendGet(Entity entity) noexcept -> T*;
         template <Component T, typename... Args> auto BackendEmplace(Entity entity, Args&&... args) -> void;
         template <Component T> auto BackendRemove(Entity entity) -> void;
         template <Component T> [[nodiscard]] auto BackendCount() const -> std::size_t;
@@ -211,8 +224,8 @@ class EntityWorld final {
         // Appends the entities owning all of Ts, sorted by engine index.
         template <Component... Ts> auto BackendWith(std::vector<Entity>& output) const -> void;
 
-        // Runs the visitor once per matching entity, in engine index order.
-        template <Component... Ts> auto BackendForEach(Visit<Ts...> visit) -> Result<void>;
+        // Runs the visitor once per matching entity, in the backend's pool order.
+        template <ValueComponent... Ts> auto BackendForEach(Visit<Ts...> visit) -> Result<void>;
 
         std::unique_ptr<Impl> impl_;
 };
@@ -225,13 +238,13 @@ template <Component T> auto EntityWorld::Has(const Entity entity) const -> bool 
     return BackendHas<T>(entity);
 }
 
-template <Component T> auto EntityWorld::TryGet(const Entity entity) noexcept -> T* {
+template <ValueComponent T> auto EntityWorld::TryGet(const Entity entity) noexcept -> T* {
     if (!IsAlive(entity))
         return nullptr;
     return BackendGet<T>(entity);
 }
 
-template <Component T> auto EntityWorld::Get(const Entity entity) -> Result<T*> {
+template <ValueComponent T> auto EntityWorld::Get(const Entity entity) -> Result<T*> {
     if (auto alive = CheckAlive(entity); !alive.has_value())
         return std::unexpected<Error>{std::move(alive.error())};
     if (auto* existing = BackendGet<T>(entity); existing != nullptr)
@@ -252,7 +265,7 @@ template <Component T, typename... Args> auto EntityWorld::Emplace(const Entity 
     return Ok();
 }
 
-template <Component T, typename... Args>
+template <ValueComponent T, typename... Args>
 auto EntityWorld::EmplaceOrReplace(const Entity entity, Args&&... args) -> Result<void> {
     if (auto alive = CheckAlive(entity); !alive.has_value())
         return alive;
@@ -268,8 +281,7 @@ template <Component T> auto EntityWorld::Remove(const Entity entity) -> Result<v
     return Ok();
 }
 
-template <Component T> auto EntityWorld::Patch(const Entity entity, const T& value) -> Result<void> {
-    static_assert(!std::is_empty_v<T>, "A tag component has no value to patch");
+template <ValueComponent T> auto EntityWorld::Patch(const Entity entity, const T& value) -> Result<void> {
     auto existing = Get<T>(entity);
     if (!existing.has_value())
         return std::unexpected<Error>{std::move(existing.error())};
@@ -287,7 +299,7 @@ template <Component... Ts> auto EntityWorld::With() const -> std::vector<Entity>
     return entities;
 }
 
-template <Component... Ts> auto EntityWorld::ForEach(const Visit<Ts...> visit) -> Result<void> {
+template <ValueComponent... Ts> auto EntityWorld::ForEach(const Visit<Ts...> visit) -> Result<void> {
     if (visit.visit == nullptr) {
         return std::unexpected<Error>{
             MakeError(ErrorCode::EcsInvalidEntity, Module::Ecs, "EntityWorld::ForEach")

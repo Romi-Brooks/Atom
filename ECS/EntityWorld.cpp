@@ -190,7 +190,7 @@ template <Component T> auto EntityWorld::BackendHas(const Entity entity) const -
     return storage.contains(impl_->handle_of(entity));
 }
 
-template <Component T> auto EntityWorld::BackendGet(const Entity entity) noexcept -> T* {
+template <ValueComponent T> auto EntityWorld::BackendGet(const Entity entity) noexcept -> T* {
     auto& storage = impl_->registry.storage<T>();
     const auto handle = impl_->handle_of(entity);
     if (!storage.contains(handle))
@@ -247,7 +247,7 @@ template <typename T> [[nodiscard]] auto span_of(T& component) noexcept -> std::
 
 } // namespace
 
-template <Component... Ts> auto EntityWorld::BackendForEach(const Visit<Ts...> visit) -> Result<void> {
+template <ValueComponent... Ts> auto EntityWorld::BackendForEach(const Visit<Ts...> visit) -> Result<void> {
     // The body is invoked from inside the backend's own walk, which is what makes
     // this cheap: one pass over the pools, no per-entity handle resolution, no
     // intermediate vector, and the components arrive as typed references instead of
