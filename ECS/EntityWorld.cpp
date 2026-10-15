@@ -321,13 +321,28 @@ ATOM_ECS_INSTANTIATE_TAG(::atom::ecs::PendingDestroy)
 // own list. Add a line when a system starts iterating a new combination. Keeping
 // the list short is the point: every set here costs compile time, and a set no
 // system uses is dead weight.
+// Iteration is instantiated per component set, not per component, so it has its own
+// list. Add a line when a system starts iterating a new combination. Keeping the list
+// short is the point: every set here costs compile time, and a set no system uses is
+// dead weight.
 #define ATOM_ECS_INSTANTIATE_ITERATION(...)                                                                            \
     template auto EntityWorld::With<__VA_ARGS__>() const -> std::vector<Entity>;                                       \
     template auto EntityWorld::BackendWith<__VA_ARGS__>(std::vector<Entity>&) const -> void;                           \
     template auto EntityWorld::ForEach<__VA_ARGS__>(Visit<__VA_ARGS__>) -> Result<void>;                               \
     template auto EntityWorld::BackendForEach<__VA_ARGS__>(Visit<__VA_ARGS__>) -> Result<void>;
 
+// Collection only. A tag can be listed in With() - the caller just wants the entity
+// set, which is what the deferred-destroy sweep needs - but not in ForEach, because
+// the backend omits empty types from its callback.
+#define ATOM_ECS_INSTANTIATE_COLLECTION(...)                                                                           \
+    template auto EntityWorld::With<__VA_ARGS__>() const -> std::vector<Entity>;                                       \
+    template auto EntityWorld::BackendWith<__VA_ARGS__>(std::vector<Entity>&) const -> void;
+
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Position)
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Position, ::atom::ecs::Velocity)
+
+// The deferred-destroy sweep: collect everything marked, then destroy it after the
+// pass, so a system never restructures the world it is walking.
+ATOM_ECS_INSTANTIATE_COLLECTION(::atom::ecs::PendingDestroy)
 
 } // namespace atom::ecs

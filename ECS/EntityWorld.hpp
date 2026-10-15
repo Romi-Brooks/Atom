@@ -47,6 +47,7 @@
 #include <vector>
 
 #include <ECS/Entity.hpp>
+#include <ECS/TypeName.hpp>
 #include <Error/Error.hpp>
 
 namespace atom::ecs {
@@ -250,7 +251,7 @@ template <ValueComponent T> auto EntityWorld::Get(const Entity entity) -> Result
     if (auto* existing = BackendGet<T>(entity); existing != nullptr)
         return existing;
     return std::unexpected<Error>{
-        MakeError(ErrorCode::EcsComponentMissing, Module::Ecs, "EntityWorld::Get").WithDetail(typeid(T).name())};
+        MakeError(ErrorCode::EcsComponentMissing, Module::Ecs, "EntityWorld::Get").WithDetail(std::string{TypeName<T>()})};
 }
 
 template <Component T, typename... Args> auto EntityWorld::Emplace(const Entity entity, Args&&... args) -> Result<void> {
@@ -259,7 +260,7 @@ template <Component T, typename... Args> auto EntityWorld::Emplace(const Entity 
     if (BackendHas<T>(entity)) {
         return std::unexpected<Error>{
             MakeError(ErrorCode::EcsComponentAlreadyPresent, Module::Ecs, "EntityWorld::Emplace")
-                .WithDetail(typeid(T).name())};
+                .WithDetail(std::string{TypeName<T>()})};
     }
     BackendEmplace<T>(entity, std::forward<Args>(args)...);
     return Ok();

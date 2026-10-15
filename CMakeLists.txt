@@ -168,6 +168,7 @@ endif()
 #     every Atom_ECS consumer, turning the boundary into a comment.
     add_library(Atom_ECS STATIC
             ECS/Entity.hpp
+            ECS/TypeName.hpp
             ECS/Components.hpp
             ECS/EntityWorld.hpp
             ECS/EntityWorld.cpp
@@ -667,6 +668,13 @@ target_compile_definitions(Example_Input_Demo PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_Input_Demo Atom_Shaders)
 
+# ECS tour — a headless console walk through the entity/component store, ending in
+# a real integration loop. Console rather than windowed on purpose: the ECS is pure
+# storage, so the module can be exercised without a GPU, and this example doubles as
+# the template for the first physics system.
+add_executable(Example_ECS_Tour Example/ECS/EntityWorldTour.cpp)
+target_link_libraries(Example_ECS_Tour PRIVATE Atom_ECS)
+
 # ============================================================================
 # Tools
 # ============================================================================
@@ -729,7 +737,7 @@ if(MINGW)
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
                                 Example_MusicCard Example_Lua_Scripting Example_Job_System_Tour
-                                Example_Input_Demo
+                                Example_Input_Demo Example_ECS_Tour
                                Atom_Tool_Packager
                                Atom_Tool_PackagerGui)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)
