@@ -365,5 +365,78 @@ auto main() -> int {
         ATOM_CHECK(fixed_update());
     }
 
+    // --- 12. Several fixed steps per frame: the claim must not lag ---------
+    {
+        // CORE-001 runs FixedUpdate 0..N times per frame, and it runs *before*
+        // Update. So the frame in which a chat opens performs its fixed steps
+        // before Update() publishes anything, and every step of that frame
+        // moves: "typing does not stop the character until the next frame" is
+        // not a one-frame nicety, it is a whole frame of movement per catch-up
+        // step. The cure is to publish the claim at the moment the UI state
+        // changes, not once at frame end.
+        enum class Action { OpenChat };
+        ActionMap<Action> actions{};
+        ATOM_CHECK(actions.Bind({Key::T}, Action::OpenChat));
+
+        bool chat_open = false;
+        input.Reset();
+        input.SetUiCapture(false, false, false, {});
+
+        const auto publish = [&] { input.SetUiCapture(false, chat_open, chat_open, "chat box"); };
+        const auto fixed_step = [&] { return !input.IsTextInputCapturedByUi() && input.IsKeyHeld(Key::W); };
+        // Opening the UI happens on the *event* path, which runs before the
+        // fixed steps of the same frame. That is the only place a claim can be
+        // published early enough to gate them.
+        const auto handle_event = [&](const atom::window::IEvent& event) {
+            if (event.type != EventType::KeyPressed)
+                return;
+            const auto& key = std::get<KeyEvent>(event.data);
+            if (chat_open || !actions.FindAction(key).has_value())
+                return;
+            chat_open = true;
+            publish();
+        };
+        // Update() runs after the fixed steps, exactly as RenderWindow does it,
+        // and only keeps the published claim current.
+        const auto variable_update = [&] { publish(); };
+
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::W));
+
+        // Frame 1, three fixed steps, then Update. No chat yet, so all move.
+        ATOM_CHECK(fixed_step());
+        ATOM_CHECK(fixed_step());
+        ATOM_CHECK(fixed_step());
+        variable_update();
+
+        // Frame 2, in engine order: the T event is handled, then the frame's
+        // fixed steps run, and only then Update. Handling the event publishes
+        // the claim, so all three steps of the very frame that opens the chat
+        // are already gated. Publishing only at frame end lets all three
+        // through, which is exactly the reported bug.
+        input.BeginFrame();
+        const auto opened = MakeKey(EventType::KeyPressed, Key::T);
+        input.ProcessEvent(opened);
+        handle_event(opened);
+        ATOM_CHECK(chat_open);
+        ATOM_CHECK(input.IsTextInputCapturedByUi());
+        ATOM_CHECK(input.IsKeyHeld(Key::W));
+        ATOM_CHECK(!fixed_step());
+        ATOM_CHECK(!fixed_step());
+        ATOM_CHECK(!fixed_step());
+        variable_update();
+
+        // And it stays gated in following frames.
+        input.BeginFrame();
+        ATOM_CHECK(!fixed_step());
+        ATOM_CHECK(!fixed_step());
+        variable_update();
+
+        // Closing republishes immediately, so the next step moves again.
+        chat_open = false;
+        publish();
+        ATOM_CHECK(fixed_step());
+    }
+
     return 0;
 }

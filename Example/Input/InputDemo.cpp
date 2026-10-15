@@ -164,25 +164,18 @@ class InputDemoScreen final : public atom::Screen {
             ClampToWindow();
         }
 
-        // Variable-rate update: one-shot action edges, chat ownership and
-        // presentation state.
+        // Variable-rate update: presentation state and the remaining one-shot
+        // commands. Chat ownership is handled on the event path instead, see
+        // HandleEvent.
         auto Update(const float delta_time) -> void override {
             pulse_time_ += std::max(0.0f, delta_time);
             auto& input = atom::input::InputSystem::GetInstance();
 
-            // Claim the keyboard *after* applying this frame's chat command, not
-            // before. Publishing the claim first advertised "the game owns the
-            // keyboard" for the very frame that opens the chat, so typing began
-            // one frame before movement was suppressed - and while that stale
-            // claim was still up, the T that opened the chat was re-read as the
-            // chat key itself. Order matters: decide, then publish.
-            const bool opening_chat =
-                !chat_open_ && !input.IsKeyboardCapturedByUi() && input.IsActionPressed(actions_, Action::OpenChat);
-            if (opening_chat) {
-                chat_open_ = true;
-                chat_draft_.clear();
-                LOG_INFO(atom::log::core::Screen, "Input demo: chat opened (typing captures movement)");
-            }
+            // Keep the published claim current. The *decision* to open or close
+            // the chat happens in HandleEvent, because RenderWindow runs the
+            // frame's fixed steps before Update: a claim published here would be
+            // too late for the frame that opened the chat, and every fixed step
+            // of that frame would move the box.
             input.SetUiCapture(input.IsMouseCapturedByUi(), chat_open_, chat_open_, "chat box");
 
             if (input.IsKeyboardCapturedByUi()) {
@@ -203,9 +196,29 @@ class InputDemoScreen final : public atom::Screen {
                 CenterPlayer();
         }
 
-        // Text arrives as its own event stream, not as key presses: that is what
+        // Events run before the frame's fixed steps, which makes this the only
+        // place where a UI can claim input early enough to gate them. Text
+        // arrives as its own event stream, not as key presses: that is what
         // makes a chat box work with any keyboard layout.
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
+            if (event.type == atom::window::EventType::KeyPressed) {
+                if (chat_open_)
+                    return false;
+                const auto& key = std::get<atom::window::KeyEvent>(event.data);
+                // Exact match on the action's binding, mirroring the polling
+                // query: {T, None} fires for T alone, not for Ctrl+T.
+                if (actions_.FindAction(key) == Action::OpenChat) {
+                    chat_open_ = true;
+                    chat_draft_.clear();
+                    // Claim the keyboard in the same breath as opening, so this
+                    // frame's fixed steps already see the gate.
+                    PublishCapture();
+                    LOG_INFO(atom::log::core::Screen, "Input demo: chat opened (typing captures movement)");
+                    return true;
+                }
+                return false;
+            }
+
             if (event.type != atom::window::EventType::TextInput || !chat_open_)
                 return false;
             const auto& text = std::get<atom::window::TextInputEvent>(event.data);
@@ -236,6 +249,15 @@ class InputDemoScreen final : public atom::Screen {
         }
 
     private:
+        // The chat owns text input for exactly as long as chat_open_ is true, so
+        // every transition republishes the claim immediately. Waiting for the
+        // next Update() is too late: RenderWindow runs the frame's fixed steps
+        // before Update, and they would read the stale claim.
+        auto PublishCapture() -> void {
+            auto& input = atom::input::InputSystem::GetInstance();
+            input.SetUiCapture(input.IsMouseCapturedByUi(), chat_open_, chat_open_, "chat box");
+        }
+
         // Chat commands run on the key *event* path, which is the right tool
         // here: Enter and Backspace are discrete commands, not held states.
         auto HandleChatKeys() -> void {
@@ -246,6 +268,7 @@ class InputDemoScreen final : public atom::Screen {
             if (input.IsKeyPressed(atom::input::Key::Escape)) {
                 chat_open_ = false;
                 chat_draft_.clear();
+                PublishCapture();
                 return;
             }
 
@@ -256,6 +279,7 @@ class InputDemoScreen final : public atom::Screen {
                 }
                 chat_draft_.clear();
                 chat_open_ = false;
+                PublishCapture();
             }
         }
 
