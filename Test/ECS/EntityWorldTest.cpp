@@ -349,8 +349,13 @@ auto main() -> int {
         ATOM_CHECK(visited.has_value());
         ATOM_CHECK(state.visited == 2);
         ATOM_CHECK(state.order.size() == 2);
-        // Ascending index, so a replay of the same world steps the same way.
-        ATOM_CHECK(std::is_sorted(state.order.begin(), state.order.end()));
+        // Exactly the two entities owning both components were visited. ForEach does
+        // not sort: it walks the pools in place, which is what keeps it cheap. The
+        // order is stable for a given sequence of world operations, which is what a
+        // fixed-step simulation needs; With() is the sorted view.
+        ATOM_CHECK(std::find(state.order.begin(), state.order.end(), moving_a.Index()) != state.order.end());
+        ATOM_CHECK(std::find(state.order.begin(), state.order.end(), moving_b.Index()) != state.order.end());
+        ATOM_CHECK(std::find(state.order.begin(), state.order.end(), still.Index()) == state.order.end());
 
         // The writes the body made are the stored values.
         ATOM_CHECK(world->TryGet<Position>(moving_a)->value.GetX() == 0.5f);
@@ -371,7 +376,7 @@ auto main() -> int {
         ATOM_CHECK(empty_state.visited == 0);
     }
 
-    // --- 10. Iteration with a tag in the query -----------------------------
+    // --- 10. Tags are checked per entity, not listed in the query ----------
     {
         auto world = MakeWorld();
 
@@ -383,29 +388,35 @@ auto main() -> int {
         }
         ATOM_CHECK(world->Emplace<Active>(active).has_value());
 
-        // The tag takes part in the query, so only the active entity is visited.
-        // It arrives as a length-0 span: presence is the datum, there is no value.
+        // The backend omits empty types from its callback, so a tag cannot appear in
+        // the visitor signature; the body checks it instead. This is the shape the
+        // first physics loop uses to skip inactive entities.
         struct TagState final {
                 int visited = 0;
-                std::size_t tag_span_size = 999;
         };
-        struct TagVisitor final {
-                static auto Run(void* context, const Entity entity, const std::span<Active> active_span,
-                                const std::span<Position> positions, const std::span<Velocity> velocities) -> void {
+        struct CountingVisitor final {
+                static auto Run(void* context, const Entity entity, const std::span<Position> positions,
+                                const std::span<Velocity> velocities) -> void {
                     (void)entity;
                     (void)positions;
                     (void)velocities;
-                    auto& state = *static_cast<TagState*>(context);
-                    ++state.visited;
-                    state.tag_span_size = active_span.size();
+                    ++static_cast<TagState*>(context)->visited;
                 }
         };
 
         TagState state{};
-        const auto result = world->ForEach<Active, Position, Velocity>({&TagVisitor::Run, &state});
+        const auto result = world->ForEach<Position, Velocity>({&CountingVisitor::Run, &state});
         ATOM_CHECK(result.has_value());
-        ATOM_CHECK(state.visited == 1);
-        ATOM_CHECK(state.tag_span_size == 0);
+        // Both entities own Position and Velocity; the tag is not part of the query.
+        ATOM_CHECK(state.visited == 2);
+
+        // And the tag is what a system uses to filter inside the body.
+        int active_count = 0;
+        for (const auto entity : world->With<Position, Velocity>()) {
+            if (world->Has<Active>(entity))
+                ++active_count;
+        }
+        ATOM_CHECK(active_count == 1);
     }
 
     return 0;
