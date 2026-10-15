@@ -359,7 +359,7 @@ auto GetValue()const -> float;        // 缺少空格
 
 | 特性                                       | 用法                                                |
 | ---------------------------------------- | ------------------------------------------------- |
-| **`std::expected`**                      | 用于可能失败的返回值（若编译器支持）                                |
+| **`std::expected`**                      | 用于可能失败的返回值（若编译器支持；引擎统一用 `atom::Result<T>`，见 §6）      |
 | **`std::print`** **/** **`std::format`** | 替代 `std::cout` / 字符串拼接                            |
 | **`consteval`** **/** **`constexpr`**    | 编译期计算的函数                                          |
 | **`std::span`**                          | 替代 `const std::vector<T>&` 参数                     |
@@ -368,7 +368,69 @@ auto GetValue()const -> float;        // 缺少空格
 
 ***
 
-## 6. 注释规范
+## 6. 统一错误规范（CORE-004）
+
+引擎只有**一套**失败表示：`atom::Result<T>`（`Error/Error.hpp`）。新增或修改可失败 API 时必须遵守本节。
+
+### 6.1 返回什么
+
+| 情形 | 返回类型 |
+| --- | --- |
+| 可能失败并需要携带值 | `atom::Result<T>` |
+| 可能失败但不携带值 | `atom::Result<void>` |
+| 只有成/败、且失败无需上报（内部分支判断） | `bool`，且函数名以 `Try`/`Is`/`Has` 开头 |
+| 真的不会失败 | `void`，并在注释里写明"设计上不返回失败" |
+
+- **禁止**新增模块专属的结果枚举。已有枚举（`fs::Result`、`AssetResult`、`DecoderOpenStatus`、
+  `ScreenOpResult`、`PackageBuilder::Result` 等）只作为**后端边界的小整数码**保留：热路径
+  （`ReadAt`/`ReadNext`）返回它，由上层用 `ToError()` 转换一次；不让 `std::string` 穿过读路径。
+- **禁止**用异常表达可预期的失败（文件不存在、格式不支持、设备打开失败）。异常只留给编程错误。
+- **禁止**"只写日志然后返回 `void`/`bool`"。调用方必须能拿到原因。
+- 返回 `Result` 的函数仍需标 `[[nodiscard]]`：`[[nodiscard]]` 不会从返回类型传播到对象。
+
+### 6.2 错误码
+
+- 错误码在**拥有该决策的模块**的块内追加（`ErrorCode` 中每模块 256 个号段）。
+  跨模块翻译只用于下层原因向上传递（如 asset 透出 `FsNotFound`），这合法且可见。
+- **只追加、不改号、不复用**退役的值。
+- 代码名用 `ErrorCodeName()`，模块名用 `ModuleName()`；不要在别处再写一套 switch。
+
+### 6.3 上下文与底层原因
+
+```cpp
+// 失败点：把原因一次性补齐
+const auto opened = filesystem.OpenRead(path, file);
+if (opened != fs::Result::Success)
+    return std::unexpected<Error>{fs::ToError(opened, "OpenRead", path.String())};
+```
+
+- `operation` 用**最内层知道自己在做什么的那个**操作名；`WithOperation()` 不覆盖已有值，
+  所以"OpenRead failed"不会被上层的"AcquireRecord failed"盖掉。
+- `resource` 填 `AssetPath` 字符串（`Error` 不依赖 Filesystem，所以是字符串）。
+- **平台错误状态必须在失败点立即捕获**：`SDL_GetError`/`GetLastError`/`errno` 都是会被下一次调用覆盖的
+  单槽。用 `CaptureSdlError()`（读后即清）、`CaptureLastSystemError()`、`CaptureErrnoMessage()`。
+
+### 6.4 谁负责记录日志
+
+- `Error` **不写日志**，也**不提供**"记录并返回"的函数：`Log` 依赖 `Error`，反过来会破坏叶子模块分层。
+- 在**最接近失败、且知道 operation 与 resource 的那一层**记录一次，其余层只传递：
+
+```cpp
+LOG_ERROR(atom::log::asset::Resource, "ResourceManager: " + error.Message());
+```
+
+- 一次失败只应产生**一条**诊断。上层转发 `Error` 时不要重复记录。
+- 模块自己有日志频道就用它；不要借用 `core::Screen` 之类不相干的频道。
+
+### 6.5 `Error` 的边界
+
+- `Error` 是纯值类型：不抛异常、不依赖 Log/后端、成功路径不分配。
+- 默认构造的 `Error` 表示 `Internal`，**不表示成功**——"有没有失败"由 `Result` 承载。
+- 需要新增跨模块的错误分类时，先加到 `ErrorCode` 的模块号段，再在使用处转换，不要新建枚举。
+
+***
+
+## 7. 注释规范
 
 注释默认使用英文。仅在必要时才使用中文等其他语言，例如引用本地化文案，
 或补充英文无法准确表达的语境说明。

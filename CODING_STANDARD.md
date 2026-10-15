@@ -379,7 +379,7 @@ auto GetValue()const -> float;        // missing space
 
 | Feature | Usage |
 |---|---|
-| **`std::expected`** | For fallible return values (if compiler supports it) |
+| **`std::expected`** | For fallible return values; the engine standardizes on `atom::Result<T>` (see §6) |
 | **`std::print` / `std::format`** | Replace `std::cout` / string concatenation |
 | **`consteval` / `constexpr`** | Compile-time evaluated functions |
 | **`std::span`** | Replace `const std::vector<T>&` parameters |
@@ -388,7 +388,77 @@ auto GetValue()const -> float;        // missing space
 
 ---
 
-## 6. Comment Rules
+## 6. Unified Error Rules (CORE-004)
+
+The engine has exactly **one** failure representation: `atom::Result<T>` (`Error/Error.hpp`). Every new or
+modified fallible API follows this section.
+
+### 6.1 What to return
+
+| Case | Return type |
+|---|---|
+| Can fail and carries a value | `atom::Result<T>` |
+| Can fail and carries no value | `atom::Result<void>` |
+| Only success/failure, and the reason does not need reporting (internal branching) | `bool`, with the function named `Try*` / `Is*` / `Has*` |
+| Genuinely cannot fail | `void`, with a comment saying so |
+
+- Do **not** add module-specific result enums. The existing ones (`fs::Result`, `AssetResult`,
+  `DecoderOpenStatus`, `ScreenOpResult`, `PackageBuilder::Result`, ...) survive only as small backend-boundary
+  codes: hot paths (`ReadAt`, `ReadNext`) return them, and the layer above converts once with `ToError()`.
+  A `std::string` must not travel through a read path.
+- Do **not** use exceptions for expected failures (missing file, unsupported format, device open failure).
+  Exceptions are for programming errors.
+- Do **not** "log and return `void`/`bool`". The caller must be able to obtain the reason.
+- A function returning `Result` still needs `[[nodiscard]]`; it does not propagate from the return type.
+
+### 6.2 Error codes
+
+- Append inside the block of the module that **owns the decision** (256 values per module in `ErrorCode`).
+  Cross-module translation is only for carrying a lower layer's reason upward (asset surfacing `FsNotFound`);
+  that is legal and visible.
+- **Append only.** Never renumber an existing enumerator, never reuse a retired value.
+- Use `ErrorCodeName()` and `ModuleName()`. Do not write another switch over codes somewhere else.
+
+### 6.3 Context and underlying cause
+
+```cpp
+// At the failure site: fill in the reason once.
+const auto opened = filesystem.OpenRead(path, file);
+if (opened != fs::Result::Success)
+    return std::unexpected<Error>{fs::ToError(opened, "OpenRead", path.String())};
+```
+
+- `operation` names what the **innermost** layer was doing. `WithOperation()` never overwrites an existing
+  value, so "OpenRead failed" cannot be buried under an upper layer's "AcquireRecord failed".
+- `resource` is an `AssetPath` string (`Error` does not depend on Filesystem, so it is a string).
+- **Capture platform error state at the failure site**: `SDL_GetError`, `GetLastError` and `errno` are single
+  slots overwritten by the next call. Use `CaptureSdlError()` (reads and clears), `CaptureLastSystemError()`,
+  `CaptureErrnoMessage()`.
+
+### 6.4 Who logs
+
+- `Error` never logs, and provides no "log and return" helper: `Log` depends on `Error`, and the reverse would
+  break the leaf-module layering.
+- Log **once**, in the layer closest to the failure that knows the operation and the resource; other layers
+  only forward:
+
+```cpp
+LOG_ERROR(atom::log::asset::Resource, "ResourceManager: " + error.Message());
+```
+
+- One failure must produce exactly **one** diagnostic. Forwarding layers do not log again.
+- Use the module's own log channel; do not borrow an unrelated one such as `core::Screen`.
+
+### 6.5 Boundaries of `Error`
+
+- `Error` is a plain value: no exceptions, no dependency on Log or a backend, no allocation on success paths.
+- A default-constructed `Error` means `Internal`, **not** success: presence of failure is carried by `Result`.
+- To add a cross-module failure category, add it to the module's `ErrorCode` block and convert at the use
+  site. Do not introduce another enum.
+
+---
+
+## 7. Comment Rules
 
 Comments are written in English by default. Use another language (such as
 Chinese) only when necessary — for example, to quote a localized string or

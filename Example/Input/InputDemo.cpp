@@ -455,8 +455,12 @@ auto main() -> int {
     }
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Input System Demo", atom::algo::Vec2{1280, 720},
-                      atom::backend::RenderBackendId::SdlGpu);
+    const auto initialized = window.Initialize("Atom Engine - Input System Demo", atom::algo::Vec2{1280, 720},
+                                              atom::backend::RenderBackendId::SdlGpu);
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
     window.SetFPS(60);
 
     InputStatePanel panel{};

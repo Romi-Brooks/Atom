@@ -79,10 +79,9 @@ auto main() -> int {
     }
 
     atom::asset::ResourceManager manager{*memory};
-    if (manager.RegisterLoader(std::make_shared<atom::ScriptSourceLoader>()) != atom::asset::AssetResult::Success)
+    if (!manager.RegisterLoader(std::make_shared<atom::ScriptSourceLoader>()))
         return Fail("Could not register script loader");
-    if (manager.RegisterLoader(std::make_shared<atom::image::DecodedImageLoader>()) !=
-        atom::asset::AssetResult::Success) {
+    if (!manager.RegisterLoader(std::make_shared<atom::image::DecodedImageLoader>())) {
         return Fail("Could not register image loader");
     }
 

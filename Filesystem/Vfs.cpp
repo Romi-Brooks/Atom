@@ -14,8 +14,8 @@ namespace atom::fs {
 namespace {
 
 [[nodiscard]] auto IsValidMountName(const std::string_view mount) -> bool {
-    AssetPath root{};
-    return !mount.empty() && AssetPath::TryParse(std::string{mount} + "://", root) && root.Mount() == mount;
+    const auto root = AssetPath::Parse(std::string{mount} + "://");
+    return !mount.empty() && root.has_value() && root->Mount() == mount;
 }
 
 } // namespace

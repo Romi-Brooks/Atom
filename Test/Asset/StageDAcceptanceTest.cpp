@@ -212,10 +212,9 @@ auto main() -> int {
 
     // --- ResourceManager with all three loaders (unified URI machinery). ---
     ResourceManager manager{vfs};
-    ATOM_CHECK(manager.RegisterLoader(std::make_shared<atom::image::DecodedImageLoader>()) == AssetResult::Success);
-    ATOM_CHECK(manager.RegisterLoader(std::make_shared<atom::AudioClipResourceLoader>(decoders)) ==
-               AssetResult::Success);
-    ATOM_CHECK(manager.RegisterLoader(std::make_shared<atom::ScriptSourceLoader>()) == AssetResult::Success);
+    ATOM_CHECK(manager.RegisterLoader(std::make_shared<atom::image::DecodedImageLoader>()).has_value());
+    ATOM_CHECK(manager.RegisterLoader(std::make_shared<atom::AudioClipResourceLoader>(decoders)).has_value());
+    ATOM_CHECK(manager.RegisterLoader(std::make_shared<atom::ScriptSourceLoader>()).has_value());
 
     // --- Texture: loads from the package, shares one instance. ---
     auto texture = manager.Acquire<atom::image::DecodedImage>(texture_id);

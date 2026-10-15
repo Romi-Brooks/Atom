@@ -537,8 +537,8 @@ auto PackageFileSystem::Create(const std::string_view mount, const std::string_v
     if (package_utf8.empty() || !atom::IsValidUtf8(std::string{package_utf8}))
         return Result::InvalidPath;
 
-    AssetPath mountRoot{};
-    if (!AssetPath::TryParse(std::string{mount} + "://", mountRoot) || mountRoot.Mount() != mount)
+    const auto mountRoot = AssetPath::Parse(std::string{mount} + "://");
+    if (!mountRoot.has_value() || mountRoot->Mount() != mount)
         return Result::InvalidPath;
 
     const native_fs::path package_path = atom::PathFromUtf8(std::string{package_utf8});

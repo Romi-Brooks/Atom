@@ -21,27 +21,32 @@ auto main() -> int {
     atom::fs::AssetPath path{};
     ATOM_CHECK(atom::fs::AssetPath::TryParse("res://textures/ui.png", path));
 
-    ResourceId id{};
-    ResourceIdError error{};
-    ATOM_CHECK(ResourceId::TryCreate(path, AssetKind::Texture, "", id, &error));
-    ATOM_CHECK(error == ResourceIdError::None);
+    // Create() reports the reason a rejected identity was rejected; the
+    // convenience form only reports that it was.
+    const auto created = ResourceId::Create(path, AssetKind::Texture, "");
+    ATOM_CHECK(created.has_value());
+    const auto& id = *created;
     ATOM_CHECK(id.IsValid());
     ATOM_CHECK(id.Kind() == AssetKind::Texture);
     ATOM_CHECK(id.Variant().empty());
     ATOM_CHECK(!id.Key().empty());
 
-    ResourceId unknown{};
-    ATOM_CHECK(!ResourceId::TryCreate(path, AssetKind::Unknown, "", unknown, &error));
-    ATOM_CHECK(error == ResourceIdError::InvalidKind);
+    const auto unknown = ResourceId::Create(path, AssetKind::Unknown, "");
+    ATOM_CHECK(!unknown.has_value());
+    ATOM_CHECK(unknown.error().Code() == atom::ErrorCode::AssetInvalidId);
+    ATOM_CHECK(unknown.error().Detail() == ResourceIdErrorName(ResourceIdError::InvalidKind));
+    ATOM_CHECK(unknown.error().GetModule() == atom::Module::Asset);
 
-    ResourceId bad_variant{};
-    ATOM_CHECK(!ResourceId::TryCreate(path, AssetKind::Texture, "HD!", bad_variant, &error));
-    ATOM_CHECK(error == ResourceIdError::InvalidVariant);
+    const auto bad_variant = ResourceId::Create(path, AssetKind::Texture, "HD!");
+    ATOM_CHECK(!bad_variant.has_value());
+    ATOM_CHECK(bad_variant.error().Detail() == ResourceIdErrorName(ResourceIdError::InvalidVariant));
+    // The resource that was rejected is part of the diagnostic, so a log line
+    // can be traced back to the identity that asked for it.
+    ATOM_CHECK(bad_variant.error().Resource() == "res://textures/ui.png");
 
-    ResourceId invalid_path{};
-    atom::fs::AssetPath bad_path{};
-    ATOM_CHECK(!ResourceId::TryCreate(bad_path, AssetKind::Texture, "", invalid_path, &error));
-    ATOM_CHECK(error == ResourceIdError::InvalidPath);
+    const auto invalid_path = ResourceId::Create(atom::fs::AssetPath{}, AssetKind::Texture, "");
+    ATOM_CHECK(!invalid_path.has_value());
+    ATOM_CHECK(invalid_path.error().Detail() == ResourceIdErrorName(ResourceIdError::InvalidPath));
 
     ResourceId hd{};
     ATOM_CHECK(ResourceId::TryCreate(path, AssetKind::Texture, "hd", hd));

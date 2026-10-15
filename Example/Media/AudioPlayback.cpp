@@ -186,8 +186,12 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("MusicPlayback");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},
-                      atom::backend::RenderBackendId::SdlGpu);
+    const auto initialized = window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},
+                                              atom::backend::RenderBackendId::SdlGpu);
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly

@@ -148,8 +148,12 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("LuaScripting");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom - Lua Scripting Example", atom::algo::Vec2{720, 720},
-                      atom::backend::RenderBackendId::SdlGpu);
+    const auto initialized = window.Initialize("Atom - Lua Scripting Example", atom::algo::Vec2{720, 720},
+                                              atom::backend::RenderBackendId::SdlGpu);
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
     window.SetFPS(60);
 
     atom::debugger::LogDebugger log_panel{};

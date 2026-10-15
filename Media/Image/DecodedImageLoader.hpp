@@ -23,8 +23,8 @@ class DecodedImageLoader final : public asset::TypedResourceLoader<DecodedImage>
         }
 
     protected:
-        auto LoadTyped(const fs::IFileSystem& filesystem, const asset::ResourceId& id,
-                       std::shared_ptr<DecodedImage>& output) -> asset::AssetResult override;
+        [[nodiscard]] auto LoadTyped(const fs::IFileSystem& filesystem, const asset::ResourceId& id,
+                                     std::shared_ptr<DecodedImage>& output) -> Result<void> override;
 };
 
 } // namespace atom::image

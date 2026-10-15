@@ -44,6 +44,39 @@ namespace native_fs = std::filesystem;
 
 } // namespace
 
+auto ToError(const Result result, const std::string_view operation, const std::string_view resource) -> Error {
+    ErrorCode code = ErrorCode::FsIoError;
+    switch (result) {
+    case Result::Success:
+        // Not a failure. Callers should not convert success, but returning
+        // "Ok" through the error channel would be worse than naming it.
+        code = ErrorCode::Internal;
+        break;
+    case Result::InvalidPath:
+        code = ErrorCode::FsInvalidPath;
+        break;
+    case Result::NotFound:
+        code = ErrorCode::FsNotFound;
+        break;
+    case Result::NotFile:
+        code = ErrorCode::FsNotFile;
+        break;
+    case Result::NotDirectory:
+        code = ErrorCode::FsNotDirectory;
+        break;
+    case Result::OutsideRoot:
+        code = ErrorCode::FsOutsideRoot;
+        break;
+    case Result::OutOfRange:
+        code = ErrorCode::FsOutOfRange;
+        break;
+    case Result::IoError:
+        code = ErrorCode::FsIoError;
+        break;
+    }
+    return Error{code, Module::Fs, std::string{operation}, {}}.WithResource(resource);
+}
+
 class NativeFileSystem::Impl final {
     public:
         Impl(std::string mount, native_fs::path root) : mount_(std::move(mount)), root_(std::move(root)) {}
@@ -159,8 +192,8 @@ auto NativeFileSystem::Create(const std::string_view mount, const std::string_vi
     if (root_utf8.empty() || !atom::IsValidUtf8(std::string{root_utf8}))
         return Result::InvalidPath;
 
-    AssetPath mountRoot{};
-    if (!AssetPath::TryParse(std::string{mount} + "://", mountRoot) || mountRoot.Mount() != mount)
+    const auto mountRoot = AssetPath::Parse(std::string{mount} + "://");
+    if (!mountRoot.has_value() || mountRoot->Mount() != mount)
         return Result::InvalidPath;
 
     std::error_code error;

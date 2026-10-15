@@ -99,7 +99,18 @@ endif()
     )
     target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Color Atom_Input)
 
-# 0b. Input system — per-frame keyboard/mouse state folded from the window
+# 0b. Error — the engine's unified failure value (CORE-004).
+#     Leaf module: no engine dependency at all, not even Log. Every other
+#     module may link it, and it must never link anything back. Defined before
+#     Log because Log consumes Error codes for its own diagnostics.
+    add_library(Atom_Error STATIC
+        Error/Error.hpp
+        Error/Error.cpp
+    )
+    target_include_directories(Atom_Error PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Error PUBLIC Atom_3rd_SDL3)
+
+# 0b-bis. Input system — per-frame keyboard/mouse state folded from the window
 #     event stream. Consumes window::IEvent, so it sits above the contracts.
     add_library(Atom_InputSystem STATIC
         Input/InputSystem.hpp
@@ -413,6 +424,9 @@ add_library(Atom_FS STATIC
     Filesystem/PackageFileSystem.cpp
 )
 target_include_directories(Atom_FS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Atom_Error is PUBLIC: AssetPath::Parse returns Result<AssetPath>, so every
+# consumer of the FS public headers needs the error type to be complete.
+target_link_libraries(Atom_FS PUBLIC Atom_Error)
 target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
 # Render resources need AssetPath/IFileSystem for VFS-backed texture loads.
 target_link_libraries(Atom_Render_Resources PUBLIC Atom_FS)
@@ -435,7 +449,9 @@ add_library(Atom_Assets STATIC
     Asset/ScriptSourceLoader.cpp
 )
 target_include_directories(Atom_Assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Atom_Assets PUBLIC Atom_FS)
+# Atom_Log is needed because a failed acquire reports itself exactly once, at
+# the site that knows the operation and the resource (CORE-004).
+target_link_libraries(Atom_Assets PUBLIC Atom_FS Atom_Log)
 # AudioClipResourceLoader (kind=Audio) lives in Atom_Media and extends
 # atom::asset::TypedResourceLoader, mirroring DecodedImageLoader in Atom_Image.
 target_link_libraries(Atom_Media PUBLIC Atom_Assets)
@@ -475,6 +491,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_include_directories(Atom_Window PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Window PUBLIC
         Atom_Backend_Contracts
+        Atom_Error
         Atom_InputSystem
         Atom_Log
         Atom_Algorithm

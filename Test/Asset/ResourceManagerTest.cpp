@@ -34,17 +34,18 @@ class StringConfigLoader final : public atom::asset::TypedResourceLoader<std::st
         }
 
     protected:
-        auto LoadTyped(const atom::fs::IFileSystem& filesystem, const atom::asset::ResourceId& id,
-                       std::shared_ptr<std::string>& output) -> atom::asset::AssetResult override {
+        [[nodiscard]] auto LoadTyped(const atom::fs::IFileSystem& filesystem, const atom::asset::ResourceId& id,
+                                     std::shared_ptr<std::string>& output) -> atom::Result<void> override {
             std::unique_ptr<atom::fs::IFile> file{};
             const atom::fs::Result opened = filesystem.OpenRead(id.Path(), file);
             if (opened != atom::fs::Result::Success)
-                return atom::asset::MapFsResult(opened);
+                return std::unexpected<atom::Error>{atom::fs::ToError(opened, "OpenRead", id.Path().String())};
             std::vector<std::byte> data{};
-            if (atom::fs::ReadAll(*file, data) != atom::fs::Result::Success)
-                return atom::asset::AssetResult::LoadFailed;
+            const atom::fs::Result read = atom::fs::ReadAll(*file, data);
+            if (read != atom::fs::Result::Success)
+                return std::unexpected<atom::Error>{atom::fs::ToError(read, "ReadAll", id.Path().String())};
             output = std::make_shared<std::string>(reinterpret_cast<const char*>(data.data()), data.size());
-            return atom::asset::AssetResult::Success;
+            return atom::Ok();
         }
 };
 
@@ -55,10 +56,10 @@ class IntScriptLoader final : public atom::asset::TypedResourceLoader<int> {
         }
 
     protected:
-        auto LoadTyped(const atom::fs::IFileSystem& /*filesystem*/, const atom::asset::ResourceId& /*id*/,
-                       std::shared_ptr<int>& output) -> atom::asset::AssetResult override {
+        [[nodiscard]] auto LoadTyped(const atom::fs::IFileSystem& /*filesystem*/, const atom::asset::ResourceId& /*id*/,
+                                     std::shared_ptr<int>& output) -> atom::Result<void> override {
             output = std::make_shared<int>(42);
-            return atom::asset::AssetResult::Success;
+            return atom::Ok();
         }
 };
 
@@ -101,12 +102,18 @@ auto main() -> int {
     if (manager.HasLoader(atom::asset::AssetKind::Config))
         return Fail("Loader present before registration");
 
-    if (manager.RegisterLoader(std::make_shared<StringConfigLoader>()) != atom::asset::AssetResult::Success)
+    if (!manager.RegisterLoader(std::make_shared<StringConfigLoader>()))
         return Fail("Could not register config loader");
-    if (manager.RegisterLoader(std::make_shared<IntScriptLoader>()) != atom::asset::AssetResult::Success)
+    if (!manager.RegisterLoader(std::make_shared<IntScriptLoader>()))
         return Fail("Could not register script loader");
     if (!manager.HasLoader(atom::asset::AssetKind::Config) || !manager.HasLoader(atom::asset::AssetKind::Script))
         return Fail("Loader registration not visible");
+
+    // A rejected registration must name what was wrong, not just fail.
+    if (const auto rejected = manager.RegisterLoader(nullptr); rejected.has_value())
+        return Fail("Null loader registration succeeded");
+    else if (rejected.error().Code() != atom::ErrorCode::AssetInvalidId)
+        return Fail("Null loader registration reported the wrong code");
 
     // NoLoader for unregistered kind.
     atom::asset::ResourceId texture_id{};
@@ -114,6 +121,31 @@ auto main() -> int {
         return Fail("Could not create texture id");
     if (manager.Acquire<std::string>(texture_id))
         return Fail("Acquire succeeded without a loader");
+
+    // TryAcquire is the diagnosable form: it must say *why* the acquire failed,
+    // which is what Acquire() alone could never report (CORE-004).
+    {
+        const auto no_loader = manager.TryAcquire<std::string>(texture_id);
+        if (no_loader.has_value())
+            return Fail("TryAcquire succeeded without a loader");
+        if (no_loader.error().Code() != atom::ErrorCode::AssetNoLoader)
+            return Fail("TryAcquire reported the wrong code for a missing loader");
+        if (no_loader.error().Resource() != texture_id.Path().String())
+            return Fail("TryAcquire error did not carry the resource path");
+        if (no_loader.error().Operation() != "AcquireRecord")
+            return Fail("TryAcquire error did not carry the operation");
+
+        const auto missing = manager.TryAcquire<std::string>(missing_id);
+        if (missing.has_value())
+            return Fail("TryAcquire succeeded for a missing file");
+        if (missing.error().Code() != atom::ErrorCode::FsNotFound)
+            return Fail("TryAcquire did not forward the loader's own reason");
+        // The lowest layer that knew what it was doing names the operation, and
+        // the re-reporting layers do not overwrite it: "OpenRead failed" is more
+        // useful than "AcquireRecord failed".
+        if (missing.error().Operation() != "OpenRead")
+            return Fail("Forwarded error lost the innermost operation");
+    }
 
     // Missing file.
     if (manager.Acquire<std::string>(missing_id))
@@ -131,9 +163,17 @@ auto main() -> int {
     if (manager.LiveCount() != 1)
         return Fail("LiveCount should be 1 while handles are held");
 
-    // Type mismatch: config id requested as int must fail.
+    // Type mismatch: config id requested as int must fail, and TryAcquire must
+    // be able to say that the type was the problem.
     if (manager.Acquire<int>(config_id))
         return Fail("Type mismatch was not rejected");
+    {
+        const auto mismatched = manager.TryAcquire<int>(config_id);
+        if (mismatched.has_value())
+            return Fail("TryAcquire accepted a type mismatch");
+        if (mismatched.error().Code() != atom::ErrorCode::AssetTypeMismatch)
+            return Fail("TryAcquire reported the wrong code for a type mismatch");
+    }
 
     // Variant is a different cache entry (will fail to load as config content
     // still exists under the same path — loader is path-based so it succeeds
@@ -200,7 +240,7 @@ auto main() -> int {
     if (vfs.Mount("res", 100, memory) != atom::fs::Result::Success)
         return Fail("Could not mount vfs");
     atom::asset::ResourceManager vfs_manager{vfs};
-    if (vfs_manager.RegisterLoader(std::make_shared<StringConfigLoader>()) != atom::asset::AssetResult::Success)
+    if (!vfs_manager.RegisterLoader(std::make_shared<StringConfigLoader>()))
         return Fail("Could not register loader on vfs manager");
     auto via_vfs = vfs_manager.Acquire<std::string>(config_id);
     if (!via_vfs || *via_vfs != "hello-atom")

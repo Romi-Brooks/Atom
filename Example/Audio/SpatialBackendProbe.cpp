@@ -255,8 +255,12 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("Probe");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom - Spatial Audio Backend Probe", atom::algo::Vec2{860, 780},
-                      atom::backend::RenderBackendId::SdlGpu);
+    const auto initialized = window.Initialize("Atom - Spatial Audio Backend Probe", atom::algo::Vec2{860, 780},
+                                              atom::backend::RenderBackendId::SdlGpu);
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
     ProbeDebugger debugger;
     debugger.LoadSource();
     atom::debugger::LogDebugger log_panel{};

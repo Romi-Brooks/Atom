@@ -106,10 +106,14 @@ auto main() -> int {
     // Give a window instance
     auto& window = atom::RenderWindow::GetInstance();
     // Init the window instance, Can pass a render backend explicit
-    window.Initialize("Atom Engine - Debug Overlay Example",  // Title (also the window name)
-                      atom::algo::Vec2{1280, 720},  // Resolution
-                      atom::backend::RenderBackendId::SdlGpu  // Render Backend
-                      );
+    const auto initialized = window.Initialize("Atom Engine - Debug Overlay Example",  // Title (also the window name)
+                                              atom::algo::Vec2{1280, 720},  // Resolution
+                                              atom::backend::RenderBackendId::SdlGpu  // Render Backend
+    );
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly

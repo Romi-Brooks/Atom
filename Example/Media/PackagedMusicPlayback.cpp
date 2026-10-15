@@ -241,8 +241,13 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("PackedMusic");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720},
-                      atom::backend::RenderBackendId::SdlGpu);
+    const auto initialized =
+        window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720},
+                          atom::backend::RenderBackendId::SdlGpu);
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
 
     window.SetFPS(60);
 

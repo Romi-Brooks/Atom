@@ -11,6 +11,7 @@
 
 #include <Backend/Extension/RenderBackendRegistry.hpp>
 #include <Backend/Runtime/RenderBackendRuntime.hpp>
+#include <Error/Error.hpp>
 #include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
 
@@ -105,7 +106,7 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
 }
 
 auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 resolution,
-                              const atom::backend::RenderBackendId backendId) -> void {
+                              const atom::backend::RenderBackendId backendId) -> Result<void> {
     // The runtime layer owns concrete backends; this facade only consumes the
     // registry and the IRenderBackend/IWindow/IRenderDevice contracts.
     atom::backend::RenderBackendRuntime::GetInstance().EnsureDefaultRenderBackend();
@@ -121,13 +122,20 @@ auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 r
     auto& registry = atom::backend::RenderBackendRegistry::GetInstance();
     backend_ = registry.CreateBackend(backend_id);
     if (!backend_) {
-        LOG_ERROR(atom::log::core::Window, "Render backend '" + backend_id_ + "' is not registered");
-        return;
+        // The caller gets the reason; the log line stays because a startup
+        // failure is also useful in a crash/telemetry dump.
+        auto error = Error{ErrorCode::RenderBackendUnavailable, Module::Window, "RenderWindow::Initialize"}
+                         .WithDetail("render backend '" + backend_id_ + "' is not registered");
+        LOG_ERROR(atom::log::core::Window, error.Message());
+        return std::unexpected<Error>{std::move(error)};
     }
 
     if (!backend_->Initialize(title, resolution)) {
         backend_.reset();
-        return;
+        auto error = Error{ErrorCode::RenderDeviceCreationFailed, Module::Window, "RenderWindow::Initialize"}
+                         .WithDetail("render backend '" + backend_id_ + "' failed to initialize");
+        LOG_ERROR(atom::log::core::Window, error.Message());
+        return std::unexpected<Error>{std::move(error)};
     }
     backend_->Window().SetFPS(fps_);
 
@@ -138,6 +146,7 @@ auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 r
     if (overlay_manager_)
         overlay_manager_->OnRenderWindowInitialized();
 
+    return Ok();
 }
 
 auto RenderWindow::Run() -> void {

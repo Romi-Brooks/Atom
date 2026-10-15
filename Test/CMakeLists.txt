@@ -115,6 +115,12 @@ atom_add_test(Atom_Input.InputSystem
     Input/InputSystemTest.cpp
     Atom_InputSystem)
 
+# --- Unified error value (CORE-004) ---
+atom_add_test(Atom_Error.Error
+    Atom_Error_Error_Tests
+    Error/ErrorTest.cpp
+    Atom_Error)
+
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry
     Atom_Backend_Extension_AudioDecoderRegistry_Tests

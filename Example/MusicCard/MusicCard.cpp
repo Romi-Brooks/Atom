@@ -144,8 +144,12 @@ auto main(int argc, char** argv) -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("MusicCard");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
-                      atom::backend::RenderBackendId::SdlGpu);
+    const auto initialized = window.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
+                                              atom::backend::RenderBackendId::SdlGpu);
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
     window.SetVSync(false);
     window.SetFPS(165);
 

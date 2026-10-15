@@ -5,6 +5,8 @@
 
 #include "ResourceManager.hpp"
 
+#include <Log/LogSystem.hpp>
+
 namespace atom::asset {
 namespace {
 // Sweep when the cache holds this many entries. Kept well above typical live
@@ -16,13 +18,17 @@ ResourceManager::ResourceManager(const fs::IFileSystem& filesystem) : filesystem
 
 ResourceManager::~ResourceManager() = default;
 
-auto ResourceManager::RegisterLoader(std::shared_ptr<IResourceLoader> loader) -> AssetResult {
-    if (!loader)
-        return AssetResult::InvalidId;
-    if (loader->Kind() == AssetKind::Unknown)
-        return AssetResult::InvalidId;
+auto ResourceManager::RegisterLoader(std::shared_ptr<IResourceLoader> loader) -> Result<void> {
+    if (!loader) {
+        return std::unexpected<Error>{ToError(AssetResult::InvalidId, "RegisterLoader")
+                                          .WithDetail("null loader")};
+    }
+    if (loader->Kind() == AssetKind::Unknown) {
+        return std::unexpected<Error>{ToError(AssetResult::InvalidId, "RegisterLoader")
+                                          .WithDetail("loader does not declare an AssetKind")};
+    }
     loaders_[std::string{ToString(loader->Kind())}] = std::move(loader);
-    return AssetResult::Success;
+    return Ok();
 }
 
 auto ResourceManager::HasLoader(const AssetKind kind) const -> bool {
@@ -69,29 +75,51 @@ auto ResourceManager::SweepExpired() -> void {
     }
 }
 
-auto ResourceManager::AcquireRecord(const ResourceId& id, std::shared_ptr<detail::ResourceRecord>& output)
-    -> AssetResult {
-    output.reset();
-    if (!id.IsValid() || !filesystem_)
-        return AssetResult::InvalidId;
+auto ResourceManager::AcquireRecord(const ResourceId& id)
+    -> Result<std::shared_ptr<detail::ResourceRecord>> {
+    // Every failure below is reported through the returned Error and logged
+    // here, at the site that knows the operation and the resource. Upper layers
+    // therefore do not log again: one failure, one diagnostic (CORE-004).
+    const auto fail = [](Error error) -> Result<std::shared_ptr<detail::ResourceRecord>> {
+        LOG_ERROR(atom::log::asset::Resource, "ResourceManager: " + error.Message());
+        return std::unexpected<Error>{std::move(error)};
+    };
+
+    if (!id.IsValid()) {
+        return fail(ToError(AssetResult::InvalidId, id, "AcquireRecord")
+                        .WithDetail("resource id is not valid"));
+    }
+    if (filesystem_ == nullptr) {
+        return fail(ToError(AssetResult::InvalidId, id, "AcquireRecord").WithDetail("no filesystem bound"));
+    }
 
     const std::string key{id.Key()};
     if (const auto it = cache_.find(key); it != cache_.end()) {
         if (auto existing = it->second.record.lock()) {
-            output = std::move(existing);
-            return AssetResult::Success;
+            return std::shared_ptr<detail::ResourceRecord>{std::move(existing)};
         }
         cache_.erase(it);
     }
 
     const auto loader = loaders_.find(std::string{ToString(id.Kind())});
     if (loader == loaders_.end() || !loader->second)
-        return AssetResult::NoLoader;
+        return fail(ToError(AssetResult::NoLoader, id, "AcquireRecord"));
 
     std::shared_ptr<void> resource{};
-    const AssetResult loaded = loader->second->Load(*filesystem_, id, resource);
-    if (loaded != AssetResult::Success || !resource)
-        return loaded == AssetResult::Success ? AssetResult::LoadFailed : loaded;
+    auto loaded = loader->second->Load(*filesystem_, id, resource);
+    if (!loaded.has_value()) {
+        // The loader's own error is more specific than anything this layer could
+        // invent (which decoder, which format, which byte), so it is forwarded
+        // with the operation that was attempted on top.
+        auto error = std::move(loaded.error());
+        error.WithOperation("AcquireRecord");
+        error.WithResource(id.Path().String());
+        return fail(std::move(error));
+    }
+    if (!resource) {
+        return fail(ToError(AssetResult::LoadFailed, id, "AcquireRecord")
+                        .WithDetail("loader reported success without a resource"));
+    }
 
     auto record = std::make_shared<detail::ResourceRecord>();
     record->id = id;
@@ -107,8 +135,7 @@ auto ResourceManager::AcquireRecord(const ResourceId& id, std::shared_ptr<detail
     // growth of dead entries.
     if (cache_.size() >= sweep_threshold)
         SweepExpired();
-    output = std::move(record);
-    return AssetResult::Success;
+    return record;
 }
 
 } // namespace atom::asset

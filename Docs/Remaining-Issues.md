@@ -310,9 +310,48 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 
 ### CORE-004：统一错误模型
 
-- [ ] 为可失败初始化、加载和后端创建统一 Result/Error。
-- [ ] 避免混用静默返回、bool、异常和仅日志记录。
-- [ ] 错误信息包含模块、操作、资源路径和底层错误。
+**背景**：引擎此前有 7 个互不相关的错误枚举（`fs::Result`/`PathError`/`AssetResult`/`ResourceIdError`/
+`DecoderOpenStatus`/`PackageBuilder::Result`/`ScreenOpResult`）、213 处 `bool` 返回、142 处
+`LOG_ERROR` 字符串拼接，四套失败信号机制（bool / 枚举 / void+日志 / 异常）同时存在，且跨模块翻译层
+只有一处 `MapFsResult`。更严重的是**失败信息在中间层被丢弃**：调用方只能拿到 `bool` 或 `nullptr`，
+拿不到原因。
+
+- [x] 建立 `Error/` 基础层（2026-10-15 落地）：`atom::Error`（`ErrorCode` + `Module` + `operation` +
+      `resource` + `detail` + `Message()`）、`atom::Result<T> = std::expected<T, Error>`、`Ok()`/`Fail()`、
+      `ModuleName()`/`ErrorCodeName()`。错误码按模块分块（每模块 256 个：fs `0x01xx`、asset `0x02xx`、
+      render `0x03xx`、audio `0x04xx` …），**只追加不改号**。平台错误状态在失败点捕获
+      （`CaptureSdlError()` 读后即清、`CaptureLastSystemError()` 走 `FormatMessageW`、
+      `CaptureErrnoMessage()`），因为 `SDL_GetError`/`GetLastError`/`errno` 都是会被下一次调用覆盖的单槽。
+      该模块是**叶子模块**：不依赖 Log，也不依赖任何引擎模块，`Error` 只作为值传递、不自己写日志。
+- [x] 迁移 Filesystem：`AssetPath::TryParse(value, out, PathError*)` → `AssetPath::Parse(value) -> Result<AssetPath>`，
+      `TryParse` 保留为转发 `Parse` 的便捷包装；`fs::ToError(Result, operation, resource)` 提供唯一翻译入口。
+      `IFile`/`IFileSystem` 的签名**不动**：`ReadAt` 是热路径，返回小整数枚举即可，由上层转换一次，
+      不必让字符串穿过读路径。
+- [x] 迁移 Asset：`IResourceLoader::Load`/`LoadTyped` 由 `AssetResult` 改为 `Result<void>`，loader 直接
+      返回底层原因（例如 VFS 的 `FsNotFound`）；`ResourceId::Create` 取代带出参的 `TryCreate`；
+      `ResourceManager::RegisterLoader` 改为 `Result<void>`；`MapFsResult` 保留。
+- [x] **修复静默失败（本次重点）**：
+      `RenderWindow::Initialize` 由 `void` 改为 `[[nodiscard]] Result<void>`——原先后端未注册或初始化失败
+      只写一行日志然后 `return`，调用方完全无法察觉，直到 `Run()` 抛出 `std::runtime_error`；
+      10 个 example/tool 调用点已改为检查返回值并报错退出。
+      `ResourceManager` 新增 `TryAcquire<T>() -> Result<ResourceHandle<T>>`：`Acquire<T>` 只能返回空句柄，
+      而 `AcquireRecord` 原先把 `AssetResult` 直接丢弃，加载失败与"缓存为空"无法区分；现在失败在
+      `AcquireRecord` 内**只记录一次**（带 operation 与 resource path），`TryAcquire` 把完整 `Error` 交给调用方。
+- [x] 回归：新增 `Atom_Error.Error`（消息渲染、注解不覆盖下层上下文、模块归属、平台错误读取并清除）；
+      `Atom_FS.AssetPath` 断言每一种非法输入对应的错误码与 `PathError` 细节；
+      `Atom_Assets.ResourceManager` 断言 `TryAcquire` 能区分 `AssetNoLoader`/`FsNotFound`/`AssetTypeMismatch`
+      并保留最内层 operation。
+- [x] 附带：Log 新增 `atom::log::asset::Resource` 频道（`Atom.Asset.Resource`），资源加载失败不再借用
+      `core::Screen` 频道。
+- [ ] 后续阶段（按需推进，不是当前阻塞项）：Backend Contracts 与 Render 的 `bool` 虚函数收敛
+      （**注意 RHI 已冻结**，应与 RENDER-009 合并进行，避免同一批签名改两遍）；Audio/Decoder/Lua/
+      Time/Job/Window 的错误码归并；`PackageBuilder::Result` 与 `ScreenOpResult` 并入 `ErrorCode`；
+      `CODING_STANDARD` 的「统一错误规范」章节。
+- 验收：可失败初始化、加载与后端创建统一返回 `Result`；失败信息包含模块、操作、资源路径与底层原因；
+  不再有"只写日志、调用方拿不到原因"的路径（渲染契约的重写按上一条随 RENDER-009 进行）。
+- 设计说明：`Error` 不提供"记录并返回"的便捷函数。理由：模块在失败点自己 `LOG_ERROR(error.Message())`
+  既能选频道、又能控制只记一次；若 `Error` 反向依赖 `Log`，叶子模块的分层就被破坏，且一次失败会被
+  每一层重复记录。
 
 ### 4.1b 并发（Job System，新增 2026-10-11）
 

@@ -27,6 +27,12 @@ ATOM_DEFINE_CHANNELS(atom::log::core, Channel, "Atom.", (Main, "Main"), (Logger,
 ATOM_DEFINE_CHANNELS(atom::log::entity, Channel, "Atom.Entity.", (Npc, "NPC"), (Player, "Player"))
 
 // Level-2
+// Asset loading failures (ResourceManager, resource loaders). One channel for
+// the whole asset layer so a failing load is filterable independently of the
+// subsystem that requested it.
+ATOM_DEFINE_CHANNELS(atom::log::asset, Channel, "Atom.Asset.", (Resource, "Resource"))
+
+// Level-2
 ATOM_DEFINE_CHANNELS(atom::log::audio, Channel, "Atom.Audio.", (Music, "Music"), (Sfx, "SFX"),
                      (PlugMusicFade, "Plug.MusicFade"), (Minimp3, "Minimp3"), (WavProf, "WavProf"),
                      (SDL3Wav, "SDL3Wav"), (Metadata, "Metadata"))
