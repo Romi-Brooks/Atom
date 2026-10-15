@@ -8,11 +8,6 @@
 namespace atom::asset {
 namespace {
 
-auto SetError(ResourceIdError* error, const ResourceIdError value) -> void {
-    if (error)
-        *error = value;
-}
-
 [[nodiscard]] auto IsVariantAllowed(const std::string_view variant) -> bool {
     if (variant.empty())
         return true;
@@ -41,27 +36,50 @@ auto SetError(ResourceIdError* error, const ResourceIdError value) -> void {
 
 } // namespace
 
-auto ResourceId::TryCreate(const fs::AssetPath& path, const AssetKind kind, const std::string_view variant,
-                           ResourceId& output, ResourceIdError* error) -> bool {
-    SetError(error, ResourceIdError::None);
-    output = ResourceId{};
+auto ToError(const ResourceIdError error, const std::string_view operation) -> Error {
+    ErrorCode code = ErrorCode::AssetInvalidId;
+    switch (error) {
+    case ResourceIdError::None:
+        code = ErrorCode::Internal;
+        break;
+    case ResourceIdError::InvalidPath:
+    case ResourceIdError::InvalidKind:
+    case ResourceIdError::InvalidVariant:
+        code = ErrorCode::AssetInvalidId;
+        break;
+    }
+    return Error{code, Module::Asset, std::string{operation}}.WithDetail(
+        std::string{ResourceIdErrorName(error)});
+}
+
+auto ResourceId::Create(const fs::AssetPath& path, const AssetKind kind, const std::string_view variant)
+    -> Result<ResourceId> {
     if (!path.IsValid()) {
-        SetError(error, ResourceIdError::InvalidPath);
-        return false;
+        return std::unexpected<Error>{
+            ToError(ResourceIdError::InvalidPath, "ResourceId::Create").WithResource(path.String())};
     }
-    if (kind == AssetKind::Unknown) {
-        SetError(error, ResourceIdError::InvalidKind);
-        return false;
-    }
+    if (kind == AssetKind::Unknown)
+        return std::unexpected<Error>{ToError(ResourceIdError::InvalidKind, "ResourceId::Create")};
     if (!IsVariantAllowed(variant)) {
-        SetError(error, ResourceIdError::InvalidVariant);
-        return false;
+        return std::unexpected<Error>{ToError(ResourceIdError::InvalidVariant, "ResourceId::Create")
+                                          .WithResource(path.String())
+                                          .WithDetail(std::string{variant})};
     }
 
-    output.path_ = path;
-    output.kind_ = kind;
-    output.variant_ = variant;
-    output.key_ = BuildKey(path, kind, variant);
+    ResourceId id{};
+    id.path_ = path;
+    id.kind_ = kind;
+    id.variant_ = variant;
+    id.key_ = BuildKey(path, kind, variant);
+    return id;
+}
+
+auto ResourceId::TryCreate(const fs::AssetPath& path, const AssetKind kind, const std::string_view variant,
+                           ResourceId& output) -> bool {
+    auto created = Create(path, kind, variant);
+    if (!created.has_value())
+        return false;
+    output = std::move(*created);
     return true;
 }
 

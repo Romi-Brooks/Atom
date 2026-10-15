@@ -104,6 +104,7 @@ submodule。如果没有使用 `--recurse-submodules` 克隆，请在配置 CMak
 | `Example_SFX_Playback` | 音效播放（Voice Pool 重叠播放） |
 | `Example_Audio_Metadata` | 通过引擎 AudioMetadataReader 读取音频标签与属性 |
 | `Example_Packaged_Music` | 资源包打包 → 加载到内存 → 流式播放（MP3/WAV） |
+| `Example_Input_Demo` | 输入系统验收样例：按住移动 / 鼠标拖拽 / ActionMap 动作边沿，面板实时显示按键与鼠标状态。**新代码要用输入，先看这个文件** |
 
 ***
 
@@ -136,12 +137,14 @@ Atom 使用 **SDL3** 作为其多媒体抽象层。第三方源码依赖以 subm
 | 库 | 版本 | 路径 | 用途 |
 |----|------|------|------|
 | [SDL3](https://github.com/libsdl-org/SDL) | 3.4.12 | `ThirdParty/SDL3/` | 窗口管理、渲染、音频、输入 |
+| [SDL_mixer](https://github.com/libsdl-org/SDL_mixer) | 3.2.4 | `ThirdParty/SDL_mixer/` | 音轨混音后端（文件解码已关闭，Atom 自己送 PCM） |
 | [ImGui](https://github.com/ocornut/imgui) | 1.92.9 | `ThirdParty/ImGUI/` | 调试覆盖层 UI |
 | [Lua](https://www.lua.org/) | 5.4.7 | `ThirdParty/Lua/` | 脚本引擎 |
 | [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | 音频元数据读取 |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 验证和编码转换 |
 | [minimp3](https://github.com/lieff/minimp3) | master `ea99364` | `ThirdParty/minimp3/` | MP3 解码（header-only） |
 | [stb](https://github.com/nothings/stb) | `2c980bb` | `ThirdParty/stb/` | 图片解码与可信字体栅格化 |
+| [EnTT](https://github.com/skypjack/entt) | 4.0.0 | `ThirdParty/EnTT/` | `ECS` 背后的实体/组件存储（header-only，公开头不暴露） |
 
 ### 依赖编译
 
@@ -155,7 +158,7 @@ CMake 和编译器产物。项目不再跨平台或跨编译器复用预编译�
 - [x] **SDL_GPU 基础闭环** — SDL 自动选择 D3D12、Vulkan 或 Metal，已验证自定义 GLSL Shader 与基础 2D/3D。
 - [x] **Renderer2D 与 Debugger 迁移** — 批处理 2D、图片/字体图集、MusicCard 与 ImGui 均已迁到 SDL_GPU；Atom target 不再构建 SDL_Renderer 路径。
 - [ ] **原生 Vulkan 后端** — SDL_GPU 渲染器稳定后复用同一 RHI 与 SPIR-V 资产。
-- [ ] **ECS 框架** — 将当前简单的实体系统替换为正式的 Entity-Component-System 架构
+- [x] **ECS 框架** — 实体与组件存储已落地（`ECS/`，后端为 EnTT，公开 API 不暴露任何第三方类型）：32 位世代句柄、组件增删查改、标签、`ForEach` 原地遍历与 `With` 排序视图。系统（物理/动画/AI）尚未接入。
 - [ ] **工具链** — 编辑器、资源管线和分析工具
 
 ***

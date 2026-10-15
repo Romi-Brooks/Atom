@@ -11,6 +11,7 @@ pinned submodule remains untouched; see `TargetOverlay.cmake`.
 | Dependency | Atom target | Usage | Git URL | Locked commit |
 |---|---|---|---|---|
 | SDL3 | `Atom_3rd_SDL3` | Windowing, rendering, audio, and input backend | `https://github.com/libsdl-org/SDL.git` | `f87239e71e42da91ca317a12eefb82cfbf3393eb` (`release-3.4.12`) |
+| SDL_mixer | `Atom_3rd_SDL3_mixer` | Track mixing backend for audio playback. Its file decoders are off: Atom feeds it already-decoded PCM | `https://github.com/libsdl-org/SDL_mixer.git` | `72a81869b45e249e8e67102db4e98dd2441f05a1` (`release-3.2.4`) |
 | TagLib | `Atom_3rd_TagLib` | Audio metadata reading | `https://github.com/taglib/taglib.git` | `7d86716194777e0294453bfdc9dd170bd033e1f4` (`v2.1.1`) |
 | Dear ImGui | `Atom_3rd_ImGui`, `Atom_3rd_ImGui_SDL3` | Debug overlay UI with SDL3 backends | `https://github.com/ocornut/imgui.git` | `01380c579715e62fb9a8d6ec0502c4ea83bfde6e` (`v1.92.9`) |
 | Lua | `Atom_3rd_Lua` | Embedded scripting runtime | `https://github.com/lua/lua.git` | `1ab3208a1fceb12fca8f24ba57d6e13c5bff15e3` (`v5.4.7`) |
@@ -18,6 +19,7 @@ pinned submodule remains untouched; see `TargetOverlay.cmake`.
 | minimp3 | `Atom_3rd_Minimp3` | MP3 decoding | `https://github.com/lieff/minimp3.git` | `ea99364f61c14656440e8d77e9c233ccf3124633` |
 | Yoga | `Atom_3rd_Yoga` | Flexbox-compatible UI layout calculation | `https://github.com/facebook/yoga.git` | `042f5013152eb81c1552dec945b88f7b95ca350f` (`v3.2.1`) |
 | stb | `Atom_3rd_Stb` | Image decoding and trusted font rasterization | `https://github.com/nothings/stb.git` | `2c980bb59875b0d32144a71867fbdebb2f77cd20` |
+| EnTT | `Atom_3rd_EnTT` | Entity/component storage behind `Atom_ECS`. Header-only; upstream's own CMake target is deliberately not used | `https://github.com/skypjack/entt.git` | `85c6bba014049b5de8fad49d25424df2f1f6a8c1` (`v4.0.0`) |
 
 Initialize the versions locked by Atom:
 

@@ -52,7 +52,7 @@ auto main() -> int {
     ATOM_CHECK(loader.ResourceType() == typeid(std::string));
 
     ResourceManager manager{*memory};
-    ATOM_CHECK(manager.RegisterLoader(std::make_shared<atom::ScriptSourceLoader>()) == AssetResult::Success);
+    ATOM_CHECK(manager.RegisterLoader(std::make_shared<atom::ScriptSourceLoader>()).has_value());
 
     auto source = manager.Acquire<std::string>(script_id);
     ATOM_CHECK(source);

@@ -50,7 +50,7 @@ atom_add_test(Atom_Assets.ResourceManager
 atom_add_test(Atom_Assets.ConsumerLoader
     Atom_Assets_ConsumerLoader_Tests
     Asset/ConsumerLoaderTest.cpp
-    Atom_Assets Atom_Image)
+    Atom_Assets Atom_Image Atom_Media Atom_Backend_Extension)
 
 atom_add_test(Atom_Assets.ResourceId
     Atom_Assets_ResourceId_Tests
@@ -105,10 +105,27 @@ atom_add_test(Atom_Color.ColorMath
     Algorithm/ColorMathTest.cpp
     Atom_Color)
 
-atom_add_test(Atom_Event.ActionMap
-    Atom_Event_ActionMap_Tests
-    Event/ActionMapTest.cpp
-    Atom_Event)
+atom_add_test(Atom_Input.ActionMap
+    Atom_Input_ActionMap_Tests
+    Input/ActionMapTest.cpp
+    Atom_Input)
+
+atom_add_test(Atom_Input.InputSystem
+    Atom_Input_InputSystem_Tests
+    Input/InputSystemTest.cpp
+    Atom_InputSystem)
+
+# --- Unified error value (CORE-004) ---
+atom_add_test(Atom_Error.Error
+    Atom_Error_Error_Tests
+    Error/ErrorTest.cpp
+    Atom_Error)
+
+# --- ECS (entity/component storage) ---
+atom_add_test(Atom_ECS.EntityWorld
+    Atom_ECS_EntityWorld_Tests
+    ECS/EntityWorldTest.cpp
+    Atom_ECS)
 
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry

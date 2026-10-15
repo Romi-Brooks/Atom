@@ -23,8 +23,8 @@ class ScriptSourceLoader final : public asset::TypedResourceLoader<std::string> 
         }
 
     protected:
-        auto LoadTyped(const fs::IFileSystem& filesystem, const asset::ResourceId& id,
-                       std::shared_ptr<std::string>& output) -> asset::AssetResult override;
+        [[nodiscard]] auto LoadTyped(const fs::IFileSystem& filesystem, const asset::ResourceId& id,
+                                     std::shared_ptr<std::string>& output) -> Result<void> override;
 };
 
 } // namespace atom

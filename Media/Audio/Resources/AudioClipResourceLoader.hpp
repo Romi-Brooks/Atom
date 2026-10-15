@@ -32,8 +32,8 @@ class AudioClipResourceLoader final : public asset::TypedResourceLoader<atom::au
         }
 
     protected:
-        auto LoadTyped(const fs::IFileSystem& filesystem, const asset::ResourceId& id,
-                       std::shared_ptr<atom::audio::DecodedAudio>& output) -> asset::AssetResult override;
+        [[nodiscard]] auto LoadTyped(const fs::IFileSystem& filesystem, const asset::ResourceId& id,
+                                     std::shared_ptr<atom::audio::DecodedAudio>& output) -> Result<void> override;
 
     private:
         atom::audio::AudioDecoderRegistry& decoders_;

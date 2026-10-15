@@ -1,19 +1,20 @@
 /**
- * @file           : Input.hpp
+ * @file           : Input/Key.hpp
  * @author         : Romi Brooks
- * @brief          : Backend-neutral input events and keyboard binding primitives.
+ * @brief          : Backend-neutral input value types: physical keys, modifiers,
+ *                   key events, and mouse buttons.
  * @attention      : Key represents a physical key position. Text input belongs
  *                   to a separate text-input event stream.
  * @date           : 2026/9/7
  * Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifndef ATOM_EVENT_INPUT_HPP
-#define ATOM_EVENT_INPUT_HPP
+#ifndef ATOM_INPUT_KEY_HPP
+#define ATOM_INPUT_KEY_HPP
 
 #include <cstdint>
 
-namespace atom::event {
+namespace atom::input {
 
 // A physical key, normalized by a platform backend. Keeping this independent
 // of character input makes shortcuts and game controls keyboard-layout stable.
@@ -115,6 +116,12 @@ struct KeyEvent {
 
 enum class MouseButton : uint8_t { Unknown = 0, Left, Middle, Right, X1, X2 };
 
-} // namespace atom::event
+// Total number of distinct values, for fixed-size state arrays in InputSystem.
+// Kept as standalone constants (rather than enum sentinels) so `Key` stays a
+// pure "physical key" type and exhaustive switches over it remain warning-free.
+inline constexpr std::size_t KeyCount = static_cast<std::size_t>(Key::CapsLock) + 1;
+inline constexpr std::size_t MouseButtonCount = static_cast<std::size_t>(MouseButton::X2) + 1;
 
-#endif // ATOM_EVENT_INPUT_HPP
+} // namespace atom::input
+
+#endif // ATOM_INPUT_KEY_HPP

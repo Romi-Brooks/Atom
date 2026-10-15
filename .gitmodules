@@ -25,3 +25,6 @@
 [submodule "ThirdParty/SDL_mixer"]
 	path = ThirdParty/SDL_mixer
 	url = https://github.com/libsdl-org/SDL_mixer.git
+[submodule "ThirdParty/EnTT"]
+	path = ThirdParty/EnTT
+	url = https://github.com/skypjack/entt.git

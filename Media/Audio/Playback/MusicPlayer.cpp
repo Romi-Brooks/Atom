@@ -57,7 +57,9 @@ auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& files
     }
     auto streaming = loader.OpenStreaming(filesystem, path);
     if (!streaming) {
-        LOG_ERROR(atom::log::audio::Music, "Failed to decode music: " + label);
+        // The loader's error names the category (no decoder / declined / I/O) and
+        // the resource, which the old optional could not carry.
+        LOG_ERROR(atom::log::audio::Music, "Failed to open music stream: " + streaming.error().Message());
         return false;
     }
     const auto& decoder_info = streaming->decoder->GetInfo();
@@ -86,12 +88,13 @@ auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& files
 }
 
 auto MusicPlayer::Load(const std::string& id, const std::string& path) -> bool {
-    atom::fs::AssetPath asset_path{};
-    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
-        LOG_ERROR(atom::log::audio::Music, "Invalid asset path for music track '" + id + "': " + path);
+    auto asset_path = atom::fs::AssetPath::Parse(path);
+    if (!asset_path) {
+        LOG_ERROR(atom::log::audio::Music, "Invalid asset path for music track '" + id + "': " + path + " (" +
+                                               asset_path.error().Message() + ")");
         return false;
     }
-    return Load(id, atom::fs::Vfs::GetInstance(), asset_path);
+    return Load(id, atom::fs::Vfs::GetInstance(), *asset_path);
 }
 
 auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filename, const void* data,

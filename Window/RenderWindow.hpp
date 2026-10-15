@@ -27,6 +27,7 @@
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
+#include <Error/Error.hpp>
 #include <Time/TimeSystem.hpp>
 #include <Window/ScreenManager.hpp>
 #include <Window/OverlayManager.hpp>
@@ -165,8 +166,16 @@ class RenderWindow {
         // backendId selects a built-in render backend (engine-curated enum).
         // The default is RenderBackendId::SdlGpu; new members are added by Atom
         // releases, not by game/mod code.
-        auto Initialize(const std::string& title, algo::Vec2 resolution,
-                        backend::RenderBackendId backendId = backend::RenderBackendId::SdlGpu) -> void;
+        //
+        // Fails when the backend is not registered or the backend itself could
+        // not initialize (device creation, swapchain claim, ...). The reason is
+        // returned instead of only logged: this used to be a void function, so a
+        // failed initialization was indistinguishable from a successful one
+        // until Run() threw much later (CORE-004). Callers that cannot proceed
+        // should report it and exit; the window stays uninitialized either way.
+        [[nodiscard]] auto Initialize(const std::string& title, algo::Vec2 resolution,
+                                      backend::RenderBackendId backendId = backend::RenderBackendId::SdlGpu)
+            -> Result<void>;
         auto Run() -> void;
         auto SetFPS(unsigned int fps) -> void;
         [[nodiscard]] auto GetFPS() const -> unsigned;

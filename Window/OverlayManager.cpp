@@ -5,6 +5,7 @@
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
 #include <Backend/Extension/DebugImGuiBackendRegistry.hpp>
 #include <Debugger/DebuggerConfig.hpp>
+#include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Window/RenderWindow.hpp>
 
@@ -57,8 +58,16 @@ auto OverlayManager::EnsureInitialized() -> bool {
             if (panel.callback)
                 panel.callback();
         }
-        if (backend_)
+        if (backend_) {
+            // The debug overlay is a *partial* consumer of the engine's UI-capture
+            // contract (see InputSystem): it claims the mouse and says nothing
+            // about the keyboard or text input. Both halves matter - the narrow
+            // entry point keeps the two layers' claims independent, and the
+            // three-state claim is what lets it say "no opinion" instead of the
+            // `false` that used to erase the game's chat claim every frame.
+            atom::input::InputSystem::GetInstance().SetOverlayMouseCapture(backend_->WantsMouse());
             backend_->Render();
+        }
     }));
     shutdown_connection_ = std::make_unique<ListenerConnection>(window_.AddShutdownListener([this] {
         ShutdownBackend();

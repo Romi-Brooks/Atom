@@ -10,6 +10,7 @@
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Error/Error.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
 
@@ -39,6 +40,17 @@ auto ToSampleFormat(const atom::audio::DecoderInfo& info) -> std::optional<atom:
     default:
         return std::nullopt;
     }
+}
+
+// Every failure this loader reports names the operation and the resource. The
+// per-candidate detail (which decoder declined and why) stays in the log, where
+// it belongs: an Error travels back to a caller that needs the identity and the
+// category, not the internal candidate chain.
+[[nodiscard]] auto LoadError(const ErrorCode code, const std::string_view operation,
+                             const std::string_view resource, std::string detail = {}) -> Error {
+    return Error{code, Module::Audio, std::string{operation}}
+        .WithResource(resource)
+        .WithDetail(std::move(detail));
 }
 
 auto DescribeFormat(const atom::audio::DecoderInfo& info) -> std::string {
@@ -201,11 +213,13 @@ auto AudioClipLoader::OpenDecoder(const std::string_view operation, const std::s
 }
 
 auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const void* data,
-                                              const std::size_t size) const -> std::optional<StreamingResult> {
+                                              const std::size_t size) const -> Result<StreamingResult> {
     atom::audio::AudioSampleFormat format{};
     auto decoder = OpenDecoder("OpenStreamingFromMemory", filename, data, size, format);
-    if (!decoder)
-        return std::nullopt;
+    if (!decoder) {
+        return std::unexpected<Error>{
+            LoadError(ErrorCode::AudioDecoderOpenFailed, "OpenStreamingFromMemory", filename)};
+    }
 
     const auto& info = decoder->GetInfo();
 
@@ -220,18 +234,21 @@ auto AudioClipLoader::OpenStreamingFromMemory(const std::string& filename, const
 }
 
 auto AudioClipLoader::Load(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path) const
-    -> std::optional<atom::audio::DecodedAudio> {
+    -> Result<atom::audio::DecodedAudio> {
+    const std::string label{path.String()};
     std::unique_ptr<atom::fs::IFile> file{};
-    if (filesystem.OpenRead(path, file) != atom::fs::Result::Success || !file) {
-        LOG_WARNING(atom::log::audio::Music, "Load: could not open through VFS: " + std::string{path.String()});
-        return std::nullopt;
+    const auto opened = filesystem.OpenRead(path, file);
+    if (opened != atom::fs::Result::Success || !file) {
+        // The filesystem knows why it failed (missing, not a file, outside the
+        // root, I/O); forwarding its code keeps "corrupt" distinguishable from
+        // "absent" all the way up to the caller.
+        return std::unexpected<Error>{fs::ToError(opened, "Load", label)};
     }
 
-    const std::string label{path.String()};
     atom::audio::AudioSampleFormat format{};
     auto decoder = OpenDecoder("Load", label, *file, format);
     if (!decoder)
-        return std::nullopt;
+        return std::unexpected<Error>{LoadError(ErrorCode::AudioDecoderOpenFailed, "Load", label)};
 
     const auto info = decoder->GetInfo();
 
@@ -242,8 +259,8 @@ auto AudioClipLoader::Load(const atom::fs::IFileSystem& filesystem, const atom::
     }
     decoder->Close();
     if (pcm.empty()) {
-        LOG_WARNING(atom::log::audio::Music, "Load: decoder produced no PCM data: " + label);
-        return std::nullopt;
+        return std::unexpected<Error>{
+            LoadError(ErrorCode::AudioDecodeFailed, "Load", label).WithDetail("decoder produced no PCM data")};
     }
 
     LOG_INFO(atom::log::audio::Music,
@@ -256,29 +273,25 @@ auto AudioClipLoader::Load(const atom::fs::IFileSystem& filesystem, const atom::
     };
 }
 
-auto AudioClipLoader::Load(const std::string& path) const -> std::optional<atom::audio::DecodedAudio> {
-    atom::fs::AssetPath asset_path{};
-    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
-        LOG_WARNING(atom::log::audio::Music, "Load: invalid asset path: " + path);
-        return std::nullopt;
-    }
-    return Load(atom::fs::Vfs::GetInstance(), asset_path);
+auto AudioClipLoader::Load(const std::string& path) const -> Result<atom::audio::DecodedAudio> {
+    const auto asset_path = atom::fs::AssetPath::Parse(path);
+    if (!asset_path.has_value())
+        return std::unexpected<Error>{asset_path.error()};
+    return Load(atom::fs::Vfs::GetInstance(), *asset_path);
 }
 
 auto AudioClipLoader::OpenStreaming(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path) const
-    -> std::optional<StreamingResult> {
-    std::unique_ptr<atom::fs::IFile> file{};
-    if (filesystem.OpenRead(path, file) != atom::fs::Result::Success || !file) {
-        LOG_WARNING(atom::log::audio::Music,
-                    "OpenStreaming: could not open through VFS: " + std::string{path.String()});
-        return std::nullopt;
-    }
-
+    -> Result<StreamingResult> {
     const std::string label{path.String()};
+    std::unique_ptr<atom::fs::IFile> file{};
+    const auto opened = filesystem.OpenRead(path, file);
+    if (opened != atom::fs::Result::Success || !file)
+        return std::unexpected<Error>{fs::ToError(opened, "OpenStreaming", label)};
+
     atom::audio::AudioSampleFormat format{};
     auto decoder = OpenDecoder("OpenStreaming", label, *file, format);
     if (!decoder)
-        return std::nullopt;
+        return std::unexpected<Error>{LoadError(ErrorCode::AudioDecoderOpenFailed, "OpenStreaming", label)};
 
     const auto& info = decoder->GetInfo();
 
@@ -294,13 +307,11 @@ auto AudioClipLoader::OpenStreaming(const atom::fs::IFileSystem& filesystem, con
     };
 }
 
-auto AudioClipLoader::OpenStreaming(const std::string& path) const -> std::optional<StreamingResult> {
-    atom::fs::AssetPath asset_path{};
-    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
-        LOG_WARNING(atom::log::audio::Music, "OpenStreaming: invalid asset path: " + path);
-        return std::nullopt;
-    }
-    return OpenStreaming(atom::fs::Vfs::GetInstance(), asset_path);
+auto AudioClipLoader::OpenStreaming(const std::string& path) const -> Result<StreamingResult> {
+    const auto asset_path = atom::fs::AssetPath::Parse(path);
+    if (!asset_path.has_value())
+        return std::unexpected<Error>{asset_path.error()};
+    return OpenStreaming(atom::fs::Vfs::GetInstance(), *asset_path);
 }
 
 } // namespace atom

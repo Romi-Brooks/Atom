@@ -1,5 +1,5 @@
 /**
- * @file           : ActionMap.hpp
+ * @file           : Input/ActionMap.hpp
  * @author         : Romi Brooks
  * @brief          : Maps normalized input chords to application-defined actions.
  * @attention      : The engine owns Key; each application owns its action enum.
@@ -7,17 +7,17 @@
  * Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifndef ATOM_EVENT_ACTION_MAP_HPP
-#define ATOM_EVENT_ACTION_MAP_HPP
+#ifndef ATOM_INPUT_ACTION_MAP_HPP
+#define ATOM_INPUT_ACTION_MAP_HPP
 
 #include <algorithm>
 #include <concepts>
 #include <optional>
 #include <vector>
 
-#include <Event/Input.hpp>
+#include <Input/Key.hpp>
 
-namespace atom::event {
+namespace atom::input {
 
 struct KeyChord {
         Key key = Key::Unknown;
@@ -71,6 +71,6 @@ template <std::equality_comparable Action> class ActionMap {
         std::vector<Binding> bindings_;
 };
 
-} // namespace atom::event
+} // namespace atom::input
 
-#endif // ATOM_EVENT_ACTION_MAP_HPP
+#endif // ATOM_INPUT_ACTION_MAP_HPP

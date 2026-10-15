@@ -11,6 +11,7 @@ set(ATOM_UTFCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utfcpp")
 set(ATOM_MINIMP3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minimp3")
 set(ATOM_STB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stb")
 set(ATOM_YOGA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Yoga")
+set(ATOM_ENTT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/EnTT")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/TargetOverlay.cmake")
 
@@ -24,13 +25,38 @@ foreach(dependency_file IN ITEMS
         "${ATOM_MINIMP3_DIR}/minimp3.h"
         "${ATOM_STB_DIR}/stb_image.h"
         "${ATOM_STB_DIR}/stb_truetype.h"
-        "${ATOM_YOGA_DIR}/yoga/CMakeLists.txt")
+        "${ATOM_YOGA_DIR}/yoga/CMakeLists.txt"
+        "${ATOM_ENTT_DIR}/src/entt/entity/registry.hpp")
     if(NOT EXISTS "${dependency_file}")
         message(FATAL_ERROR
             "Missing third-party dependency content: ${dependency_file}\n"
             "Run: git submodule update --init")
     endif()
 endforeach()
+
+# --------------------------------------------------------------------------
+# EnTT (header-only entity/component storage)
+# --------------------------------------------------------------------------
+# Upstream ships its own CMake target, and it is deliberately not used:
+#   - it requires CMake 3.28 while this project declares 3.20;
+#   - its ENTT_USE_SANITIZER option links sanitizer flags as an INTERFACE
+#     dependency, which would leak into every consumer;
+#   - its target is named `EnTT`, which the Atom_3rd_* convention disallows, and
+#     `atom_replace_cmake_identifier` could not rename it safely because "EnTT"
+#     is not a unique token (it appears in EnTT::EnTT and in message strings).
+# Nothing is compiled, so no target overlay is needed either: an Atom-owned
+# INTERFACE target pointed at the pinned header tree is the whole integration.
+#
+# The ENTT_* configuration macros are pinned here, on the target, and nowhere
+# else. They feed a type hash computed at preprocess time; MSVC detects a
+# cross-translation-unit mismatch through #pragma detect_mismatch, GCC does not,
+# so a per-file definition would be a silent ABI hazard on MinGW and Linux.
+add_library(Atom_3rd_EnTT INTERFACE)
+target_include_directories(Atom_3rd_EnTT INTERFACE "${ATOM_ENTT_DIR}/src")
+target_compile_definitions(Atom_3rd_EnTT INTERFACE
+    ENTT_ID_TYPE=std::uint32_t
+    ENTT_SPARSE_PAGE=4096
+    ENTT_PACKED_PAGE=1024)
 
 # --------------------------------------------------------------------------
 # utf8cpp (header-only)

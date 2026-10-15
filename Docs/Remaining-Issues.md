@@ -182,16 +182,19 @@
 
 ### ARCH-108：Entity 职责拆分（ECS 前置）
 
-- [ ] 分离 Transform、Health、Renderable、Movement/Combat 等数据与系统。
-- [ ] 移除 `const Move()` 通过 mutable 修改状态的设计。
-- [ ] Entity 数据不直接持有或加载具体渲染后端资源。
-- 方向：从简单 component pool 开始，不直接引入复杂 archetype ECS。
+- [x] 实体/组件存储落地（`ECS/`）：`Entity`（32 位索引 + 32 位世代句柄）、`EntityWorld`（生命周期、类型化组件读写、`ForEach`/`With` 遍历）、`ECS/Components.hpp` 组件词表。
+- [x] 组件数据不持有或加载任何渲染后端资源：组件是纯数据，无虚函数、无行为、不反向持有 world。
+- [x] 后端存储不进入任何公开头文件：`Atom_3rd_EnTT` 以 `PRIVATE` 链接，全仓公开头零 `entt::` 引用（已用脚本核验）。换后端只需改 `ECS/EntityWorld.cpp` 加组件清单。
+- [x] 句柄使用 ID + generation，不暴露裸指针：跨槽位回收时世代 +1，旧句柄经 `IsAlive`/`CheckAlive` 判定失效，所有可失败操作返回 `atom::Error` 而不是崩或静默改数据。
+- 决策：**引入 EnTT v4.0.0 作为后端**（原计划写的是「不直接引入复杂 archetype ECS」）。理由：后续物理是「每物体挂一堆组件、系统遍历」的形态，要的正是可扩展的开箱实现；而 EnTT 的 `registry`/`view`/稀疏集语义足够简单，不构成 archetype 复杂度。代价与约束记录在 `ECS/README.md`：不使用其自带 CMake（3.28 下限、sanitizer 参数外泄、目标名不符合 `Atom_3rd_*` 约定），并因其实测在 `-DNDEBUG` 下会静默损坏状态，门面必须自行预校验。
 - 关联：`Physics/README.md` 已预留 ECS 职责边界（ECS 持有 entity/component 存储，Physics 持有操作其物理组件的 system）。
+- 未做：行为系统尚未接入（无系统消费 `EntityWorld`）；类型擦除遍历、事件/调度器、序列化、多线程均未实现。可运行示例见 `Example/ECS/EntityWorldTour.cpp`。
+- CI 未验证：MSVC 与 Linux GCC 编译（本地仅 MinGW GCC 15.2 验证），需 CI 跑过一次才算验收。
 
 ### ARCH-109：Lua 对象生命周期与隔离
 
 - [x] `LuaContext` 已替代命名空间全局裸指针（g_music/g_sfx/g_mixer/g_transition/g_filesystem 已移除，改为单一注入结构体，空指针表示「子系统未挂载」）。
-- [ ] Entity 绑定使用 ID + generation，避免暴露裸指针。
+- [x] Entity 绑定使用 ID + generation，避免暴露裸指针。（已落地：`atom::ecs::Entity` 即 32 位索引 + 32 位世代，后端句柄不出现在公开 API 中。Lua 侧绑定尚未开始。）
 - [ ] 保证重复 Initialize、Shutdown 和热重载安全。
 - [ ] 后续增加内存限制和可选标准库沙箱。
 
@@ -278,15 +281,107 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 
 ### CORE-002：InputSystem
 
-- [ ] 建立按帧维护的按下、持续、释放状态。
-- [ ] 支持动作映射，避免业务代码直接依赖 SDL keycode。
-- 现状：`Event/Input.hpp`（Key/MouseButton/KeyModifiers）与 `Event/ActionMap.hpp`（键位到 Action 的映射）已有雏形，但缺按帧维护的输入状态与多设备合并。
+- [x] 建立按帧维护的按下、持续、释放状态。（2026-10-15：`Input/InputSystem` 落地，单例 + BeginFrame/ProcessEvent + 键/鼠标三态 + chord/action 查询，含单测）
+- [x] 支持动作映射，避免业务代码直接依赖 SDL keycode。（`Input/ActionMap` 由 `Event/` 迁入，`atom::input` 命名空间）
+- [x] 接入 `RenderWindow::Run()`：`ProcessEvents()` 在事件轮询前调用一次 `InputSystem::BeginFrame()`，每个规范化事件先经
+      `InputSystem::ProcessEvent()` 再分发给监听器与 Screen，因此 `HandleEvent` 内读到的就是当前事件的状态。
+      由此**业务代码不得再自行调用 `BeginFrame()`**（同一帧调用两次会把真实的按下边沿提前结算成 Held）。
+- [x] 修复首版三处缺陷（2026-10-15 复查）：未映射 scancode 译成 `Key::Unknown`（值为 0）会被写进 `keys_[0]`，
+      污染真实按键，现已显式丢弃；窗口失焦后 SDL 不再发 key-up，按住的方向键会永久卡在 Held，现由
+      `EventType::FocusChanged` 分支调用 `Reset()` 释放；`Reset()` 不再清空鼠标坐标（失焦时鼠标有真实位置，
+      清零会让重新聚焦后的首次移动算出虚构的 delta），丢弃基线改为显式调用 `ResetMousePosition()`。
+      回归用例已覆盖这三种情形。
+- [ ] 多设备合并（键盘 + 手柄）与手柄支持。
+- [x] UI 抢输入契约（2026-10-15 落地，2026-10-15 修正方向）：游戏内 UI（聊天框、菜单）与调试层都会吃键盘，
+      引擎原先没有任何口径，导致「拖着调试面板动、方块跟着跑」和「聊天框打字时角色还在走」两类问题。
+      现提供**与 UI 框架无关**的 `InputSystem::SetUiCapture(mouse, keyboard, text_input, source)` 与三个查询：
+      `IsMouseCapturedByUi()` 挡鼠标类输入、`IsKeyboardCapturedByUi()` 挡一次性命令、`IsTextInputCapturedByUi()`
+      挡持续输入（按住移动）。**状态机不做屏蔽**，始终如实报告物理设备状态，是否让位由业务决定。
+      调试覆盖层是这套契约的一个消费者（`OverlayManager` 每帧只上报鼠标捕获，来源名 `ImGui debug overlay`）；
+      `IDebugImGuiBackend` 因此只保留 `WantsMouse()`，不再暴露 `WantCaptureKeyboard`/`WantTextInput`——调试层
+      不应该参与定义游戏的输入语义，Release 构建里它根本不存在。
+      已知代价：调试覆盖层在 overlay 回调里上报，对「刚开始拖拽的那一帧」晚一帧；游戏 UI 在自己的 Update 里上报，无此延迟。
+- [ ] 捕获来源目前是**单槽**（后写覆盖）。当前只有游戏 UI 与调试层两个来源且职责不重叠，够用；等出现第三个
+      会同时抢键盘的 UI 层（如背包 + 聊天）时，需要改成按来源聚合或引用计数。
+- [ ] ImGui 文本输入与游戏按键的进一步协同：目前只提供「键盘/文本是否被 UI 捕获」的布尔判定，尚未提供
+      「这次按键已被文本框消费、不要进 ActionMap」的逐事件口径，需要时再补。
+- 现状：`Input/Key.hpp`（Key/MouseButton/KeyModifiers）、`Input/ActionMap.hpp`（键位到 Action）与
+      `Input/InputSystem`（按帧状态 + UI 捕获）已就绪，主循环已接线；`Example/Input/InputDemo.cpp` 是可运行验收
+      样例（按住移动 / 拖拽 / 动作边沿 / chord / 游戏内聊天框抢输入，外加实时状态面板）。多设备与手柄待做。
+      两种读输入方式（事件 vs 轮询）的分工写在 `Input/InputSystem.hpp` 文件头与 `Docs/API-Guide-CN.md`
+      的「输入」一节，每个 `Example` 里使用输入的位置也标了 INPUT 注释。
 
 ### CORE-004：统一错误模型
 
-- [ ] 为可失败初始化、加载和后端创建统一 Result/Error。
-- [ ] 避免混用静默返回、bool、异常和仅日志记录。
-- [ ] 错误信息包含模块、操作、资源路径和底层错误。
+**背景**：引擎此前有 7 个互不相关的错误枚举（`fs::Result`/`PathError`/`AssetResult`/`ResourceIdError`/
+`DecoderOpenStatus`/`PackageBuilder::Result`/`ScreenOpResult`）、213 处 `bool` 返回、142 处
+`LOG_ERROR` 字符串拼接，四套失败信号机制（bool / 枚举 / void+日志 / 异常）同时存在，且跨模块翻译层
+只有一处 `MapFsResult`。更严重的是**失败信息在中间层被丢弃**：调用方只能拿到 `bool` 或 `nullptr`，
+拿不到原因。
+
+- [x] 建立 `Error/` 基础层（2026-10-15 落地）：`atom::Error`（`ErrorCode` + `Module` + `operation` +
+      `resource` + `detail` + `Message()`）、`atom::Result<T> = std::expected<T, Error>`、`Ok()`/`Fail()`、
+      `ModuleName()`/`ErrorCodeName()`。错误码按模块分块（每模块 256 个：fs `0x01xx`、asset `0x02xx`、
+      render `0x03xx`、audio `0x04xx` …），**只追加不改号**。平台错误状态在失败点捕获
+      （`CaptureSdlError()` 读后即清、`CaptureLastSystemError()` 走 `FormatMessageW`、
+      `CaptureErrnoMessage()`），因为 `SDL_GetError`/`GetLastError`/`errno` 都是会被下一次调用覆盖的单槽。
+      该模块是**叶子模块**：不依赖 Log，也不依赖任何引擎模块，`Error` 只作为值传递、不自己写日志。
+- [x] 迁移 Filesystem：`AssetPath::TryParse(value, out, PathError*)` → `AssetPath::Parse(value) -> Result<AssetPath>`，
+      `TryParse` 保留为转发 `Parse` 的便捷包装；`fs::ToError(Result, operation, resource)` 提供唯一翻译入口。
+      `IFile`/`IFileSystem` 的签名**不动**：`ReadAt` 是热路径，返回小整数枚举即可，由上层转换一次，
+      不必让字符串穿过读路径。
+- [x] 迁移 Asset：`IResourceLoader::Load`/`LoadTyped` 由 `AssetResult` 改为 `Result<void>`，loader 直接
+      返回底层原因（例如 VFS 的 `FsNotFound`）；`ResourceId::Create` 取代带出参的 `TryCreate`；
+      `ResourceManager::RegisterLoader` 改为 `Result<void>`；`MapFsResult` 保留。
+- [x] **修复静默失败（本次重点）**：
+      `RenderWindow::Initialize` 由 `void` 改为 `[[nodiscard]] Result<void>`——原先后端未注册或初始化失败
+      只写一行日志然后 `return`，调用方完全无法察觉，直到 `Run()` 抛出 `std::runtime_error`；
+      10 个 example/tool 调用点已改为检查返回值并报错退出。
+      `ResourceManager` 新增 `TryAcquire<T>() -> Result<ResourceHandle<T>>`：`Acquire<T>` 只能返回空句柄，
+      而 `AcquireRecord` 原先把 `AssetResult` 直接丢弃，加载失败与"缓存为空"无法区分；现在失败在
+      `AcquireRecord` 内**只记录一次**（带 operation 与 resource path），`TryAcquire` 把完整 `Error` 交给调用方。
+- [x] 回归：新增 `Atom_Error.Error`（消息渲染、注解不覆盖下层上下文、模块归属、平台错误读取并清除）；
+      `Atom_FS.AssetPath` 断言每一种非法输入对应的错误码与 `PathError` 细节；
+      `Atom_Assets.ResourceManager` 断言 `TryAcquire` 能区分 `AssetNoLoader`/`FsNotFound`/`AssetTypeMismatch`
+      并保留最内层 operation。
+- [x] 附带：Log 新增 `atom::log::asset::Resource` 频道（`Atom.Asset.Resource`），资源加载失败不再借用
+      `core::Screen` 频道。
+- [x] `AudioClipLoader` 不再丢原因（2026-10-15，审计记录）：四个入口原为 `std::optional`，把四种完全不同的
+      情况（扩展名没有注册解码器 / 所有候选解码器都拒绝 / 解码成功但产出空 PCM / 文件根本不存在）压成同一个
+      `nullopt`，调用方无法区分"损坏"与"缺失"，`AudioClipResourceLoader` 只好自己编一个通用的
+      `AudioDecoderOpenFailed`。现改为 `Result<DecodedAudio>` / `Result<StreamingResult>`：
+      VFS 打不开时透传 `fs::ToError`（`FsNotFound`/`FsNotFile`/`FsOutsideRoot`/`FsIoError`），
+      `pcm.empty()` 报 `AudioDecodeFailed` 并附 detail，解码器解析失败报 `AudioDecoderOpenFailed`，
+      非法 URI 直接透传 `AssetPath::Parse` 的路径错误码；`AudioClipResourceLoader` 与 `MusicPlayer`
+      现在转发原始 `Error` 而不是再包一层。逐候选解码器的拒绝理由仍留在日志里（那是排查细节），
+      `Error` 只承载身份与类别。回归：`Atom_Assets.ConsumerLoader` 断言缺文件 → `FsNotFound`、
+      被拒 → `AudioDecoderOpenFailed`、坏 URI → `FsMissingMount`，且错误带资源路径与正确模块。
+- [ ] 后续阶段（按需推进，不是当前阻塞项，逐项都确认过当前代码状态）：
+      1. **Backend Contracts 与 Render 的 `bool` 虚函数**（25 处：`IWindow::Initialize`、`IRenderBackend::Initialize`、
+         `IRenderDevice::BeginFrame`/`SetVSync`、`IRender2DContext` 4 处、`ITexture` 2 处…）——
+         **RHI 已冻结**，必须与 RENDER-009 合并进行，否则同一批签名改两遍；现在不做。
+      2. **Audio/Decoder 契约**：`DecoderOpenStatus` 枚举仍在；`IAudioSource::SetPlayingOffset`、
+         `IAudioDecoder::Rewind`/`SeekToFrame` 仍返 `bool`。按需迁移，不专门排期。
+      3. **`LuaHost`**：`Initialize`/`LoadScript`/`LoadScriptSource`/`ReloadScript`/`CallLuaFunction` 5 处仍返
+         `bool`，失败原因只在日志里。改它需要先定"脚本侧怎么拿到失败原因"（见第 4 点），故暂缓。
+      4. **Lua 错误表映射**：把 `Error` 映射成 Lua 的 error table（`code`/`module`/`op`/`path`）形状未定，
+         且 Lua 上下文刚在 ARCH-109 重做过；等有真实需求（mod 需要区分失败类型）再定。
+      5. **`PackageBuilder::Result`（8 个值）与 `ScreenOpResult`（7 个值）并入 `ErrorCode`**：改动小但使用面宽
+         （`ScreenOpResult` 有 46 处测试断言、包管理器两个 `switch` 转字符串），收益仅为"少两套枚举"，不急。
+      6. **Job System 的失败上报**：job 抛异常现在**已经会打日志**（"Job threw and was swallowed"），
+         比文档原先描述的好；但仍未写进 `JobHandle`，调用方拿不到。与 CONCURRENCY-005 一起处理。
+- 说明：`TimeSystem::Initialize` 虽是 `void`，但头文件明确写了"never null and never throws"并提供了
+  `TryXxx` 入口，这是**刻意的设计**而非静默失败；早期评估把它列为静默失败是不准确的，此处更正。
+- [x] 不使用 `std::format`（2026-10-15 决定）：`Error.cpp` 原先用 `std::format` 拼诊断文本，现改为字符串
+      拼接 + 一个本地十进制转换。理由：`std::format` 要求 MSVC 17.10+ / GCC 13+ / 较新的 libc++，而 CI 计划
+      增加 MinGW 与 Clang（QUALITY-002），为一个诊断辅助函数给整个构建加工具链门槛不划算。
+      规范里仍保留"新代码可用 `std::format`"，但**引擎叶子层与实时路径不用**（实时路径额外还有一次运行期
+      格式串解析的开销）。若将来统一迁移，再连同 QUALITY-002 的新工具链一起评估。
+- 验收：可失败初始化、加载与后端创建统一返回 `Result`；失败信息包含模块、操作、资源路径与底层原因；
+  不再有"只写日志、调用方拿不到原因"的路径（渲染契约的重写按上一条随 RENDER-009 进行）。
+- 设计说明：`Error` 不提供"记录并返回"的便捷函数。理由：模块在失败点自己 `LOG_ERROR(error.Message())`
+  既能选频道、又能控制只记一次；若 `Error` 反向依赖 `Log`，叶子模块的分层就被破坏，且一次失败会被
+  每一层重复记录。
 
 ### 4.1b 并发（Job System，新增 2026-10-11）
 
@@ -294,6 +389,13 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 > 通用底层任务调度设施（固定 worker 池 + Chase-Lev work-stealing + 依赖 counter + 三级优先级 + 主线程协助）。
 > 首版已通过单测（单 job / 依赖链 / 并发累加 / 主线程协助 / 优先级 / 多线程并发提交 / 嵌套提交 / shutdown）
 > 与 200 次压力测试。以下为工业化阶段（step 较小）的后续优化点，按优先级排序。
+>
+> **2026-10-15 审查修复（保留实施历史）**：
+> - [x] `Schedule()` 双重提交竞态（P0）：末尾曾用 `unfinished == 1` 做竞态判断，依赖恰在「注册
+>       continuation」与「最终判断」之间完成时会被双重提交、body 执行两次（压力测试 600001/600000 复现）。
+>       已改为本地 `already_done_count == valid_deps.size()` 判断，修复后 8/8 次压力测试通过。
+> - [x] `Shutdown()` 丢弃 worker 本地队列任务（P1）：原只标记共享池任务 complete，本地队列任务被
+>       `queues_.clear()` 直接丢弃、句柄永不 complete。已补齐清空前逐个 `Steal()` 标记 complete。
 
 ### CONCURRENCY-001：任务优先级细分与抢占语义（P2）
 
@@ -327,6 +429,33 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 
 - [ ] 当前为普通线程 work-stealing，无用户态 fiber。若未来需要「同步等待不阻塞 OS 线程」的协程式调度，
       再评估自研 fiber 或引入成熟库；短期不做。
+
+### CONCURRENCY-007：Shutdown 不解析完整依赖图（P1，新增 2026-10-15）
+
+**背景**：`Shutdown()` 只把「已在队列中的任务」（共享池 + worker 本地队列）标记 complete，但**不会
+drain continuation**。一个等待依赖（`unfinished > 1`）的任务从未被提交、不在任何队列里；若其依赖在
+shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` 永远为 false，之后 `WaitFor` 永久自旋。
+
+- [ ] shutdown 时沿 continuation 递归标记（或显式清空依赖图），保证「每个已提交句柄最终可观察为完成」。
+- [ ] 明确语义：shutdown 丢弃的依赖链上，下游任务应视为「完成（未执行 body）」还是「失败」，并配单测
+      覆盖依赖链 + 提前 shutdown 的组合。
+
+### CONCURRENCY-008：Schedule 在 Shutdown 后仍接受提交（P1，新增 2026-10-15）
+
+**背景**：`Schedule()` 不检查 `running_`，文档虽声明 Shutdown 后「停止接受工作」但未强制。此类任务进
+共享池后永无 worker 消费，`WaitFor` 命中「未运行」分支的 busy-yield 并永久自旋。
+
+- [ ] 明确并强制语义：Shutdown 后 `Schedule` 返回空句柄（或断言/报错），并在 `WaitFor` 的未运行分支提供
+      可终止的等待（如返回 bool 或超时），避免无限自旋。
+- [ ] 覆盖「Schedule before Start / between Shutdown and Start」的生命周期边界测试。
+
+### CONCURRENCY-009：诊断计数器下溢与死代码（P3，新增 2026-10-15）
+
+- [ ] `pending_count_` 为 `atomic<std::size_t>`，任何一次重复 `fetch_sub` 会下溢为 SIZE_MAX，污染
+      `PendingJobCount()`；改有符号类型或在 `fetch_sub` 前钳制。（重复执行的根因已在 2026-10-15 修复，
+      计数器本身的回绕防护仍未做。）
+- [ ] `CurrentWorkerIndex()` 是死代码（`SubmitRunnable` 直接读 `thread_local g_worker_index`），删除或改用它。
+- [ ] `WorkerCount()` 无同步读 `workers_.size()`，Start/Shutdown 并发调用时是数据竞争；返回稳定快照或加锁。
 
 ### 4.2 音频
 

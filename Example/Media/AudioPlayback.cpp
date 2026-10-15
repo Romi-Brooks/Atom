@@ -121,10 +121,21 @@ class MusicScreen final : public atom::Screen {
             device.Clear(atom::render::Color{.r = 30, .g = 30, .b = 60});
         }
 
+        // INPUT: two paths exist and they are not interchangeable.
+        //
+        //   This one (event style) - a discrete command that must fire once per
+        //   press and wants the exact event payload, here "Escape went down".
+        //   Returning true consumes the event.
+        //
+        //   input::InputSystem (polling style) - anything continuous: "is this
+        //   key held", "how far did the mouse move", "was a chord pressed this
+        //   frame", and the only way to ask the same question from more than one
+        //   place in a frame. Add <Input/InputSystem.hpp> and read it from
+        //   Update()/FixedUpdate().
         auto HandleEvent(const atom::window::IEvent& event) -> bool override {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
-                if (key.key == atom::event::Key::Escape) {
+                if (key.key == atom::input::Key::Escape) {
                     atom::RenderWindow::GetInstance().Shutdown();
                     return true;
                 }
@@ -161,22 +172,42 @@ auto main() -> int {
         LOG_ERROR(atom::log::audio::Music, "Music directory unavailable: " + std::string{MusicDir});
         return 1;
     }
-    atom::fs::AssetPath music1{};
-    atom::fs::AssetPath music2{};
-    if (!atom::fs::AssetPath::TryParse("res://" + std::string{Music1Name}, music1) ||
-        !atom::fs::AssetPath::TryParse("res://" + std::string{Music2Name}, music2)) {
-        LOG_ERROR(atom::log::audio::Music, "Music filenames are not valid AssetPath segments");
+    // Parse() rather than TryParse(): the failure reason matters here, because the
+    // message is the only thing that tells the reader which filename was rejected
+    // and why.
+    const auto music1 = atom::fs::AssetPath::Parse("res://" + std::string{Music1Name});
+    const auto music2 = atom::fs::AssetPath::Parse("res://" + std::string{Music2Name});
+    if (!music1) {
+        LOG_ERROR(atom::log::audio::Music, "Music1 is not a valid asset path: " + music1.error().Message());
         return 1;
     }
-    music.Load("registerId_1", *filesystem, music1);
-    music.Load("registerId_2", *filesystem, music2);
+    if (!music2) {
+        LOG_ERROR(atom::log::audio::Music, "Music2 is not a valid asset path: " + music2.error().Message());
+        return 1;
+    }
+
+    // A track that fails to load is a hard failure before the window opens: the
+    // screen below plays these ids, and silently continuing would show a player
+    // that does nothing.
+    if (!music.Load("registerId_1", *filesystem, *music1)) {
+        LOG_ERROR(atom::log::audio::Music, "Could not load " + std::string{Music1Name});
+        return 1;
+    }
+    if (!music.Load("registerId_2", *filesystem, *music2)) {
+        LOG_ERROR(atom::log::audio::Music, "Could not load " + std::string{Music2Name});
+        return 1;
+    }
 
     atom::ScreenManager::GetInstance().LoadScreen("MusicPlayback", std::make_unique<MusicScreen>(music_fade));
     atom::ScreenManager::GetInstance().SwitchScreen("MusicPlayback");
 
     auto& window = atom::RenderWindow::GetInstance();
-    window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},
-                      atom::backend::RenderBackendId::SdlGpu);
+    const auto initialized = window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},
+                                              atom::backend::RenderBackendId::SdlGpu);
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
 
     // It is recommended to limit the FPS when creating the window,
     // or define a custom FPS limit; otherwise it will significantly

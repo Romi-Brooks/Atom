@@ -16,7 +16,7 @@
 #include <variant>
 
 #include <Algorithm/Vector/Vec2.hpp>
-#include <Event/Input.hpp>
+#include <Input/Key.hpp>
 
 namespace atom::window {
 
@@ -37,12 +37,12 @@ enum class EventType {
     ResizeSettled
 };
 
-// Input payloads are declared by Event, rather than by a window backend.
+// Input payloads are declared by Input, rather than by a window backend.
 // Aliases preserve the window event API while keeping key identity portable.
-using KeyEvent = event::KeyEvent;
+using KeyEvent = input::KeyEvent;
 struct MouseEvent {
         float x = 0, y = 0;
-        event::MouseButton button = event::MouseButton::Unknown;
+        input::MouseButton button = input::MouseButton::Unknown;
 };
 struct MouseWheelEvent {
         float x = 0, y = 0;

@@ -27,100 +27,100 @@ namespace {
 class SDLGPUImGuiBackend;
 SDLGPUImGuiBackend* active_backend = nullptr;
 
-auto ToImGuiKey(const event::Key key) -> ImGuiKey {
-    if (key >= event::Key::A && key <= event::Key::Z)
-        return static_cast<ImGuiKey>(ImGuiKey_A + (static_cast<int>(key) - static_cast<int>(event::Key::A)));
-    if (key >= event::Key::Digit0 && key <= event::Key::Digit9)
-        return static_cast<ImGuiKey>(ImGuiKey_0 + (static_cast<int>(key) - static_cast<int>(event::Key::Digit0)));
+auto ToImGuiKey(const input::Key key) -> ImGuiKey {
+    if (key >= input::Key::A && key <= input::Key::Z)
+        return static_cast<ImGuiKey>(ImGuiKey_A + (static_cast<int>(key) - static_cast<int>(input::Key::A)));
+    if (key >= input::Key::Digit0 && key <= input::Key::Digit9)
+        return static_cast<ImGuiKey>(ImGuiKey_0 + (static_cast<int>(key) - static_cast<int>(input::Key::Digit0)));
     switch (key) {
-    case event::Key::Escape:
+    case input::Key::Escape:
         return ImGuiKey_Escape;
-    case event::Key::Enter:
+    case input::Key::Enter:
         return ImGuiKey_Enter;
-    case event::Key::Tab:
+    case input::Key::Tab:
         return ImGuiKey_Tab;
-    case event::Key::Backspace:
+    case input::Key::Backspace:
         return ImGuiKey_Backspace;
-    case event::Key::Space:
+    case input::Key::Space:
         return ImGuiKey_Space;
-    case event::Key::Insert:
+    case input::Key::Insert:
         return ImGuiKey_Insert;
-    case event::Key::Delete:
+    case input::Key::Delete:
         return ImGuiKey_Delete;
-    case event::Key::Home:
+    case input::Key::Home:
         return ImGuiKey_Home;
-    case event::Key::End:
+    case input::Key::End:
         return ImGuiKey_End;
-    case event::Key::PageUp:
+    case input::Key::PageUp:
         return ImGuiKey_PageUp;
-    case event::Key::PageDown:
+    case input::Key::PageDown:
         return ImGuiKey_PageDown;
-    case event::Key::Left:
+    case input::Key::Left:
         return ImGuiKey_LeftArrow;
-    case event::Key::Right:
+    case input::Key::Right:
         return ImGuiKey_RightArrow;
-    case event::Key::Up:
+    case input::Key::Up:
         return ImGuiKey_UpArrow;
-    case event::Key::Down:
+    case input::Key::Down:
         return ImGuiKey_DownArrow;
-    case event::Key::F1:
+    case input::Key::F1:
         return ImGuiKey_F1;
-    case event::Key::F2:
+    case input::Key::F2:
         return ImGuiKey_F2;
-    case event::Key::F3:
+    case input::Key::F3:
         return ImGuiKey_F3;
-    case event::Key::F4:
+    case input::Key::F4:
         return ImGuiKey_F4;
-    case event::Key::F5:
+    case input::Key::F5:
         return ImGuiKey_F5;
-    case event::Key::F6:
+    case input::Key::F6:
         return ImGuiKey_F6;
-    case event::Key::F7:
+    case input::Key::F7:
         return ImGuiKey_F7;
-    case event::Key::F8:
+    case input::Key::F8:
         return ImGuiKey_F8;
-    case event::Key::F9:
+    case input::Key::F9:
         return ImGuiKey_F9;
-    case event::Key::F10:
+    case input::Key::F10:
         return ImGuiKey_F10;
-    case event::Key::F11:
+    case input::Key::F11:
         return ImGuiKey_F11;
-    case event::Key::F12:
+    case input::Key::F12:
         return ImGuiKey_F12;
-    case event::Key::LeftShift:
+    case input::Key::LeftShift:
         return ImGuiKey_LeftShift;
-    case event::Key::RightShift:
+    case input::Key::RightShift:
         return ImGuiKey_RightShift;
-    case event::Key::LeftControl:
+    case input::Key::LeftControl:
         return ImGuiKey_LeftCtrl;
-    case event::Key::RightControl:
+    case input::Key::RightControl:
         return ImGuiKey_RightCtrl;
-    case event::Key::LeftAlt:
+    case input::Key::LeftAlt:
         return ImGuiKey_LeftAlt;
-    case event::Key::RightAlt:
+    case input::Key::RightAlt:
         return ImGuiKey_RightAlt;
-    case event::Key::LeftSuper:
+    case input::Key::LeftSuper:
         return ImGuiKey_LeftSuper;
-    case event::Key::RightSuper:
+    case input::Key::RightSuper:
         return ImGuiKey_RightSuper;
-    case event::Key::CapsLock:
+    case input::Key::CapsLock:
         return ImGuiKey_CapsLock;
     default:
         return ImGuiKey_None;
     }
 }
 
-auto ToImGuiMouseButton(const event::MouseButton button) -> int {
+auto ToImGuiMouseButton(const input::MouseButton button) -> int {
     switch (button) {
-    case event::MouseButton::Left:
+    case input::MouseButton::Left:
         return 0;
-    case event::MouseButton::Right:
+    case input::MouseButton::Right:
         return 1;
-    case event::MouseButton::Middle:
+    case input::MouseButton::Middle:
         return 2;
-    case event::MouseButton::X1:
+    case input::MouseButton::X1:
         return 3;
-    case event::MouseButton::X2:
+    case input::MouseButton::X2:
         return 4;
     default:
         return -1;
@@ -227,10 +227,10 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
             case window::EventType::KeyPressed:
             case window::EventType::KeyReleased: {
                 const auto& key_event = std::get<window::KeyEvent>(input_event.data);
-                io.AddKeyEvent(ImGuiMod_Ctrl, event::HasModifier(key_event.modifiers, event::KeyModifiers::Control));
-                io.AddKeyEvent(ImGuiMod_Shift, event::HasModifier(key_event.modifiers, event::KeyModifiers::Shift));
-                io.AddKeyEvent(ImGuiMod_Alt, event::HasModifier(key_event.modifiers, event::KeyModifiers::Alt));
-                io.AddKeyEvent(ImGuiMod_Super, event::HasModifier(key_event.modifiers, event::KeyModifiers::Super));
+                io.AddKeyEvent(ImGuiMod_Ctrl, input::HasModifier(key_event.modifiers, input::KeyModifiers::Control));
+                io.AddKeyEvent(ImGuiMod_Shift, input::HasModifier(key_event.modifiers, input::KeyModifiers::Shift));
+                io.AddKeyEvent(ImGuiMod_Alt, input::HasModifier(key_event.modifiers, input::KeyModifiers::Alt));
+                io.AddKeyEvent(ImGuiMod_Super, input::HasModifier(key_event.modifiers, input::KeyModifiers::Super));
                 const auto key = ToImGuiKey(key_event.key);
                 if (key != ImGuiKey_None)
                     io.AddKeyEvent(key, input_event.type == window::EventType::KeyPressed);
@@ -263,6 +263,13 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
             default:
                 break;
             }
+        }
+
+        auto WantsMouse() const -> bool override {
+            if (!initialized_)
+                return false;
+            const auto& io = ImGui::GetIO();
+            return io.WantCaptureMouse || io.WantCaptureMouseUnlessPopupClose;
         }
 
         auto Shutdown() -> void override {

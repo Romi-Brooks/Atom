@@ -18,8 +18,14 @@
 
 #include <Filesystem/AssetPath.hpp>
 
+#include <Error/Error.hpp>
+
 namespace atom::fs {
 
+// Result of an I/O operation. Kept as a small code enum because this is the
+// hot, allocation-free backend boundary: every backend returns it directly, and
+// upper layers convert it once with ToError() instead of carrying a string
+// through the read path (CORE-004).
 enum class Result : uint8_t {
     Success,
     InvalidPath,
@@ -30,6 +36,23 @@ enum class Result : uint8_t {
     OutOfRange,
     IoError,
 };
+
+// Translates an I/O code into the engine's unified error value, tagged with the
+// operation that failed and optionally the resource it was applied to.
+//   return ToError(fs::Result::NotFound, "OpenRead").WithResource(path.String());
+[[nodiscard]] auto ToError(Result result, std::string_view operation = {},
+                           std::string_view resource = {}) -> Error;
+
+// Fails, or returns a default-constructed value. Folds the common
+// "check the code, then build the payload" shape:
+//   if (result != Result::Success) return Failure<FileInfo>(result, "Stat", path);
+// The return type is spelled out because `atom::Result` cannot be used here
+// without colliding with the `fs::Result` code enum above.
+template <typename T>
+[[nodiscard]] auto Failure(Result result, std::string_view operation = {}, std::string_view resource = {})
+    -> std::expected<T, Error> {
+    return std::unexpected<Error>{ToError(result, operation, resource)};
+}
 
 enum class EntryType : uint8_t { File, Directory };
 

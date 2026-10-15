@@ -51,13 +51,13 @@ endif()
 # ============================================================================
 # Engine Libraries
 # ============================================================================
-# 0. Event primitives (header-only, no platform/backend dependency).
-    add_library(Atom_Event INTERFACE)
-    target_sources(Atom_Event INTERFACE
-        Event/Input.hpp
-        Event/ActionMap.hpp
+# 0. Input value types (header-only, no platform/backend dependency).
+    add_library(Atom_Input INTERFACE)
+    target_sources(Atom_Input INTERFACE
+        Input/Key.hpp
+        Input/ActionMap.hpp
     )
-    target_include_directories(Atom_Event INTERFACE
+    target_include_directories(Atom_Input INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
@@ -97,7 +97,29 @@ endif()
     target_include_directories(Atom_Backend_Contracts INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Color Atom_Event)
+    target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Color Atom_Input)
+
+# 0b. Error — the engine's unified failure value (CORE-004).
+#     Leaf module: no engine dependency at all, not even Log. Every other
+#     module may link it, and it must never link anything back. Defined before
+#     Log because Log consumes Error codes for its own diagnostics.
+    add_library(Atom_Error STATIC
+        Error/Error.hpp
+        Error/Error.cpp
+    )
+    target_include_directories(Atom_Error PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Error PUBLIC Atom_3rd_SDL3)
+
+# 0b-bis. Input system — per-frame keyboard/mouse state folded from the window
+#     event stream. Consumes window::IEvent, so it sits above the contracts.
+    add_library(Atom_InputSystem STATIC
+        Input/InputSystem.hpp
+        Input/InputSystem.cpp
+    )
+    target_include_directories(Atom_InputSystem PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    # Atom_Log is PUBLIC because a consumer that logs its own InputSystem reads
+    # (Log/AtomLogChannels.hpp) resolves the channel symbols in its own objects.
+    target_link_libraries(Atom_InputSystem PUBLIC Atom_Backend_Contracts Atom_Log)
 
 # 0c. Time (master + domain clocks, fixed-step policy)
     add_library(Atom_Time STATIC
@@ -139,6 +161,21 @@ endif()
     # depends on the log runtime. PUBLIC so any JobSystem consumer (e.g. the
     # standalone tour example) links the log symbols transitively.
     target_link_libraries(Atom_Concurrency PUBLIC Atom_Log)
+
+# 2-bis. ECS — engine-owned entity/component storage.
+#     Atom_3rd_EnTT is PRIVATE on purpose: the backend must not reach any public
+#     header, and a PUBLIC link would put its include directory on the path of
+#     every Atom_ECS consumer, turning the boundary into a comment.
+    add_library(Atom_ECS STATIC
+            ECS/Entity.hpp
+            ECS/TypeName.hpp
+            ECS/Components.hpp
+            ECS/EntityWorld.hpp
+            ECS/EntityWorld.cpp
+    )
+    target_include_directories(Atom_ECS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_ECS PUBLIC Atom_Error Atom_Log)
+    target_link_libraries(Atom_ECS PRIVATE Atom_3rd_EnTT Atom_Algorithm)
 
 # 2. Algorithm
     add_library(Atom_Algorithm STATIC
@@ -404,6 +441,9 @@ add_library(Atom_FS STATIC
     Filesystem/PackageFileSystem.cpp
 )
 target_include_directories(Atom_FS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Atom_Error is PUBLIC: AssetPath::Parse returns Result<AssetPath>, so every
+# consumer of the FS public headers needs the error type to be complete.
+target_link_libraries(Atom_FS PUBLIC Atom_Error)
 target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
 # Render resources need AssetPath/IFileSystem for VFS-backed texture loads.
 target_link_libraries(Atom_Render_Resources PUBLIC Atom_FS)
@@ -426,7 +466,9 @@ add_library(Atom_Assets STATIC
     Asset/ScriptSourceLoader.cpp
 )
 target_include_directories(Atom_Assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Atom_Assets PUBLIC Atom_FS)
+# Atom_Log is needed because a failed acquire reports itself exactly once, at
+# the site that knows the operation and the resource (CORE-004).
+target_link_libraries(Atom_Assets PUBLIC Atom_FS Atom_Log)
 # AudioClipResourceLoader (kind=Audio) lives in Atom_Media and extends
 # atom::asset::TypedResourceLoader, mirroring DecodedImageLoader in Atom_Image.
 target_link_libraries(Atom_Media PUBLIC Atom_Assets)
@@ -466,6 +508,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
     target_include_directories(Atom_Window PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Window PUBLIC
         Atom_Backend_Contracts
+        Atom_Error
+        Atom_InputSystem
         Atom_Log
         Atom_Algorithm
         Atom_Time)
@@ -615,6 +659,22 @@ target_compile_definitions(Example_MusicCard PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_MusicCard Atom_Shaders)
 
+# CORE-002 acceptance example — a box moved by the per-frame InputSystem, plus
+# an overlay that prints the raw state. Proves the main loop feeds the input
+# state machine, so the screen never touches SDL or Window events itself.
+add_executable(Example_Input_Demo Example/Input/InputDemo.cpp)
+target_link_libraries(Example_Input_Demo PRIVATE Atom_Window Atom_Debugger Atom_Renderer2D)
+target_compile_definitions(Example_Input_Demo PRIVATE
+    ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
+add_dependencies(Example_Input_Demo Atom_Shaders)
+
+# ECS tour — a headless console walk through the entity/component store, ending in
+# a real integration loop. Console rather than windowed on purpose: the ECS is pure
+# storage, so the module can be exercised without a GPU, and this example doubles as
+# the template for the first physics system.
+add_executable(Example_ECS_Tour Example/ECS/EntityWorldTour.cpp)
+target_link_libraries(Example_ECS_Tour PRIVATE Atom_ECS)
+
 # ============================================================================
 # Tools
 # ============================================================================
@@ -677,6 +737,7 @@ if(MINGW)
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
                                 Example_MusicCard Example_Lua_Scripting Example_Job_System_Tour
+                                Example_Input_Demo Example_ECS_Tour
                                Atom_Tool_Packager
                                Atom_Tool_PackagerGui)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)

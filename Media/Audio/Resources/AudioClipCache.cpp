@@ -20,12 +20,13 @@ auto AudioClipCache::Load(const std::string& id, const atom::fs::IFileSystem& fi
 }
 
 auto AudioClipCache::Load(const std::string& id, const std::string& path) -> bool {
-    atom::fs::AssetPath asset_path{};
-    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
-        LOG_ERROR(atom::log::audio::Sfx, "Invalid asset path for clip '" + id + "': " + path);
+    auto asset_path = atom::fs::AssetPath::Parse(path);
+    if (!asset_path) {
+        LOG_ERROR(atom::log::audio::Sfx, "Invalid asset path for clip '" + id + "': " + path + " (" +
+                                             asset_path.error().Message() + ")");
         return false;
     }
-    return Load(id, atom::fs::Vfs::GetInstance(), asset_path);
+    return Load(id, atom::fs::Vfs::GetInstance(), *asset_path);
 }
 
 auto AudioClipCache::Get(const std::string& id) const -> std::shared_ptr<const atom::audio::DecodedAudio> {

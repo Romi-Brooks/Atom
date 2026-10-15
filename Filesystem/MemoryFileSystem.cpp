@@ -141,8 +141,8 @@ MemoryFileSystem::~MemoryFileSystem() = default;
 
 auto MemoryFileSystem::Create(const std::string_view mount, std::unique_ptr<MemoryFileSystem>& output) -> Result {
     output.reset();
-    AssetPath mountRoot{};
-    if (!AssetPath::TryParse(std::string{mount} + "://", mountRoot) || mountRoot.Mount() != mount)
+    const auto mountRoot = AssetPath::Parse(std::string{mount} + "://");
+    if (!mountRoot.has_value() || mountRoot->Mount() != mount)
         return Result::InvalidPath;
     output = std::unique_ptr<MemoryFileSystem>{new MemoryFileSystem{std::make_unique<Impl>(std::string{mount})}};
     return Result::Success;
