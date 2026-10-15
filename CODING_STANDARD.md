@@ -455,6 +455,13 @@ LOG_ERROR(atom::log::asset::Resource, "ResourceManager: " + error.Message());
 - A default-constructed `Error` means `Internal`, **not** success: presence of failure is carried by `Result`.
 - To add a cross-module failure category, add it to the module's `ErrorCode` block and convert at the use
   site. Do not introduce another enum.
+- **`std::format` is not used in the engine's leaf layer** (`Error/`). It requires MSVC 17.10+ / GCC 13+ / a
+  recent libc++, and a diagnostic helper is not worth that constraint on the whole build while the CI matrix
+  is still growing (QUALITY-002 adds MinGW and Clang). The leaf layer builds diagnostics with string
+  concatenation. This is the only place the restriction is applied strictly, and it may be revisited
+  together with the CI matrix.
+- **Nothing on a realtime path formats.** Audio callbacks and decoder threads must not pay for a runtime
+  format-string parse; they log with concatenation or not at all.
 
 ---
 

@@ -3,19 +3,26 @@
 
 #include <cstddef>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 
 #include <Backend/Contracts/Audio/AudioTypes.hpp>
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Error/Error.hpp>
 #include <Filesystem/FileSystem.hpp>
 
 namespace atom {
 class AudioClipLoader final {
     public:
         explicit AudioClipLoader(atom::audio::AudioDecoderRegistry& decoders) : decoders_(decoders) {}
+
+        // Decoder resolution and I/O failures are reported as Result<T> rather
+        // than std::optional. An optional collapsed four different situations
+        // (no decoder for the extension, every candidate declined, no PCM
+        // produced, the file not found) into the same "nothing", so a caller
+        // could not tell a corrupt file from a missing one, and the resource
+        // layer above had to invent a generic code (CORE-004).
 
         // Open a streaming decoder and return it along with the audio spec.
         // The decoder is left open — the caller takes ownership and must close it.
@@ -35,25 +42,25 @@ class AudioClipLoader final {
         // decoder by extension. The buffer is borrowed: the caller must keep it
         // alive for as long as the returned decoder is used.
         [[nodiscard]] auto OpenStreamingFromMemory(const std::string& filename, const void* data,
-                                                   std::size_t size) const -> std::optional<StreamingResult>;
+                                                   std::size_t size) const -> Result<StreamingResult>;
 
         // Load a resource through the VFS. The path's extension selects the
         // decoder; the IFile is opened via the filesystem and handed to the
         // decoder's OpenStream, so no native path is involved.
         [[nodiscard]] auto Load(const atom::fs::IFileSystem& filesystem,
-                                const atom::fs::AssetPath& path) const -> std::optional<atom::audio::DecodedAudio>;
+                                const atom::fs::AssetPath& path) const -> Result<atom::audio::DecodedAudio>;
 
         // Convenience overload: parses `path` as an AssetPath and resolves it
         // through the process-wide default Vfs (atom::fs::Vfs::GetInstance()).
-        [[nodiscard]] auto Load(const std::string& path) const -> std::optional<atom::audio::DecodedAudio>;
+        [[nodiscard]] auto Load(const std::string& path) const -> Result<atom::audio::DecodedAudio>;
 
         // Same as OpenStreaming, but resolving the file through the VFS first.
         [[nodiscard]] auto OpenStreaming(const atom::fs::IFileSystem& filesystem,
-                                         const atom::fs::AssetPath& path) const -> std::optional<StreamingResult>;
+                                         const atom::fs::AssetPath& path) const -> Result<StreamingResult>;
 
         // Convenience overload: parses `path` as an AssetPath and resolves it
         // through the process-wide default Vfs (atom::fs::Vfs::GetInstance()).
-        [[nodiscard]] auto OpenStreaming(const std::string& path) const -> std::optional<StreamingResult>;
+        [[nodiscard]] auto OpenStreaming(const std::string& path) const -> Result<StreamingResult>;
 
     private:
         // Shared front half of both entry points: resolve the decoder through the

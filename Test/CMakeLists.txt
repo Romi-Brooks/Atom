@@ -50,7 +50,7 @@ atom_add_test(Atom_Assets.ResourceManager
 atom_add_test(Atom_Assets.ConsumerLoader
     Atom_Assets_ConsumerLoader_Tests
     Asset/ConsumerLoaderTest.cpp
-    Atom_Assets Atom_Image)
+    Atom_Assets Atom_Image Atom_Media Atom_Backend_Extension)
 
 atom_add_test(Atom_Assets.ResourceId
     Atom_Assets_ResourceId_Tests

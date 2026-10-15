@@ -22,6 +22,7 @@
 
 namespace {
 using atom::input::ActionMap;
+using atom::input::Claim;
 using atom::input::InputSystem;
 using atom::input::Key;
 using atom::input::KeyModifiers;
@@ -270,7 +271,7 @@ auto main() -> int {
 
         // The overlay layer claiming the mouse does not change what the device
         // reports: application code decides what to do with the two facts.
-        input.SetUiCapture(true, false, false, "ImGui overlay");
+        input.SetUiCapture(Claim::Own, Claim::Release, Claim::Release, "ImGui overlay");
         ATOM_CHECK(input.IsMouseCapturedByUi());
         ATOM_CHECK(!input.IsKeyboardCapturedByUi());
         ATOM_CHECK(input.UiCaptureSource() == "ImGui overlay");
@@ -279,22 +280,22 @@ auto main() -> int {
 
         // Coarse keyboard ownership (a focused panel) and the narrow text-input
         // gate are independent: only the field being typed into sets the latter.
-        input.SetUiCapture(false, true, false, "ImGui overlay");
+        input.SetUiCapture(Claim::Release, Claim::Own, Claim::Release, "ImGui overlay");
         ATOM_CHECK(input.IsKeyboardCapturedByUi());
         ATOM_CHECK(!input.IsTextInputCapturedByUi());
 
-        input.SetUiCapture(false, true, true, "ImGui overlay");
+        input.SetUiCapture(Claim::Release, Claim::Own, Claim::Own, "ImGui overlay");
         ATOM_CHECK(input.IsTextInputCapturedByUi());
 
         // Releasing the claim drops the stale source name with it.
-        input.SetUiCapture(false, false, false, "ImGui overlay");
+        input.SetUiCapture(Claim::Release, Claim::Release, Claim::Release, "ImGui overlay");
         ATOM_CHECK(!input.IsMouseCapturedByUi());
         ATOM_CHECK(!input.IsKeyboardCapturedByUi());
         ATOM_CHECK(!input.IsTextInputCapturedByUi());
         ATOM_CHECK(input.UiCaptureSource().empty());
 
         // Losing focus clears any capture claim already made.
-        input.SetUiCapture(true, true, true, "ImGui overlay");
+        input.SetUiCapture(Claim::Own, Claim::Own, Claim::Own, "ImGui overlay");
         IEvent lost{};
         lost.type = EventType::FocusChanged;
         lost.data = atom::window::FocusEvent{false};
@@ -307,13 +308,15 @@ auto main() -> int {
     // --- 10b. The overlay's mouse claim must not erase the game's ---------
     {
         // Regression for the reported bug: the debug overlay reports its mouse
-        // state every frame from a callback that runs *after* the game's Update.
-        // When it used the full SetUiCapture(), it wrote keyboard=false and
-        // text_input=false at that moment, so a chat box's claim was erased
-        // before the next frame's fixed steps read it - and WASD kept walking
-        // the character while the player was typing.
+        // state every frame from a callback that runs *after* the game's Update,
+        // and it used to call the full SetUiCapture() with keyboard=false and
+        // text_input=false. Those falses erased the chat box's claim before the
+        // next frame's fixed steps read it, so WASD kept walking the character
+        // while the player was typing. The API now forces such a layer to say
+        // Claim::NoOpinion instead, and the overlay uses a mouse-only entry
+        // point, so the game's claim survives either way.
         input.Reset();
-        input.SetUiCapture(/*mouse=*/false, /*keyboard=*/true, /*text_input=*/true, "chat box");
+        input.SetUiCapture(Claim::Release, Claim::Own, Claim::Own, "chat box");
         ATOM_CHECK(input.IsKeyboardCapturedByUi());
         ATOM_CHECK(input.IsTextInputCapturedByUi());
         ATOM_CHECK(!input.IsMouseCapturedByUi());
@@ -334,12 +337,42 @@ auto main() -> int {
         ATOM_CHECK(input.IsTextInputCapturedByUi());
 
         // The overlay alone is visible as "overlay" in diagnostics.
-        input.SetUiCapture(false, false, false, {});
+        input.SetUiCapture(Claim::Release, Claim::Release, Claim::Release, {});
         input.SetOverlayMouseCapture(true);
         ATOM_CHECK(input.IsMouseCapturedByUi());
         ATOM_CHECK(input.UiCaptureSource() == "overlay");
         input.SetOverlayMouseCapture(false);
         ATOM_CHECK(input.UiCaptureSource().empty());
+    }
+
+    // --- 10c. Claim::NoOpinion must leave a channel untouched --------------
+    {
+        // The point of the three-state claim: a layer that has nothing to say
+        // about a channel cannot clear it. This is the API-level fix for the
+        // bug above, independent of any particular caller.
+        input.Reset();
+        input.SetUiCapture(Claim::Release, Claim::Own, Claim::Own, "chat box");
+        ATOM_CHECK(input.IsKeyboardCapturedByUi());
+
+        // The game's mouse claim changes and its keyboard claim is left alone.
+        input.SetUiCapture(Claim::Own, Claim::NoOpinion, Claim::NoOpinion, "inventory");
+        ATOM_CHECK(input.IsMouseCapturedByUi());
+        ATOM_CHECK(input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(input.IsTextInputCapturedByUi());
+        ATOM_CHECK(input.UiCaptureSource() == "inventory");
+
+        // Release is still explicit: the same layer can give its claim up.
+        input.SetUiCapture(Claim::Release, Claim::NoOpinion, Claim::NoOpinion, "inventory");
+        ATOM_CHECK(!input.IsMouseCapturedByUi());
+        ATOM_CHECK(input.IsKeyboardCapturedByUi());
+
+        // A NoOpinion-only report changes nothing at all - not the flags and not
+        // the recorded source.
+        input.SetUiCapture(Claim::Release, Claim::Own, Claim::Own, "chat box");
+        input.SetUiCapture(Claim::NoOpinion, Claim::NoOpinion, Claim::NoOpinion, "somewhere else");
+        ATOM_CHECK(input.UiCaptureSource() == "chat box");
+        ATOM_CHECK(input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(input.IsTextInputCapturedByUi());
     }
 
     // --- 11. The text gate, as a game UI actually drives it ---------------
@@ -355,7 +388,7 @@ auto main() -> int {
 
         bool chat_open = false;
         input.Reset();
-        input.SetUiCapture(false, false, false, {});
+        input.SetUiCapture(Claim::Release, Claim::Release, Claim::Release, {});
 
         // FixedUpdate(): returns true when movement would be applied.
         const auto fixed_update = [&] {
@@ -367,7 +400,7 @@ auto main() -> int {
         const auto variable_update = [&] {
             if (!chat_open && !input.IsKeyboardCapturedByUi() && input.IsActionPressed(actions, Action::OpenChat))
                 chat_open = true;
-            input.SetUiCapture(input.IsMouseCapturedByUi(), chat_open, chat_open, "chat box");
+            input.SetUiCapture(Claim::NoOpinion, chat_open ? Claim::Own : Claim::Release, chat_open ? Claim::Own : Claim::Release, "chat box");
         };
 
         // Frame 1: W is held while the chat is still closed.
@@ -418,9 +451,9 @@ auto main() -> int {
 
         bool chat_open = false;
         input.Reset();
-        input.SetUiCapture(false, false, false, {});
+        input.SetUiCapture(Claim::Release, Claim::Release, Claim::Release, {});
 
-        const auto publish = [&] { input.SetUiCapture(false, chat_open, chat_open, "chat box"); };
+        const auto publish = [&] { input.SetUiCapture(Claim::NoOpinion, chat_open ? Claim::Own : Claim::Release, chat_open ? Claim::Own : Claim::Release, "chat box"); };
         const auto fixed_step = [&] { return !input.IsTextInputCapturedByUi() && input.IsKeyHeld(Key::W); };
         // Opening the UI happens on the *event* path, which runs before the
         // fixed steps of the same frame. That is the only place a claim can be

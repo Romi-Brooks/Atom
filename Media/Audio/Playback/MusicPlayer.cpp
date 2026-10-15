@@ -57,7 +57,9 @@ auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& files
     }
     auto streaming = loader.OpenStreaming(filesystem, path);
     if (!streaming) {
-        LOG_ERROR(atom::log::audio::Music, "Failed to decode music: " + label);
+        // The loader's error names the category (no decoder / declined / I/O) and
+        // the resource, which the old optional could not carry.
+        LOG_ERROR(atom::log::audio::Music, "Failed to open music stream: " + streaming.error().Message());
         return false;
     }
     const auto& decoder_info = streaming->decoder->GetInfo();

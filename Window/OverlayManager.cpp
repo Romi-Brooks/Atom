@@ -60,12 +60,11 @@ auto OverlayManager::EnsureInitialized() -> bool {
         }
         if (backend_) {
             // The debug overlay is a *partial* consumer of the engine's UI-capture
-            // contract (see InputSystem). It claims the mouse and nothing else:
-            // it has no text field, and it must not clear the game's keyboard
-            // claim. Using the overlay-specific entry point is what keeps the two
-            // claims independent - a full SetUiCapture() here erased a chat
-            // box's claim the moment the cursor touched a panel, which left
-            // movement ungated while the player was typing.
+            // contract (see InputSystem): it claims the mouse and says nothing
+            // about the keyboard or text input. Both halves matter - the narrow
+            // entry point keeps the two layers' claims independent, and the
+            // three-state claim is what lets it say "no opinion" instead of the
+            // `false` that used to erase the game's chat claim every frame.
             atom::input::InputSystem::GetInstance().SetOverlayMouseCapture(backend_->WantsMouse());
             backend_->Render();
         }

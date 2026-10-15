@@ -5,7 +5,10 @@
 
 #include <Asset/ResourceManager.hpp>
 #include <Asset/ScriptSourceLoader.hpp>
+#include <Backend/Contracts/Audio/IAudioDecoder.hpp>
+#include <Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Filesystem/MemoryFileSystem.hpp>
+#include <Media/Audio/Resources/AudioClipLoader.hpp>
 #include <Media/Image/DecodedImageLoader.hpp>
 
 #include <array>
@@ -22,6 +25,34 @@ auto Fail(const std::string_view message) -> int {
     std::cerr << message << '\n';
     return 1;
 }
+
+// Declines every stream, to drive AudioClipLoader's "no candidate could open
+// this" path without any real decoder.
+class DecliningDecoder final : public atom::audio::IAudioDecoder {
+    public:
+        [[nodiscard]] auto OpenFromMemory(const void*, std::size_t) -> atom::audio::DecoderOpenStatus override {
+            return atom::audio::DecoderOpenStatus::UnsupportedFormat;
+        }
+        [[nodiscard]] auto OpenStream(atom::fs::IFile&) -> atom::audio::DecoderOpenStatus override {
+            return atom::audio::DecoderOpenStatus::UnsupportedFormat;
+        }
+        auto Close() -> void override {}
+        auto DecodeChunk(uint8_t*, uint32_t) -> uint32_t override {
+            return 0;
+        }
+        auto Rewind() -> bool override {
+            return false;
+        }
+        [[nodiscard]] auto GetInfo() const -> const atom::audio::DecoderInfo& override {
+            return info_;
+        }
+        [[nodiscard]] auto IsOpen() const -> bool override {
+            return false;
+        }
+
+    private:
+        atom::audio::DecoderInfo info_{44100, 1, 16, 1, false};
+};
 
 auto Bytes(const std::string_view text) -> std::vector<std::byte> {
     std::vector<std::byte> bytes(text.size());
@@ -98,6 +129,61 @@ auto main() -> int {
 
     if (manager.Acquire<atom::image::DecodedImage>(bad_image_id))
         return Fail("Broken image was accepted");
+
+    // --- AudioClipLoader reports why a load failed (CORE-004) --------------
+    // The loader used to return std::optional, so "the file is missing" and
+    // "no decoder would open it" were the same nothing. They are now different
+    // codes, and the error names the resource.
+    {
+        atom::audio::AudioDecoderRegistry decoders{};
+        if (!decoders.Register("wav", [] { return std::make_unique<DecliningDecoder>(); }, "declining"))
+            return Fail("Could not register the declining decoder");
+        atom::AudioClipLoader loader{decoders};
+
+        const auto missing = atom::fs::AssetPath::Parse("res://sounds/absent.wav");
+        if (!missing.has_value())
+            return Fail("Could not parse the missing-sound path");
+        const auto missing_result = loader.Load(*memory, *missing);
+        if (missing_result.has_value())
+            return Fail("Loading a missing file succeeded");
+        if (missing_result.error().Code() != atom::ErrorCode::FsNotFound)
+            return Fail("A missing file did not report FsNotFound");
+        if (missing_result.error().Resource() != "res://sounds/absent.wav")
+            return Fail("The failure did not name the resource");
+
+        // Present file, but every registered decoder declines it.
+        const auto path = atom::fs::AssetPath::Parse("res://sounds/present.wav");
+        if (!path.has_value())
+            return Fail("Could not parse the present path");
+        if (memory->WriteFile(*path, Bytes("not really a wav")) != atom::fs::Result::Success)
+            return Fail("Could not seed the audio file");
+        const auto declined = loader.Load(*memory, *path);
+        if (declined.has_value())
+            return Fail("A declined file was accepted");
+        if (declined.error().Code() != atom::ErrorCode::AudioDecoderOpenFailed)
+            return Fail("A declined file did not report AudioDecoderOpenFailed");
+        if (declined.error().GetModule() != atom::Module::Audio)
+            return Fail("The audio failure was attributed to the wrong module");
+
+        // An unregistered extension is its own failure, not a decode failure.
+        const auto unregistered = atom::fs::AssetPath::Parse("res://sounds/song.ogg");
+        if (!unregistered.has_value())
+            return Fail("Could not parse the unregistered path");
+        if (memory->WriteFile(*unregistered, Bytes("ogg")) != atom::fs::Result::Success)
+            return Fail("Could not seed the ogg file");
+        const auto no_decoder = loader.Load(*memory, *unregistered);
+        if (no_decoder.has_value())
+            return Fail("A file with no registered decoder was accepted");
+        if (no_decoder.error().Code() != atom::ErrorCode::AudioDecoderOpenFailed)
+            return Fail("An unregistered extension did not report AudioDecoderOpenFailed");
+
+        // The convenience overload reports a malformed URI as a path failure.
+        const auto bad_uri = loader.Load("not-a-uri.mp3");
+        if (bad_uri.has_value())
+            return Fail("A malformed URI was accepted");
+        if (bad_uri.error().Code() != atom::ErrorCode::FsMissingMount)
+            return Fail("A malformed URI did not report the path rule it broke");
+    }
 
     return 0;
 }

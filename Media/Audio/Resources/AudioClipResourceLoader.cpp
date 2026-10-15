@@ -14,12 +14,10 @@ auto AudioClipResourceLoader::LoadTyped(const fs::IFileSystem& filesystem, const
     AudioClipLoader loader{decoders_};
     auto decoded = loader.Load(filesystem, id.Path());
     if (!decoded) {
-        // AudioClipLoader already logged which decoder candidates it tried and
-        // why each was rejected; the error here carries the identity so that log
-        // line can be tied back to the resource that requested the decode.
-        return std::unexpected<Error>{
-            Error{ErrorCode::AudioDecoderOpenFailed, Module::Audio, "AudioClipLoader::Load"}
-                .WithResource(id.Path().String())};
+        // Forward the loader's own reason instead of collapsing every failure
+        // into one generic code: "no decoder is registered for .ogg" and "the
+        // file is missing" are different problems with different fixes.
+        return std::unexpected<Error>{std::move(decoded.error())};
     }
     output = std::make_shared<atom::audio::DecodedAudio>(std::move(*decoded));
     return Ok();

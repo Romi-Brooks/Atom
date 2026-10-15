@@ -5,7 +5,6 @@
 
 #include "Error.hpp"
 
-#include <format>
 #include <string>
 
 #if defined(_WIN32)
@@ -41,6 +40,22 @@ auto AppendField(std::string& out, const std::string_view key, const std::string
     out.append(value);
 }
 
+// Decimal conversion without <format> or <charconv>. This file is the engine's
+// lowest layer and deliberately pays no toolchain cost for a diagnostic helper:
+// std::format needs MSVC 17.10+ / GCC 13+ / a recent libc++, and one message
+// builder is not worth that constraint on the whole build.
+[[nodiscard]] auto ToDecimal(const unsigned long long value) -> std::string {
+    if (value == 0)
+        return "0";
+    std::string digits{};
+    unsigned long long remaining = value;
+    while (remaining > 0) {
+        digits.push_back(static_cast<char>('0' + static_cast<int>(remaining % 10)));
+        remaining /= 10;
+    }
+    return std::string{digits.rbegin(), digits.rend()};
+}
+
 } // namespace
 
 auto Error::Message() const -> std::string {
@@ -69,7 +84,7 @@ auto CaptureSdlError() -> std::string {
 
 auto CaptureErrnoMessage() -> std::string {
 #if defined(_WIN32)
-    return std::format("errno {}", errno);
+    return "errno " + ToDecimal(static_cast<unsigned long long>(errno));
 #else
     return std::string{std::strerror(errno)};
 #endif
@@ -89,7 +104,7 @@ auto CaptureLastSystemError() -> std::string {
     if (length == 0 || buffer == nullptr) {
         // No system text for this code; keep the number so it is still
         // searchable instead of silently returning nothing.
-        return std::format("Win32 error {}", code);
+        return "Win32 error " + ToDecimal(code);
     }
 
     // FormatMessageW writes CR/LF pairs and a trailing period. The message is
@@ -108,7 +123,7 @@ auto CaptureLastSystemError() -> std::string {
     while (!message.empty() && (message.back() == ' ' || message.back() == '.'))
         message.pop_back();
 
-    return std::format("Win32 error {}: {}", code, message);
+    return "Win32 error " + ToDecimal(code) + ": " + message;
 #else
     return {};
 #endif

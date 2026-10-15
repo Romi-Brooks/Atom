@@ -343,10 +343,37 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
       并保留最内层 operation。
 - [x] 附带：Log 新增 `atom::log::asset::Resource` 频道（`Atom.Asset.Resource`），资源加载失败不再借用
       `core::Screen` 频道。
-- [ ] 后续阶段（按需推进，不是当前阻塞项）：Backend Contracts 与 Render 的 `bool` 虚函数收敛
-      （**注意 RHI 已冻结**，应与 RENDER-009 合并进行，避免同一批签名改两遍）；Audio/Decoder/Lua/
-      Time/Job/Window 的错误码归并；`PackageBuilder::Result` 与 `ScreenOpResult` 并入 `ErrorCode`；
-      `CODING_STANDARD` 的「统一错误规范」章节。
+- [x] `AudioClipLoader` 不再丢原因（2026-10-15，审计记录）：四个入口原为 `std::optional`，把四种完全不同的
+      情况（扩展名没有注册解码器 / 所有候选解码器都拒绝 / 解码成功但产出空 PCM / 文件根本不存在）压成同一个
+      `nullopt`，调用方无法区分"损坏"与"缺失"，`AudioClipResourceLoader` 只好自己编一个通用的
+      `AudioDecoderOpenFailed`。现改为 `Result<DecodedAudio>` / `Result<StreamingResult>`：
+      VFS 打不开时透传 `fs::ToError`（`FsNotFound`/`FsNotFile`/`FsOutsideRoot`/`FsIoError`），
+      `pcm.empty()` 报 `AudioDecodeFailed` 并附 detail，解码器解析失败报 `AudioDecoderOpenFailed`，
+      非法 URI 直接透传 `AssetPath::Parse` 的路径错误码；`AudioClipResourceLoader` 与 `MusicPlayer`
+      现在转发原始 `Error` 而不是再包一层。逐候选解码器的拒绝理由仍留在日志里（那是排查细节），
+      `Error` 只承载身份与类别。回归：`Atom_Assets.ConsumerLoader` 断言缺文件 → `FsNotFound`、
+      被拒 → `AudioDecoderOpenFailed`、坏 URI → `FsMissingMount`，且错误带资源路径与正确模块。
+- [ ] 后续阶段（按需推进，不是当前阻塞项，逐项都确认过当前代码状态）：
+      1. **Backend Contracts 与 Render 的 `bool` 虚函数**（25 处：`IWindow::Initialize`、`IRenderBackend::Initialize`、
+         `IRenderDevice::BeginFrame`/`SetVSync`、`IRender2DContext` 4 处、`ITexture` 2 处…）——
+         **RHI 已冻结**，必须与 RENDER-009 合并进行，否则同一批签名改两遍；现在不做。
+      2. **Audio/Decoder 契约**：`DecoderOpenStatus` 枚举仍在；`IAudioSource::SetPlayingOffset`、
+         `IAudioDecoder::Rewind`/`SeekToFrame` 仍返 `bool`。按需迁移，不专门排期。
+      3. **`LuaHost`**：`Initialize`/`LoadScript`/`LoadScriptSource`/`ReloadScript`/`CallLuaFunction` 5 处仍返
+         `bool`，失败原因只在日志里。改它需要先定"脚本侧怎么拿到失败原因"（见第 4 点），故暂缓。
+      4. **Lua 错误表映射**：把 `Error` 映射成 Lua 的 error table（`code`/`module`/`op`/`path`）形状未定，
+         且 Lua 上下文刚在 ARCH-109 重做过；等有真实需求（mod 需要区分失败类型）再定。
+      5. **`PackageBuilder::Result`（8 个值）与 `ScreenOpResult`（7 个值）并入 `ErrorCode`**：改动小但使用面宽
+         （`ScreenOpResult` 有 46 处测试断言、包管理器两个 `switch` 转字符串），收益仅为"少两套枚举"，不急。
+      6. **Job System 的失败上报**：job 抛异常现在**已经会打日志**（"Job threw and was swallowed"），
+         比文档原先描述的好；但仍未写进 `JobHandle`，调用方拿不到。与 CONCURRENCY-005 一起处理。
+- 说明：`TimeSystem::Initialize` 虽是 `void`，但头文件明确写了"never null and never throws"并提供了
+  `TryXxx` 入口，这是**刻意的设计**而非静默失败；早期评估把它列为静默失败是不准确的，此处更正。
+- [x] 不使用 `std::format`（2026-10-15 决定）：`Error.cpp` 原先用 `std::format` 拼诊断文本，现改为字符串
+      拼接 + 一个本地十进制转换。理由：`std::format` 要求 MSVC 17.10+ / GCC 13+ / 较新的 libc++，而 CI 计划
+      增加 MinGW 与 Clang（QUALITY-002），为一个诊断辅助函数给整个构建加工具链门槛不划算。
+      规范里仍保留"新代码可用 `std::format`"，但**引擎叶子层与实时路径不用**（实时路径额外还有一次运行期
+      格式串解析的开销）。若将来统一迁移，再连同 QUALITY-002 的新工具链一起评估。
 - 验收：可失败初始化、加载与后端创建统一返回 `Result`；失败信息包含模块、操作、资源路径与底层原因；
   不再有"只写日志、调用方拿不到原因"的路径（渲染契约的重写按上一条随 RENDER-009 进行）。
 - 设计说明：`Error` 不提供"记录并返回"的便捷函数。理由：模块在失败点自己 `LOG_ERROR(error.Message())`

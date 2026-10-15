@@ -176,7 +176,7 @@ class InputDemoScreen final : public atom::Screen {
             // frame's fixed steps before Update: a claim published here would be
             // too late for the frame that opened the chat, and every fixed step
             // of that frame would move the box.
-            input.SetUiCapture(input.IsMouseCapturedByUi(), chat_open_, chat_open_, "chat box");
+            PublishCapture();
 
             if (input.IsKeyboardCapturedByUi()) {
                 HandleChatKeys();
@@ -255,7 +255,10 @@ class InputDemoScreen final : public atom::Screen {
         // before Update, and they would read the stale claim.
         auto PublishCapture() -> void {
             auto& input = atom::input::InputSystem::GetInstance();
-            input.SetUiCapture(input.IsMouseCapturedByUi(), chat_open_, chat_open_, "chat box");
+            const auto claim = chat_open_ ? atom::input::Claim::Own : atom::input::Claim::Release;
+            // Mouse is "no opinion" here: the box is draggable, but the scene
+            // never owns the mouse, so this layer has nothing to say about it.
+            input.SetUiCapture(atom::input::Claim::NoOpinion, claim, claim, "chat box");
         }
 
         // Chat commands run on the key *event* path, which is the right tool

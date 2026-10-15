@@ -74,6 +74,25 @@ namespace atom::input {
 //   Released- released this frame (edge)
 enum class KeyState : std::uint8_t { Up, Pressed, Held, Released };
 
+// What a UI layer says about one input channel when it reports.
+//
+// Three states, not two, because "I do not own it" and "I have no opinion" are
+// different facts. This API was originally three bools; the debug overlay had no
+// opinion about the keyboard but could only pass `false`, which cleared the
+// game's chat claim on every frame and let movement keep driving the scene while
+// the player was typing. A bool cannot express "no opinion", so the parameter is
+// a Claim instead.
+enum class Claim : std::uint8_t {
+    // Do not change this channel: this layer does not touch it.
+    NoOpinion,
+    // This layer owns the channel.
+    Own,
+    // This layer does not own the channel. Passing this clears a claim this same
+    // layer made earlier; it never clears another layer's claim, because layers
+    // own separate facts (game vs. overlay).
+    Release,
+};
+
 class InputSystem {
     public:
         [[nodiscard]] static auto GetInstance() -> InputSystem&;
@@ -132,27 +151,34 @@ class InputSystem {
         //       Gate continuous input (held movement keys) with this: while the
         //       player is typing a message, WASD must not walk the character.
         //
-        // Feed it once per frame, after the UI layer has decided its own state.
-        //
-        // This is the *game's* claim: it states what the game's own UI owns, so
-        // it fully replaces the previous game claim. Layers that only own part
-        // of the input must not call this - the debug overlay uses
-        // SetOverlayMouseCapture() so that its mouse claim cannot erase the
-        // game's keyboard claim.
-        auto SetUiCapture(const bool mouse, const bool keyboard, const bool text_input,
-                          const std::string_view source = {}) -> void {
-            game_mouse_captured_ = mouse;
-            game_keyboard_captured_ = keyboard;
-            game_text_input_captured_ = text_input;
-            game_capture_source_ = (mouse || keyboard || text_input) ? source : std::string_view{};
+        // Feed a claim whenever it changes, and again at least once per frame.
+        // Every parameter is a three-state claim rather than a bool, because
+        // "false" and "I have no opinion" are different facts and conflating them
+        // is what broke this API once: the debug overlay had no opinion about the
+        // keyboard, could only pass false, and thereby erased the game's chat
+        // claim on every frame (see Claim).
+        auto SetUiCapture(Claim mouse, Claim keyboard, Claim text_input, const std::string_view source = {}) -> void {
+            const bool reports_anything =
+                mouse != Claim::NoOpinion || keyboard != Claim::NoOpinion || text_input != Claim::NoOpinion;
+            if (!reports_anything)
+                return;
+
+            ApplyClaim(game_mouse_captured_, mouse);
+            ApplyClaim(game_keyboard_captured_, keyboard);
+            ApplyClaim(game_text_input_captured_, text_input);
+
+            // The source names the layer that owns the game's claim, so it is
+            // dropped only when that claim becomes empty. The overlay's separate
+            // mouse claim never overwrites it.
+            const bool game_owns_something =
+                game_mouse_captured_ || game_keyboard_captured_ || game_text_input_captured_;
+            game_capture_source_ = game_owns_something ? source : std::string_view{};
         }
 
         // Mouse-only claim used by the engine's own debug overlay. It composes
-        // with the game claim instead of replacing it: the overlay knows nothing
-        // about the game's keyboard, so it must not be able to clear it. Without
-        // this separation the overlay's per-frame call erased the game's chat
-        // claim as soon as the cursor touched a debug panel, and movement kept
-        // driving the scene while the player was typing.
+        // with the game claim instead of replacing it, and it is the narrower
+        // entry point on purpose: the overlay knows nothing about the game's
+        // keyboard, so it must not be given the chance to clear it.
         auto SetOverlayMouseCapture(bool captured) -> void {
             overlay_mouse_captured_ = captured;
         }
@@ -226,6 +252,20 @@ class InputSystem {
 
     private:
         InputSystem() = default;
+
+        // Folds a three-state claim onto one flag.
+        static auto ApplyClaim(bool& flag, const Claim claim) -> void {
+            switch (claim) {
+                case Claim::NoOpinion:
+                    return;
+                case Claim::Own:
+                    flag = true;
+                    return;
+                case Claim::Release:
+                    flag = false;
+                    return;
+            }
+        }
 
         [[nodiscard]] auto ModifierHeld(KeyModifiers modifiers) const -> bool;
         static auto SetDown(KeyState& state) -> void;
