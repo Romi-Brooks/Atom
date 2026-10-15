@@ -69,32 +69,6 @@ auto InputSystem::ResetMousePosition() -> void {
     has_mouse_position_ = false;
 }
 
-auto InputSystem::SetUiCapture(const bool mouse, const bool keyboard, const bool text_input,
-                               const std::string_view source) -> void {
-    ui_mouse_captured_ = mouse;
-    ui_keyboard_captured_ = keyboard;
-    ui_text_input_captured_ = text_input;
-    // Keep the source only while something is actually captured, so a stale
-    // name cannot outlive the claim that produced it.
-    ui_capture_source_ = (mouse || keyboard || text_input) ? source : std::string_view{};
-}
-
-auto InputSystem::IsMouseCapturedByUi() const -> bool {
-    return ui_mouse_captured_;
-}
-
-auto InputSystem::IsKeyboardCapturedByUi() const -> bool {
-    return ui_keyboard_captured_;
-}
-
-auto InputSystem::IsTextInputCapturedByUi() const -> bool {
-    return ui_text_input_captured_;
-}
-
-auto InputSystem::UiCaptureSource() const -> std::string_view {
-    return ui_capture_source_;
-}
-
 auto InputSystem::SetDown(KeyState& state) -> void {
     // Up -> Pressed (edge). Released -> Pressed (re-pressed within one frame).
     // Pressed and Held are left untouched: a repeat arrives as Held after

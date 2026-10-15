@@ -117,7 +117,9 @@ endif()
         Input/InputSystem.cpp
     )
     target_include_directories(Atom_InputSystem PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_InputSystem PUBLIC Atom_Backend_Contracts)
+    # Atom_Log is PUBLIC because a consumer that logs its own InputSystem reads
+    # (Log/AtomLogChannels.hpp) resolves the channel symbols in its own objects.
+    target_link_libraries(Atom_InputSystem PUBLIC Atom_Backend_Contracts Atom_Log)
 
 # 0c. Time (master + domain clocks, fixed-step policy)
     add_library(Atom_Time STATIC

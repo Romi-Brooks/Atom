@@ -304,5 +304,66 @@ auto main() -> int {
         ATOM_CHECK(!input.IsTextInputCapturedByUi());
     }
 
+    // --- 11. The text gate, as a game UI actually drives it ---------------
+    {
+        // Reproduces the InputDemo chat box: the game opens a text UI from a
+        // one-shot action, then must stop reading held movement keys while the
+        // text field is being typed into. The frame order here mirrors the
+        // engine (BeginFrame -> events -> FixedUpdate -> Update), so the
+        // documented one-frame lag is pinned instead of drifting silently.
+        enum class Action { OpenChat };
+        ActionMap<Action> actions{};
+        ATOM_CHECK(actions.Bind({Key::T}, Action::OpenChat));
+
+        bool chat_open = false;
+        input.Reset();
+        input.SetUiCapture(false, false, false, {});
+
+        // FixedUpdate(): returns true when movement would be applied.
+        const auto fixed_update = [&] {
+            return !input.IsTextInputCapturedByUi() && input.IsKeyHeld(Key::W);
+        };
+        // Update(): owns the chat state. A one-shot action that opens the UI must
+        // be applied *before* the capture claim is published, otherwise the frame
+        // that opens the chat still advertises "the game owns the keyboard".
+        const auto variable_update = [&] {
+            if (!chat_open && !input.IsKeyboardCapturedByUi() && input.IsActionPressed(actions, Action::OpenChat))
+                chat_open = true;
+            input.SetUiCapture(input.IsMouseCapturedByUi(), chat_open, chat_open, "chat box");
+        };
+
+        // Frame 1: W is held while the chat is still closed.
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::W));
+        ATOM_CHECK(fixed_update());
+        variable_update();
+
+        // Frame 2: T opens the chat. The claim is published in the same frame,
+        // so the very next FixedUpdate is already gated.
+        input.BeginFrame();
+        input.ProcessEvent(MakeKey(EventType::KeyPressed, Key::T));
+        ATOM_CHECK(fixed_update());
+        variable_update();
+        ATOM_CHECK(chat_open);
+        ATOM_CHECK(input.IsTextInputCapturedByUi());
+
+        // Frame 3: W is still physically held, but movement must stop.
+        input.BeginFrame();
+        ATOM_CHECK(input.IsKeyHeld(Key::W));
+        ATOM_CHECK(!fixed_update());
+        variable_update();
+
+        // Frame 4: and it stays stopped for as long as the chat is open.
+        input.BeginFrame();
+        ATOM_CHECK(!fixed_update());
+        variable_update();
+
+        // Closing the chat gives movement back immediately (no lag on release).
+        chat_open = false;
+        variable_update();
+        ATOM_CHECK(!input.IsTextInputCapturedByUi());
+        ATOM_CHECK(fixed_update());
+    }
+
     return 0;
 }

@@ -135,13 +135,29 @@ class InputSystem {
         // Feed it once per frame, after the UI layer has decided its own state.
         // The debugger's overlay does that inside its draw callback, so its
         // flags are one frame behind for the very frame a panel drag starts.
-        auto SetUiCapture(bool mouse, bool keyboard, bool text_input, std::string_view source = {}) -> void;
-        [[nodiscard]] auto IsMouseCapturedByUi() const -> bool;
-        [[nodiscard]] auto IsKeyboardCapturedByUi() const -> bool;
-        [[nodiscard]] auto IsTextInputCapturedByUi() const -> bool;
+        auto SetUiCapture(const bool mouse, const bool keyboard, const bool text_input,
+                          const std::string_view source = {}) -> void {
+            ui_mouse_captured_ = mouse;
+            ui_keyboard_captured_ = keyboard;
+            ui_text_input_captured_ = text_input;
+            // Keep the source only while something is actually captured, so a
+            // stale name cannot outlive the claim that produced it.
+            ui_capture_source_ = (mouse || keyboard || text_input) ? source : std::string_view{};
+        }
+        [[nodiscard]] auto IsMouseCapturedByUi() const -> bool {
+            return ui_mouse_captured_;
+        }
+        [[nodiscard]] auto IsKeyboardCapturedByUi() const -> bool {
+            return ui_keyboard_captured_;
+        }
+        [[nodiscard]] auto IsTextInputCapturedByUi() const -> bool {
+            return ui_text_input_captured_;
+        }
         // Name of the layer that last claimed capture, for diagnostics. Empty
         // when capture is off.
-        [[nodiscard]] auto UiCaptureSource() const -> std::string_view;
+        [[nodiscard]] auto UiCaptureSource() const -> std::string_view {
+            return ui_capture_source_;
+        }
 
         // --- Keyboard -------------------------------------------------------
         [[nodiscard]] auto IsKeyPressed(Key key) const -> bool;  // pressed this frame

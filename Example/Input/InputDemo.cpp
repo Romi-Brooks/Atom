@@ -170,10 +170,19 @@ class InputDemoScreen final : public atom::Screen {
             pulse_time_ += std::max(0.0f, delta_time);
             auto& input = atom::input::InputSystem::GetInstance();
 
-            // A game's own UI takes the keyboard through the same public entry
-            // point the debug overlay uses. While the chat is open, a key press
-            // belongs to the chat: pressing T again types "t" instead of
-            // reopening, and R must not recenter the world behind it.
+            // Claim the keyboard *after* applying this frame's chat command, not
+            // before. Publishing the claim first advertised "the game owns the
+            // keyboard" for the very frame that opens the chat, so typing began
+            // one frame before movement was suppressed - and while that stale
+            // claim was still up, the T that opened the chat was re-read as the
+            // chat key itself. Order matters: decide, then publish.
+            const bool opening_chat =
+                !chat_open_ && !input.IsKeyboardCapturedByUi() && input.IsActionPressed(actions_, Action::OpenChat);
+            if (opening_chat) {
+                chat_open_ = true;
+                chat_draft_.clear();
+                LOG_INFO(atom::log::core::Screen, "Input demo: chat opened (typing captures movement)");
+            }
             input.SetUiCapture(input.IsMouseCapturedByUi(), chat_open_, chat_open_, "chat box");
 
             if (input.IsKeyboardCapturedByUi()) {
@@ -192,11 +201,6 @@ class InputDemoScreen final : public atom::Screen {
             }
             if (input.IsActionPressed(actions_, Action::Recenter))
                 CenterPlayer();
-            if (input.IsActionPressed(actions_, Action::OpenChat)) {
-                chat_open_ = true;
-                chat_draft_.clear();
-                LOG_INFO(atom::log::core::Screen, "Input demo: chat opened (typing captures movement)");
-            }
         }
 
         // Text arrives as its own event stream, not as key presses: that is what
