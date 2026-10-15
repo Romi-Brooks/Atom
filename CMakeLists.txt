@@ -162,6 +162,20 @@ endif()
     # standalone tour example) links the log symbols transitively.
     target_link_libraries(Atom_Concurrency PUBLIC Atom_Log)
 
+# 2-bis. ECS — engine-owned entity/component storage.
+#     Atom_3rd_EnTT is PRIVATE on purpose: the backend must not reach any public
+#     header, and a PUBLIC link would put its include directory on the path of
+#     every Atom_ECS consumer, turning the boundary into a comment.
+    add_library(Atom_ECS STATIC
+            ECS/Entity.hpp
+            ECS/Components.hpp
+            ECS/EntityWorld.hpp
+            ECS/EntityWorld.cpp
+    )
+    target_include_directories(Atom_ECS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_ECS PUBLIC Atom_Error Atom_Log)
+    target_link_libraries(Atom_ECS PRIVATE Atom_3rd_EnTT Atom_Algorithm)
+
 # 2. Algorithm
     add_library(Atom_Algorithm STATIC
             Algorithm/Vector/Vec2.cpp

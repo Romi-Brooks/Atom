@@ -56,6 +56,9 @@ enum class Module : std::uint8_t {
     Log,
     Video,
     Tools,
+    // Appended, never inserted: the enumerator order is not wire format, but
+    // keeping additions at the end makes review diffs trivial.
+    Ecs,
 };
 
 enum class ErrorCode : std::uint32_t {
@@ -161,6 +164,20 @@ enum class ErrorCode : std::uint32_t {
     ToolVersionUnsupported,
     ToolWriteFailed,
     ToolVerificationFailed,
+
+    // --- ECS (0x0D00) -------------------------------------------------------
+    // The component backend reports most misuse with assertions that are
+    // disabled in release builds, so these codes exist to turn "the backend
+    // asserted, or silently corrupted state" into a value the caller can act on.
+    // The ECS facade validates against these before any backend call.
+    EcsInvalidEntity = 0x0D00,
+    EcsEntityNotAlive,
+    EcsComponentNotRegistered,
+    EcsComponentAlreadyPresent,
+    EcsComponentMissing,
+    EcsTypeIdCollision,
+    EcsStructuralChangeDuringIteration,
+    EcsOutOfEntities,
 };
 
 // Canonical name of a module, for logs and diagnostics. Named rather than an
@@ -194,6 +211,8 @@ enum class ErrorCode : std::uint32_t {
             return "video";
         case Module::Tools:
             return "tools";
+        case Module::Ecs:
+            return "ecs";
     }
     return "unknown";
 }
@@ -365,6 +384,23 @@ enum class ErrorCode : std::uint32_t {
             return "ToolWriteFailed";
         case ErrorCode::ToolVerificationFailed:
             return "ToolVerificationFailed";
+
+        case ErrorCode::EcsInvalidEntity:
+            return "EcsInvalidEntity";
+        case ErrorCode::EcsEntityNotAlive:
+            return "EcsEntityNotAlive";
+        case ErrorCode::EcsComponentNotRegistered:
+            return "EcsComponentNotRegistered";
+        case ErrorCode::EcsComponentAlreadyPresent:
+            return "EcsComponentAlreadyPresent";
+        case ErrorCode::EcsComponentMissing:
+            return "EcsComponentMissing";
+        case ErrorCode::EcsTypeIdCollision:
+            return "EcsTypeIdCollision";
+        case ErrorCode::EcsStructuralChangeDuringIteration:
+            return "EcsStructuralChangeDuringIteration";
+        case ErrorCode::EcsOutOfEntities:
+            return "EcsOutOfEntities";
     }
     return "UnknownErrorCode";
 }
@@ -496,6 +532,8 @@ class Error {
             return Module::Video;
         case 0x0C00:
             return Module::Tools;
+        case 0x0D00:
+            return Module::Ecs;
         default:
             return Module::Core;
     }

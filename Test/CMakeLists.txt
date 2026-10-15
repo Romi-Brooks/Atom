@@ -121,6 +121,12 @@ atom_add_test(Atom_Error.Error
     Error/ErrorTest.cpp
     Atom_Error)
 
+# --- ECS (entity/component storage) ---
+atom_add_test(Atom_ECS.EntityWorld
+    Atom_ECS_EntityWorld_Tests
+    ECS/EntityWorldTest.cpp
+    Atom_ECS)
+
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry
     Atom_Backend_Extension_AudioDecoderRegistry_Tests
