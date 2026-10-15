@@ -463,6 +463,116 @@ SetLuaMusicCrossfadeInstance(crossfade);
 
 Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`，再继续播放。
 
+## ECS（实体与组件）
+
+`ECS` 只负责**存储**：持有实体和组件数据，不持有行为。系统（物理、动画、AI）属于各自的子系统，由它们遍历这里的组件。物理侧的分工见 `Physics/README.md`。
+
+### 边界规则：公开头里没有第三方类型
+
+组件存储后端是 `EntityWorld.cpp` 的实现细节。任何公开头文件——包括本模块自己的——都不出现 `entt::` 名字。这条规则换来三件事：后端可替换；`Entity` 的世代宽度由引擎决定（默认打包句柄只有 12 位版本，4096 次回收就回绕，旧句柄会「复活」）；Lua 绑定层只认引擎自己的 `Entity`。
+
+### 创建与实体生命周期
+
+```cpp
+#include <ECS/Components.hpp>
+#include <ECS/EntityWorld.hpp>
+
+auto created = atom::ecs::EntityWorld::Create();
+if (!created) {
+    LOG_ERROR(channel, created.error().Message());
+    return;
+}
+auto world = std::move(*created);
+
+auto player = world->CreateEntity();          // 句柄：32 位索引 + 32 位世代
+if (!world->IsAlive(player)) { /* 索引耗尽，已记日志 */ }
+
+const auto destroyed = world->Destroy(player);
+if (!destroyed)                               // 重复销毁会报 EcsEntityNotAlive
+    LOG_WARN(channel, destroyed.error().Message());
+```
+
+销毁会释放槽位；该槽位再次分配时世代 +1，因此**旧句柄自动失效**，不会误指新实体。
+
+### 组件读写
+
+```cpp
+// 加组件：实体已拥有该组件时失败，不会静默覆盖旧值
+if (auto added = world->Emplace<Position>(player, Position{{0.0f, 0.0f}}); !added)
+    LOG_ERROR(channel, added.error().Message());
+
+// 明确表示「替换」时用这个
+world->EmplaceOrReplace<Position>(player, Position{{1.0f, 2.0f}});
+
+// 读：返回 nullptr 表示实体已死或没有该组件，不会崩
+if (auto* position = world->TryGet<Position>(player)) { /* use *position */ }
+
+// 需要区分「实体没了」和「组件不在」时用 Get
+auto position = world->Get<Position>(player);
+if (!position)
+    LOG_ERROR(channel, position.error().Message());   // 两种原因各自的 ErrorCode
+
+world->Patch<Position>(player, Position{{5.0f, 6.0f}});   // 组件必须已存在
+world->Remove<Position>(player);                          // 幂等
+```
+
+### 遍历：ForEach
+
+系统的主要写法是在后端自己的遍历过程里回调，零分配、零逐实体查表：
+
+```cpp
+struct Integrate {
+    static auto Run(void* context, atom::ecs::Entity entity,
+                    std::span<atom::ecs::Position> positions,
+                    std::span<atom::ecs::Velocity> velocities) -> void {
+        auto& dt = *static_cast<float*>(context);
+        positions[0].value = positions[0].value + velocities[0].value * dt;
+    }
+};
+
+float dt = 1.0f / 120.0f;
+world->ForEach<atom::ecs::Position, atom::ecs::Velocity>({&Integrate::Run, &dt});
+```
+
+要点：
+
+- 每个组件以**长度 1 的 `std::span`** 传入，所以循环体里写 `positions[0]`。
+- 访问器是**函数指针 + context**，不是 lambda。因为 `EntityWorld.hpp` 不能包含后端，循环体必须在能看到后端的翻译单元里编译，函数指针是「无后端的头文件」能承载的东西。**参数仍是真实类型，调用点没有 `void*` 转换。**
+- **标签不能列进 `ForEach`**：后端回调会省略空类型（没有值可交），签名永远无法满足。改为在循环体里逐实体查：`if (world->Has<Active>(entity)) { ... }`。
+- 遍历顺序是后端池顺序，**对同一序列的世界操作稳定**——定步长模拟需要的正是这个性质。
+- 组件组合需要显式实例化；未实例化是**链接错误**（不是静默空循环）。加组合见 `ECS/README.md`。
+
+### 需要实体列表时：With
+
+```cpp
+// 按索引升序返回，代价是分配 + 排序（比 ForEach 慢约 3 倍）
+for (const auto entity : world->With<atom::ecs::Position, atom::ecs::Velocity>()) { ... }
+```
+
+延迟销毁的扫描模式用它——先收集再销毁，系统就不会在自己遍历的过程中改动存储：
+
+```cpp
+world->Emplace<atom::ecs::PendingDestroy>(entity);      // 标记
+const auto doomed = world->With<atom::ecs::PendingDestroy>();
+for (const auto entity : doomed)
+    world->Destroy(entity);                             // 遍历结束后才销毁
+```
+
+### 标签与编译期拒绝
+
+空类型就是标签（`Active`、`Static`、`PendingDestroy`）：存在即全部信息。
+
+以下误用是**编译错误**，不是运行期错误：对标签调用 `TryGet`/`Get`/`Patch`/`EmplaceOrReplace`（标签没有值），以及把标签列进 `ForEach`。
+
+### 加一个新组件
+
+1. 在 `ECS/Components.hpp` 定义（纯数据：无虚函数、无行为、不反向持有 world）。
+2. 加进同文件的 `ATOM_ECS_COMPONENTS` 清单。
+3. 在 `EntityWorld.cpp` 加一行 `ATOM_ECS_INSTANTIATE(T)`；空标签类型用 `ATOM_ECS_INSTANTIATE_TAG(T)`。
+4. 若有系统要把它和其他组件一起遍历，再加一行 `ATOM_ECS_INSTANTIATE_ITERATION(...)`；只用于扫描（如标签）的组合用 `ATOM_ECS_INSTANTIATE_COLLECTION(...)`。
+
+可运行示例：`Example/ECS/EntityWorldTour.cpp`（无窗口控制台导览，CMake 目标 `Example_ECS_Tour`）。
+
 ## 快速参考
 
 | 类型 | 默认使用方式 | 说明 |
@@ -471,6 +581,7 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 | `RenderWindow` | `GetInstance()` + `Initialize(title, size, RenderBackendId)` | 窗口和主循环门面；默认 `RenderBackendId::SdlGpu` |
 | `ScreenManager` | `GetInstance()` | Screen 注册、切换与调度 |
 | `InputSystem` | `InputSystem::GetInstance()` | 按帧输入状态（按住/边沿/鼠标/UI 捕获）；`HandleEvent` 与它的分工见「输入」一节 |
+| `EntityWorld` | `EntityWorld::Create()` + 移动构造 | 实体与组件存储；生命周期、组件读写、`ForEach`/`With` 遍历 |
 | `AudioMixer` | 普通实例 | Master/Music/SFX 分类音量 |
 | `MusicPlayer` | `MusicPlayer(mixer)` | 默认使用全局音频后端与引擎默认解码器 |
 | `AudioClipCache` | 默认构造 | 默认使用全局解码器注册表 |

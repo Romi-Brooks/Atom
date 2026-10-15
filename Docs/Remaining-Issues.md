@@ -182,16 +182,19 @@
 
 ### ARCH-108：Entity 职责拆分（ECS 前置）
 
-- [ ] 分离 Transform、Health、Renderable、Movement/Combat 等数据与系统。
-- [ ] 移除 `const Move()` 通过 mutable 修改状态的设计。
-- [ ] Entity 数据不直接持有或加载具体渲染后端资源。
-- 方向：从简单 component pool 开始，不直接引入复杂 archetype ECS。
+- [x] 实体/组件存储落地（`ECS/`）：`Entity`（32 位索引 + 32 位世代句柄）、`EntityWorld`（生命周期、类型化组件读写、`ForEach`/`With` 遍历）、`ECS/Components.hpp` 组件词表。
+- [x] 组件数据不持有或加载任何渲染后端资源：组件是纯数据，无虚函数、无行为、不反向持有 world。
+- [x] 后端存储不进入任何公开头文件：`Atom_3rd_EnTT` 以 `PRIVATE` 链接，全仓公开头零 `entt::` 引用（已用脚本核验）。换后端只需改 `ECS/EntityWorld.cpp` 加组件清单。
+- [x] 句柄使用 ID + generation，不暴露裸指针：跨槽位回收时世代 +1，旧句柄经 `IsAlive`/`CheckAlive` 判定失效，所有可失败操作返回 `atom::Error` 而不是崩或静默改数据。
+- 决策：**引入 EnTT v4.0.0 作为后端**（原计划写的是「不直接引入复杂 archetype ECS」）。理由：后续物理是「每物体挂一堆组件、系统遍历」的形态，要的正是可扩展的开箱实现；而 EnTT 的 `registry`/`view`/稀疏集语义足够简单，不构成 archetype 复杂度。代价与约束记录在 `ECS/README.md`：不使用其自带 CMake（3.28 下限、sanitizer 参数外泄、目标名不符合 `Atom_3rd_*` 约定），并因其实测在 `-DNDEBUG` 下会静默损坏状态，门面必须自行预校验。
 - 关联：`Physics/README.md` 已预留 ECS 职责边界（ECS 持有 entity/component 存储，Physics 持有操作其物理组件的 system）。
+- 未做：行为系统尚未接入（无系统消费 `EntityWorld`）；类型擦除遍历、事件/调度器、序列化、多线程均未实现。可运行示例见 `Example/ECS/EntityWorldTour.cpp`。
+- CI 未验证：MSVC 与 Linux GCC 编译（本地仅 MinGW GCC 15.2 验证），需 CI 跑过一次才算验收。
 
 ### ARCH-109：Lua 对象生命周期与隔离
 
 - [x] `LuaContext` 已替代命名空间全局裸指针（g_music/g_sfx/g_mixer/g_transition/g_filesystem 已移除，改为单一注入结构体，空指针表示「子系统未挂载」）。
-- [ ] Entity 绑定使用 ID + generation，避免暴露裸指针。
+- [x] Entity 绑定使用 ID + generation，避免暴露裸指针。（已落地：`atom::ecs::Entity` 即 32 位索引 + 32 位世代，后端句柄不出现在公开 API 中。Lua 侧绑定尚未开始。）
 - [ ] 保证重复 Initialize、Shutdown 和热重载安全。
 - [ ] 后续增加内存限制和可选标准库沙箱。
 

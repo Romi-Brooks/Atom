@@ -19,7 +19,7 @@ pinned submodule remains untouched; see `TargetOverlay.cmake`.
 | minimp3 | `Atom_3rd_Minimp3` | MP3 decoding | `https://github.com/lieff/minimp3.git` | `ea99364f61c14656440e8d77e9c233ccf3124633` |
 | Yoga | `Atom_3rd_Yoga` | Flexbox-compatible UI layout calculation | `https://github.com/facebook/yoga.git` | `042f5013152eb81c1552dec945b88f7b95ca350f` (`v3.2.1`) |
 | stb | `Atom_3rd_Stb` | Image decoding and trusted font rasterization | `https://github.com/nothings/stb.git` | `2c980bb59875b0d32144a71867fbdebb2f77cd20` |
-| EnTT | `Atom_3rd_EnTT` | Entity/component storage behind `Atom_ECS`. Header-only; upstream's own CMake target is deliberately not used (see `CMakeLists.txt`) | `https://github.com/skypjack/entt.git` | `85c6bba014049b5de8fad49d25424df2f1f6a8c1` (`v4.0.0`) |
+| EnTT | `Atom_3rd_EnTT` | Entity/component storage behind `Atom_ECS`. Header-only; upstream's own CMake target is deliberately not used | `https://github.com/skypjack/entt.git` | `85c6bba014049b5de8fad49d25424df2f1f6a8c1` (`v4.0.0`) |
 
 Initialize the versions locked by Atom:
 
