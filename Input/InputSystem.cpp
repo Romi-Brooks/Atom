@@ -55,12 +55,16 @@ auto InputSystem::Reset() -> void {
     mouse_buttons_.fill(KeyState::Up);
     mouse_delta_ = algo::Vec2::Zero();
     mouse_wheel_ = algo::Vec2::Zero();
-    // Capture is owned by the UI layer and re-reported every frame, so clearing
-    // it here only drops a stale claim; the next overlay callback restores it.
-    ui_mouse_captured_ = false;
-    ui_keyboard_captured_ = false;
-    ui_text_input_captured_ = false;
-    ui_capture_source_ = {};
+    // Capture is owned by the UI layers and re-reported every frame, so clearing
+    // it here only drops a stale claim; the next report restores it.
+    game_mouse_captured_ = false;
+    game_keyboard_captured_ = false;
+    game_text_input_captured_ = false;
+    game_capture_source_ = {};
+    // The overlay claim is not the game's to clear - it is re-reported from the
+    // debugger's own draw callback, and a Reset() caused by a focus change must
+    // not leave the overlay thinking it still owns the mouse.
+    overlay_mouse_captured_ = false;
 }
 
 auto InputSystem::ResetMousePosition() -> void {

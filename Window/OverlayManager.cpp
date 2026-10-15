@@ -59,18 +59,14 @@ auto OverlayManager::EnsureInitialized() -> bool {
                 panel.callback();
         }
         if (backend_) {
-            // This is the *debug* consumer of the engine's UI-capture contract
-            // (see InputSystem). Game UI - a chat box, a menu - calls the same
-            // entry point from its own code, so the semantics of
-            // IsMouseCapturedByUi()/IsKeyboardCapturedByUi() do not depend on the
-            // debugger being built in.
-            //
-            // Only the mouse is reported here. The debug overlay has no text
-            // field, and reporting ImGui's WantCaptureKeyboard would claim the
-            // whole keyboard just because a panel has focus, which is not what
-            // "the game UI owns the keyboard" means for gameplay.
-            atom::input::InputSystem::GetInstance().SetUiCapture(backend_->WantsMouse(), false, false,
-                                                                 "ImGui debug overlay");
+            // The debug overlay is a *partial* consumer of the engine's UI-capture
+            // contract (see InputSystem). It claims the mouse and nothing else:
+            // it has no text field, and it must not clear the game's keyboard
+            // claim. Using the overlay-specific entry point is what keeps the two
+            // claims independent - a full SetUiCapture() here erased a chat
+            // box's claim the moment the cursor touched a panel, which left
+            // movement ungated while the player was typing.
+            atom::input::InputSystem::GetInstance().SetOverlayMouseCapture(backend_->WantsMouse());
             backend_->Render();
         }
     }));

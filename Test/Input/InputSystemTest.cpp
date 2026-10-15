@@ -304,6 +304,44 @@ auto main() -> int {
         ATOM_CHECK(!input.IsTextInputCapturedByUi());
     }
 
+    // --- 10b. The overlay's mouse claim must not erase the game's ---------
+    {
+        // Regression for the reported bug: the debug overlay reports its mouse
+        // state every frame from a callback that runs *after* the game's Update.
+        // When it used the full SetUiCapture(), it wrote keyboard=false and
+        // text_input=false at that moment, so a chat box's claim was erased
+        // before the next frame's fixed steps read it - and WASD kept walking
+        // the character while the player was typing.
+        input.Reset();
+        input.SetUiCapture(/*mouse=*/false, /*keyboard=*/true, /*text_input=*/true, "chat box");
+        ATOM_CHECK(input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(input.IsTextInputCapturedByUi());
+        ATOM_CHECK(!input.IsMouseCapturedByUi());
+
+        // The overlay claims the mouse: the game's keyboard claim survives.
+        input.SetOverlayMouseCapture(true);
+        ATOM_CHECK(input.IsMouseCapturedByUi());
+        ATOM_CHECK(input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(input.IsTextInputCapturedByUi());
+        // The game claim names the source, because it owns more than the mouse.
+        ATOM_CHECK(input.UiCaptureSource() == "chat box");
+
+        // Releasing the overlay claim leaves the game claim intact, and the
+        // mouse is free again.
+        input.SetOverlayMouseCapture(false);
+        ATOM_CHECK(!input.IsMouseCapturedByUi());
+        ATOM_CHECK(input.IsKeyboardCapturedByUi());
+        ATOM_CHECK(input.IsTextInputCapturedByUi());
+
+        // The overlay alone is visible as "overlay" in diagnostics.
+        input.SetUiCapture(false, false, false, {});
+        input.SetOverlayMouseCapture(true);
+        ATOM_CHECK(input.IsMouseCapturedByUi());
+        ATOM_CHECK(input.UiCaptureSource() == "overlay");
+        input.SetOverlayMouseCapture(false);
+        ATOM_CHECK(input.UiCaptureSource().empty());
+    }
+
     // --- 11. The text gate, as a game UI actually drives it ---------------
     {
         // Reproduces the InputDemo chat box: the game opens a text UI from a

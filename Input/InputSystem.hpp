@@ -133,30 +133,45 @@ class InputSystem {
         //       player is typing a message, WASD must not walk the character.
         //
         // Feed it once per frame, after the UI layer has decided its own state.
-        // The debugger's overlay does that inside its draw callback, so its
-        // flags are one frame behind for the very frame a panel drag starts.
+        //
+        // This is the *game's* claim: it states what the game's own UI owns, so
+        // it fully replaces the previous game claim. Layers that only own part
+        // of the input must not call this - the debug overlay uses
+        // SetOverlayMouseCapture() so that its mouse claim cannot erase the
+        // game's keyboard claim.
         auto SetUiCapture(const bool mouse, const bool keyboard, const bool text_input,
                           const std::string_view source = {}) -> void {
-            ui_mouse_captured_ = mouse;
-            ui_keyboard_captured_ = keyboard;
-            ui_text_input_captured_ = text_input;
-            // Keep the source only while something is actually captured, so a
-            // stale name cannot outlive the claim that produced it.
-            ui_capture_source_ = (mouse || keyboard || text_input) ? source : std::string_view{};
+            game_mouse_captured_ = mouse;
+            game_keyboard_captured_ = keyboard;
+            game_text_input_captured_ = text_input;
+            game_capture_source_ = (mouse || keyboard || text_input) ? source : std::string_view{};
         }
+
+        // Mouse-only claim used by the engine's own debug overlay. It composes
+        // with the game claim instead of replacing it: the overlay knows nothing
+        // about the game's keyboard, so it must not be able to clear it. Without
+        // this separation the overlay's per-frame call erased the game's chat
+        // claim as soon as the cursor touched a debug panel, and movement kept
+        // driving the scene while the player was typing.
+        auto SetOverlayMouseCapture(bool captured) -> void {
+            overlay_mouse_captured_ = captured;
+        }
+
         [[nodiscard]] auto IsMouseCapturedByUi() const -> bool {
-            return ui_mouse_captured_;
+            return game_mouse_captured_ || overlay_mouse_captured_;
         }
         [[nodiscard]] auto IsKeyboardCapturedByUi() const -> bool {
-            return ui_keyboard_captured_;
+            return game_keyboard_captured_;
         }
         [[nodiscard]] auto IsTextInputCapturedByUi() const -> bool {
-            return ui_text_input_captured_;
+            return game_text_input_captured_;
         }
         // Name of the layer that last claimed capture, for diagnostics. Empty
         // when capture is off.
         [[nodiscard]] auto UiCaptureSource() const -> std::string_view {
-            return ui_capture_source_;
+            if (!game_capture_source_.empty())
+                return game_capture_source_;
+            return overlay_mouse_captured_ ? std::string_view{"overlay"} : std::string_view{};
         }
 
         // --- Keyboard -------------------------------------------------------
@@ -221,11 +236,12 @@ class InputSystem {
         algo::Vec2 mouse_position_{};
         algo::Vec2 mouse_delta_{};
         algo::Vec2 mouse_wheel_{};
-        std::string_view ui_capture_source_{};
+        std::string_view game_capture_source_{};
         bool has_mouse_position_ = false;
-        bool ui_mouse_captured_ = false;
-        bool ui_keyboard_captured_ = false;
-        bool ui_text_input_captured_ = false;
+        bool game_mouse_captured_ = false;
+        bool game_keyboard_captured_ = false;
+        bool game_text_input_captured_ = false;
+        bool overlay_mouse_captured_ = false;
 };
 
 } // namespace atom::input
