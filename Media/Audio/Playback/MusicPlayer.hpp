@@ -35,8 +35,8 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
         // decoder; the file is opened via the filesystem and streamed by the
         // decoder, so no native path is involved. The VFS IFile is owned by the
         // track for as long as it is loaded.
-        auto Load(const std::string& id, const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path)
-            -> bool;
+        [[nodiscard]] auto Load(const std::string& id, const atom::fs::IFileSystem& filesystem,
+                                        const atom::fs::AssetPath& path) -> bool;
 
         // Convenience overload: parses `path` as an AssetPath (e.g. "res://music/"
         // "song.mp3") and resolves it through the process-wide default Vfs
@@ -44,14 +44,14 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
         // valid asset path. Prefer the IFileSystem overload when the filesystem
         // is already in hand; this exists so string-only callers (scripts, Lua,
         // quick tools) do not have to build an AssetPath themselves.
-        auto Load(const std::string& id, const std::string& path) -> bool;
+        [[nodiscard]] auto Load(const std::string& id, const std::string& path) -> bool;
 
         // Load a music track from an in-memory buffer, e.g. an entry extracted
         // from a resource pack. filename is used only to select a decoder by
         // extension. The buffer is borrowed: the caller must keep it alive for as
         // long as the track is loaded (until Reset() or destruction).
-        auto LoadFromMemory(const std::string& id, const std::string& filename, const void* data, std::size_t size)
-            -> bool;
+        [[nodiscard]] auto LoadFromMemory(const std::string& id, const std::string& filename, const void* data,
+                                       std::size_t size) -> bool;
 
         auto Play(const std::string& id) -> void;
         auto Play(const std::string& id, float volume) -> void;
@@ -87,7 +87,7 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
         // library must call it (or Reset()), because a loaded track keeps a
         // decoder, an open file handle and the streaming source's buffers
         // resident for the lifetime of the player otherwise.
-        auto Unload(const std::string& id) -> bool;
+        [[nodiscard]] auto Unload(const std::string& id) -> bool;
 
         auto SetVolume(const std::string& id, float volume) -> void;
         auto SetLooping(const std::string& id, bool loop) -> void;

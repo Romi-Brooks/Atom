@@ -27,12 +27,12 @@ class SFXPlayer final : public atom::backend::IAudioBackendChangeListener {
         SFXPlayer(atom::audio::IAudioBackend& backend, AudioClipCache& clips, AudioMixer& mixer);
         ~SFXPlayer() override;
 
-        auto Load(const std::string& id, const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path)
-            -> bool;
+        [[nodiscard]] auto Load(const std::string& id, const atom::fs::IFileSystem& filesystem,
+                                        const atom::fs::AssetPath& path) -> bool;
 
         // Convenience overload: parses `path` as an AssetPath and resolves it
         // through the process-wide default Vfs (atom::fs::Vfs::GetInstance()).
-        auto Load(const std::string& id, const std::string& path) -> bool;
+        [[nodiscard]] auto Load(const std::string& id, const std::string& path) -> bool;
         auto Play(const std::string& id) -> void;
         auto Play(const std::string& id, float volume) -> void;
         auto Stop(const std::string& id) -> void;
@@ -40,7 +40,7 @@ class SFXPlayer final : public atom::backend::IAudioBackendChangeListener {
         auto SetVolume(const std::string& id, float volume) -> void;
         [[nodiscard]] auto IsLoaded(const std::string& id) const -> bool;
         [[nodiscard]] auto GetSound(const std::string& id) -> atom::audio::IAudioSource*;
-        auto Unload(const std::string& id) -> bool;
+        [[nodiscard]] auto Unload(const std::string& id) -> bool;
         auto Reset() -> void;
         [[nodiscard]] auto GetLoadedCount() const -> std::size_t;
 

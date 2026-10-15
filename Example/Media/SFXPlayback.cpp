@@ -110,15 +110,31 @@ auto main() -> int {
         LOG_ERROR(atom::log::audio::Music, "SFX directory unavailable: " + std::string{SFXDir});
         return 1;
     }
-    atom::fs::AssetPath sfx1{};
-    atom::fs::AssetPath sfx2{};
-    if (!atom::fs::AssetPath::TryParse("res://" + std::string{SFX1Name}, sfx1) ||
-        !atom::fs::AssetPath::TryParse("res://" + std::string{SFX2Name}, sfx2)) {
-        LOG_ERROR(atom::log::audio::Music, "SFX filenames are not valid AssetPath segments");
+    // Parse() rather than TryParse(): the failure reason matters here, because the
+    // message is the only thing that tells the reader which filename was rejected
+    // and why.
+    const auto sfx1 = atom::fs::AssetPath::Parse("res://" + std::string{SFX1Name});
+    const auto sfx2 = atom::fs::AssetPath::Parse("res://" + std::string{SFX2Name});
+    if (!sfx1) {
+        LOG_ERROR(atom::log::audio::Music, "SFX1 is not a valid asset path: " + sfx1.error().Message());
         return 1;
     }
-    sfx.Load("registerId_1", *filesystem, sfx1);
-    sfx.Load("registerId_2", *filesystem, sfx2);
+    if (!sfx2) {
+        LOG_ERROR(atom::log::audio::Music, "SFX2 is not a valid asset path: " + sfx2.error().Message());
+        return 1;
+    }
+
+    // A clip that fails to load is a hard failure before the window opens: the
+    // screen below triggers these ids, and silently continuing would show a demo
+    // where the keys do nothing.
+    if (!sfx.Load("registerId_1", *filesystem, *sfx1)) {
+        LOG_ERROR(atom::log::audio::Music, "Could not load " + std::string{SFX1Name});
+        return 1;
+    }
+    if (!sfx.Load("registerId_2", *filesystem, *sfx2)) {
+        LOG_ERROR(atom::log::audio::Music, "Could not load " + std::string{SFX2Name});
+        return 1;
+    }
 
     atom::ScreenManager::GetInstance().LoadScreen("SFX", std::make_unique<SFXScreen>());
     atom::ScreenManager::GetInstance().SwitchScreen("SFX");

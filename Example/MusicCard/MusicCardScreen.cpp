@@ -544,13 +544,13 @@ auto MusicCardScreen::EnsureBackgroundTexture() -> void {
                     "Music card wallpaper directory unavailable; using procedural background: " + wallpaper_path);
         return;
     }
-    atom::fs::AssetPath asset{};
-    if (!atom::fs::AssetPath::TryParse("res://" + atom::PathToUtf8(filename), asset)) {
-        LOG_WARNING(atom::log::core::Screen,
-                    "Music card wallpaper filename is not a valid AssetPath segment: " + wallpaper_path);
+    const auto asset = atom::fs::AssetPath::Parse("res://" + atom::PathToUtf8(filename));
+    if (!asset) {
+        LOG_WARNING(atom::log::core::Screen, "Music card wallpaper filename is not a valid asset path ('" +
+                                                 atom::PathToUtf8(filename) + "'): " + asset.error().Message());
         return;
     }
-    background_texture_ = texture_cache_.AcquireFromFilesystem(*filesystem, asset);
+    background_texture_ = texture_cache_.AcquireFromFilesystem(*filesystem, *asset);
     if (!background_texture_) {
         LOG_ERROR(atom::log::core::Screen, "Music card failed to upload wallpaper texture: " + wallpaper_path);
         return;
@@ -1202,8 +1202,12 @@ auto MusicCardScreen::LoadTrackAudio(std::size_t index) -> void {
             // player (e.g. the track was evicted and re-entered the window
             // before its pending unload drained). Drop it first so Load() does
             // not short-circuit onto a source that is about to be released.
-            if (music_.IsLoaded(id))
-                music_.Unload(id);
+            // Unload() returning false means the id was not resident, which is
+            // exactly the state this branch is trying to reach, so it is not a
+            // failure worth reporting.
+            if (music_.IsLoaded(id) && !music_.Unload(id)) {
+                LOG_DEBUG(atom::log::audio::Music, "Track audio was already released: " + id);
+            }
             const bool loaded = music_.Load(id, *filesystem_, asset_path);
             {
                 std::lock_guard lock{tracks_mutex_};
@@ -1229,8 +1233,13 @@ auto MusicCardScreen::DrainPendingUnloads() -> void {
         std::lock_guard lock{tracks_mutex_};
         to_unload.swap(pending_unloads_);
     }
-    for (const auto& id : to_unload)
-        music_.Unload(id);
+    for (const auto& id : to_unload) {
+        // A rejected unload means the track was already gone - the same state this
+        // drain is trying to reach - so it is reported at debug level rather than
+        // treated as an error.
+        if (!music_.Unload(id))
+            LOG_DEBUG(atom::log::audio::Music, "Drain: track audio was already released: " + id);
+    }
 }
 
 auto MusicCardScreen::LoaderLoop(std::stop_token stop) -> void {

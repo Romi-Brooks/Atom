@@ -88,12 +88,13 @@ auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& files
 }
 
 auto MusicPlayer::Load(const std::string& id, const std::string& path) -> bool {
-    atom::fs::AssetPath asset_path{};
-    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
-        LOG_ERROR(atom::log::audio::Music, "Invalid asset path for music track '" + id + "': " + path);
+    auto asset_path = atom::fs::AssetPath::Parse(path);
+    if (!asset_path) {
+        LOG_ERROR(atom::log::audio::Music, "Invalid asset path for music track '" + id + "': " + path + " (" +
+                                               asset_path.error().Message() + ")");
         return false;
     }
-    return Load(id, atom::fs::Vfs::GetInstance(), asset_path);
+    return Load(id, atom::fs::Vfs::GetInstance(), *asset_path);
 }
 
 auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filename, const void* data,

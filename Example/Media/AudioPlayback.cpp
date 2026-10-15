@@ -172,15 +172,31 @@ auto main() -> int {
         LOG_ERROR(atom::log::audio::Music, "Music directory unavailable: " + std::string{MusicDir});
         return 1;
     }
-    atom::fs::AssetPath music1{};
-    atom::fs::AssetPath music2{};
-    if (!atom::fs::AssetPath::TryParse("res://" + std::string{Music1Name}, music1) ||
-        !atom::fs::AssetPath::TryParse("res://" + std::string{Music2Name}, music2)) {
-        LOG_ERROR(atom::log::audio::Music, "Music filenames are not valid AssetPath segments");
+    // Parse() rather than TryParse(): the failure reason matters here, because the
+    // message is the only thing that tells the reader which filename was rejected
+    // and why.
+    const auto music1 = atom::fs::AssetPath::Parse("res://" + std::string{Music1Name});
+    const auto music2 = atom::fs::AssetPath::Parse("res://" + std::string{Music2Name});
+    if (!music1) {
+        LOG_ERROR(atom::log::audio::Music, "Music1 is not a valid asset path: " + music1.error().Message());
         return 1;
     }
-    music.Load("registerId_1", *filesystem, music1);
-    music.Load("registerId_2", *filesystem, music2);
+    if (!music2) {
+        LOG_ERROR(atom::log::audio::Music, "Music2 is not a valid asset path: " + music2.error().Message());
+        return 1;
+    }
+
+    // A track that fails to load is a hard failure before the window opens: the
+    // screen below plays these ids, and silently continuing would show a player
+    // that does nothing.
+    if (!music.Load("registerId_1", *filesystem, *music1)) {
+        LOG_ERROR(atom::log::audio::Music, "Could not load " + std::string{Music1Name});
+        return 1;
+    }
+    if (!music.Load("registerId_2", *filesystem, *music2)) {
+        LOG_ERROR(atom::log::audio::Music, "Could not load " + std::string{Music2Name});
+        return 1;
+    }
 
     atom::ScreenManager::GetInstance().LoadScreen("MusicPlayback", std::make_unique<MusicScreen>(music_fade));
     atom::ScreenManager::GetInstance().SwitchScreen("MusicPlayback");

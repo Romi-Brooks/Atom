@@ -170,12 +170,15 @@ auto AudioMetadataReader::Read(const atom::fs::IFileSystem& filesystem, const at
 }
 
 auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMetadata> {
-    atom::fs::AssetPath asset_path{};
-    if (!atom::fs::AssetPath::TryParse(path, asset_path)) {
-        LOG_WARNING(atom::log::audio::Metadata, "Invalid asset path: " + path);
+    auto asset_path = atom::fs::AssetPath::Parse(path);
+    if (!asset_path) {
+        // The reason is what makes this message useful: the caller only passed a
+        // string, so "which rule rejected it" is the whole diagnostic.
+        LOG_WARNING(atom::log::audio::Metadata,
+                    "Invalid asset path '" + path + "': " + asset_path.error().Message());
         return std::nullopt;
     }
-    return Read(atom::fs::Vfs::GetInstance(), asset_path);
+    return Read(atom::fs::Vfs::GetInstance(), *asset_path);
 }
 
 } // namespace atom::audio
