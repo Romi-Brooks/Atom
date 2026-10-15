@@ -40,6 +40,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <type_traits>
 #include <typeinfo>
 #include <utility>
@@ -120,6 +121,50 @@ class EntityWorld final {
             return std::is_empty_v<T>;
         }
 
+        // --- iteration ------------------------------------------------------
+
+        // What a component type is presented as to a visitor: a span over the
+        // single instance that belongs to the entity being visited. Using a span
+        // (length 1) rather than a reference keeps the parameter list uniform and
+        // keeps the loop body writable, and it means an empty tag type fits the
+        // same shape (a length-0 span) without special-casing at the call site.
+        template <typename T> using VisitValue = std::span<T>;
+
+        // The typed visit callback. Parameters are the entity, then one
+        // VisitValue<T> per listed component type, in the order listed:
+        //
+        //   struct Integrate {
+        //       static auto Run(void* context, Entity entity,
+        //                       std::span<Position> positions, std::span<Velocity> velocities) -> void {
+        //           positions[0].value = positions[0].value + velocities[0].value * *static_cast<float*>(context);
+        //       }
+        //   };
+        //   world.ForEach<Position, Velocity>({&Integrate::Run, &delta_time});
+        //
+        // The shape is a function pointer plus a context, not a template lambda, and
+        // that is deliberate: this header must not name the backend, so the loop
+        // body cannot be a template here. It has to be compiled in a translation
+        // unit that includes the backend headers, and a function pointer is what a
+        // backend-free header can carry. The typed parameters still arrive with
+        // their real types, so the body compiles against the true types and there
+        // is no void* casting at the call site.
+        //
+        // A tag component (empty type) is presented as a length-0 span. Presence is
+        // the datum, so there is nothing to read or write.
+        //
+        // Visit order is ascending entity index, matching With(). Structurally
+        // changing the world from inside the body is refused by the mutating entry
+        // points; mark entities with PendingDestroy and sweep after the pass.
+        template <Component... Ts> using Visitor = void (*)(void* context, Entity entity, VisitValue<Ts>... components);
+
+        template <Component... Ts> struct Visit final {
+                Visitor<Ts...> visit = nullptr;
+                void* context = nullptr;
+        };
+
+        // Visits every entity owning all of the listed components.
+        template <Component... Ts> auto ForEach(Visit<Ts...> visit) -> Result<void>;
+
         // --- per-entity collection ------------------------------------------
 
         // Appends every entity that owns all of the listed components, in
@@ -132,13 +177,11 @@ class EntityWorld final {
         // lets a test assert something about a sequence of updates.
         //
         // Tag components (Active, Static, PendingDestroy) are not listable because
-        // they have no value; check them per entity with Has<T>().
+        // they have no value; check them per entity with Has<T>(). ForEach has the
+        // same rule, and takes `bool` in place of a tag.
         //
-        // The loop itself is not provided here. A typed visitor has to be
-        // instantiated per component set, and that instantiation belongs in a
-        // translation unit rather than in a public header, so the engine adds one
-        // explicitly for each set a system iterates. This collection entry point is
-        // what a system uses in the meantime, and what the typed helpers build on.
+        // Prefer ForEach for a hot loop: this entry point materialises a vector,
+        // while ForEach walks the pools in place.
         template <Component... Ts> [[nodiscard]] auto With() const -> std::vector<Entity>;
 
         // --- backend access -------------------------------------------------
@@ -167,6 +210,9 @@ class EntityWorld final {
 
         // Appends the entities owning all of Ts, sorted by engine index.
         template <Component... Ts> auto BackendWith(std::vector<Entity>& output) const -> void;
+
+        // Runs the visitor once per matching entity, in engine index order.
+        template <Component... Ts> auto BackendForEach(Visit<Ts...> visit) -> Result<void>;
 
         std::unique_ptr<Impl> impl_;
 };
@@ -239,6 +285,15 @@ template <Component... Ts> auto EntityWorld::With() const -> std::vector<Entity>
     std::vector<Entity> entities{};
     BackendWith<Ts...>(entities);
     return entities;
+}
+
+template <Component... Ts> auto EntityWorld::ForEach(const Visit<Ts...> visit) -> Result<void> {
+    if (visit.visit == nullptr) {
+        return std::unexpected<Error>{
+            MakeError(ErrorCode::EcsInvalidEntity, Module::Ecs, "EntityWorld::ForEach")
+                .WithDetail("null visitor")};
+    }
+    return BackendForEach<Ts...>(visit);
 }
 
 } // namespace atom::ecs

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <algorithm>
+#include <span>
 
 namespace {
 
@@ -40,6 +41,28 @@ auto MakeWorld() -> std::unique_ptr<EntityWorld> {
     }
     return std::move(*created);
 }
+
+// Shared state for the integration visitor below.
+struct IntegrateState final {
+        float delta = 1.0f;
+        int visited = 0;
+        Entity last_entity{};
+        std::vector<std::uint32_t> order{};
+};
+
+// A visitor in the shape the engine's systems use: a free function, so the loop
+// body can be compiled against the real component types without the public header
+// naming the storage backend.
+struct Integrate final {
+        static auto Run(void* context, const Entity entity, const std::span<Position> positions,
+                        const std::span<Velocity> velocities) -> void {
+            auto& state = *static_cast<IntegrateState*>(context);
+            ++state.visited;
+            state.last_entity = entity;
+            state.order.push_back(entity.Index());
+            positions[0].value = positions[0].value + velocities[0].value * state.delta;
+        }
+};
 
 } // namespace
 
@@ -303,6 +326,86 @@ auto main() -> int {
         ATOM_CHECK(world->Remove<Velocity>(both.front()).has_value());
         ATOM_CHECK(world->With<Position, Velocity>().size() == both.size() - 1);
         ATOM_CHECK(world->With<Position>().size() == both.size() + position_only.size());
+    }
+
+    // --- 9. Typed iteration ------------------------------------------------
+    {
+        auto world = MakeWorld();
+
+        auto moving_a = world->CreateEntity();
+        auto moving_b = world->CreateEntity();
+        auto still = world->CreateEntity();
+
+        ATOM_CHECK(world->Emplace<Position>(moving_a, Position{{0.0f, 0.0f}}).has_value());
+        ATOM_CHECK(world->Emplace<Velocity>(moving_a, Velocity{{1.0f, 0.0f}}).has_value());
+        ATOM_CHECK(world->Emplace<Position>(moving_b, Position{{0.0f, 10.0f}}).has_value());
+        ATOM_CHECK(world->Emplace<Velocity>(moving_b, Velocity{{2.0f, 0.0f}}).has_value());
+        // No velocity: must not be visited by the integration loop.
+        ATOM_CHECK(world->Emplace<Position>(still, Position{{99.0f, 99.0f}}).has_value());
+
+        IntegrateState state{};
+        state.delta = 0.5f;
+        const auto visited = world->ForEach<Position, Velocity>({&Integrate::Run, &state});
+        ATOM_CHECK(visited.has_value());
+        ATOM_CHECK(state.visited == 2);
+        ATOM_CHECK(state.order.size() == 2);
+        // Ascending index, so a replay of the same world steps the same way.
+        ATOM_CHECK(std::is_sorted(state.order.begin(), state.order.end()));
+
+        // The writes the body made are the stored values.
+        ATOM_CHECK(world->TryGet<Position>(moving_a)->value.GetX() == 0.5f);
+        ATOM_CHECK(world->TryGet<Position>(moving_b)->value.GetX() == 1.0f);
+        ATOM_CHECK(world->TryGet<Position>(moving_b)->value.GetY() == 10.0f);
+        // The entity without a Velocity was left alone.
+        ATOM_CHECK(world->TryGet<Position>(still)->value.GetX() == 99.0f);
+
+        // A null visitor is refused rather than doing nothing silently.
+        const auto null_visit = world->ForEach<Position, Velocity>({nullptr, nullptr});
+        ATOM_CHECK(!null_visit.has_value());
+
+        // Empty result is not an error.
+        const auto other = MakeWorld();
+        IntegrateState empty_state{};
+        const auto none = other->ForEach<Position, Velocity>({&Integrate::Run, &empty_state});
+        ATOM_CHECK(none.has_value());
+        ATOM_CHECK(empty_state.visited == 0);
+    }
+
+    // --- 10. Iteration with a tag in the query -----------------------------
+    {
+        auto world = MakeWorld();
+
+        const auto active = world->CreateEntity();
+        const auto inactive = world->CreateEntity();
+        for (const auto entity : {active, inactive}) {
+            ATOM_CHECK(world->Emplace<Position>(entity, Position{}).has_value());
+            ATOM_CHECK(world->Emplace<Velocity>(entity, Velocity{{1.0f, 1.0f}}).has_value());
+        }
+        ATOM_CHECK(world->Emplace<Active>(active).has_value());
+
+        // The tag takes part in the query, so only the active entity is visited.
+        // It arrives as a length-0 span: presence is the datum, there is no value.
+        struct TagState final {
+                int visited = 0;
+                std::size_t tag_span_size = 999;
+        };
+        struct TagVisitor final {
+                static auto Run(void* context, const Entity entity, const std::span<Active> active_span,
+                                const std::span<Position> positions, const std::span<Velocity> velocities) -> void {
+                    (void)entity;
+                    (void)positions;
+                    (void)velocities;
+                    auto& state = *static_cast<TagState*>(context);
+                    ++state.visited;
+                    state.tag_span_size = active_span.size();
+                }
+        };
+
+        TagState state{};
+        const auto result = world->ForEach<Active, Position, Velocity>({&TagVisitor::Run, &state});
+        ATOM_CHECK(result.has_value());
+        ATOM_CHECK(state.visited == 1);
+        ATOM_CHECK(state.tag_span_size == 0);
     }
 
     return 0;

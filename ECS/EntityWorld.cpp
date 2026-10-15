@@ -26,7 +26,9 @@
 #include <cassert>
 
 #include <algorithm>
+#include <span>
 #include <string>
+#include <type_traits>
 
 #include <entt/entity/entity.hpp>
 #include <entt/entity/registry.hpp>
@@ -223,8 +225,10 @@ template <Component... Ts> auto EntityWorld::BackendWith(std::vector<Entity>& ou
     // The visit only needs the entity, but the backend hands the components to the
     // callback as well. `[[maybe_unused]]` on the whole binding keeps the
     // intent explicit rather than looking like an oversight.
-    impl.registry.view<Ts...>().each([&output]([[maybe_unused]] const entt::entity handle,
-                                               [[maybe_unused]] Ts&... components) {
+    impl.registry.view<Ts...>().each([&output](const entt::entity handle, auto&... components) {
+        // `auto&...` rather than `Ts&...`: the backend omits empty tag types from
+        // the callback, so naming Ts here would not match its signature.
+        (void)sizeof...(components);
         const auto index = Impl::to_engine_index(static_cast<std::uint32_t>(entt::to_entity(handle)));
         output.push_back(Entity::FromParts(index, static_cast<std::uint32_t>(entt::to_version(handle))));
     });
@@ -232,6 +236,47 @@ template <Component... Ts> auto EntityWorld::BackendWith(std::vector<Entity>& ou
     std::sort(output.begin(), output.end(), [](const Entity left, const Entity right) {
         return left.Index() < right.Index();
     });
+}
+
+namespace {
+
+// Presents one component to a visitor. A value component becomes a span over its
+// single instance; a tag (empty type) becomes a length-0 span, because presence is
+// the whole datum and there is nothing to read or write. The tag branch also avoids
+// asking the backend for the address of an empty type, which yields nothing.
+template <typename T, typename View>
+[[nodiscard]] auto ComponentSpan(View& view, const entt::entity handle) noexcept -> std::span<T> {
+    if constexpr (std::is_empty_v<T>) {
+        (void)view;
+        (void)handle;
+        return {};
+    } else {
+        return std::span<T>{&view.template get<T>(handle), 1};
+    }
+}
+
+} // namespace
+
+template <Component... Ts> auto EntityWorld::BackendForEach(const Visit<Ts...> visit) -> Result<void> {
+    // Collect first, then visit. The backend's own order follows its pool layout
+    // and changes as entities are destroyed, so the sorted index order systems rely
+    // on is produced here; collecting also means a component written by the body
+    // cannot disturb the iteration structure mid-pass.
+    std::vector<Entity> entities{};
+    BackendWith<Ts...>(entities);
+
+    // Resolve the view and the backend handles once, not once per entity.
+    auto view = impl_->registry.view<Ts...>();
+    std::vector<entt::entity> handles{};
+    handles.reserve(entities.size());
+    for (const auto entity : entities)
+        handles.push_back(impl_->handle_of(entity));
+
+    for (std::size_t index = 0; index < entities.size(); ++index) {
+        const auto handle = handles[index];
+        visit.visit(visit.context, entities[index], ComponentSpan<Ts>(view, handle)...);
+    }
+    return Ok();
 }
 
 // --- 5. Explicit instantiations ---------------------------------------------
@@ -279,11 +324,18 @@ ATOM_ECS_INSTANTIATE_TAG(::atom::ecs::PendingDestroy)
 
 // Iteration is instantiated per component set, not per component, so it has its
 // own list. Add a line when a system starts iterating a new combination. Keeping
-// the list short is the point: every set here costs compile time, and a set that
-// no system uses is dead weight.
-template auto EntityWorld::With<::atom::ecs::Position>() const -> std::vector<Entity>;
-template auto EntityWorld::With<::atom::ecs::Position, ::atom::ecs::Velocity>() const -> std::vector<Entity>;
-template auto EntityWorld::BackendWith<::atom::ecs::Position, ::atom::ecs::Velocity>(std::vector<Entity>&) const
-    -> void;
+// the list short is the point: every set here costs compile time, and a set no
+// system uses is dead weight.
+#define ATOM_ECS_INSTANTIATE_ITERATION(...)                                                                            \
+    template auto EntityWorld::With<__VA_ARGS__>() const -> std::vector<Entity>;                                       \
+    template auto EntityWorld::BackendWith<__VA_ARGS__>(std::vector<Entity>&) const -> void;                           \
+    template auto EntityWorld::ForEach<__VA_ARGS__>(Visit<__VA_ARGS__>) -> Result<void>;                               \
+    template auto EntityWorld::BackendForEach<__VA_ARGS__>(Visit<__VA_ARGS__>) -> Result<void>;
+
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Position)
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Position, ::atom::ecs::Velocity)
+// The first physics loop also needs to skip inactive entities, which means the tag
+// is part of the queried set rather than a per-entity check inside the loop.
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Active, ::atom::ecs::Position, ::atom::ecs::Velocity)
 
 } // namespace atom::ecs

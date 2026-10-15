@@ -83,14 +83,44 @@ corruption. The cost is a few predictable branches per call.
 Keeping the lists explicit is what lets the backend stay out of the public headers.
 A component that no system iterates costs nothing but its own instantiation.
 
-## Iteration today
+## Iteration
 
-`With<A, B>()` returns the entities owning all of the listed components, in
-ascending index order. A typed visitor loop (`ForEach<A, B>(lambda)`) is not
-provided yet: a visitor has to be instantiated per component set, and those
-instantiations belong in a translation unit rather than in this header. Systems
-use `With` plus the typed accessors for now, which is enough for a first physics
-slice; the typed loop is an additive change when a system wants it.
+Two entry points, same query semantics, different cost:
 
-Tags are not listable in a query, because they have no value to pass. Check them
-per entity with `Has<Active>()`.
+```cpp
+// In place. The visitor is a free function so that the loop body can be compiled
+// against the real component types without this header naming the backend:
+//   world.ForEach<Position, Velocity>({&Integrate::Run, &state});
+world.ForEach<Position, Velocity>({&Integrate::Run, &state});
+
+// Materialises a vector of entities instead:
+for (const auto entity : world.With<Position, Velocity>()) { ... }
+```
+
+`ForEach` is what a hot loop wants: it walks the pools in place. `With` is for
+code that needs the list itself (a sweep, a snapshot, a debug panel).
+
+Both visit in **ascending entity index order**, not the backend's pool order. That
+is deliberate: the backend's order changes as entities are destroyed, and physics
+and animation want reproducible stepping.
+
+Each component arrives as a `std::span` of length 1, so the body reads and writes
+it as `positions[0]`. A tag component (empty type) arrives as a **length-0 span**:
+presence is the datum, there is nothing to read or write.
+
+A visitor is a function pointer plus a context, which is why the call site looks
+like `{&Run, &state}` rather than a lambda. `EntityWorld.hpp` must not name the
+backend, so the loop body cannot be a template in the header; the function pointer
+is what a backend-free header can carry. The parameters still have their real
+types, so there is no `void*` casting at the call site.
+
+Iterating a set that no one has instantiated is a link error, not a silent empty
+loop. Add the combination to the iteration list at the bottom of `EntityWorld.cpp`.
+
+**Known limitation:** iteration through a `const EntityWorld&` still yields mutable
+component spans, because the backend has no const-aware query. Treat the const
+qualifier as covering the entity set, not the component values.
+
+Tags can take part in a query (`ForEach<Active, Position, Velocity>`), which is what
+lets a loop skip inactive entities without a per-entity check. They arrive as a
+length-0 span.
