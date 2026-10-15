@@ -169,10 +169,15 @@ const auto delta = input.GetMouseDelta();
 ```cpp
 auto& input = atom::input::InputSystem::GetInstance();
 
-// UI 层声明自己当前占了什么（每帧一次）。第一个参数是鼠标，
-// 后两个分别是「键盘输入上下文」和「正在编辑文本」。
+// 顺序很重要：先处理本帧的 UI 命令（这里是"按 T 打开聊天框"），再发布捕获声明。
+// 反过来写的话，打开聊天框的那一帧声明的仍是"键盘归游戏"，于是本帧的打字会被接受、
+// WASD 还会多走一帧，甚至那次用来打开聊天框的 T 会被当成聊天内容再读一次。
+if (!chat_open && input.IsActionPressed(actions, Action::OpenChat))
+    chat_open = true;
 input.SetUiCapture(/*mouse=*/false, /*keyboard=*/chat_open, /*text_input=*/chat_open, "chat box");
 ```
+
+顺序正确时，游戏自己的 UI **没有延迟**：打开聊天框的下一帧 `FixedUpdate` 就已经被挡住。只有调试覆盖层会晚一帧，因为它的标志来自 `ImGui::NewFrame()` 之后。
 
 三个标志的粒度不同，用途也不同：
 
