@@ -30,11 +30,13 @@ auto JobDebugger::OnDrawOverlay() -> void {
     const auto running = sys.IsRunning();
     const auto worker_count = sys.WorkerCount();
     const auto stats = sys.Stats();
+    // Fetched once here: the running count doubles as the "active workers"
+    // figure, so an idle scheduler reads as idle instead of looking busy.
+    const auto running_jobs = sys.GetRunningJobs();
 
-    ImGui::Text("Workers: %zu", worker_count);
-    ImGui::SameLine();
     ImGui::TextColored(running ? ImVec4{0.3f, 1.0f, 0.4f, 1.0f} : ImVec4{1.0f, 0.4f, 0.4f, 1.0f},
-                      running ? "running" : "stopped");
+                      running ? "Scheduler: running" : "Scheduler: stopped");
+    ImGui::Text("Workers: %zu (active: %zu)", worker_count, running_jobs.size());
 
     ImGui::Separator();
 
@@ -115,7 +117,6 @@ auto JobDebugger::OnDrawOverlay() -> void {
     ImGui::Separator();
 
     // --- Currently running jobs (name, or raw pointer address as fallback) ---
-    const auto running_jobs = sys.GetRunningJobs();
     ImGui::Text("Running (%zu):", running_jobs.size());
     if (running_jobs.empty()) {
         ImGui::TextDisabled("  (idle)");
