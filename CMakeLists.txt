@@ -451,7 +451,7 @@ endif()
         Media/Video/Video.hpp
     )
     target_include_directories(Atom_Media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Media PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_Runtime Atom_Log Atom_UTF8 Atom_3rd_TagLib)
+    target_link_libraries(Atom_Media PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_Runtime Atom_Concurrency Atom_Log Atom_UTF8 Atom_3rd_TagLib)
 
 # 7. UTF-8 encoding utilities
 add_library(Atom_UTF8 STATIC

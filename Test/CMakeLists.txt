@@ -213,6 +213,14 @@ atom_add_test(Atom_Media.MusicPlayer
     Media/MusicPlayerTest.cpp
     Atom_Media Atom_FS)
 
+# Batch metadata reads: input-order results + sequential fallback when the job
+# system is not running. Links Atom_Concurrency explicitly because the test
+# drives the scheduler's Start/Shutdown to exercise both code paths.
+atom_add_test(Atom_Media.AudioMetadataReader
+    Atom_Media_AudioMetadataReader_Tests
+    Media/AudioMetadataReaderTest.cpp
+    Atom_Media Atom_Concurrency Atom_FS)
+
 atom_add_test(Atom_Media.Image.ColorStatistics
     Atom_Media_Image_ColorStatistics_Tests
     Media/ColorStatisticsTest.cpp

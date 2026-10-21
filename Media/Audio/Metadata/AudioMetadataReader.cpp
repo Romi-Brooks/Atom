@@ -19,6 +19,7 @@
 #include <tiostream.h>
 #include <tvariant.h>
 
+#include <Concurrency/JobSystem.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
 
@@ -179,6 +180,53 @@ auto AudioMetadataReader::Read(const std::string& path) -> std::optional<AudioMe
         return std::nullopt;
     }
     return Read(atom::fs::Vfs::GetInstance(), *asset_path);
+}
+
+auto AudioMetadataReader::ReadBatch(const atom::fs::IFileSystem& filesystem,
+                                    const std::vector<atom::fs::AssetPath>& paths)
+    -> std::vector<std::optional<AudioMetadata>> {
+    std::vector<std::optional<AudioMetadata>> results(paths.size());
+
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    if (!jobs.IsRunning()) {
+        // 调度器未启动：退化为顺序读取，保证调用方永远正确。
+        for (std::size_t i = 0; i < paths.size(); ++i) {
+            results[i] = Read(filesystem, paths[i]);
+        }
+        return results;
+    }
+
+    // 每个文件一个 job：Read 各自 open 独立 IFile（VFS 只读挂载表 + 逐文件句柄），
+    // 互不共享可变状态，可安全并发。写入 results[i] 的索引互不相同，无数据竞争。
+    std::vector<atom::job::JobHandle> handles;
+    handles.reserve(paths.size());
+    for (std::size_t i = 0; i < paths.size(); ++i) {
+        const atom::fs::AssetPath path = paths[i];
+        handles.push_back(jobs.Schedule("audio:metadata", [&filesystem, &results, i, path] {
+            results[i] = Read(filesystem, path);
+        }));
+    }
+    jobs.WaitAll(handles);
+    return results;
+}
+
+auto AudioMetadataReader::ReadBatch(const std::vector<std::string>& paths)
+    -> std::vector<std::optional<AudioMetadata>> {
+    // 先顺序解析字符串（解析很廉价，无需并行）；无效路径置默认空 AssetPath，
+    // 下游 Read 会因 InvalidPath 返回 nullopt，结果顺序仍与输入一致。
+    std::vector<atom::fs::AssetPath> asset_paths;
+    asset_paths.reserve(paths.size());
+    for (const std::string& path : paths) {
+        auto parsed = atom::fs::AssetPath::Parse(path);
+        if (!parsed) {
+            LOG_WARNING(atom::log::audio::Metadata,
+                        "Invalid asset path '" + path + "': " + parsed.error().Message());
+            asset_paths.emplace_back();
+        } else {
+            asset_paths.push_back(*parsed);
+        }
+    }
+    return ReadBatch(atom::fs::Vfs::GetInstance(), asset_paths);
 }
 
 } // namespace atom::audio

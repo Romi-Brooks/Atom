@@ -60,6 +60,23 @@ class AudioMetadataReader {
         // "res://music/song.mp3") and resolves it through the process-wide default
         // Vfs (atom::fs::Vfs::GetInstance()).
         static auto Read(const std::string& path) -> std::optional<AudioMetadata>;
+
+        // Reads metadata for many files in parallel through the engine job
+        // system: one job per path, results returned in input order (nullopt when
+        // a file cannot be read). Blocks until all reads finish (the calling
+        // thread helps run pending jobs rather than idling).
+        //
+        // Requires the job system to be running (atom::job::JobSystem::GetInstance()
+        // .Start()). When it is not running, this falls back to sequential reads,
+        // so callers never need to reason about scheduler state.
+        static auto ReadBatch(const atom::fs::IFileSystem& filesystem,
+                              const std::vector<atom::fs::AssetPath>& paths)
+            -> std::vector<std::optional<AudioMetadata>>;
+
+        // Convenience overload: parses each string and resolves through the
+        // default Vfs, mirroring Read(std::string).
+        static auto ReadBatch(const std::vector<std::string>& paths)
+            -> std::vector<std::optional<AudioMetadata>>;
 };
 
 } // namespace atom::audio
