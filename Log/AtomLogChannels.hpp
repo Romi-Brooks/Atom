@@ -77,7 +77,9 @@ ATOM_DEFINE_CHANNELS(atom::log::concurrency, Channel, "Atom.Concurrency.", (JobS
 //   WARNING —— 被拒绝的非法输入（零质量 dynamic、非法关节、销毁未归属的
 //              刚体/关节、非有限重力、非法 Step 参数——非法 Step 参数只告警一次）
 //   ERROR   —— 契约级灾难（后端创建 world 失败，由调用方处理）
-//   DEBUG   —— 细粒度诊断（逐刚体创建/销毁、休眠/唤醒切换）
+//   DEBUG   —— 细粒度诊断（逐刚体/关节创建与销毁）。休眠/唤醒切换曾打
+//              DEBUG，但堆叠场景下每帧成片触发、纯噪声，已移除：休眠是
+//              正常运行状态而非异常，不值得占日志带宽。
 ATOM_DEFINE_CHANNELS(atom::log::physics, Channel, "Atom.Physics.",
                      (World, "World"), (Body, "Body"), (Backend, "Backend"))
 

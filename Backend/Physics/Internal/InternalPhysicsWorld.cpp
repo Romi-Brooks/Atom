@@ -49,11 +49,6 @@ constexpr float kSleepTimeThreshold = 0.5f;
     return "unknown";
 }
 
-// 刚体的稳定标识（其内部 RigidBody 地址），仅用于低频日志关联同一刚体。
-[[nodiscard]] inline auto BodyTag(const RigidBody& body) -> std::string {
-    return std::to_string(reinterpret_cast<std::uintptr_t>(&body));
-}
-
 } // namespace
 
 InternalPhysicsWorld::InternalPhysicsWorld(const float broad_phase_cell_size) : broad_phase_(broad_phase_cell_size) {
@@ -350,7 +345,6 @@ auto InternalPhysicsWorld::WakeOnJoints() -> void {
             if (rb.type == BodyType::Dynamic && rb.asleep) {
                 rb.asleep = false;
                 rb.sleep_timer = 0.0f;
-                LOG_DEBUG(atom::log::physics::Body, "Body woken by joint #" + BodyTag(rb));
             }
         };
         if (pulls(*j.a)) {
@@ -379,7 +373,6 @@ auto InternalPhysicsWorld::WakeOnContact(RigidBody& a, RigidBody& b, const Conta
         if (is_new || moving) {
             sleeping.asleep = false;
             sleeping.sleep_timer = 0.0f;
-            LOG_DEBUG(atom::log::physics::Body, "Body woken by contact #" + BodyTag(sleeping));
         }
     };
 
@@ -407,7 +400,6 @@ auto InternalPhysicsWorld::UpdateSleepState(const float delta_time) -> void {
                 rb.asleep = true;
                 rb.linear_velocity = algo::Vec2::Zero();
                 rb.angular_velocity = 0.0f;
-                LOG_DEBUG(atom::log::physics::Body, "Body fell asleep #" + BodyTag(rb));
             }
         } else {
             rb.sleep_timer = 0.0f;
