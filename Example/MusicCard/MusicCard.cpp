@@ -26,7 +26,7 @@
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Debugger/LogDebugger.hpp>
 #include <Debugger/Overlay.hpp>
-#include <Debugger/JobSystemDebugger.hpp>
+#include <Debugger/JobDebugger.hpp>
 #include <Debugger/FpsDebugger.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Media/Audio/AudioBackend.hpp>
@@ -157,7 +157,7 @@ auto main(int argc, char** argv) -> int {
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    atom::debugger::JobSystemDebugger job_panel{};
+    atom::debugger::JobDebugger job_panel{};
     job_panel.Attach(window);
 
     atom::debugger::FpsDebugger fps_panel{};

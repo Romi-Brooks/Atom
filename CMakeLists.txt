@@ -570,8 +570,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Debugger/PanelLayout.hpp
             Debugger/PanelLayout.cpp
             Debugger/Overlay.hpp
-            Debugger/JobSystemDebugger.hpp
-            Debugger/JobSystemDebugger.cpp
+            Debugger/JobDebugger.hpp
+            Debugger/JobDebugger.cpp
             Debugger/FpsDebugger.hpp
             Debugger/FpsDebugger.cpp
     )

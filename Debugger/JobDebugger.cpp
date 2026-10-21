@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Romi Brooks
 // SPDX-License-Identifier: MIT
 
-#include "JobSystemDebugger.hpp"
+#include "JobDebugger.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -21,7 +21,7 @@ constexpr double kCurveWindowSeconds = 10.0;
 
 } // namespace
 
-auto JobSystemDebugger::OnDrawOverlay() -> void {
+auto JobDebugger::OnDrawOverlay() -> void {
     ImGui::Begin("Job System");
 
     ImGui::Checkbox("Pause", &pause_);

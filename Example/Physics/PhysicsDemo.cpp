@@ -34,7 +34,7 @@
 #include <Backend/Physics/Internal/InternalPhysicsBackend.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Debugger/FpsDebugger.hpp>
-#include <Debugger/JobSystemDebugger.hpp>
+#include <Debugger/JobDebugger.hpp>
 #include <Debugger/LogDebugger.hpp>
 #include <Input/InputSystem.hpp>
 #include <Input/Key.hpp>
@@ -327,12 +327,12 @@ auto main() -> int {
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    atom::debugger::JobSystemDebugger job_panel{};
+    atom::debugger::JobDebugger job_panel{};
     job_panel.Attach(window);
 
     // 物理模块当前是同步执行的：InternalPhysicsWorld::Step 直接在调用线程
     // （这里即渲染主线程）跑，尚未把宽/窄相位或求解拆到 JobSystem 上。这里
-    // 启动调度器只是为了让 JobSystemDebugger 显示一个存活的调度器；将来并行化
+    // 启动调度器只是为了让 JobDebugger 显示一个存活的调度器；将来并行化
     // 后该面板即可实时反映物理作业的吞吐。
     auto& jobs = atom::job::JobSystem::GetInstance();
     if (!jobs.IsRunning()) {
