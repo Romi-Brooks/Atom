@@ -232,6 +232,13 @@ atom_add_test(Atom_Media.Image.ImageDecoder
     Media/ImageDecoderTest.cpp
     Atom_Image Atom_Log)
 
+# Batch image decode: input-order results + sequential fallback when the job
+# system is not running (mirrors Atom_Media.AudioMetadataReader).
+atom_add_test(Atom_Media.Image.ImageBatchDecoder
+    Atom_Media_Image_ImageBatchDecoder_Tests
+    Media/ImageBatchDecoderTest.cpp
+    Atom_Image Atom_Concurrency Atom_FS)
+
 atom_add_test(Atom_Layout.LayoutTree
     Atom_Layout_LayoutTree_Tests
     Layout/LayoutTreeTest.cpp

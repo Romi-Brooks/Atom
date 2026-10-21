@@ -519,10 +519,12 @@ add_library(Atom_Image STATIC
         Media/Image/Analysis/ColorStatistics.cpp
     Media/Image/DecodedImageLoader.hpp
     Media/Image/DecodedImageLoader.cpp
+    Media/Image/ImageBatchDecoder.hpp
+    Media/Image/ImageBatchDecoder.cpp
 )
 target_include_directories(Atom_Image PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(Atom_Image PUBLIC Atom_Color Atom_Assets)
-target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
+target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
 
 # 8. Packager
     add_library(Atom_Packager STATIC
