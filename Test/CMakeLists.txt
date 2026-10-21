@@ -47,6 +47,13 @@ atom_add_test(Atom_Assets.ResourceManager
     Asset/ResourceManagerTest.cpp
     Atom_Assets)
 
+# Batch acquire: input-order results, failure isolation, duplicate-id dedupe,
+# and sequential fallback when the job system is not running.
+atom_add_test(Atom_Assets.ResourceManagerBatch
+    Atom_Assets_ResourceManagerBatch_Tests
+    Asset/ResourceManagerBatchTest.cpp
+    Atom_Assets Atom_Concurrency Atom_FS)
+
 atom_add_test(Atom_Assets.ConsumerLoader
     Atom_Assets_ConsumerLoader_Tests
     Asset/ConsumerLoaderTest.cpp

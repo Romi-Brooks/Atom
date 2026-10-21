@@ -12,6 +12,7 @@
 #include <typeindex>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <Asset/IResourceLoader.hpp>
 #include <Asset/ResourceHandle.hpp>
@@ -77,6 +78,52 @@ class ResourceManager final {
             return ResourceHandle<T>{std::move(*record)};
         }
 
+        // Batch acquire: loads many resources in one call, spreading the
+        // expensive per-file work (I/O + decode) across the job system while
+        // keeping cache insertion single-threaded. Results are returned in
+        // input order; each slot is an independent Result so one failure never
+        // masks its neighbours. Falls back to sequential loads when the job
+        // system is not running.
+        template <typename T> [[nodiscard]] auto TryAcquireBatch(const std::vector<ResourceId>& ids)
+            -> std::vector<Result<ResourceHandle<T>>> {
+            auto records = AcquireRecords(ids);
+            std::vector<Result<ResourceHandle<T>>> results;
+            results.reserve(records.size());
+            for (auto& record : records) {
+                if (!record.has_value()) {
+                    results.push_back(std::unexpected<Error>{std::move(record.error())});
+                    continue;
+                }
+                auto& resolved = *record;
+                if (resolved->type != std::type_index(typeid(T))) {
+                    results.push_back(std::unexpected<Error>{
+                        ToError(AssetResult::TypeMismatch, resolved->id, "TryAcquireBatch")
+                            .WithDetail(std::string{"requested type does not match the registered loader"})});
+                    continue;
+                }
+                results.push_back(ResourceHandle<T>{std::move(resolved)});
+            }
+            return results;
+        }
+
+        // Convenience batch form mirroring Acquire: an invalid handle means the
+        // corresponding slot failed (or type-mismatched), with the reason already
+        // reported through Log. Use TryAcquireBatch() to branch on the reason.
+        template <typename T> [[nodiscard]] auto AcquireBatch(const std::vector<ResourceId>& ids)
+            -> std::vector<ResourceHandle<T>> {
+            auto records = AcquireRecords(ids);
+            std::vector<ResourceHandle<T>> handles;
+            handles.reserve(records.size());
+            for (auto& record : records) {
+                if (!record.has_value() || (*record)->type != std::type_index(typeid(T))) {
+                    handles.emplace_back();
+                    continue;
+                }
+                handles.emplace_back(std::move(*record));
+            }
+            return handles;
+        }
+
         // Drops the cache entry. Live handles keep the resource alive.
         [[nodiscard]] auto Evict(const ResourceId& id) -> bool;
         auto EvictAll() -> void;
@@ -96,6 +143,20 @@ class ResourceManager final {
         // produces exactly one diagnostic carrying the resource and the reason.
         [[nodiscard]] auto AcquireRecord(const ResourceId& id)
             -> Result<std::shared_ptr<detail::ResourceRecord>>;
+
+        // Shared core of the batch entry points. Loads in parallel through the
+        // job system (one job per unique resource) and inserts into the cache on
+        // the calling thread, so cache_ is never mutated concurrently. Results
+        // are in input order; duplicate ids share one load.
+        [[nodiscard]] auto AcquireRecords(const std::vector<ResourceId>& ids)
+            -> std::vector<Result<std::shared_ptr<detail::ResourceRecord>>>;
+
+        // Wraps a loaded resource into a record and caches it. Single-threaded:
+        // only ever called on the thread that owns the manager.
+        [[nodiscard]] auto InsertRecord(const ResourceId& id, const std::shared_ptr<IResourceLoader>& loader,
+                                        std::shared_ptr<void> resource)
+            -> std::shared_ptr<detail::ResourceRecord>;
+
         auto SweepExpired() -> void;
 
         const fs::IFileSystem* filesystem_ = nullptr;

@@ -507,6 +507,9 @@ target_include_directories(Atom_Assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Atom_Log is needed because a failed acquire reports itself exactly once, at
 # the site that knows the operation and the resource (CORE-004).
 target_link_libraries(Atom_Assets PUBLIC Atom_FS Atom_Log)
+# Batch acquire spreads the per-file load (I/O + decode) across the job system,
+# so ResourceManager depends on the scheduler (implementation detail, not API).
+target_link_libraries(Atom_Assets PRIVATE Atom_Concurrency)
 # AudioClipResourceLoader (kind=Audio) lives in Atom_Media and extends
 # atom::asset::TypedResourceLoader, mirroring DecodedImageLoader in Atom_Image.
 target_link_libraries(Atom_Media PUBLIC Atom_Assets)
