@@ -218,6 +218,44 @@ endif()
     target_include_directories(Atom_Layout PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Layout PRIVATE Atom_3rd_Yoga Atom_Log)
 
+# 2c. Physics — collision shapes, mass properties, and the replaceable-backend
+#     contract. M1 ships pure shape/mass math + the IPhysics* contract; the
+#     Internal solver and world land in later phases (see Docs/Physics-Plan-CN.md).
+    add_library(Atom_Physics STATIC
+        Physics/Shapes/Material.hpp
+        Physics/Shapes/MassProperties.hpp
+        Physics/Shapes/Shape.hpp
+        Physics/Shapes/Shape.cpp
+        Physics/Dynamics/RigidBody.hpp
+        Physics/Dynamics/RigidBody.cpp
+        Physics/Collision/BroadPhase.hpp
+        Physics/Collision/BroadPhase.cpp
+        Physics/Collision/Contact.hpp
+        Physics/Collision/NarrowPhase.hpp
+        Physics/Collision/NarrowPhase.cpp
+        Physics/Solver/ContactSolver.hpp
+        Physics/Solver/ContactSolver.cpp
+        Physics/Solver/RevoluteJoint.hpp
+        Physics/Solver/RevoluteJoint.cpp
+        Physics/PhysicsWorld/FixedStepper.hpp
+        Backend/Contracts/Physics/PhysicsTypes.hpp
+        Backend/Contracts/Physics/IPhysicsBody.hpp
+        Backend/Contracts/Physics/IPhysicsWorld.hpp
+        Backend/Contracts/Physics/IPhysicsJoint.hpp
+        Backend/Contracts/Physics/IPhysicsBackend.hpp
+        Backend/Contracts/Physics/PhysicsBackendId.hpp
+        Backend/Physics/Internal/InternalPhysicsBody.hpp
+        Backend/Physics/Internal/InternalPhysicsBody.cpp
+        Backend/Physics/Internal/InternalPhysicsWorld.hpp
+        Backend/Physics/Internal/InternalPhysicsWorld.cpp
+        Backend/Physics/Internal/InternalRevoluteJoint.hpp
+        Backend/Physics/Internal/InternalRevoluteJoint.cpp
+        Backend/Physics/Internal/InternalPhysicsBackend.hpp
+        Backend/Physics/Internal/InternalPhysicsBackend.cpp
+    )
+    target_include_directories(Atom_Physics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Physics PUBLIC Atom_Algorithm Atom_Error Atom_Log)
+
 # 3. SDL3 Core
     add_library(Atom_Backend_SDL3_Core STATIC
         Backend/SDL3/Core/SDLRuntime.cpp
@@ -534,6 +572,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log)
             Debugger/Overlay.hpp
             Debugger/JobSystemDebugger.hpp
             Debugger/JobSystemDebugger.cpp
+            Debugger/FpsDebugger.hpp
+            Debugger/FpsDebugger.cpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     if(ATOM_ENABLE_DEBUGGER STREQUAL "ON")
@@ -668,6 +708,15 @@ target_compile_definitions(Example_Input_Demo PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_Input_Demo Atom_Shaders)
 
+# Physics demo — interactive Renderer2D visualization of the Internal physics
+# backend: gravity, stacking, a pendulum, a revolute chain, and click-to-spawn.
+add_executable(Example_Physics_Demo Example/Physics/PhysicsDemo.cpp)
+target_link_libraries(Example_Physics_Demo PRIVATE
+    Atom_Physics Atom_Window Atom_Renderer2D Atom_Debugger)
+target_compile_definitions(Example_Physics_Demo PRIVATE
+    ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
+add_dependencies(Example_Physics_Demo Atom_Shaders)
+
 # ECS tour — a headless console walk through the entity/component store, ending in
 # a real integration loop. Console rather than windowed on purpose: the ECS is pure
 # storage, so the module can be exercised without a GPU, and this example doubles as
@@ -737,7 +786,7 @@ if(MINGW)
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
                                 Example_MusicCard Example_Lua_Scripting Example_Job_System_Tour
-                                Example_Input_Demo Example_ECS_Tour
+                                Example_Input_Demo Example_ECS_Tour Example_Physics_Demo
                                Atom_Tool_Packager
                                Atom_Tool_PackagerGui)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)

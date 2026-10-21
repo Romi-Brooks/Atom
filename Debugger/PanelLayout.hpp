@@ -14,6 +14,7 @@ namespace atom::debugger {
 auto ApplyPanelSlot(float pos_x, float pos_y, float size_w, float size_h) -> void;
 auto ApplyLogPanelSlot() -> void;
 auto ApplyStatusPanelSlot() -> void;
+auto ApplyFpsPanelSlot() -> void;
 
 } // namespace atom::debugger
 

@@ -13,6 +13,7 @@
 #include <Window/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
+#include <Debugger/FpsDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -32,8 +33,6 @@ class ExamplePanel final : public atom::debugger::DebugPanel {
                 slot_applied_ = true;
             }
             ImGui::Begin("Example Debugger");
-            ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-            ImGui::Separator();
             ImGui::Text("Press ESC to exit");
             // Built-in log-deugger
             if (auto* log_panel = atom::debugger::LogDebugger::Get()) {
@@ -127,6 +126,10 @@ auto main() -> int {
     // Attach the Built-in Log Debugger to the window scoped (globally)
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
+
+    // Attach the shared FPS debugger (replaces the ad-hoc FPS text).
+    atom::debugger::FpsDebugger fps_panel{};
+    fps_panel.Attach(window);
 
     // Main loop
     window.Run();

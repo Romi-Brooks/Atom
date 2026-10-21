@@ -26,6 +26,7 @@
 #include <Window/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
+#include <Debugger/FpsDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -59,9 +60,6 @@ class PackedMusicDebugger final : public atom::debugger::DebugPanel {
     protected:
         auto OnDrawOverlay() -> void override {
             ImGui::Begin("Packed Music Player");
-
-            ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-            ImGui::Separator();
 
             ImGui::TextUnformatted(pack_path_.c_str());
             ImGui::TextUnformatted(pack_status_.c_str());
@@ -253,6 +251,9 @@ auto main() -> int {
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
+
+    atom::debugger::FpsDebugger fps_panel{};
+    fps_panel.Attach(window);
 
     PackedMusicDebugger debugger{music, entries, pack_path, pack_status};
     debugger.Attach(window);

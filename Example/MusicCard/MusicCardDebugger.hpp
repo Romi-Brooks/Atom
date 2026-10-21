@@ -28,7 +28,6 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
     protected:
         auto OnDrawOverlay() -> void override {
             ImGui::Begin("Music Card Debugger");
-            ImGui::Text("FPS: %.1f", static_cast<double>(ImGui::GetIO().Framerate));
             ImGui::Text("VSync: %s", atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off");
             if (!reported_frame_pacing_ && ImGui::GetIO().Framerate > 0.0f) {
                 LOG_INFO(atom::log::core::Window,

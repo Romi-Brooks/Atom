@@ -25,4 +25,13 @@ auto ApplyStatusPanelSlot() -> void {
     ApplyPanelSlot(16.0f, 16.0f, 320.0f, 180.0f);
 }
 
+auto ApplyFpsPanelSlot() -> void {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float width = viewport ? viewport->WorkSize.x : 1280.0f;
+    const float margin = 16.0f;
+    const float panel_width = 340.0f;
+    const float panel_height = 200.0f;
+    ApplyPanelSlot(width - panel_width - margin, margin, panel_width, panel_height);
+}
+
 } // namespace atom::debugger

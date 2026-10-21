@@ -127,6 +127,52 @@ atom_add_test(Atom_ECS.EntityWorld
     ECS/EntityWorldTest.cpp
     Atom_ECS)
 
+# --- Physics (shapes + mass properties) ---
+atom_add_test(Atom_Physics.Shapes
+    Atom_Physics_Shapes_Tests
+    Physics/ShapeTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.RigidBody
+    Atom_Physics_RigidBody_Tests
+    Physics/RigidBodyTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.BroadPhase
+    Atom_Physics_BroadPhase_Tests
+    Physics/BroadPhaseTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.InternalWorld
+    Atom_Physics_InternalWorld_Tests
+    Physics/InternalWorldTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.NarrowPhase
+    Atom_Physics_NarrowPhase_Tests
+    Physics/NarrowPhaseTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.ContactSolver
+    Atom_Physics_ContactSolver_Tests
+    Physics/ContactSolverTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.PhysicsWorld
+    Atom_Physics_PhysicsWorld_Tests
+    Physics/PhysicsWorldTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.RevoluteJoint
+    Atom_Physics_RevoluteJoint_Tests
+    Physics/RevoluteJointTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.Integration
+    Atom_Physics_Integration_Tests
+    Physics/PhysicsIntegrationTest.cpp
+    Atom_Physics)
+
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry
     Atom_Backend_Extension_AudioDecoderRegistry_Tests

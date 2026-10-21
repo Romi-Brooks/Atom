@@ -27,6 +27,7 @@
 #include <Debugger/LogDebugger.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/JobSystemDebugger.hpp>
+#include <Debugger/FpsDebugger.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
@@ -158,6 +159,9 @@ auto main(int argc, char** argv) -> int {
 
     atom::debugger::JobSystemDebugger job_panel{};
     job_panel.Attach(window);
+
+    atom::debugger::FpsDebugger fps_panel{};
+    fps_panel.Attach(window);
 
     MusicCardDebugger debugger{*music_card_screen};
     debugger.Attach(window);

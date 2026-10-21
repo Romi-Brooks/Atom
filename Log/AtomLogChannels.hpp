@@ -70,4 +70,15 @@ ATOM_DEFINE_CHANNELS(atom::log::utilities, Channel, "Atom.Utilities.", (Packager
 // Level-2
 ATOM_DEFINE_CHANNELS(atom::log::concurrency, Channel, "Atom.Concurrency.", (JobSystem, "JobSystem"))
 
+// Level-2
+// 物理模块日志。物理是高频计算，日志按级别收敛到「低频」边界，绝不在
+// Step/接触/求解/逐刚体逐迭代的热路径打日志：
+//   INFO    —— 生命周期与配置（world 创建/销毁、SetGravity、休眠开关）
+//   WARNING —— 被拒绝的非法输入（零质量 dynamic、非法关节、销毁未归属的
+//              刚体/关节、非有限重力、非法 Step 参数——非法 Step 参数只告警一次）
+//   ERROR   —— 契约级灾难（后端创建 world 失败，由调用方处理）
+//   DEBUG   —— 细粒度诊断（逐刚体创建/销毁、休眠/唤醒切换）
+ATOM_DEFINE_CHANNELS(atom::log::physics, Channel, "Atom.Physics.",
+                     (World, "World"), (Body, "Body"), (Backend, "Backend"))
+
 #endif // ATOM_ATOMLOGCHANNELS_HPP
