@@ -23,6 +23,7 @@ class SDL3Window final : public window::IWindow {
         ~SDL3Window() override;
         auto Initialize(const std::string& title, algo::Vec2 resolution) -> bool override;
         auto Shutdown() -> void override;
+        auto RequestClose() -> void override;
         [[nodiscard]] auto IsOpen() const -> bool override;
         [[nodiscard]] auto PollEvent() -> std::optional<window::IEvent> override;
         auto SetFPS(uint32_t fps) -> void override;

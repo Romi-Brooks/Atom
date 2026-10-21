@@ -183,6 +183,10 @@ class RenderWindow {
         [[nodiscard]] auto IsVSyncEnabled() const -> bool;
         [[nodiscard]] auto IsOpen() const -> bool;
         auto Shutdown() -> void;
+        // Requests the window to close without releasing resources. Screens use
+        // this to exit from event handling; teardown happens once in Run()'s
+        // Shutdown(), so a screen is never destroyed on its own stack.
+        auto RequestClose() -> void;
 
         // Window name (the title passed to Initialize). Used by debugger logs.
         [[nodiscard]] auto GetName() const -> const std::string&;

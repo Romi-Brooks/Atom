@@ -98,6 +98,12 @@ class ScreenManager {
         // registration and every handle disappear together.
         auto UnloadScreen(const std::string& name) -> ScreenOpResult;
 
+        // Drops every screen (current, stack, and registry). Called by the
+        // render window before it shuts the backend down, so screens holding GPU
+        // resources are destroyed deterministically while the device is still
+        // alive — static singleton destruction order cannot be relied on here.
+        auto ClearScreens() -> void;
+
         // Non-owning access to a registered screen. The pointer stays valid for
         // as long as the manager keeps that registration; it is *invalidated* by
         // UnloadScreen(name) and by LoadScreen(name, ..., Replace), both of which

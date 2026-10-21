@@ -66,7 +66,7 @@ class ProbeScreen final : public atom::Screen {
                 return false;
             if (std::get<atom::window::KeyEvent>(event.data).key != atom::input::Key::Escape)
                 return false;
-            atom::RenderWindow::GetInstance().Shutdown();
+            atom::RenderWindow::GetInstance().RequestClose();
             return true;
         }
 };

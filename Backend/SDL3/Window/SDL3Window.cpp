@@ -279,6 +279,14 @@ auto SDL3Window::Shutdown() -> void {
     events_runtime_.Reset();
     video_runtime_.Reset();
 }
+
+auto SDL3Window::RequestClose() -> void {
+    // Only mark the window closed; the OS window and device association are
+    // released later by Shutdown() (device first, window second), so a screen
+    // can safely request exit from inside its own event callback.
+    open_ = false;
+}
+
 auto SDL3Window::IsOpen() const -> bool {
     return open_;
 }

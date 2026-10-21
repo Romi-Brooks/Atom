@@ -257,11 +257,23 @@ auto RenderWindow::Shutdown() -> void {
             entry.fn();
         }
     }
+    // Release every screen before the render backend: screens hold GPU
+    // resources (e.g. Renderer2D textures/samplers) that must be freed while
+    // the device is still alive. ScreenManager is a separate singleton whose
+    // static destruction runs *after* RenderWindow's, so relying on static
+    // order would destroy screens after the device was already gone.
+    atom::ScreenManager::GetInstance().ClearScreens();
     if (backend_) {
         backend_->Shutdown();
     }
     atom::time::TimeSystem::GetInstance().Shutdown();
     pending_resize_.reset();
+}
+
+auto RenderWindow::RequestClose() -> void {
+    if (backend_) {
+        backend_->Window().RequestClose();
+    }
 }
 
 // ── Listener registry ───────────────────────────────────────────────

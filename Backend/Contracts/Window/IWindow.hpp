@@ -66,6 +66,11 @@ class IWindow {
         virtual ~IWindow() = default;
         virtual auto Initialize(const std::string& title, algo::Vec2 resolution) -> bool = 0;
         virtual auto Shutdown() -> void = 0;
+        // Requests the window to close: only marks IsOpen() false, releasing no
+        // resources. Screens call this from event handling to request exit; the
+        // actual teardown happens later in Run()'s Shutdown(), so a screen never
+        // destroys itself from inside its own event callback.
+        virtual auto RequestClose() -> void = 0;
         [[nodiscard]] virtual auto IsOpen() const -> bool = 0;
         [[nodiscard]] virtual auto PollEvent() -> std::optional<IEvent> = 0;
         virtual auto SetFPS(uint32_t fps) -> void = 0;

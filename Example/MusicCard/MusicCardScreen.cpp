@@ -395,7 +395,7 @@ auto MusicCardScreen::HandleEvent(const atom::window::IEvent& event) -> bool {
             return false;
         switch (*action) {
         case MusicCardAction::Quit:
-            atom::RenderWindow::GetInstance().Shutdown();
+            atom::RenderWindow::GetInstance().RequestClose();
             return true;
         case MusicCardAction::Previous:
             Previous();

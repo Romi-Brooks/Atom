@@ -185,7 +185,7 @@ class InputDemoScreen final : public atom::Screen {
 
             if (input.IsActionPressed(actions_, Action::Quit)) {
                 LOG_INFO(atom::log::core::Screen, "Input demo: quit action (Escape)");
-                atom::RenderWindow::GetInstance().Shutdown();
+                atom::RenderWindow::GetInstance().RequestClose();
                 return;
             }
             if (input.IsActionPressed(actions_, Action::TogglePause)) {
