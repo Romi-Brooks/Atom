@@ -756,6 +756,10 @@ target_link_libraries(Example_MusicCard PRIVATE
 target_compile_definitions(Example_MusicCard PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_MusicCard Atom_Shaders)
+# Resource telemetry reads the process working set via the Win32 PSAPI.
+if(WIN32)
+    target_link_libraries(Example_MusicCard PRIVATE psapi)
+endif()
 
 # CORE-002 acceptance example — a box moved by the per-frame InputSystem, plus
 # an overlay that prints the raw state. Proves the main loop feeds the input

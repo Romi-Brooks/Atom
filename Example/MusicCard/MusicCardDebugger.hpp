@@ -31,7 +31,7 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
             ImGui::Text("VSync: %s", atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off");
             if (!reported_frame_pacing_ && ImGui::GetIO().Framerate > 0.0f) {
                 LOG_INFO(atom::log::core::Window,
-                         "Music card frame pacing: " + std::to_string(ImGui::GetIO().Framerate) + " FPS, VSync " +
+                         "Music card debugger frame pacing: " + std::to_string(ImGui::GetIO().Framerate) + " FPS, VSync " +
                              (atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off"));
                 reported_frame_pacing_ = true;
             }
@@ -49,26 +49,6 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
                 atom::audio::SetAudioBackend(atom::backend::AudioBackendId::Sdl3Mixer);
             }
 
-            if (ImGui::Button("Previous")) {
-                screen_.Previous();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Play")) {
-                screen_.Play();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Stop")) {
-                screen_.Stop();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Next")) {
-                screen_.Next();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button(screen_.IsPlaying() ? "Pause" : "Resume")) {
-                screen_.TogglePlayback();
-            }
-
             if (ImGui::Button("Switch corner")) {
                 screen_.ToggleCorner();
             }
@@ -82,23 +62,20 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
             ImGui::Text("Position: %s", screen_.GetCornerName().data());
             ImGui::Text("Playback: %s", screen_.IsPlaying() ? "playing" : "stopped");
 
-            // Seek / progress. The card only displays and forwards values; both the
-            // position and the duration come from MusicPlayer, and the capability
-            // query keeps the slider disabled for decoders that cannot seek.
-            const auto now_playing = screen_.GetNowPlayingId();
-            if (!now_playing.empty()) {
-                const auto duration = screen_.GetPlaybackDuration(now_playing);
-                auto position = screen_.GetPlaybackPosition(now_playing);
-                if (duration > 0.0f)
-                    ImGui::Text("Time: %.1f / %.1f s", static_cast<double>(position), static_cast<double>(duration));
+            // Read-only playback readout. Seeking and track switching are the
+            // application's job now (the bottom-centre seek bar and the on-card
+            // Previous/Next buttons); this panel never drives them. The values
+            // come from the screen's throttled playback cache, not a live
+            // audio-stream query, so this costs nothing per frame.
+            const auto& playback = screen_.GetPlaybackInfo();
+            if (!playback.id.empty()) {
+                if (playback.duration > 0.0f)
+                    ImGui::Text("Time: %.1f / %.1f s", static_cast<double>(playback.position),
+                                static_cast<double>(playback.duration));
                 else
-                    ImGui::Text("Time: %.1f s (duration unknown)", static_cast<double>(position));
-                if (screen_.CanSeek(now_playing)) {
-                    const auto slider_max = duration > 0.0f ? duration : position + 1.0f;
-                    if (ImGui::SliderFloat("Seek", &position, 0.0f, slider_max, "%.1f s"))
-                        screen_.Seek(now_playing, position);
-                }
+                    ImGui::Text("Time: %.1f s (duration unknown)", static_cast<double>(playback.position));
             }
+
             if (screen_.HasTracks()) {
                 const auto track = screen_.GetCurrentDisplay();
                 ImGui::Text("Title: %s", track.title.c_str());

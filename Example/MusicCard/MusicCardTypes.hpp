@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -79,6 +80,11 @@ struct Track {
     bool is_loaded = false;
     std::string artwork_mime_type;
     std::vector<uint8_t> artwork_data;
+    // One worker-produced thumbnail feeds both theme extraction and GPU upload.
+    // Protected by MusicCardScreen::tracks_mutex_.
+    std::shared_ptr<const atom::image::DecodedImage> artwork_image;
+    bool artwork_decode_requested = false;
+    std::uint64_t artwork_revision = 0;
 };
 
 enum class CardCorner { BottomLeft, TopRight };
@@ -97,22 +103,20 @@ enum class AnimationState { Entering, Visible, Exiting, Hidden };
 }
 
 // Atom's TextureCache owns GPU textures with last-handle + frame-boundary
-// reclaim. This sample wrapper only supplies MusicCard-specific diagnostics
-// and treats an empty result as the procedural-cover fallback.
+// reclaim. The image has already been decoded and analysed on a worker; the
+// render thread only creates a small texture and queues its upload.
 [[nodiscard]] inline auto LoadArtworkTexture(atom::render::resources::TextureCache& cache, const std::string& cache_key,
-                                             const std::vector<uint8_t>& encoded_image)
+                                             const atom::image::DecodedImage& image)
     -> atom::render::resources::TextureHandle {
-    if (encoded_image.empty()) {
-        LOG_DEBUG(atom::log::audio::Metadata, "No embedded artwork bytes; using the generated cover fallback");
+    if (!image.IsValid()) {
+        LOG_DEBUG(atom::log::audio::Metadata, "No decoded embedded artwork; using the generated cover fallback");
         return {};
     }
-    const auto bytes = std::as_bytes(std::span{encoded_image});
-    auto handle = cache.AcquireFromEncodedMemory(cache_key, bytes);
+    auto handle = cache.AcquireFromDecodedImage(cache_key, image);
     if (handle) {
-        LOG_INFO(atom::log::audio::Metadata, "Decoded embedded artwork into a cached Renderer2D texture (" +
+        LOG_INFO(atom::log::audio::Metadata, "Queued decoded embedded artwork for Renderer2D upload (" +
                                                  std::to_string(handle.GetWidth()) + "x" +
-                                                 std::to_string(handle.GetHeight()) +
-                                                 ", bytes=" + std::to_string(encoded_image.size()) + ")");
+                                                 std::to_string(handle.GetHeight()) + ")");
     } else {
         LOG_ERROR(atom::log::audio::Metadata, "Failed to create Renderer2D texture for decoded artwork");
     }
