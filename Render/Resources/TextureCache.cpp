@@ -55,6 +55,20 @@ auto TextureCache::AcquireFromEncodedMemory(const std::string_view cache_key, co
     return AcquireDecoded(key, image::DecodeImageMemory(encoded));
 }
 
+auto TextureCache::AcquireFromDecodedImage(const std::string_view cache_key, const image::DecodedImage& decoded)
+    -> TextureHandle {
+    if (!renderer_ || cache_key.empty() || !decoded.IsValid())
+        return {};
+
+    const std::string key{cache_key};
+    if (const auto it = cache_.find(key); it != cache_.end()) {
+        if (auto existing = it->second.lock())
+            return TextureHandle{std::move(existing)};
+        cache_.erase(it);
+    }
+    return AcquireDecoded(key, decoded);
+}
+
 auto TextureCache::AcquireDecoded(const std::string_view cache_key, const image::DecodedImage& decoded)
     -> TextureHandle {
     if (!decoded.IsValid())

@@ -144,6 +144,16 @@ auto main() -> int {
         return atom::test::Fail("Renderer2D failed to initialize on the stub device");
     auto live_cache = std::make_unique<atom::render::resources::TextureCache>(*live_renderer);
 
+    // A worker may hand the cache a shared CPU-side decode directly. This is
+    // the path used by streaming UI artwork: it must not require a second
+    // DecodeImageMemory pass on the render thread.
+    const auto decoded_cover = atom::image::DecodeImageMemory(TinyPng());
+    ATOM_CHECK(decoded_cover.IsValid());
+    auto decoded_handle = live_cache->AcquireFromDecodedImage("decoded-cover", decoded_cover);
+    ATOM_CHECK(decoded_handle.IsValid());
+    ATOM_CHECK(decoded_handle.GetWidth() == 1);
+    ATOM_CHECK(decoded_handle.GetHeight() == 1);
+
     auto handle = live_cache->AcquireFromEncodedMemory("cover", TinyPng());
     if (!handle.IsValid() || handle.Get() == nullptr)
         return atom::test::Fail("Cached texture handle is not valid after Acquire");
@@ -153,10 +163,11 @@ auto main() -> int {
     live_renderer->Shutdown();
     ATOM_CHECK(!handle.IsValid());
     ATOM_CHECK(handle.Get() == nullptr);
-    // The white fallback texture and the cached cover were both handed back.
-    ATOM_CHECK(device.DestroyedTextures() == 2);
+    // The white fallback texture and both cached covers were handed back.
+    ATOM_CHECK(device.DestroyedTextures() == 3);
 
     // Dropping the stale handle and its cache must be a safe no-op.
+    decoded_handle = {};
     handle = {};
     live_cache.reset();
 
