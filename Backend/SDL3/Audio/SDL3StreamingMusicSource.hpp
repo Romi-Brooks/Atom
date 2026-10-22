@@ -59,6 +59,13 @@ class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
         // Debug progress log cadence: one line per ~5 s of audio submitted,
         // regardless of wall-clock timing.
         static constexpr double progress_log_interval_seconds = 5.0;
+        // Decode-error policy: instead of dying on the first damaged frame,
+        // seek past the broken region and keep playing (players like PotPlayer
+        // do the same). Each resync skips resync_skip_seconds of audio; after
+        // resync_attempts_limit skips the file is considered too damaged and
+        // playback stops with the normal decode-error path.
+        static constexpr std::uint32_t resync_attempts_limit = 8;
+        static constexpr double resync_skip_seconds = 1.0;
 
         SDL_AudioStream* stream_ = nullptr;
         SDL_AudioSpec spec_{};
@@ -80,6 +87,9 @@ class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
         std::atomic<bool> thread_running_{false};
         std::atomic<bool> eof_{false};
         std::atomic<bool> decode_error_{false};
+        // Decode-error resyncs used by the current decoding run. Written only
+        // by the decode thread; reset wherever the run restarts.
+        std::uint32_t resync_attempts_ = 0;
 
         // Wakes the decode thread out of its throttle wait so Stop()/Pause()/seek
         // can join it without waiting out a full sleep interval. The producer is
@@ -105,6 +115,11 @@ class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
         // not allocated by the constructor.
         auto EnsureRingBuffer() -> bool;
         auto DecodeLoop() -> void;
+        // Decode-error recovery: seeks the decoder past the damaged region
+        // (bounded by resync_attempts_limit) and keeps the current run going.
+        // Falls back to decode_error_ when the limit is exhausted or the
+        // decoder cannot seek. Called on the decode thread only.
+        auto TryResyncAfterDecodeError() -> void;
         // Stops the producer thread and drops everything buffered, leaving the
         // decoder untouched at its current position.
         auto HaltDecoding() -> void;

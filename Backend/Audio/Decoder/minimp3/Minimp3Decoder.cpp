@@ -232,9 +232,13 @@ auto Minimp3Decoder::DecodeChunk(uint8_t* output, const uint32_t max_bytes) -> u
         mp3dec_ex_read(&impl_->dec, reinterpret_cast<mp3d_sample_t*>(scratch_.data()), requested_samples);
     if (decoded_samples == 0) {
         if (impl_->dec.last_error != 0) {
+            // Report the error but keep the decoder open: mp3dec_ex_seek()
+            // clears last_error, so the playback layer can either resync past
+            // the damaged region or Rewind() for a clean replay. Closing here
+            // used to brick the track — every later Play() saw a closed
+            // decoder and refused to start.
             LOG_ERROR(atom::log::audio::Minimp3,
                       "Minimp3: decode error (error " + std::to_string(impl_->dec.last_error) + "): " + current_path_);
-            Close(); // lets the source distinguish this from a normal EOF
         }
         return 0;
     }
@@ -285,6 +289,13 @@ auto Minimp3Decoder::GetInfo() const -> const atom::audio::DecoderInfo& {
 
 auto Minimp3Decoder::IsOpen() const -> bool {
     return impl_->mem.data != nullptr || impl_->file.file != nullptr;
+}
+
+auto Minimp3Decoder::HasDecodeError() const -> bool {
+    // mp3dec_ex_read_frame() parks the stream in an error state until a seek
+    // resets it, so a non-zero last_error means "the next reads return 0
+    // because of a failure", never "clean EOF".
+    return IsOpen() && impl_->dec.last_error != 0;
 }
 
 } // namespace atom::backend::audio_decoder

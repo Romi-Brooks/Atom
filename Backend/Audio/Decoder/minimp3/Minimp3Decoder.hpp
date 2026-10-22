@@ -40,6 +40,7 @@ class Minimp3Decoder final : public atom::audio::IAudioDecoder {
         auto SeekToFrame(std::uint64_t frame) -> bool override;
         [[nodiscard]] auto GetInfo() const -> const atom::audio::DecoderInfo& override;
         [[nodiscard]] auto IsOpen() const -> bool override;
+        [[nodiscard]] auto HasDecodeError() const -> bool override;
 
     private:
         // Holds the C mp3dec_ex_t state; defined in the .cpp so this header never

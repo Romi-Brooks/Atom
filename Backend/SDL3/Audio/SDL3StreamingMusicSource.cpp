@@ -170,6 +170,7 @@ auto SDL3StreamingMusicSource::HaltDecoding() -> void {
     write_idx_ = 0;
     frames_submitted_ = 0;
     progress_logged_frames_ = 0;
+    resync_attempts_ = 0;
     eof_ = false;
     decode_error_ = false;
     decoder_positioned_ = false;
@@ -184,6 +185,7 @@ auto SDL3StreamingMusicSource::BeginDecoding() -> bool {
     write_idx_ = 0;
     frames_submitted_ = 0;
     progress_logged_frames_ = 0;
+    resync_attempts_ = 0;
     eof_ = false;
     decode_error_ = false;
     state_ = atom::audio::AudioSourceState::Playing;
@@ -339,6 +341,40 @@ auto SDL3StreamingMusicSource::IsFinished() const -> bool {
            state_.load() == atom::audio::AudioSourceState::Stopped && ReadableBytes() == 0;
 }
 
+auto SDL3StreamingMusicSource::TryResyncAfterDecodeError() -> void {
+    const auto& info = decoder_->GetInfo();
+    const auto bytes_per_frame = SDL_AUDIO_BYTESIZE(spec_.format) * spec_.channels;
+    // The failure happened somewhere between the last frame handed to SDL and
+    // the tail still sitting in the ring buffer: everything in the buffer was
+    // decoded before the error, so the bad frame is right after it.
+    const auto buffered_frames = bytes_per_frame > 0 ? ReadableBytes() / bytes_per_frame : 0;
+    const auto error_frame = position_base_frames_.load() + frames_submitted_.load() + buffered_frames;
+    const auto target =
+        error_frame + static_cast<std::uint64_t>(resync_skip_seconds * static_cast<double>(info.sample_rate));
+
+    if (resync_attempts_ >= resync_attempts_limit || info.sample_rate == 0 || !decoder_->IsSeekable() ||
+        !decoder_->SeekToFrame(target)) {
+        decode_error_ = true;
+        return;
+    }
+
+    ++resync_attempts_;
+    // The decode thread is the only ring-buffer writer, so dropping the
+    // buffered pre-error bytes here is safe. frames_submitted_ restarts from
+    // the new base so GetPlayingOffset() keeps reporting an absolute position
+    // (small drift while SDL drains its pre-resync queue is acceptable).
+    read_idx_ = 0;
+    write_idx_ = 0;
+    frames_submitted_ = 0;
+    progress_logged_frames_ = 0;
+    position_base_frames_ = target;
+    eof_ = false;
+    LOG_WARNING(atom::log::audio::Music,
+                "Decode error at frame " + std::to_string(error_frame) + "; resynced to frame " +
+                    std::to_string(target) + " (attempt " + std::to_string(resync_attempts_) + "/" +
+                    std::to_string(resync_attempts_limit) + ")");
+}
+
 auto SDL3StreamingMusicSource::DecodeLoop() -> void {
     atom::concurrency::ThreadRegistry::ScopedRegistration registration{"AudioDecode"};
     SDL_SetAudioStreamGain(stream_, volume_.load() / 100.0f);
@@ -378,6 +414,8 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                     if (!decoder_->IsOpen()) {
                         decode_error_ = true;
                         LOG_ERROR(atom::log::backend::Audio::sdl3, "Decoder error in DecodeLoop");
+                    } else if (decoder_->HasDecodeError()) {
+                        TryResyncAfterDecodeError();
                     } else {
                         eof_ = true;
                         LOG_DEBUG(atom::log::backend::Audio::sdl3, "Decoder EOF reached");

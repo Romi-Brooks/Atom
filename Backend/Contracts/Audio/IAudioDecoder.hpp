@@ -128,6 +128,16 @@ class IAudioDecoder {
 
         // Check if a file is open.
         [[nodiscard]] virtual auto IsOpen() const -> bool = 0;
+
+        // True when the last DecodeChunk() failed on corrupt/unreadable data
+        // (as opposed to a clean EOF, which also returns 0 bytes). The decoder
+        // must stay open after an error so the playback layer can decide the
+        // policy: resync past the damaged region, or stop and let a later
+        // Rewind() retry. Streaming sources use this to tell a decode failure
+        // apart from the end of the stream.
+        [[nodiscard]] virtual auto HasDecodeError() const -> bool {
+            return false;
+        }
 };
 
 } // namespace atom::audio
