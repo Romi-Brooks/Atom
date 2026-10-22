@@ -135,6 +135,16 @@ endif()
     target_include_directories(Atom_Time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Time PUBLIC Atom_Backend_Contracts)
 
+# 0c-bis. ThreadRegistry — process-wide registry of long-lived threads for
+#     diagnostics (which thread is alive, which one burns the most CPU). A leaf
+#     module with no dependency on Log or Concurrency, so Log's own writer
+#     thread can register without a cycle.
+    add_library(Atom_Threading STATIC
+        Concurrency/ThreadRegistry.hpp
+        Concurrency/ThreadRegistry.cpp
+    )
+    target_include_directories(Atom_Threading PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 # 0d. Concurrency — work-stealing job scheduler over a fixed worker pool.
 #     Standalone foundation with no dependency on Log/Time/backend; every
 #     subsystem (audio decode, asset loading, physics, AI) can schedule work
@@ -146,6 +156,7 @@ endif()
         Concurrency/JobSystem.cpp
     )
     target_include_directories(Atom_Concurrency PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Concurrency PUBLIC Atom_Threading)
 
 # 1. Log
     add_library(Atom_Log STATIC
@@ -155,7 +166,7 @@ endif()
             Log/AtomLogChannels.hpp
     )
     target_include_directories(Atom_Log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Log PUBLIC Atom_Backend_Contracts)
+    target_link_libraries(Atom_Log PUBLIC Atom_Backend_Contracts Atom_Threading)
 
     # The job scheduler logs lifecycle + swallowed-exception diagnostics, so it
     # depends on the log runtime. PUBLIC so any JobSystem consumer (e.g. the
@@ -584,10 +595,26 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
     target_link_libraries(Atom_Runtime PUBLIC Atom_Window Atom_Time Atom_Log)
 
 # 11. Debugger
-    # Debug overlay follows NDEBUG by default (on in Debug, off in Release).
-    # Force either way with -DATOM_ENABLE_DEBUGGER=ON/OFF (or ATOM_ENABLE_DEBUGGER=0/1).
-    set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow NDEBUG), ON, or OFF")
+    # Debug overlay build switch. AUTO (default) follows the build type:
+    # enabled in Debug, stripped in Release/MinSizeRel. Force either way with
+    # -DATOM_ENABLE_DEBUGGER=ON (e.g. to ship a Release build that still shows
+    # the debug overlay, or a future profiler built on the same panels) or
+    # =OFF. The resolved value is propagated as an explicit 0/1 macro so no
+    # translation unit relies on the header-side NDEBUG heuristic.
+    set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow build type), ON, or OFF")
     set_property(CACHE ATOM_ENABLE_DEBUGGER PROPERTY STRINGS AUTO ON OFF)
+
+    set(_atom_debugger_enabled OFF)
+    if(ATOM_ENABLE_DEBUGGER STREQUAL "ON")
+        set(_atom_debugger_enabled ON)
+    elseif(ATOM_ENABLE_DEBUGGER STREQUAL "AUTO")
+        # Single-config Ninja builds set CMAKE_BUILD_TYPE; the header fallback in
+        # DebuggerConfig.hpp still covers non-CMake or multi-config consumers.
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+            set(_atom_debugger_enabled ON)
+        endif()
+    endif()
+
     add_library(Atom_Debugger STATIC
             Debugger/DebugPanel.hpp
             Debugger/DebugPanel.cpp
@@ -602,17 +629,14 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Debugger/OverlayManager.cpp
             Debugger/JobDebugger.hpp
             Debugger/JobDebugger.cpp
+            Debugger/ThreadDebugger.hpp
+            Debugger/ThreadDebugger.cpp
             Debugger/FpsDebugger.hpp
             Debugger/FpsDebugger.cpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    if(ATOM_ENABLE_DEBUGGER STREQUAL "ON")
-        target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=1)
-        target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=1)
-    elseif(ATOM_ENABLE_DEBUGGER STREQUAL "OFF")
-        target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=0)
-        target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=0)
-    endif()
+    target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=$<BOOL:${_atom_debugger_enabled}>)
+    target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=$<BOOL:${_atom_debugger_enabled}>)
     target_link_libraries(Atom_Debugger PUBLIC Atom_Runtime Atom_3rd_ImGui_SDL3 Atom_Concurrency)
     target_link_libraries(Atom_Debugger PRIVATE Atom_Backend_SDLGPU_Debug)
     if(WIN32)

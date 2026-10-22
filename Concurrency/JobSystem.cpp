@@ -9,6 +9,7 @@
 #include <cassert>
 #include <chrono>
 
+#include <Concurrency/ThreadRegistry.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::job {
@@ -336,6 +337,8 @@ auto JobSystem::TryPopPool(std::shared_ptr<Job>& out) -> bool {
 
 auto JobSystem::WorkerLoop(const std::size_t worker_index, std::stop_token stop) -> void {
     g_worker_index = static_cast<std::ptrdiff_t>(worker_index);
+    atom::concurrency::ThreadRegistry::ScopedRegistration registration{
+        "JobWorker-" + std::to_string(worker_index)};
     while (!stop.stop_requested() && running_.load(std::memory_order_acquire)) {
         if (RunOne(worker_index)) {
             continue; // ran a job; try again immediately (drains local LIFO)

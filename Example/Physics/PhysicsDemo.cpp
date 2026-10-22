@@ -18,6 +18,8 @@
  *   Esc       退出
  */
 
+#include "Debugger/ThreadDebugger.hpp"
+
 #include <array>
 #include <cstddef>
 #include <memory>
@@ -331,6 +333,9 @@ auto main() -> int {
 
     atom::debugger::JobDebugger job_panel{};
     job_panel.Attach(window);
+
+    atom::debugger::ThreadDebugger thread_panel{};
+    thread_panel.Attach(window);
 
     // 物理模块当前是同步执行的：InternalPhysicsWorld::Step 直接在调用线程
     // （这里即渲染主线程）跑，尚未把宽/窄相位或求解拆到 JobSystem 上。这里
