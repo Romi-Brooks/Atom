@@ -10,6 +10,8 @@
 #ifndef ATOM_BACKEND_SDL3_WINDOW_HPP
 #define ATOM_BACKEND_SDL3_WINDOW_HPP
 
+#include <limits>
+
 #include <SDL3/SDL.h>
 
 #include <Backend/Contracts/Time/ITimeSource.hpp>

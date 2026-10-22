@@ -1,6 +1,6 @@
 set(ATOM_VULKAN_SDK_ROOT "$ENV{VULKAN_SDK}" CACHE PATH
     "Optional Vulkan SDK root used as a shader-tool search hint")
-set(ATOM_DXC_ROOT "" CACHE PATH
+set(ATOM_DXC_ROOT "$ENV{DXC_ROOT}" CACHE PATH
     "Optional Microsoft DirectX Shader Compiler root used as a search hint")
 
 if(WIN32)
