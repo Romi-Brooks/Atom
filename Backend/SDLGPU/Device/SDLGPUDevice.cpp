@@ -78,14 +78,28 @@ auto SDLGPUDevice::Initialize(SDL_Window* window) -> bool {
 }
 
 auto SDLGPUDevice::Shutdown() -> void {
-    if (command_buffer_) {
-        if (swapchain_texture_)
-            SDL_SubmitGPUCommandBuffer(command_buffer_);
+    // Cancel any unsubmitted command buffer; present the one that owns a
+    // swapchain texture so the window's last acquired image is returned.
+    for (auto& frame : frames_) {
+        if (!frame.command_buffer)
+            continue;
+        if (frame.swapchain_texture)
+            SDL_SubmitGPUCommandBuffer(frame.command_buffer);
         else
-            SDL_CancelGPUCommandBuffer(command_buffer_);
-        command_buffer_ = nullptr;
+            SDL_CancelGPUCommandBuffer(frame.command_buffer);
+        frame.command_buffer = nullptr;
+        frame.swapchain_texture = nullptr;
     }
-    swapchain_texture_ = nullptr;
+    // Wait out every in-flight fence so no resource is released under the GPU.
+    for (auto& frame : frames_) {
+        if (frame.fence) {
+            if (device_)
+                SDL_WaitForGPUFences(device_, true, &frame.fence, 1);
+            if (frame.fence)
+                SDL_ReleaseGPUFence(device_, frame.fence);
+            frame.fence = nullptr;
+        }
+    }
     Release2DResources();
     if (device_ && window_)
         SDL_ReleaseWindowFromGPUDevice(device_, window_);
@@ -100,32 +114,85 @@ auto SDLGPUDevice::BeginFrame() -> bool {
         LOG_WARNING(atom::log::backend::sdl3::Render, "SDL_GPU BeginFrame called before initialization");
         return false;
     }
-    if (command_buffer_) {
+    auto& frame = CurrentFrame();
+    if (frame.command_buffer) {
         LOG_WARNING(atom::log::backend::sdl3::Render, "SDL_GPU BeginFrame called while another frame is active");
         return false;
     }
-    command_buffer_ = SDL_AcquireGPUCommandBuffer(device_);
-    if (!command_buffer_) {
+
+    // This context was last used two frames ago. Wait for its fence so its
+    // persistent staging buffers, geometry buffers and pending transfers can be
+    // reused without racing the GPU.
+    if (frame.fence) {
+        SDL_WaitForGPUFences(device_, true, &frame.fence, 1);
+        SDL_ReleaseGPUFence(device_, frame.fence);
+        frame.fence = nullptr;
+        for (auto* transfer : frame.pending_transfers) {
+            if (transfer)
+                SDL_ReleaseGPUTransferBuffer(device_, transfer);
+        }
+        frame.pending_transfers.clear();
+    }
+
+    frame.command_buffer = SDL_AcquireGPUCommandBuffer(device_);
+    if (!frame.command_buffer) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_AcquireGPUCommandBuffer failed: " + std::string{SDL_GetError()});
         return false;
     }
-    if (!SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer_, window_, &swapchain_texture_, &frame_width_,
-                                               &frame_height_)) {
+    if (!SDL_WaitAndAcquireGPUSwapchainTexture(frame.command_buffer, window_, &frame.swapchain_texture,
+                                               &frame.swap_width, &frame.swap_height)) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Failed to acquire SDL_GPU swapchain: " + std::string{SDL_GetError()});
-        SDL_CancelGPUCommandBuffer(command_buffer_);
-        command_buffer_ = nullptr;
+        SDL_CancelGPUCommandBuffer(frame.command_buffer);
+        frame.command_buffer = nullptr;
         return false;
     }
-    if (!swapchain_texture_) {
-        SDL_SubmitGPUCommandBuffer(command_buffer_);
-        command_buffer_ = nullptr;
+    if (!frame.swapchain_texture) {
+        SDL_SubmitGPUCommandBuffer(frame.command_buffer);
+        frame.command_buffer = nullptr;
         return false;
     }
-    frame_encoded_ = false;
-    postprocess_target_encoded_ = false;
+    frame.encoded = false;
+    frame.postprocess_encoded = false;
+    frame.upload_cursor = 0;
     return true;
+}
+
+auto SDLGPUDevice::AcquireUploadBuffer(const uint32_t min_bytes) -> SDL_GPUTransferBuffer* {
+    if (!device_ || min_bytes == 0)
+        return nullptr;
+    auto& frame = CurrentFrame();
+
+    // Reuse a pool slot if it already exists and is large enough.
+    if (frame.upload_cursor < frame.upload_pool.size()) {
+        auto& slot = frame.upload_pool[frame.upload_cursor];
+        if (slot.buffer && slot.capacity >= min_bytes) {
+            ++frame.upload_cursor;
+            return slot.buffer;
+        }
+        // The slot exists but is too small: replace it with a larger buffer.
+        if (slot.buffer) {
+            SDL_ReleaseGPUTransferBuffer(device_, slot.buffer);
+            slot.buffer = nullptr;
+            slot.capacity = 0;
+        }
+    }
+
+    SDL_GPUTransferBufferCreateInfo info{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, min_bytes, 0};
+    auto* buffer = SDL_CreateGPUTransferBuffer(device_, &info);
+    if (!buffer)
+        return nullptr;
+
+    if (frame.upload_cursor < frame.upload_pool.size()) {
+        auto& slot = frame.upload_pool[frame.upload_cursor];
+        slot.buffer = buffer;
+        slot.capacity = min_bytes;
+    } else {
+        frame.upload_pool.push_back(SDLGPUUploadBufferEntry{buffer, min_bytes});
+    }
+    ++frame.upload_cursor;
+    return buffer;
 }
 
 auto SDLGPUDevice::Clear(const render::Color& color) -> void {
@@ -133,41 +200,39 @@ auto SDLGPUDevice::Clear(const render::Color& color) -> void {
 }
 
 auto SDLGPUDevice::EndFrame() -> void {
-    if (!command_buffer_)
+    auto& frame = CurrentFrame();
+    if (!frame.command_buffer)
         return;
-    if (!swapchain_texture_) {
-        SDL_CancelGPUCommandBuffer(command_buffer_);
-        command_buffer_ = nullptr;
+    if (!frame.swapchain_texture) {
+        SDL_CancelGPUCommandBuffer(frame.command_buffer);
+        frame.command_buffer = nullptr;
         return;
     }
-    if (!frame_encoded_) {
+    if (!frame.encoded) {
         SDL_GPUColorTargetInfo target{};
-        target.texture = swapchain_texture_;
+        target.texture = frame.swapchain_texture;
         target.clear_color = {clear_color_.r / 255.0f, clear_color_.g / 255.0f, clear_color_.b / 255.0f,
                               clear_color_.a / 255.0f};
         target.load_op = SDL_GPU_LOADOP_CLEAR;
         target.store_op = SDL_GPU_STOREOP_STORE;
-        if (auto* pass = SDL_BeginGPURenderPass(command_buffer_, &target, 1, nullptr)) {
+        if (auto* pass = SDL_BeginGPURenderPass(frame.command_buffer, &target, 1, nullptr)) {
             SDL_EndGPURenderPass(pass);
         } else {
             LOG_ERROR(atom::log::backend::sdl3::Render,
                       "SDL_BeginGPURenderPass failed: " + std::string{SDL_GetError()});
         }
     }
-    if (!SDL_SubmitGPUCommandBuffer(command_buffer_))
+    // Submit and capture a fence: the next time this context is reused, its
+    // fence is waited out before any of its persistent resources are touched.
+    frame.fence = SDL_SubmitGPUCommandBufferAndAcquireFence(frame.command_buffer);
+    if (!frame.fence)
         LOG_ERROR(atom::log::backend::sdl3::Render,
-                  "SDL_SubmitGPUCommandBuffer failed: " + std::string{SDL_GetError()});
-    command_buffer_ = nullptr;
-    swapchain_texture_ = nullptr;
-    // The frame's command buffer has been submitted: transfer buffers that
-    // were recorded into it may now be released.
-    if (device_) {
-        for (auto* transfer : pending_transfers_2d_) {
-            if (transfer)
-                SDL_ReleaseGPUTransferBuffer(device_, transfer);
-        }
-    }
-    pending_transfers_2d_.clear();
+                  "SDL_SubmitGPUCommandBufferAndAcquireFence failed: " + std::string{SDL_GetError()});
+    frame.command_buffer = nullptr;
+    frame.swapchain_texture = nullptr;
+    // Advance to the next in-flight context. Its pending transfers stay alive
+    // until its fence completes (they are released at the top of BeginFrame).
+    frame_index_ = (frame_index_ + 1) % kMaxFramesInFlight;
 }
 
 auto SDLGPUDevice::HandleResize(const uint32_t width, const uint32_t height) -> void {
@@ -211,8 +276,9 @@ auto SDLGPUDevice::IsVSyncEnabled() const -> bool {
     return vsync_enabled_;
 }
 auto SDLGPUDevice::GetOutputSize() const -> algo::Vec2 {
-    if (frame_width_ != 0 && frame_height_ != 0)
-        return {static_cast<float>(frame_width_), static_cast<float>(frame_height_)};
+    const auto& frame = CurrentFrame();
+    if (frame.swap_width != 0 && frame.swap_height != 0)
+        return {static_cast<float>(frame.swap_width), static_cast<float>(frame.swap_height)};
     int width = 0, height = 0;
     if (window_)
         SDL_GetWindowSizeInPixels(window_, &width, &height);
@@ -225,13 +291,13 @@ auto SDLGPUDevice::GetNativeDevice() const -> SDL_GPUDevice* {
     return device_;
 }
 auto SDLGPUDevice::GetNativeCommandBuffer() const -> SDL_GPUCommandBuffer* {
-    return command_buffer_;
+    return CurrentFrame().command_buffer;
 }
 auto SDLGPUDevice::GetNativeSwapchainTexture() const -> SDL_GPUTexture* {
-    return swapchain_texture_;
+    return CurrentFrame().swapchain_texture;
 }
 auto SDLGPUDevice::MarkFrameEncoded() -> void {
-    frame_encoded_ = true;
+    CurrentFrame().encoded = true;
 }
 
 } // namespace atom::backend::sdlgpu

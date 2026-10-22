@@ -81,21 +81,23 @@ auto SDLGPUDevice::SetPostProcess2D(const render::PostProcess2DParams& params) -
 }
 
 auto SDLGPUDevice::ResolvePostProcess2D() -> bool {
-    if (postprocess_params_.effect == render::PostProcess2DEffect::None || !postprocess_target_encoded_)
+    auto& frame = CurrentFrame();
+    if (postprocess_params_.effect == render::PostProcess2DEffect::None || !frame.postprocess_encoded)
         return true;
-    if (!EncodePostProcess(postprocess_texture_, postprocess_width_, postprocess_height_)) {
+    if (!EncodePostProcess(frame.postprocess_texture, frame.postprocess_width, frame.postprocess_height)) {
         LOG_ERROR(atom::log::backend::sdl3::Render, "Renderer2D post-process pass failed");
         return false;
     }
-    frame_encoded_ = true;
+    frame.encoded = true;
     return true;
 }
 
 auto SDLGPUDevice::EnsurePostProcessTarget(const uint32_t width, const uint32_t height) -> bool {
-    if (postprocess_texture_ && postprocess_width_ == width && postprocess_height_ == height)
+    auto& frame = CurrentFrame();
+    if (frame.postprocess_texture && frame.postprocess_width == width && frame.postprocess_height == height)
         return true;
-    if (postprocess_texture_)
-        SDL_ReleaseGPUTexture(device_, postprocess_texture_);
+    if (frame.postprocess_texture)
+        SDL_ReleaseGPUTexture(device_, frame.postprocess_texture);
     SDL_GPUTextureCreateInfo targetInfo{SDL_GPU_TEXTURETYPE_2D,
                                         static_cast<SDL_GPUTextureFormat>(info_.swapchain_format),
                                         SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
@@ -105,19 +107,20 @@ auto SDLGPUDevice::EnsurePostProcessTarget(const uint32_t width, const uint32_t 
                                         1,
                                         SDL_GPU_SAMPLECOUNT_1,
                                         0};
-    postprocess_texture_ = SDL_CreateGPUTexture(device_, &targetInfo);
-    if (!postprocess_texture_) {
-        postprocess_width_ = postprocess_height_ = 0;
+    frame.postprocess_texture = SDL_CreateGPUTexture(device_, &targetInfo);
+    if (!frame.postprocess_texture) {
+        frame.postprocess_width = frame.postprocess_height = 0;
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Failed to create Renderer2D post-process target: " + std::string{SDL_GetError()});
         return false;
     }
-    postprocess_width_ = width;
-    postprocess_height_ = height;
+    frame.postprocess_width = width;
+    frame.postprocess_height = height;
     return true;
 }
 
 auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t width, const uint32_t height) -> bool {
+    auto& frame = CurrentFrame();
     SDL_GPUGraphicsPipeline* pipeline = nullptr;
     switch (postprocess_params_.effect) {
     case render::PostProcess2DEffect::ChromaticAberration:
@@ -132,16 +135,16 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
     case render::PostProcess2DEffect::None:
         return true;
     }
-    if (!pipeline || !source || !swapchain_texture_ || samplers_2d_.empty())
+    if (!pipeline || !source || !frame.swapchain_texture || samplers_2d_.empty())
         return false;
     const auto sampler = samplers_2d_.begin()->second;
     SDL_GPUColorTargetInfo target{};
-    target.texture = swapchain_texture_;
-    target.load_op = frame_encoded_ ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
+    target.texture = frame.swapchain_texture;
+    target.load_op = frame.encoded ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
     target.clear_color = {clear_color_.r / 255.0f, clear_color_.g / 255.0f, clear_color_.b / 255.0f,
                           clear_color_.a / 255.0f};
     target.store_op = SDL_GPU_STOREOP_STORE;
-    auto* pass = SDL_BeginGPURenderPass(command_buffer_, &target, 1, nullptr);
+    auto* pass = SDL_BeginGPURenderPass(frame.command_buffer, &target, 1, nullptr);
     if (!pass)
         return false;
     SDL_GPUViewport viewport{0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f};
@@ -205,7 +208,7 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
         blur.region_y = static_cast<float>(postprocess_params_.region.y) / static_cast<float>(height);
         blur.region_w = static_cast<float>(postprocess_params_.region.width) / static_cast<float>(width);
         blur.region_h = static_cast<float>(postprocess_params_.region.height) / static_cast<float>(height);
-        SDL_PushGPUFragmentUniformData(command_buffer_, 0, &blur, sizeof(blur));
+        SDL_PushGPUFragmentUniformData(frame.command_buffer, 0, &blur, sizeof(blur));
         SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
         SDL_EndGPURenderPass(pass);
         return true;
@@ -225,7 +228,7 @@ auto SDLGPUDevice::EncodePostProcess(SDL_GPUTexture* source, const uint32_t widt
     params.corner_radius = postprocess_params_.corner_radius;
     params.feather = postprocess_params_.feather;
     params.unused0 = postprocess_params_.has_region ? 1.0f : 0.0f; // uMask.z: mask enabled
-    SDL_PushGPUFragmentUniformData(command_buffer_, 0, &params, sizeof(params));
+    SDL_PushGPUFragmentUniformData(frame.command_buffer, 0, &params, sizeof(params));
     SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
     SDL_EndGPURenderPass(pass);
     return true;
@@ -273,13 +276,14 @@ auto SDLGPUDevice::UpdateTexture2D(const render::Texture2D texture, const void* 
 auto SDLGPUDevice::UpdateTexture2DRegion(const render::Texture2D texture, const uint32_t x, const uint32_t y,
                                          const uint32_t width, const uint32_t height, const void* pixels,
                                          const uint32_t source_pitch_bytes) -> bool {
+    auto& frame = CurrentFrame();
     const auto it = textures_2d_.find(texture);
     if (it == textures_2d_.end() || !pixels) {
         LOG_WARNING(atom::log::backend::sdl3::Render,
                     "UpdateTexture2D rejected an invalid handle or null pixel buffer");
         return false;
     }
-    if (!command_buffer_) {
+    if (!frame.command_buffer) {
         LOG_WARNING(atom::log::backend::sdl3::Render, "UpdateTexture2D requires an active GPU frame");
         return false;
     }
@@ -330,7 +334,7 @@ auto SDLGPUDevice::UpdateTexture2DRegion(const render::Texture2D texture, const 
         std::memcpy(mapped + row * rowBytes, src + row * sourceStride, rowBytes);
     SDL_UnmapGPUTransferBuffer(device_, transfer);
 
-    auto* copy = SDL_BeginGPUCopyPass(command_buffer_);
+    auto* copy = SDL_BeginGPUCopyPass(frame.command_buffer);
     if (!copy) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "SDL_BeginGPUCopyPass failed during texture upload: " + std::string{SDL_GetError()});
@@ -350,8 +354,8 @@ auto SDLGPUDevice::UpdateTexture2DRegion(const render::Texture2D texture, const 
     }
     SDL_EndGPUCopyPass(copy);
     // The transfer is still referenced by the open command buffer; release it
-    // only after EndFrame() submits (see pending_transfers_2d_).
-    pending_transfers_2d_.push_back(transfer);
+    // once this frame's fence completes (see FrameContext::pending_transfers).
+    frame.pending_transfers.push_back(transfer);
     return true;
 }
 
@@ -397,7 +401,8 @@ auto SDLGPUDevice::DestroySampler2D(const render::Sampler2D sampler) -> void {
 }
 
 auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
-    if (!device_ || !command_buffer_ || !swapchain_texture_)
+    auto& ctx = CurrentFrame();
+    if (!device_ || !ctx.command_buffer || !ctx.swapchain_texture)
         return false;
     if (!pipeline_2d_ && !Initialize2D(shader_root_2d_))
         return false;
@@ -449,42 +454,44 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
         LOG_WARNING(atom::log::backend::sdl3::Render,
                     "Requested Renderer2D post-process effect is unavailable; using direct swapchain rendering");
     }
-    const bool postProcessActive = usePostProcess && selectedPipelineAvailable && postprocess_texture_;
+    const bool postProcessActive = usePostProcess && selectedPipelineAvailable && ctx.postprocess_texture;
 
     const uint32_t vertexBytes = frame.vertex_count * static_cast<uint32_t>(vertex_stride);
     const uint32_t indexBytes = static_cast<uint32_t>(frame.index_count) * sizeof(uint32_t);
 
     // Resize the GPU vertex/index buffers when the batch outgrows them.
-    if (vertex_capacity_2d_ < frame.vertex_count) {
-        if (vertex_buffer_2d_) {
-            SDL_ReleaseGPUBuffer(device_, vertex_buffer_2d_);
-            vertex_buffer_2d_ = nullptr;
+    if (ctx.vertex_capacity < frame.vertex_count) {
+        if (ctx.vertex_buffer) {
+            SDL_ReleaseGPUBuffer(device_, ctx.vertex_buffer);
+            ctx.vertex_buffer = nullptr;
         }
         SDL_GPUBufferCreateInfo info{SDL_GPU_BUFFERUSAGE_VERTEX, vertexBytes, 0};
-        vertex_buffer_2d_ = SDL_CreateGPUBuffer(device_, &info);
-        vertex_capacity_2d_ = vertex_buffer_2d_ ? frame.vertex_count : 0;
+        ctx.vertex_buffer = SDL_CreateGPUBuffer(device_, &info);
+        ctx.vertex_capacity = ctx.vertex_buffer ? frame.vertex_count : 0;
         LOG_DEBUG(atom::log::backend::sdl3::Render,
-                  "Renderer2D vertex capacity resized to " + std::to_string(vertex_capacity_2d_));
+                  "Renderer2D vertex capacity resized to " + std::to_string(ctx.vertex_capacity));
     }
-    if (index_capacity_2d_ < frame.index_count) {
-        if (index_buffer_2d_) {
-            SDL_ReleaseGPUBuffer(device_, index_buffer_2d_);
-            index_buffer_2d_ = nullptr;
+    if (ctx.index_capacity < frame.index_count) {
+        if (ctx.index_buffer) {
+            SDL_ReleaseGPUBuffer(device_, ctx.index_buffer);
+            ctx.index_buffer = nullptr;
         }
         SDL_GPUBufferCreateInfo info{SDL_GPU_BUFFERUSAGE_INDEX, indexBytes, 0};
-        index_buffer_2d_ = SDL_CreateGPUBuffer(device_, &info);
-        index_capacity_2d_ = index_buffer_2d_ ? frame.index_count : 0;
+        ctx.index_buffer = SDL_CreateGPUBuffer(device_, &info);
+        ctx.index_capacity = ctx.index_buffer ? frame.index_count : 0;
         LOG_DEBUG(atom::log::backend::sdl3::Render,
-                  "Renderer2D index capacity resized to " + std::to_string(index_capacity_2d_));
+                  "Renderer2D index capacity resized to " + std::to_string(ctx.index_capacity));
     }
-    if (!vertex_buffer_2d_ || !index_buffer_2d_) {
+    if (!ctx.vertex_buffer || !ctx.index_buffer) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to allocate GPU geometry buffers: " + std::string{SDL_GetError()});
         return false;
     }
 
-    SDL_GPUTransferBufferCreateInfo transferInfo{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, vertexBytes + indexBytes, 0};
-    auto* transfer = SDL_CreateGPUTransferBuffer(device_, &transferInfo);
+    // Reuse a persistent upload staging buffer instead of creating and freeing
+    // one every segment of every frame (the high-frequency alloc/free was the
+    // main GPU-allocator pressure behind the frame-time regression).
+    auto* transfer = AcquireUploadBuffer(vertexBytes + indexBytes);
     if (!transfer) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to allocate geometry transfer buffer: " + std::string{SDL_GetError()});
@@ -494,33 +501,30 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     if (!mapped) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to map geometry transfer buffer: " + std::string{SDL_GetError()});
-        SDL_ReleaseGPUTransferBuffer(device_, transfer);
         return false;
     }
     std::memcpy(mapped, frame.vertices, vertexBytes);
     std::memcpy(mapped + vertexBytes, frame.indices, indexBytes);
     SDL_UnmapGPUTransferBuffer(device_, transfer);
 
-    auto* copy = SDL_BeginGPUCopyPass(command_buffer_);
+    auto* copy = SDL_BeginGPUCopyPass(ctx.command_buffer);
     if (!copy) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to begin geometry copy pass: " + std::string{SDL_GetError()});
-        SDL_ReleaseGPUTransferBuffer(device_, transfer);
         return false;
     }
     SDL_GPUTransferBufferLocation vertexSource{transfer, 0};
-    SDL_GPUBufferRegion vertexTarget{vertex_buffer_2d_, 0, vertexBytes};
+    SDL_GPUBufferRegion vertexTarget{ctx.vertex_buffer, 0, vertexBytes};
     SDL_UploadToGPUBuffer(copy, &vertexSource, &vertexTarget, true);
     SDL_GPUTransferBufferLocation indexSource{transfer, vertexBytes};
-    SDL_GPUBufferRegion indexTarget{index_buffer_2d_, 0, indexBytes};
+    SDL_GPUBufferRegion indexTarget{ctx.index_buffer, 0, indexBytes};
     SDL_UploadToGPUBuffer(copy, &indexSource, &indexTarget, true);
     SDL_EndGPUCopyPass(copy);
-    // Still referenced by the open command buffer; released after EndFrame()
-    // submits (see pending_transfers_2d_).
-    pending_transfers_2d_.push_back(transfer);
+    // Persistent: the buffer stays in this frame's upload pool and is reused
+    // the next time this context comes around (fence-ordered).
 
     SDL_GPUColorTargetInfo target{};
-    target.texture = postProcessActive ? postprocess_texture_ : swapchain_texture_;
+    target.texture = postProcessActive ? ctx.postprocess_texture : ctx.swapchain_texture;
     const auto& clear = clear_color_;
     if (postProcessActive) {
         // The card pass must not manufacture a full-screen opaque background;
@@ -529,11 +533,11 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     } else {
         target.clear_color = {clear.r / 255.0f, clear.g / 255.0f, clear.b / 255.0f, clear.a / 255.0f};
     }
-    target.load_op = postProcessActive ? (postprocess_target_encoded_ ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR)
-                                       : (frame_encoded_ ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR);
+    target.load_op = postProcessActive ? (ctx.postprocess_encoded ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR)
+                                       : (ctx.encoded ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR);
     target.store_op = SDL_GPU_STOREOP_STORE;
 
-    auto* pass = SDL_BeginGPURenderPass(command_buffer_, &target, 1, nullptr);
+    auto* pass = SDL_BeginGPURenderPass(ctx.command_buffer, &target, 1, nullptr);
     if (!pass) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
                   "Renderer2D failed to begin render pass: " + std::string{SDL_GetError()});
@@ -542,11 +546,11 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     SDL_GPUViewport viewport{0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f};
     SDL_SetGPUViewport(pass, &viewport);
     SDL_BindGPUGraphicsPipeline(pass, pipeline_2d_);
-    SDL_PushGPUVertexUniformData(command_buffer_, 0, frame.view_projection, sizeof(float) * 16);
+    SDL_PushGPUVertexUniformData(ctx.command_buffer, 0, frame.view_projection, sizeof(float) * 16);
 
-    SDL_GPUBufferBinding vertexBinding{vertex_buffer_2d_, 0};
+    SDL_GPUBufferBinding vertexBinding{ctx.vertex_buffer, 0};
     SDL_BindGPUVertexBuffers(pass, 0, &vertexBinding, 1);
-    SDL_GPUBufferBinding indexBinding{index_buffer_2d_, 0};
+    SDL_GPUBufferBinding indexBinding{ctx.index_buffer, 0};
     SDL_BindGPUIndexBuffer(pass, &indexBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
     bool allItemsValid = true;
@@ -601,9 +605,9 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     }
     SDL_EndGPURenderPass(pass);
     if (postProcessActive)
-        postprocess_target_encoded_ = true;
+        ctx.postprocess_encoded = true;
     else
-        frame_encoded_ = true;
+        ctx.encoded = true;
     return allItemsValid;
 }
 
@@ -621,17 +625,34 @@ auto SDLGPUDevice::Release2DResources() -> void {
         pipeline_postprocess_ = nullptr;
         pipeline_glitch_ = nullptr;
         pipeline_blur_ = nullptr;
-        if (postprocess_texture_) {
-            SDL_ReleaseGPUTexture(device_, postprocess_texture_);
-            postprocess_texture_ = nullptr;
-        }
-        if (vertex_buffer_2d_) {
-            SDL_ReleaseGPUBuffer(device_, vertex_buffer_2d_);
-            vertex_buffer_2d_ = nullptr;
-        }
-        if (index_buffer_2d_) {
-            SDL_ReleaseGPUBuffer(device_, index_buffer_2d_);
-            index_buffer_2d_ = nullptr;
+        for (auto& frame : frames_) {
+            if (frame.postprocess_texture) {
+                SDL_ReleaseGPUTexture(device_, frame.postprocess_texture);
+                frame.postprocess_texture = nullptr;
+            }
+            if (frame.vertex_buffer) {
+                SDL_ReleaseGPUBuffer(device_, frame.vertex_buffer);
+                frame.vertex_buffer = nullptr;
+            }
+            if (frame.index_buffer) {
+                SDL_ReleaseGPUBuffer(device_, frame.index_buffer);
+                frame.index_buffer = nullptr;
+            }
+            for (auto* transfer : frame.pending_transfers) {
+                if (transfer)
+                    SDL_ReleaseGPUTransferBuffer(device_, transfer);
+            }
+            for (auto& slot : frame.upload_pool) {
+                if (slot.buffer)
+                    SDL_ReleaseGPUTransferBuffer(device_, slot.buffer);
+            }
+            frame.pending_transfers.clear();
+            frame.upload_pool.clear();
+            frame.upload_cursor = 0;
+            frame.vertex_capacity = 0;
+            frame.index_capacity = 0;
+            frame.postprocess_width = frame.postprocess_height = 0;
+            frame.postprocess_encoded = false;
         }
         for (auto& [handle, entry] : textures_2d_) {
             if (entry.texture)
@@ -641,22 +662,14 @@ auto SDLGPUDevice::Release2DResources() -> void {
             if (sampler)
                 SDL_ReleaseGPUSampler(device_, sampler);
         }
-        for (auto* transfer : pending_transfers_2d_) {
-            if (transfer)
-                SDL_ReleaseGPUTransferBuffer(device_, transfer);
-        }
     }
-    pending_transfers_2d_.clear();
     textures_2d_.clear();
     samplers_2d_.clear();
     next_texture_2d_ = 1;
     next_sampler_2d_ = 1;
-    vertex_capacity_2d_ = 0;
-    index_capacity_2d_ = 0;
-    postprocess_width_ = postprocess_height_ = 0;
     postprocess_params_ = {};
-    postprocess_target_encoded_ = false;
     pipeline_2d_init_failed_ = false;
+    frame_index_ = 0;
 }
 
 } // namespace atom::backend::sdlgpu
