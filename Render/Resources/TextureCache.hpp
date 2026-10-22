@@ -6,20 +6,25 @@
 #ifndef ATOM_RENDER_RESOURCES_TEXTURE_CACHE_HPP
 #define ATOM_RENDER_RESOURCES_TEXTURE_CACHE_HPP
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 
+#include <Concurrency/Future.hpp>
 #include <Filesystem/AssetPath.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Media/Image/ImageDecoder.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 
 namespace atom::render::resources {
+
+class TextureCache;
 
 namespace detail {
 
@@ -86,6 +91,24 @@ class TextureHandle final {
         std::shared_ptr<detail::GpuTextureRecord> record_{};
 };
 
+namespace detail {
+
+// Shared state behind an in-flight asynchronous texture load (ARCH-107). The
+// worker (or the inline fallback) writes the CPU-side DecodedImage and sets
+// `decode_done`; the render thread finalizes it through
+// TextureCache::PumpAsync(), which materializes the image into a cached GPU
+// texture and completes the Future. The worker never touches the renderer or
+// the cache — those stay render-thread-only.
+struct AsyncTextureLoad final {
+        std::string key;
+        std::shared_ptr<async::Promise<TextureHandle>> promise;
+        std::mutex mutex;
+        atom::image::DecodedImage decoded{}; // worker writes under `mutex`
+        std::atomic<bool> decode_done{false};
+};
+
+} // namespace detail
+
 // Identity-keyed GPU texture cache layered on top of CPU image decoding.
 // Same cache key returns the same live texture. No LRU: eviction is only
 // handle-driven (last release -> deferred destroy).
@@ -116,6 +139,29 @@ class TextureCache final {
         [[nodiscard]] auto AcquireFromDecodedImage(std::string_view cache_key, const image::DecodedImage& decoded)
             -> TextureHandle;
 
+        // Asynchronous single-image loads (ARCH-107). Decoding (read + decode
+        // for the filesystem form) runs on a job-system worker; the decoded
+        // image is materialized into the cache by the render thread when
+        // PumpAsync() runs, which completes the returned Future. Poll
+        // Future::IsReady() each frame; once Ready, Future::Get() yields the
+        // TextureHandle (an empty handle means the decode/upload failed, the
+        // same failure convention as the synchronous Acquire* entry points).
+        //
+        // An id that is already cached returns an immediately-Ready future; a
+        // request that cannot even start (no renderer, empty key/bytes, invalid
+        // path) returns an immediately-Ready future carrying an empty handle.
+        // The filesystem reference must outlive the request.
+        [[nodiscard]] auto LoadAsync(const fs::IFileSystem& filesystem, const fs::AssetPath& path)
+            -> async::Future<TextureHandle>;
+        [[nodiscard]] auto LoadAsync(std::string_view cache_key, std::span<const std::byte> encoded)
+            -> async::Future<TextureHandle>;
+
+        // Drains pending async loads: materializes finished decodes into cached
+        // GPU textures and completes their futures. Render-thread-only; call
+        // once per frame, outside Renderer2D::BeginFrame, alongside
+        // FlushDeferredDestroys(). Without this, futures never become Ready.
+        auto PumpAsync() -> void;
+
         auto Evict(const std::string& cache_key) -> bool;
         auto EvictAll() -> void;
         auto FlushDeferredDestroys() -> void;
@@ -130,6 +176,7 @@ class TextureCache final {
 
         Renderer2D* renderer_ = nullptr;
         std::unordered_map<std::string, std::weak_ptr<detail::GpuTextureRecord>> cache_{};
+        std::unordered_map<std::string, std::shared_ptr<detail::AsyncTextureLoad>> in_flight_{};
 };
 
 } // namespace atom::render::resources

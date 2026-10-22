@@ -54,6 +54,19 @@ atom_add_test(Atom_Assets.ResourceManagerBatch
     Asset/ResourceManagerBatchTest.cpp
     Atom_Assets Atom_Concurrency Atom_FS)
 
+# Async acquire (ARCH-107): pull-model Future contract, inline fallback, shared
+# in-flight load, evict-cancels-in-flight, and error propagation.
+atom_add_test(Atom_Assets.ResourceManagerAsync
+    Atom_Assets_ResourceManagerAsync_Tests
+    Asset/ResourceManagerAsyncTest.cpp
+    Atom_Assets Atom_Concurrency Atom_FS)
+
+# Font bytes enter the async-acquire machinery (ARCH-107 P4).
+atom_add_test(Atom_Text.FontFileLoader
+    Atom_Text_FontFileLoader_Tests
+    Asset/FontFileLoaderTest.cpp
+    Atom_Text Atom_Assets Atom_Concurrency Atom_FS)
+
 atom_add_test(Atom_Assets.ConsumerLoader
     Atom_Assets_ConsumerLoader_Tests
     Asset/ConsumerLoaderTest.cpp

@@ -6,8 +6,12 @@
 #ifndef ATOM_ASSET_RESOURCE_MANAGER_HPP
 #define ATOM_ASSET_RESOURCE_MANAGER_HPP
 
+#include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <typeindex>
 #include <unordered_map>
@@ -17,6 +21,7 @@
 #include <Asset/IResourceLoader.hpp>
 #include <Asset/ResourceHandle.hpp>
 #include <Asset/ResourceId.hpp>
+#include <Concurrency/Future.hpp>
 #include <Error/Error.hpp>
 #include <Filesystem/FileSystem.hpp>
 
@@ -124,6 +129,71 @@ class ResourceManager final {
             return handles;
         }
 
+        // --- Async acquire (ARCH-107) ----------------------------------------
+        //
+        // Returns immediately; the load (I/O + decode) runs on the job system.
+        // The handle is finalized on the render thread by PumpAsync(), because
+        // cache insertion must stay single-threaded and cannot happen on a
+        // worker. Poll Future::IsReady() each frame; once ready, Future::Get()
+        // yields the handle (or the failure reason). Concurrent acquires of the
+        // same id share one in-flight load; Evict() cancels the in-flight load
+        // so an evicted resource is not resurrected.
+        template <typename T> [[nodiscard]] auto AcquireAsync(const ResourceId& id) -> async::Future<ResourceHandle<T>> {
+            auto promise = std::make_shared<async::Promise<ResourceHandle<T>>>(next_generation_++);
+
+            if (id.IsValid()) {
+                const std::string key{id.Key()};
+                if (const auto it = cache_.find(key); it != cache_.end()) {
+                    if (auto existing = it->second.record.lock()) {
+                        if (existing->type != std::type_index(typeid(T)))
+                            promise->SetError(ToError(AssetResult::TypeMismatch, existing->id, "AcquireAsync")
+                                                  .WithDetail("requested type does not match the registered loader"));
+                        else
+                            promise->SetValue(ResourceHandle<T>{std::move(existing)});
+                        return promise->GetFuture();
+                    }
+                    cache_.erase(it);
+                }
+            }
+
+            const auto started = StartAsyncLoad(id);
+            if (!started.has_value()) {
+                promise->SetError(std::move(started.error())); // already logged in StartAsyncLoad
+                return promise->GetFuture();
+            }
+            const auto async = started.value();
+
+            async->on_success.emplace_back([promise, id](std::shared_ptr<detail::ResourceRecord> record) {
+                if (!record) {
+                    promise->SetError(ToError(AssetResult::LoadFailed, id, "AcquireAsync"));
+                    return;
+                }
+                if (record->type != std::type_index(typeid(T)))
+                    promise->SetError(ToError(AssetResult::TypeMismatch, record->id, "AcquireAsync")
+                                          .WithDetail("requested type does not match the registered loader"));
+                else
+                    promise->SetValue(ResourceHandle<T>{std::move(record)});
+            });
+            async->on_error.emplace_back([promise](Error error) { promise->SetError(std::move(error)); });
+            async->on_cancel.emplace_back([promise]() { promise->Cancel(); });
+            return promise->GetFuture();
+        }
+
+        template <typename T> [[nodiscard]] auto AcquireAsyncBatch(const std::vector<ResourceId>& ids)
+            -> std::vector<async::Future<ResourceHandle<T>>> {
+            std::vector<async::Future<ResourceHandle<T>>> futures;
+            futures.reserve(ids.size());
+            for (const ResourceId& id : ids)
+                futures.push_back(AcquireAsync<T>(id));
+            return futures;
+        }
+
+        // Drains pending async loads: finalizes cache insertion on the owning
+        // thread and completes their futures. Render-thread-only; call once per
+        // frame outside an active frame (the async counterpart of
+        // FlushDeferredDestroys). Without this, futures never become Ready.
+        auto PumpAsync() -> void;
+
         // Drops the cache entry. Live handles keep the resource alive.
         [[nodiscard]] auto Evict(const ResourceId& id) -> bool;
         auto EvictAll() -> void;
@@ -136,6 +206,21 @@ class ResourceManager final {
         struct CacheEntry final {
                 std::weak_ptr<detail::ResourceRecord> record{};
                 std::type_index type{typeid(void)};
+        };
+
+        // One in-flight async load, shared by all concurrent acquires of the
+        // same id. The worker fills `raw`; the render thread (PumpAsync)
+        // finalizes cache insertion and completes every registered consumer.
+        struct AsyncLoad final {
+                ResourceId id{};
+                std::shared_ptr<IResourceLoader> loader{};
+                std::uint64_t generation = 0;
+                std::mutex mutex;
+                std::optional<Result<std::shared_ptr<void>>> raw{};
+                std::atomic<bool> cancelled{false};
+                std::vector<std::function<void(std::shared_ptr<detail::ResourceRecord>)>> on_success{};
+                std::vector<std::function<void(Error)>> on_error{};
+                std::vector<std::function<void()>> on_cancel{};
         };
 
         // Shared core of Acquire/TryAcquire. This is the single place a load can
@@ -157,11 +242,17 @@ class ResourceManager final {
                                         std::shared_ptr<void> resource)
             -> std::shared_ptr<detail::ResourceRecord>;
 
+        // Creates (or reuses) an in-flight load and schedules the worker job.
+        // Returns an error (already logged) when the load cannot be started.
+        [[nodiscard]] auto StartAsyncLoad(const ResourceId& id) -> Result<std::shared_ptr<AsyncLoad>>;
+        auto CancelAsyncLoad(AsyncLoad& load) -> void;
+
         auto SweepExpired() -> void;
 
         const fs::IFileSystem* filesystem_ = nullptr;
         std::unordered_map<std::string, std::shared_ptr<IResourceLoader>> loaders_{};
         std::unordered_map<std::string, CacheEntry> cache_{};
+        std::unordered_map<std::string, std::shared_ptr<AsyncLoad>> in_flight_{};
         std::shared_ptr<detail::RecycleHooks> hooks_{std::make_shared<detail::RecycleHooks>()};
         uint32_t next_generation_ = 1;
 };

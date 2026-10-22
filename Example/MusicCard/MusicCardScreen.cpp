@@ -226,6 +226,9 @@ auto MusicCardScreen::Shutdown() -> void {
         handle.Wait();
 
     background_texture_ = {};
+    background_load_ = {};
+    background_filesystem_.reset();
+    background_wallpaper_path_.clear();
     for (auto& handle : artwork_textures_)
         handle = {};
     std::fill(artwork_texture_attempted_.begin(), artwork_texture_attempted_.end(), false);
@@ -445,8 +448,10 @@ auto MusicCardScreen::Render(atom::render::IRenderDevice& device) -> void {
         interface_font_data_.shrink_to_fit();
     }
     EnsureBackgroundTexture();
-    // Reclaim GPU textures whose last handle was dropped since the previous
-    // frame. Must run outside BeginFrame/EndFrame.
+    // Finalize any in-flight async texture decode (materialize on the render
+    // thread) and reclaim GPU textures whose last handle was dropped since the
+    // previous frame. Both must run outside BeginFrame/EndFrame.
+    texture_cache_.PumpAsync();
     texture_cache_.FlushDeferredDestroys();
     device.Clear(atom::render::Color{8, 10, 18, 255});
     const auto size = device.GetOutputSize();
@@ -733,41 +738,64 @@ auto MusicCardScreen::LogResourceTelemetry(const char* event) const -> void {
 }
 
 auto MusicCardScreen::EnsureBackgroundTexture() -> void {
-    if (background_texture_ || background_texture_attempted_ || !renderer_.IsInitialized())
+    if (background_texture_ || !renderer_.IsInitialized())
+        return;
+
+    // A load is already in flight: poll it and materialize the result on the
+    // render thread. The decode itself ran on a worker (via LoadAsync), so this
+    // frame never blocks on stb decoding.
+    if (background_load_) {
+        if (!background_load_.IsReady())
+            return;
+        background_texture_attempted_ = true;
+        const auto result = background_load_.Get();
+        if (result.has_value())
+            background_texture_ = result.value();
+        if (!background_texture_) {
+            LOG_ERROR(atom::log::core::Screen,
+                      "Music card failed to upload wallpaper texture: " + background_wallpaper_path_);
+        } else {
+            LOG_INFO(atom::log::core::Screen,
+                     "Music card wallpaper loaded (" + std::to_string(background_texture_.GetWidth()) + "x" +
+                         std::to_string(background_texture_.GetHeight()) + "): " + background_wallpaper_path_);
+        }
+        return;
+    }
+
+    if (background_texture_attempted_)
         return;
     background_texture_attempted_ = true;
-    const char* override_path = std::getenv("ATOM_MUSIC_CARD_WALLPAPER");
-    const std::string wallpaper_path = override_path && *override_path ? override_path : WallpaperPath;
 
-    const auto native = atom::PathFromUtf8(wallpaper_path);
+    const char* override_path = std::getenv("ATOM_MUSIC_CARD_WALLPAPER");
+    background_wallpaper_path_ = override_path && *override_path ? override_path : WallpaperPath;
+
+    const auto native = atom::PathFromUtf8(background_wallpaper_path_);
     const auto parent = native.parent_path();
     const auto filename = native.filename();
     if (parent.empty() || filename.empty()) {
         LOG_WARNING(atom::log::core::Screen,
-                    "Music card wallpaper path is not a file path; using procedural background: " + wallpaper_path);
+                    "Music card wallpaper path is not a file path; using procedural background: " +
+                        background_wallpaper_path_);
         return;
     }
-    std::unique_ptr<atom::fs::NativeFileSystem> filesystem{};
-    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(parent), filesystem) != atom::fs::Result::Success ||
-        !filesystem) {
+    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(parent), background_filesystem_) !=
+            atom::fs::Result::Success ||
+        !background_filesystem_) {
         LOG_WARNING(atom::log::core::Screen,
-                    "Music card wallpaper directory unavailable; using procedural background: " + wallpaper_path);
+                    "Music card wallpaper directory unavailable; using procedural background: " +
+                        background_wallpaper_path_);
         return;
     }
     const auto asset = atom::fs::AssetPath::Parse("res://" + atom::PathToUtf8(filename));
     if (!asset) {
-        LOG_WARNING(atom::log::core::Screen, "Music card wallpaper filename is not a valid asset path ('" +
-                                                 atom::PathToUtf8(filename) + "'): " + asset.error().Message());
+        LOG_WARNING(atom::log::core::Screen,
+                    "Music card wallpaper filename is not a valid asset path ('" + atom::PathToUtf8(filename) +
+                        "'): " + asset.error().Message());
         return;
     }
-    background_texture_ = texture_cache_.AcquireFromFilesystem(*filesystem, *asset);
-    if (!background_texture_) {
-        LOG_ERROR(atom::log::core::Screen, "Music card failed to upload wallpaper texture: " + wallpaper_path);
-        return;
-    }
-    LOG_INFO(atom::log::core::Screen,
-             "Music card wallpaper loaded (" + std::to_string(background_texture_.GetWidth()) + "x" +
-                 std::to_string(background_texture_.GetHeight()) + "): " + wallpaper_path);
+    // Decode off the render thread; the texture is materialized by PumpAsync()
+    // above once the worker finishes.
+    background_load_ = texture_cache_.LoadAsync(*background_filesystem_, *asset);
 }
 
 auto MusicCardScreen::BuildLayoutTree() -> void {

@@ -36,7 +36,15 @@ auto LoadResource(const fs::IFileSystem& filesystem, const ResourceId& id,
 
 ResourceManager::ResourceManager(const fs::IFileSystem& filesystem) : filesystem_(&filesystem) {}
 
-ResourceManager::~ResourceManager() = default;
+ResourceManager::~ResourceManager() {
+    // Cancel in-flight loads so pending futures resolve as Cancelled instead of
+    // hanging forever. The worker jobs keep their own shared_ptr to the
+    // AsyncLoad and finish harmlessly: they only write `raw`, which nothing will
+    // ever read again once the manager is gone.
+    for (auto& [key, load] : in_flight_)
+        CancelAsyncLoad(*load);
+    in_flight_.clear();
+}
 
 auto ResourceManager::RegisterLoader(std::shared_ptr<IResourceLoader> loader) -> Result<void> {
     if (!loader) {
@@ -62,7 +70,14 @@ auto ResourceManager::SetRecycleCallback(ResourceRecycleCallback callback) -> vo
 auto ResourceManager::Evict(const ResourceId& id) -> bool {
     if (!id.IsValid())
         return false;
-    const auto it = cache_.find(std::string{id.Key()});
+    const std::string key{id.Key()};
+    // Cancel any in-flight load so an evicted resource is not resurrected by a
+    // pending acquire that completes after this call.
+    if (const auto pending = in_flight_.find(key); pending != in_flight_.end()) {
+        CancelAsyncLoad(*pending->second);
+        in_flight_.erase(pending);
+    }
+    const auto it = cache_.find(key);
     if (it == cache_.end())
         return false;
     cache_.erase(it);
@@ -70,6 +85,9 @@ auto ResourceManager::Evict(const ResourceId& id) -> bool {
 }
 
 auto ResourceManager::EvictAll() -> void {
+    for (auto& [key, load] : in_flight_)
+        CancelAsyncLoad(*load);
+    in_flight_.clear();
     cache_.clear();
 }
 
@@ -163,6 +181,125 @@ auto ResourceManager::InsertRecord(const ResourceId& id, const std::shared_ptr<I
     if (cache_.size() >= sweep_threshold)
         SweepExpired();
     return record;
+}
+
+auto ResourceManager::StartAsyncLoad(const ResourceId& id) -> Result<std::shared_ptr<AsyncLoad>> {
+    // Same single-diagnostic contract as AcquireRecord: every failure is logged
+    // here (the site that knows the operation and resource) and returned so the
+    // caller can attach it to its Future. Upper layers never log again.
+    const auto fail = [](Error error) -> Result<std::shared_ptr<AsyncLoad>> {
+        LOG_ERROR(atom::log::asset::Resource, "ResourceManager: " + error.Message());
+        return std::unexpected<Error>{std::move(error)};
+    };
+
+    if (!id.IsValid())
+        return fail(ToError(AssetResult::InvalidId, id, "StartAsyncLoad")
+                        .WithDetail("resource id is not valid"));
+    if (filesystem_ == nullptr)
+        return fail(ToError(AssetResult::InvalidId, id, "StartAsyncLoad").WithDetail("no filesystem bound"));
+
+    const std::string key{id.Key()};
+
+    // Concurrent acquires of the same id share one in-flight load: the second
+    // caller registers its callbacks on the existing AsyncLoad instead of
+    // starting a duplicate job. Only the render thread reaches here, so no lock
+    // is needed on in_flight_ itself.
+    if (const auto it = in_flight_.find(key); it != in_flight_.end())
+        return it->second;
+
+    const auto loader = loaders_.find(std::string{ToString(id.Kind())});
+    if (loader == loaders_.end() || !loader->second)
+        return fail(ToError(AssetResult::NoLoader, id, "StartAsyncLoad"));
+
+    auto async = std::make_shared<AsyncLoad>();
+    async->id = id;
+    async->loader = loader->second;
+    async->generation = next_generation_++;
+
+    // The worker touches only the loader, the filesystem and the AsyncLoad box,
+    // never the cache or the manager, so it is safe off-thread. `filesystem` is
+    // captured by pointer (not `this`) so a worker that outlives the manager
+    // never dereferences freed manager state; the filesystem itself is owned by
+    // the engine and outlives the manager.
+    const fs::IFileSystem* filesystem = filesystem_;
+    const std::shared_ptr<IResourceLoader> load_loader = loader->second;
+    auto work = [filesystem, id, load_loader, async] {
+        std::shared_ptr<void> resource{};
+        const auto load_error = LoadResource(*filesystem, id, load_loader, resource);
+        Result<std::shared_ptr<void>> outcome =
+            load_error ? Result<std::shared_ptr<void>>{std::unexpected<Error>{std::move(*load_error)}}
+                       : Result<std::shared_ptr<void>>{std::move(resource)};
+        {
+            std::lock_guard lock{async->mutex};
+            if (!async->cancelled.load(std::memory_order_acquire))
+                async->raw = std::move(outcome);
+        }
+    };
+
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    if (jobs.IsRunning())
+        jobs.Schedule("asset:async-load", std::move(work));
+    else
+        work(); // no scheduler running: decode inline, PumpAsync still finalizes
+
+    in_flight_[key] = async;
+    return async;
+}
+
+auto ResourceManager::CancelAsyncLoad(AsyncLoad& load) -> void {
+    // exchange() returns the previous flag, so only the first cancel fires the
+    // callbacks: a double cancel still completes each consumer future once.
+    if (load.cancelled.exchange(true))
+        return;
+    for (const auto& callback : load.on_cancel)
+        callback();
+}
+
+auto ResourceManager::PumpAsync() -> void {
+    for (auto it = in_flight_.begin(); it != in_flight_.end();) {
+        AsyncLoad& load = *it->second;
+
+        if (load.cancelled.load(std::memory_order_acquire)) {
+            for (const auto& callback : load.on_cancel)
+                callback();
+            it = in_flight_.erase(it);
+            continue;
+        }
+
+        std::optional<Result<std::shared_ptr<void>>> raw;
+        {
+            std::lock_guard lock{load.mutex};
+            raw = std::move(load.raw);
+        }
+        if (!raw.has_value()) {
+            ++it; // still decoding on the worker
+            continue;
+        }
+
+        // Terminal: cache insertion stays single-threaded on the render thread.
+        // Each failure is logged exactly once (CORE-004); every consumer future
+        // for this id is then completed with the same outcome.
+        auto& outcome = *raw;
+        if (!outcome.has_value()) {
+            auto error = std::move(outcome.error());
+            error.WithOperation("PumpAsync");
+            error.WithResource(load.id.Path().String());
+            LOG_ERROR(atom::log::asset::Resource, "ResourceManager: " + error.Message());
+            for (const auto& callback : load.on_error)
+                callback(error);
+        } else if (!outcome.value()) {
+            const auto error = ToError(AssetResult::LoadFailed, load.id, "PumpAsync")
+                                   .WithDetail("loader reported success without a resource");
+            LOG_ERROR(atom::log::asset::Resource, "ResourceManager: " + error.Message());
+            for (const auto& callback : load.on_error)
+                callback(error);
+        } else {
+            const auto record = InsertRecord(load.id, load.loader, std::move(outcome.value()));
+            for (const auto& callback : load.on_success)
+                callback(record);
+        }
+        it = in_flight_.erase(it);
+    }
 }
 
 auto ResourceManager::AcquireRecords(const std::vector<ResourceId>& ids)

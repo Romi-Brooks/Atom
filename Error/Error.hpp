@@ -138,6 +138,7 @@ enum class ErrorCode : std::uint32_t {
     JobSystemStartFailed,
     JobRejected,
     JobDependencyDropped,
+    FutureCancelled,
 
     // --- Lua (0x0800) -------------------------------------------------------
     LuaStateCreationFailed = 0x0800,
@@ -356,6 +357,8 @@ enum class ErrorCode : std::uint32_t {
             return "JobRejected";
         case ErrorCode::JobDependencyDropped:
             return "JobDependencyDropped";
+        case ErrorCode::FutureCancelled:
+            return "FutureCancelled";
 
         case ErrorCode::LuaStateCreationFailed:
             return "LuaStateCreationFailed";

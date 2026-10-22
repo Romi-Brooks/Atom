@@ -154,6 +154,7 @@ endif()
         Concurrency/WorkStealingDeque.hpp
         Concurrency/JobSystem.hpp
         Concurrency/JobSystem.cpp
+        Concurrency/Future.hpp
     )
     target_include_directories(Atom_Concurrency PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Concurrency PUBLIC Atom_Threading)
@@ -333,6 +334,8 @@ endif()
     add_library(Atom_Text STATIC
         Render/Text/Font.cpp
         Render/Text/Font.hpp
+        Render/Text/FontFileLoader.cpp
+        Render/Text/FontFileLoader.hpp
     )
     target_include_directories(Atom_Text PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Text PRIVATE Atom_3rd_FreeType Atom_3rd_HarfBuzz)
@@ -381,6 +384,10 @@ endif()
     )
     target_include_directories(Atom_Render_Resources PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Render_Resources PUBLIC Atom_Renderer2D Atom_Image)
+    # Async single-image loads (TextureCache::LoadAsync) decode on the job
+    # system. JobSystem is an implementation detail of TextureCache.cpp, so the
+    # link stays PRIVATE; consumers only see JobHandle by value in the header.
+    target_link_libraries(Atom_Render_Resources PRIVATE Atom_Concurrency)
 
 # 4. Backend extension registration and engine audio decoders
     add_library(Atom_Backend_Extension STATIC
@@ -537,6 +544,10 @@ target_link_libraries(Atom_Assets PUBLIC Atom_FS Atom_Log)
 # Batch acquire spreads the per-file load (I/O + decode) across the job system,
 # so ResourceManager depends on the scheduler (implementation detail, not API).
 target_link_libraries(Atom_Assets PRIVATE Atom_Concurrency)
+# FontFileLoader is a TypedResourceLoader, so font bytes enter the same
+# URI/identity + async-acquire machinery as textures and audio (ARCH-107 P4).
+# Declared here (after Atom_Assets exists) because Atom_Text is defined earlier.
+target_link_libraries(Atom_Text PUBLIC Atom_Assets)
 # AudioClipResourceLoader (kind=Audio) lives in Atom_Media and extends
 # atom::asset::TypedResourceLoader, mirroring DecodedImageLoader in Atom_Image.
 target_link_libraries(Atom_Media PUBLIC Atom_Assets)

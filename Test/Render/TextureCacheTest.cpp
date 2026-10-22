@@ -7,6 +7,7 @@
 
 #include <Backend/Contracts/Render/IRender2DContext.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Concurrency/JobSystem.hpp>
 #include <Filesystem/MemoryFileSystem.hpp>
 #include <Render/Resources/TextureCache.hpp>
 #include <Test/Support/TestHelpers.hpp>
@@ -195,5 +196,75 @@ auto main() -> int {
     revived_cache->FlushDeferredDestroys();
     live_renderer->Shutdown();
     live_renderer.reset();
+
+    // --- Async single-image load (LoadAsync → Future) -----------------------
+    //
+    // LoadAsync must decode off the calling thread (when the job system is
+    // running) and only materialize the texture on the render thread via
+    // PumpAsync(). Both the scheduler-off (inline fallback) and scheduler-on
+    // (worker decode) paths yield a valid cached handle, and a cached key
+    // resolves immediately without PumpAsync().
+    {
+        auto async_renderer = std::make_unique<atom::render::Renderer2D>();
+        if (!async_renderer->Initialize(device, "unused-shader-root"))
+            return atom::test::Fail("Renderer2D failed to initialize for LoadAsync");
+        auto async_cache = std::make_unique<atom::render::resources::TextureCache>(*async_renderer);
+
+        // Phase A: job system off -> decode runs inline, but the future stays
+        // Pending until the render thread pumps it.
+        {
+            auto& jobs = atom::job::JobSystem::GetInstance();
+            if (jobs.IsRunning())
+                jobs.Shutdown();
+
+            auto future = async_cache->LoadAsync("async-cover", TinyPng());
+            ATOM_CHECK(future.IsReady() == false); // Pending until PumpAsync
+            async_cache->PumpAsync();
+            ATOM_CHECK(future.IsReady());
+
+            auto result = future.Get();
+            ATOM_CHECK(result.has_value());
+            auto handle = result.value();
+            ATOM_CHECK(handle.IsValid());
+            ATOM_CHECK(handle.GetWidth() == 1);
+            ATOM_CHECK(handle.GetHeight() == 1);
+
+            // Cached fast path: a second load of the same key resolves
+            // immediately and shares the same cached texture.
+            auto cached = async_cache->LoadAsync("async-cover", TinyPng());
+            ATOM_CHECK(cached.IsReady());
+            ATOM_CHECK(cached.Get().has_value());
+            ATOM_CHECK(cached.Get().value().Get() == handle.Get());
+        }
+
+        // Phase B: job system on -> decode runs on a worker; the texture is only
+        // materialized by PumpAsync() on the calling (render) thread.
+        {
+            auto& jobs = atom::job::JobSystem::GetInstance();
+            jobs.Configure(2);
+            if (!jobs.Start())
+                return atom::test::Fail("Could not start the job system for LoadAsync");
+
+            auto future = async_cache->LoadAsync("async-cover-2", TinyPng());
+            ATOM_CHECK(future.IsReady() == false);
+            // Pump until the worker finishes and the decode is materialized.
+            for (int i = 0; i < 1'000'000 && !future.IsReady(); ++i)
+                async_cache->PumpAsync();
+            ATOM_CHECK(future.IsReady());
+
+            auto result = future.Get();
+            ATOM_CHECK(result.has_value());
+            auto handle = result.value();
+            ATOM_CHECK(handle.IsValid());
+            ATOM_CHECK(handle.GetWidth() == 1);
+
+            jobs.Shutdown();
+        }
+
+        async_cache->EvictAll();
+        async_cache->FlushDeferredDestroys();
+        async_renderer->Shutdown();
+    }
+
     return 0;
 }

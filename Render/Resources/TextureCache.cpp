@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include <Concurrency/JobSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Image/ImageDecoder.hpp>
 
@@ -85,6 +86,145 @@ auto TextureCache::AcquireDecoded(const std::string_view cache_key, const image:
     cache_[std::string{cache_key}] = record;
     SweepExpired();
     return TextureHandle{std::move(record)};
+}
+
+auto TextureCache::LoadAsync(const std::string_view cache_key, const std::span<const std::byte> encoded)
+    -> async::Future<TextureHandle> {
+    const std::string key{cache_key};
+
+    // Fast path: a live texture already exists for this key.
+    if (renderer_) {
+        if (const auto it = cache_.find(key); it != cache_.end()) {
+            if (auto existing = it->second.lock()) {
+                auto ready = std::make_shared<async::Promise<TextureHandle>>();
+                ready->SetValue(TextureHandle{std::move(existing)});
+                return ready->GetFuture();
+            }
+            cache_.erase(it);
+        }
+    }
+
+    // Concurrent loads of one key share a single in-flight decode.
+    if (const auto it = in_flight_.find(key); it != in_flight_.end())
+        return it->second->promise->GetFuture();
+
+    auto load = std::make_shared<detail::AsyncTextureLoad>();
+    load->key = key;
+    load->promise = std::make_shared<async::Promise<TextureHandle>>();
+
+    // Cannot start: resolve immediately with an empty handle (same failure
+    // convention as the synchronous Acquire* entry points).
+    if (!renderer_ || key.empty() || encoded.empty()) {
+        load->promise->SetValue(TextureHandle{});
+        return load->promise->GetFuture();
+    }
+
+    in_flight_[key] = load;
+
+    // Copy the encoded bytes into the job: the caller's span may point at
+    // short-lived storage once LoadAsync returns.
+    std::vector<std::byte> owned{encoded.begin(), encoded.end()};
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    if (!jobs.IsRunning()) {
+        load->decoded = image::DecodeImageMemory(owned);
+        load->decode_done.store(true, std::memory_order_release);
+        return load->promise->GetFuture();
+    }
+
+    jobs.Schedule("image:decode", [load, owned = std::move(owned)] {
+        auto decoded = image::DecodeImageMemory(owned);
+        {
+            std::lock_guard lock{load->mutex};
+            load->decoded = std::move(decoded);
+        }
+        load->decode_done.store(true, std::memory_order_release);
+    });
+    return load->promise->GetFuture();
+}
+
+auto TextureCache::LoadAsync(const fs::IFileSystem& filesystem, const fs::AssetPath& path)
+    -> async::Future<TextureHandle> {
+    const std::string key = path.IsValid() ? std::string{path.String()} : std::string{};
+
+    if (renderer_ && !key.empty()) {
+        if (const auto it = cache_.find(key); it != cache_.end()) {
+            if (auto existing = it->second.lock()) {
+                auto ready = std::make_shared<async::Promise<TextureHandle>>();
+                ready->SetValue(TextureHandle{std::move(existing)});
+                return ready->GetFuture();
+            }
+            cache_.erase(it);
+        }
+    }
+
+    if (!key.empty()) {
+        if (const auto it = in_flight_.find(key); it != in_flight_.end())
+            return it->second->promise->GetFuture();
+    }
+
+    auto load = std::make_shared<detail::AsyncTextureLoad>();
+    load->key = key;
+    load->promise = std::make_shared<async::Promise<TextureHandle>>();
+
+    if (!renderer_ || key.empty() || !path.IsValid()) {
+        load->promise->SetValue(TextureHandle{});
+        return load->promise->GetFuture();
+    }
+
+    in_flight_[key] = load;
+
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    if (!jobs.IsRunning()) {
+        std::unique_ptr<fs::IFile> file{};
+        std::vector<std::byte> bytes{};
+        if (filesystem.OpenRead(path, file) == fs::Result::Success && file &&
+            fs::ReadAll(*file, bytes) == fs::Result::Success) {
+            load->decoded = image::DecodeImageMemory(bytes);
+        }
+        load->decode_done.store(true, std::memory_order_release);
+        return load->promise->GetFuture();
+    }
+
+    jobs.Schedule("image:decode", [load, &filesystem, path] {
+        std::unique_ptr<fs::IFile> file{};
+        std::vector<std::byte> bytes{};
+        image::DecodedImage decoded{};
+        if (filesystem.OpenRead(path, file) == fs::Result::Success && file &&
+            fs::ReadAll(*file, bytes) == fs::Result::Success) {
+            decoded = image::DecodeImageMemory(bytes);
+        }
+        {
+            std::lock_guard lock{load->mutex};
+            load->decoded = std::move(decoded);
+        }
+        load->decode_done.store(true, std::memory_order_release);
+    });
+    return load->promise->GetFuture();
+}
+
+auto TextureCache::PumpAsync() -> void {
+    for (auto it = in_flight_.begin(); it != in_flight_.end();) {
+        auto& load = *it->second;
+        if (!load.decode_done.load(std::memory_order_acquire)) {
+            ++it; // still decoding on the worker
+            continue;
+        }
+
+        atom::image::DecodedImage decoded{};
+        {
+            std::lock_guard lock{load.mutex};
+            decoded = std::move(load.decoded);
+        }
+
+        // Materialize on the render thread. A null renderer, an empty key or an
+        // invalid decode resolves to an empty handle (failure), matching the
+        // synchronous Acquire* convention.
+        TextureHandle handle{};
+        if (renderer_ && !load.key.empty() && decoded.IsValid())
+            handle = AcquireFromDecodedImage(load.key, decoded);
+        load.promise->SetValue(std::move(handle));
+        it = in_flight_.erase(it);
+    }
 }
 
 auto TextureCache::Evict(const std::string& cache_key) -> bool {

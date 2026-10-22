@@ -27,6 +27,7 @@
 #include <vector>
 
 #include <Backend/Runtime/IAudioBackendChangeListener.hpp>
+#include <Concurrency/Future.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Layout/LayoutTree.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
@@ -246,6 +247,13 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         bool renderer_frame_failed_ = false;
         atom::render::resources::TextureHandle background_texture_{};
         bool background_texture_attempted_ = false;
+        // The wallpaper's async load (ARCH-107 P3): the decode runs on a worker,
+        // and the render thread materializes the texture via PumpAsync(). The
+        // NativeFileSystem that owns the wallpaper directory must outlive the
+        // in-flight request, so it is held here instead of as a local.
+        std::unique_ptr<atom::fs::NativeFileSystem> background_filesystem_{};
+        atom::async::Future<atom::render::resources::TextureHandle> background_load_{};
+        std::string background_wallpaper_path_{};
         std::vector<atom::render::resources::TextureHandle> artwork_textures_;
         std::vector<bool> artwork_texture_attempted_;
 
