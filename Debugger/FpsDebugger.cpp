@@ -31,6 +31,8 @@ auto FpsDebugger::OnDrawOverlay() -> void {
     // ImGui 的 Framerate 是 60 帧指数平滑后的帧率，稳定且与旧示例一致。
     const float fps = ImGui::GetIO().Framerate;
     const float frame_ms = fps > 0.0f ? 1000.0f / fps : 0.0f;
+    // 瞬时帧耗时（未平滑）：切歌那一刻是"几个慢帧"还是"持续慢"，看它最直接。
+    const float dt_ms = ImGui::GetIO().DeltaTime * 1000.0f;
     ImGui::Text("FPS: %.1f", static_cast<double>(fps));
     ImGui::SameLine();
     ImGui::TextDisabled("(%.2f ms)", static_cast<double>(frame_ms));
@@ -38,7 +40,7 @@ auto FpsDebugger::OnDrawOverlay() -> void {
     // 每帧采一个点，滚动窗口只保留最近 kHistorySeconds 秒。
     const double now = ImGui::GetTime();
     if (!pause_) {
-        samples_.push_back(Sample{now, fps});
+        samples_.push_back(Sample{now, fps, dt_ms});
         while (!samples_.empty() && now - samples_.front().time > kHistorySeconds) {
             samples_.pop_front();
         }
@@ -47,10 +49,12 @@ auto FpsDebugger::OnDrawOverlay() -> void {
     // 窗口内的 min / avg / max，用于直观判断帧率波动幅度。
     float min_fps = fps;
     float max_fps = fps;
+    float max_dt_ms = dt_ms;
     double sum = 0.0;
     for (const Sample& s : samples_) {
         min_fps = std::min(min_fps, s.fps);
         max_fps = std::max(max_fps, s.fps);
+        max_dt_ms = std::max(max_dt_ms, s.dt_ms);
         sum += static_cast<double>(s.fps);
     }
     const float avg_fps = samples_.empty() ? fps
@@ -59,6 +63,8 @@ auto FpsDebugger::OnDrawOverlay() -> void {
     ImGui::Separator();
     ImGui::Text("min %.0f   avg %.0f   max %.0f", static_cast<double>(min_fps), static_cast<double>(avg_fps),
                 static_cast<double>(max_fps));
+    ImGui::Text("Frame: %.2f ms   spike %.2f ms (last %.0f s)", static_cast<double>(dt_ms),
+                static_cast<double>(max_dt_ms), kHistorySeconds);
 
     // 帧率曲线。y 轴从 0 到「窗口最大值上浮一点」，掉帧会表现为明显的凹陷。
     fps_curve_.clear();

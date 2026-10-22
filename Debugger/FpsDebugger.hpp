@@ -30,9 +30,11 @@ class FpsDebugger final : public DebugPanel {
 
     private:
         // 某一时刻的帧率采样（ImGui 已做 60 帧指数平滑，曲线更稳定）。
+        // dt_ms 记录该帧的瞬时帧耗时（未平滑），用于区分"瞬时尖峰"与"持续慢帧"。
         struct Sample {
                 double time = 0.0;
                 float fps = 0.0f;
+                float dt_ms = 0.0f;
         };
 
         std::deque<Sample> samples_;
