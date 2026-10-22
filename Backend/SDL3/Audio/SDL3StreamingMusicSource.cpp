@@ -141,6 +141,10 @@ auto SDL3StreamingMusicSource::Play() -> void {
 auto SDL3StreamingMusicSource::HaltDecoding() -> void {
     state_.store(atom::audio::AudioSourceState::Stopped);
     thread_running_ = false;
+    // The decode thread may be parked in its throttle wait; wake it so the join
+    // below returns immediately instead of blocking the caller for up to a full
+    // sleep interval (the cause of a render-thread frame drop on Stop/seek).
+    wake_cv_.notify_all();
     if (stream_) {
         SDL_ClearAudioStream(stream_);
         SDL_PauseAudioStreamDevice(stream_);
@@ -195,6 +199,7 @@ auto SDL3StreamingMusicSource::Pause() -> void {
     if (!state_.compare_exchange_strong(expected, atom::audio::AudioSourceState::Paused))
         return;
     thread_running_ = false;
+    wake_cv_.notify_all();
     if (stream_) {
         SDL_PauseAudioStreamDevice(stream_);
     }
@@ -432,9 +437,13 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                 }
                 LOG_ERROR(atom::log::backend::Audio::sdl3, "Decoder rewind failed during loop");
             }
-            // Drain SDL stream before stopping
+            // Drain SDL stream before stopping. Woken immediately when the
+            // thread is being stopped, so a Stop() during drain does not wait
+            // out a full sleep interval.
             while (thread_running_.load() && SDL_GetAudioStreamAvailable(stream_) > 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                std::unique_lock<std::mutex> lock{wake_mutex_};
+                wake_cv_.wait_for(lock, std::chrono::milliseconds(10),
+                                  [this] { return !thread_running_.load(); });
             }
             if (!thread_running_.load() || state_.load() != atom::audio::AudioSourceState::Playing) {
                 break;
@@ -451,7 +460,13 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
             break;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // Throttle the producer loop; wake immediately when Stop()/Pause()/seek
+        // asks the thread to leave so a join() from any thread is prompt.
+        {
+            std::unique_lock<std::mutex> lock{wake_mutex_};
+            wake_cv_.wait_for(lock, std::chrono::milliseconds(10),
+                              [this] { return !thread_running_.load(); });
+        }
     }
 
     thread_running_ = false;

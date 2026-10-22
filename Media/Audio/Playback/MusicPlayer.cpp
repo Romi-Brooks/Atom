@@ -1,6 +1,7 @@
 #include "MusicPlayer.hpp"
 
 #include <algorithm>
+#include <vector>
 
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
@@ -39,8 +40,7 @@ MusicPlayer::~MusicPlayer() {
 
 auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& filesystem,
                        const atom::fs::AssetPath& path) -> bool {
-    std::lock_guard lock(mutex_);
-    if (tracks_.contains(id)) {
+    if (FindTrack(id)) {
         LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
         return true;
     }
@@ -78,11 +78,20 @@ auto MusicPlayer::Load(const std::string& id, const atom::fs::IFileSystem& files
     // stay alive for as long as the track does. Track declares it first for
     // exactly that reason; it is filled in before the source so the ownership
     // order is visible at the construction site too.
-    Track track{};
-    track.file = std::move(streaming->file);
-    track.source = std::move(source);
-    track.duration_seconds = duration_seconds;
-    tracks_.emplace(id, std::move(track));
+    auto track = std::make_shared<Track>();
+    track->file = std::move(streaming->file);
+    track->source = std::move(source);
+    track->duration_seconds = duration_seconds;
+    {
+        std::lock_guard lock(mutex_);
+        // Another worker may have won a duplicate asynchronous load while this
+        // decoder was opening. Keep the established source in that case.
+        if (tracks_.contains(id)) {
+            LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
+            return true;
+        }
+        tracks_.emplace(id, std::move(track));
+    }
     LOG_INFO(atom::log::audio::Music, "Music track loaded via VFS: " + id + " (" + label + ")");
     return true;
 }
@@ -107,8 +116,7 @@ auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filen
         return false;
     }
 
-    std::lock_guard lock(mutex_);
-    if (tracks_.contains(id)) {
+    if (FindTrack(id)) {
         LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
         return true;
     }
@@ -141,7 +149,17 @@ auto MusicPlayer::LoadFromMemory(const std::string& id, const std::string& filen
                   "Failed to create streaming music source for track '" + id + "': " + filename);
         return false;
     }
-    tracks_.emplace(id, Track{nullptr, std::move(source), duration_seconds});
+    auto track = std::make_shared<Track>();
+    track->source = std::move(source);
+    track->duration_seconds = duration_seconds;
+    {
+        std::lock_guard lock(mutex_);
+        if (tracks_.contains(id)) {
+            LOG_DEBUG(atom::log::audio::Music, "Music track already loaded, skip: " + id);
+            return true;
+        }
+        tracks_.emplace(id, std::move(track));
+    }
     LOG_INFO(atom::log::audio::Music,
              "Music track loaded from memory: " + id + " (" + filename + ", " + std::to_string(size) + " bytes)");
     return true;
@@ -152,65 +170,65 @@ auto MusicPlayer::Play(const std::string& id) -> void {
 }
 
 auto MusicPlayer::Play(const std::string& id, const float volume) -> void {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source) {
+    const auto track = FindTrack(id);
+    if (!track || !track->source) {
         return;
     }
-    if (it->second.source->GetState() == atom::audio::AudioSourceState::Playing) {
+    std::lock_guard control_lock(track->control_mutex);
+    if (track->source->GetState() == atom::audio::AudioSourceState::Playing) {
         LOG_DEBUG(atom::log::audio::Music, "Play() ignored: track is already playing: " + id);
         return;
     }
-    it->second.source->SetVolume(atom::numeric::SanitizeVolume(volume));
-    it->second.source->Play();
-    const auto state = it->second.source->GetState();
+    track->source->SetVolume(atom::numeric::SanitizeVolume(volume));
+    track->source->Play();
+    const auto state = track->source->GetState();
     if (state != atom::audio::AudioSourceState::Playing && state != atom::audio::AudioSourceState::Paused) {
         LOG_WARNING(atom::log::audio::Music, "Play() did not start track: " + id);
         return;
     }
     LOG_INFO(atom::log::audio::Music, "Now Playing track: " + id);
+    std::lock_guard lock(mutex_);
     current_playing_id_ = id;
 }
 
 auto MusicPlayer::Pause(const std::string& id) -> void {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source) {
+    const auto track = FindTrack(id);
+    if (!track || !track->source) {
         return;
     }
-    if (it->second.source->GetState() != atom::audio::AudioSourceState::Playing) {
+    std::lock_guard control_lock(track->control_mutex);
+    if (track->source->GetState() != atom::audio::AudioSourceState::Playing) {
         LOG_DEBUG(atom::log::audio::Music, "Pause() ignored: track is not playing: " + id);
         return;
     }
-    it->second.source->Pause();
+    track->source->Pause();
     LOG_INFO(atom::log::audio::Music, "Track paused: " + id);
 }
 
 auto MusicPlayer::GetState(const std::string& id) const -> atom::audio::AudioSourceState {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source) {
+    const auto track = FindTrack(id);
+    if (!track || !track->source) {
         return atom::audio::AudioSourceState::Stopped;
     }
-    return it->second.source->GetState();
+    return track->source->GetState();
 }
 
 auto MusicPlayer::Stop(const std::string& id) -> void {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source) {
+    const auto track = FindTrack(id);
+    if (!track || !track->source) {
         return;
     }
-    const auto was_active = it->second.source->GetState() != atom::audio::AudioSourceState::Stopped;
-    it->second.source->Stop();
+    std::lock_guard control_lock(track->control_mutex);
+    const auto was_active = track->source->GetState() != atom::audio::AudioSourceState::Stopped;
+    track->source->Stop();
     if (was_active) {
         LOG_INFO(atom::log::audio::Music, "Track Stopped: " + id);
     } else {
         LOG_DEBUG(atom::log::audio::Music, "Stop() ignored: track is already stopped: " + id);
     }
-    if (current_playing_id_ == id) {
+    std::lock_guard lock(mutex_);
+    if (current_playing_id_ == id)
         current_playing_id_.clear();
-    }
 }
 
 auto MusicPlayer::Seek(const std::string& id, const float seconds) -> bool {
@@ -222,16 +240,16 @@ auto MusicPlayer::Seek(const std::string& id, const float seconds) -> bool {
         return false;
     }
 
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source) {
+    const auto track = FindTrack(id);
+    if (!track || !track->source) {
         LOG_DEBUG(atom::log::audio::Music, "Seek() ignored: unknown track: " + id);
         return false;
     }
     auto target = requested;
-    if (it->second.duration_seconds > 0.0f)
-        target = std::min(target, it->second.duration_seconds);
-    if (!it->second.source->SetPlayingOffset(target)) {
+    if (track->duration_seconds > 0.0f)
+        target = std::min(target, track->duration_seconds);
+    std::lock_guard control_lock(track->control_mutex);
+    if (!track->source->SetPlayingOffset(target)) {
         LOG_WARNING(atom::log::audio::Music,
                     "Seek() failed on the active playback backend: track " + id + " at " +
                         std::to_string(static_cast<double>(target)) + "s");
@@ -243,82 +261,104 @@ auto MusicPlayer::Seek(const std::string& id, const float seconds) -> bool {
 }
 
 auto MusicPlayer::GetPlayingOffset(const std::string& id) const -> float {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source)
+    const auto track = FindTrack(id);
+    if (!track || !track->source)
         return 0.0f;
-    return it->second.source->GetPlayingOffset();
+    return track->source->GetPlayingOffset();
 }
 
 auto MusicPlayer::GetDuration(const std::string& id) const -> float {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    return it == tracks_.end() ? 0.0f : it->second.duration_seconds;
+    const auto track = FindTrack(id);
+    return track ? track->duration_seconds : 0.0f;
 }
 
 auto MusicPlayer::IsSeekable(const std::string& id) const -> bool {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    return it != tracks_.end() && it->second.source && it->second.source->IsSeekable();
+    const auto track = FindTrack(id);
+    return track && track->source && track->source->IsSeekable();
 }
 
 auto MusicPlayer::Reset() -> void {
-    std::lock_guard lock(mutex_);
-    for (auto& [_, track] : tracks_)
-        if (track.source)
-            track.source->Stop();
-    tracks_.clear();
-    current_playing_id_.clear();
+    std::vector<std::shared_ptr<Track>> released;
+    {
+        std::lock_guard lock(mutex_);
+        released.reserve(tracks_.size());
+        for (auto& [_, track] : tracks_)
+            released.push_back(std::move(track));
+        tracks_.clear();
+        current_playing_id_.clear();
+    }
+    // Do not hold the registry mutex while a source waits for its decode
+    // thread. Existing readers retain a shared Track lease and therefore see a
+    // valid, atomically-stopped source instead of dangling storage.
+    for (const auto& track : released) {
+        if (!track || !track->source)
+            continue;
+        std::lock_guard control_lock(track->control_mutex);
+        track->source->Stop();
+    }
 }
 
 auto MusicPlayer::Unload(const std::string& id) -> bool {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it == tracks_.end()) {
-        LOG_DEBUG(atom::log::audio::Music, "Unload() ignored: unknown track: " + id);
-        return false;
+    std::shared_ptr<Track> track;
+    {
+        std::lock_guard lock(mutex_);
+        const auto it = tracks_.find(id);
+        if (it == tracks_.end()) {
+            LOG_DEBUG(atom::log::audio::Music, "Unload() ignored: unknown track: " + id);
+            return false;
+        }
+        track = std::move(it->second);
+        tracks_.erase(it);
+        if (current_playing_id_ == id)
+            current_playing_id_.clear();
     }
-    // Stop before erasing: the source joins its decode thread and releases its
-    // SDL stream while the backend that owns them is still alive. Track then
-    // destroys `source` before the `file` it streams from, so the decoder never
-    // outlives or predeceases its input.
-    if (it->second.source)
-        it->second.source->Stop();
-    if (current_playing_id_ == id)
-        current_playing_id_.clear();
-    tracks_.erase(it);
+    // Track owns the file before the source, and the local shared lease keeps
+    // both alive until Stop() has joined the decode worker.
+    if (track && track->source) {
+        std::lock_guard control_lock(track->control_mutex);
+        track->source->Stop();
+    }
     LOG_INFO(atom::log::audio::Music, "Music track unloaded: " + id);
     return true;
 }
 
 auto MusicPlayer::SetVolume(const std::string& id, const float volume) -> void {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it != tracks_.end() && it->second.source) {
-        it->second.source->SetVolume(atom::numeric::SanitizeVolume(volume));
-    }
+    const auto track = FindTrack(id);
+    if (!track || !track->source)
+        return;
+    std::lock_guard control_lock(track->control_mutex);
+    track->source->SetVolume(atom::numeric::SanitizeVolume(volume));
 }
 
 auto MusicPlayer::SetLooping(const std::string& id, const bool loop) -> void {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it != tracks_.end() && it->second.source)
-        it->second.source->SetLooping(loop);
+    const auto track = FindTrack(id);
+    if (!track || !track->source)
+        return;
+    std::lock_guard control_lock(track->control_mutex);
+    track->source->SetLooping(loop);
 }
 
 auto MusicPlayer::IsLooping(const std::string& id) const -> bool {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    return it != tracks_.end() && it->second.source && it->second.source->IsLooping();
+    const auto track = FindTrack(id);
+    return track && track->source && track->source->IsLooping();
 }
 
 auto MusicPlayer::SetMusicVolume(const float volume) -> void {
-    std::lock_guard lock(mutex_);
     mixer_.SetMusicVolume(volume);
     const auto effective = mixer_.GetEffectiveMusicVolume();
-    for (auto& [_, track] : tracks_)
-        if (track.source)
-            track.source->SetVolume(effective);
+    std::vector<std::shared_ptr<Track>> tracks;
+    {
+        std::lock_guard lock(mutex_);
+        tracks.reserve(tracks_.size());
+        for (const auto& [_, track] : tracks_)
+            tracks.push_back(track);
+    }
+    for (const auto& track : tracks) {
+        if (!track || !track->source)
+            continue;
+        std::lock_guard control_lock(track->control_mutex);
+        track->source->SetVolume(effective);
+    }
 }
 
 auto MusicPlayer::GetMusicVolume() const -> float {
@@ -348,14 +388,13 @@ auto MusicPlayer::IsNowPlaying(const std::string& id) const -> bool {
 }
 
 auto MusicPlayer::IsFinished(const std::string& id) const -> bool {
-    std::lock_guard lock(mutex_);
-    const auto it = tracks_.find(id);
-    if (it == tracks_.end() || !it->second.source || !it->second.source->IsFinished()) {
+    const auto track = FindTrack(id);
+    if (!track || !track->source || !track->source->IsFinished()) {
         return false;
     }
-    if (current_playing_id_ == id) {
+    std::lock_guard lock(mutex_);
+    if (current_playing_id_ == id)
         current_playing_id_.clear();
-    }
     return true;
 }
 
@@ -364,13 +403,19 @@ auto MusicPlayer::ClearNowPlaying() -> void {
     current_playing_id_.clear();
 }
 
+auto MusicPlayer::FindTrack(const std::string& id) const -> std::shared_ptr<Track> {
+    std::lock_guard lock(mutex_);
+    const auto it = tracks_.find(id);
+    return it == tracks_.end() ? nullptr : it->second;
+}
+
 auto MusicPlayer::RefreshNowPlayingLocked() const -> void {
     if (current_playing_id_.empty()) {
         return;
     }
     const auto it = tracks_.find(current_playing_id_);
-    if (it == tracks_.end() || !it->second.source ||
-        it->second.source->GetState() == atom::audio::AudioSourceState::Stopped) {
+    if (it == tracks_.end() || !it->second || !it->second->source ||
+        it->second->source->GetState() == atom::audio::AudioSourceState::Stopped) {
         current_playing_id_.clear();
     }
 }

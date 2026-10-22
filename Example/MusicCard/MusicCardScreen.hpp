@@ -16,8 +16,10 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -128,8 +130,10 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         auto DrainPendingUnloads() -> void;
         auto LoaderLoop(std::stop_token stop) -> void;
 
-        // Schedules a Play() on the job system so the (potentially blocking)
-        // stream-buffer fill never runs on the render thread.
+        // Controls are serialized into one per-card command stream. The
+        // engine serializes each source too, but this makes the user-facing
+        // transition deterministic: stop(old) completes before play(new).
+        auto QueueAudioControl(std::string name, std::function<void()> action) -> void;
         auto DispatchPlayOnJobSystem(const std::string& id) -> void;
         // Stop/Pause used to run synchronously on the render thread, where the
         // backend joins the decode thread (up to a full sleep interval). They
@@ -137,6 +141,12 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         // audio control call can stall a frame.
         auto DispatchStopOnJobSystem(const std::string& id) -> void;
         auto DispatchPauseOnJobSystem(const std::string& id) -> void;
+        auto DispatchSeekOnJobSystem(std::string id, float seconds) -> void;
+
+        struct PendingSeek {
+                std::string id;
+                float seconds = 0.0f;
+        };
 
         atom::MusicPlayer& music_;
         std::shared_ptr<atom::fs::NativeFileSystem> filesystem_;
@@ -164,6 +174,11 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         // pruned every frame by TryStartAfterLoad.
         std::vector<atom::job::JobHandle> audio_jobs_;
         mutable std::mutex audio_jobs_mutex_;
+        atom::job::JobHandle audio_command_tail_{};
+        // Debug sliders can emit many values per drag. Keep only the newest
+        // pending value instead of replaying stale seeks after release.
+        std::optional<PendingSeek> pending_seek_{};
+        bool seek_command_queued_ = false;
         CardCorner corner_ = CardCorner::BottomLeft;
         AnimationState animation_state_ = AnimationState::Entering;
         float animation_progress_ = 0.0f;

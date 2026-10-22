@@ -224,7 +224,13 @@ auto MusicCardScreen::CanSeek(const std::string& id) const -> bool {
 }
 
 auto MusicCardScreen::Seek(const std::string& id, const float seconds) -> bool {
-    return music_.Seek(id, seconds);
+    if (id.empty() || !music_.IsLoaded(id))
+        return false;
+    // A seek tears down and restarts the streaming source. It is a valid
+    // operation, but never a render-thread operation; it enters the same
+    // ordered control lane used by Play/Stop/Pause.
+    DispatchSeekOnJobSystem(id, seconds);
+    return true;
 }
 
 auto MusicCardScreen::LoadInterfaceFont() -> bool {
@@ -1061,11 +1067,21 @@ auto MusicCardScreen::StartCurrentTrack() -> void {
     }
 }
 
-auto MusicCardScreen::DispatchPlayOnJobSystem(const std::string& id) -> void {
+auto MusicCardScreen::QueueAudioControl(std::string name, std::function<void()> action) -> void {
     auto& jobs = atom::job::JobSystem::GetInstance();
-    const auto handle = jobs.Schedule(
-        "musiccard:play",
-        [this, id] {
+    std::lock_guard lock{audio_jobs_mutex_};
+    std::vector<atom::job::JobHandle> dependencies;
+    if (audio_command_tail_.IsValid())
+        dependencies.push_back(audio_command_tail_);
+    const auto handle = jobs.Schedule(std::move(name), std::move(action), atom::job::Priority::High,
+                                      std::move(dependencies));
+    audio_command_tail_ = handle;
+    audio_jobs_.push_back(handle);
+}
+
+auto MusicCardScreen::DispatchPlayOnJobSystem(const std::string& id) -> void {
+    QueueAudioControl(
+        "musiccard:play", [this, id] {
             music_.Play(id);
             const auto state = music_.GetState(id);
             if (state != atom::audio::AudioSourceState::Playing &&
@@ -1074,26 +1090,40 @@ auto MusicCardScreen::DispatchPlayOnJobSystem(const std::string& id) -> void {
                             "Music card could not start track (id not registered on the active audio backend): " +
                                 id);
             }
-        },
-        atom::job::Priority::High);
-    std::lock_guard lock{audio_jobs_mutex_};
-    audio_jobs_.push_back(handle);
+        });
 }
 
 auto MusicCardScreen::DispatchStopOnJobSystem(const std::string& id) -> void {
-    auto& jobs = atom::job::JobSystem::GetInstance();
-    const auto handle = jobs.Schedule(
-        "musiccard:stop", [this, id] { music_.Stop(id); }, atom::job::Priority::High);
-    std::lock_guard lock{audio_jobs_mutex_};
-    audio_jobs_.push_back(handle);
+    QueueAudioControl("musiccard:stop", [this, id] { music_.Stop(id); });
 }
 
 auto MusicCardScreen::DispatchPauseOnJobSystem(const std::string& id) -> void {
-    auto& jobs = atom::job::JobSystem::GetInstance();
-    const auto handle = jobs.Schedule(
-        "musiccard:pause", [this, id] { music_.Pause(id); }, atom::job::Priority::High);
-    std::lock_guard lock{audio_jobs_mutex_};
-    audio_jobs_.push_back(handle);
+    QueueAudioControl("musiccard:pause", [this, id] { music_.Pause(id); });
+}
+
+auto MusicCardScreen::DispatchSeekOnJobSystem(std::string id, const float seconds) -> void {
+    bool schedule = false;
+    {
+        std::lock_guard lock{audio_jobs_mutex_};
+        pending_seek_ = PendingSeek{std::move(id), seconds};
+        if (!seek_command_queued_) {
+            seek_command_queued_ = true;
+            schedule = true;
+        }
+    }
+    if (!schedule)
+        return;
+
+    QueueAudioControl("musiccard:seek", [this] {
+        std::optional<PendingSeek> request;
+        {
+            std::lock_guard lock{audio_jobs_mutex_};
+            request = std::move(pending_seek_);
+            seek_command_queued_ = false;
+        }
+        if (request)
+            (void)music_.Seek(request->id, request->seconds);
+    });
 }
 
 auto MusicCardScreen::StopCurrentTrack() -> void {

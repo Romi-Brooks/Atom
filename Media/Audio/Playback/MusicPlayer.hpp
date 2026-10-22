@@ -116,16 +116,25 @@ class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
                 std::unique_ptr<atom::audio::IAudioSource> source;
                 // Seconds; 0 when the decoder could not report the length.
                 float duration_seconds = 0.0f;
+                // Serializes control operations on this source. It is
+                // deliberately separate from MusicPlayer::mutex_: Play/Stop/
+                // Seek can wait for a decode worker, whereas the player mutex
+                // only protects the track registry and must stay frame-safe.
+                std::mutex control_mutex;
         };
 
         atom::audio::IAudioBackend* backend_;
         atom::audio::AudioDecoderRegistry* decoders_;
         AudioMixer& mixer_;
         atom::backend::BackendRuntime* runtime_ = nullptr;
-        std::unordered_map<std::string, Track> tracks_;
+        // A shared track lease keeps both the decoder source and its backing
+        // VFS file alive after a caller drops the registry mutex. This lets
+        // slow source control happen outside the registry critical section.
+        std::unordered_map<std::string, std::shared_ptr<Track>> tracks_;
         mutable std::string current_playing_id_;
         mutable std::mutex mutex_;
 
+        [[nodiscard]] auto FindTrack(const std::string& id) const -> std::shared_ptr<Track>;
         auto RefreshNowPlayingLocked() const -> void;
 };
 

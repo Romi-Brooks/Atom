@@ -2,7 +2,9 @@
 #define ATOM_SDL3_MIXER_STREAMING_SOURCE_HPP
 
 #include <atomic>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <thread>
 
 #include <SDL3/SDL.h>
@@ -93,6 +95,11 @@ class SDL3MixerStreamingSource final : public atom::audio::BackendOwnedSource,
         std::atomic<float> pan_{0.0f};
         std::atomic<bool> positioned_{false};
         std::atomic<bool> pan_requested_{false};
+
+        // Wakes the decode thread out of its throttle wait so Stop()/Pause()/seek
+        // can join it without waiting out a full sleep interval.
+        std::mutex wake_mutex_;
+        std::condition_variable wake_cv_;
 
         std::thread worker_;
 };

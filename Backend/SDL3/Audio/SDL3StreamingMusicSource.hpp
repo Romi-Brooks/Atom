@@ -2,8 +2,10 @@
 #define ATOM_SDL3_STREAMING_MUSIC_SOURCE_HPP
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -78,6 +80,13 @@ class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
         std::atomic<bool> thread_running_{false};
         std::atomic<bool> eof_{false};
         std::atomic<bool> decode_error_{false};
+
+        // Wakes the decode thread out of its throttle wait so Stop()/Pause()/seek
+        // can join it without waiting out a full sleep interval. The producer is
+        // otherwise blocked on a sleep, which is exactly the hitch a render-thread
+        // Stop/Pause would otherwise incur.
+        std::mutex wake_mutex_;
+        std::condition_variable wake_cv_;
 
         // Absolute frame the current decoding run starts at (the last seek
         // target), so GetPlayingOffset() reports the position in the file rather

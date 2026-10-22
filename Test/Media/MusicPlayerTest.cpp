@@ -14,9 +14,14 @@
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
+#include <chrono>
+#include <condition_variable>
 #include <cstddef>
+#include <future>
 #include <memory>
+#include <mutex>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -110,6 +115,64 @@ class StubSource final : public atom::audio::IAudioSource {
         bool loop_ = false;
 };
 
+struct BlockingStopState {
+        std::mutex mutex;
+        std::condition_variable cv;
+        bool entered = false;
+        bool release = false;
+};
+
+// Models a source whose Stop() is waiting for its decode worker. It lets this
+// test assert that MusicPlayer's registry lock is not held across that wait.
+class BlockingStopSource final : public atom::audio::IAudioSource {
+    public:
+        BlockingStopSource(int& live_count, std::shared_ptr<BlockingStopState> state)
+            : live_count_(live_count), state_data_(std::move(state)) {
+            ++live_count_;
+        }
+        ~BlockingStopSource() override {
+            --live_count_;
+        }
+
+        auto Play() -> void override {
+            state_ = atom::audio::AudioSourceState::Playing;
+        }
+        auto Stop() -> void override {
+            {
+                std::lock_guard lock(state_data_->mutex);
+                state_data_->entered = true;
+            }
+            state_data_->cv.notify_all();
+            std::unique_lock lock(state_data_->mutex);
+            state_data_->cv.wait(lock, [this] { return state_data_->release; });
+        }
+        auto Pause() -> void override {
+            state_ = atom::audio::AudioSourceState::Paused;
+        }
+        [[nodiscard]] auto GetState() const -> atom::audio::AudioSourceState override {
+            return state_;
+        }
+        auto SetVolume(float) -> void override {}
+        [[nodiscard]] auto GetVolume() const -> float override {
+            return 100.0f;
+        }
+        auto SetLooping(bool) -> void override {}
+        [[nodiscard]] auto IsLooping() const -> bool override {
+            return false;
+        }
+        auto SetPlayingOffset(float) -> bool override {
+            return true;
+        }
+        [[nodiscard]] auto GetPlayingOffset() const -> float override {
+            return 0.0f;
+        }
+
+    private:
+        int& live_count_;
+        std::shared_ptr<BlockingStopState> state_data_;
+        atom::audio::AudioSourceState state_ = atom::audio::AudioSourceState::Stopped;
+};
+
 class StubBackend final : public atom::audio::IAudioBackend {
     public:
         [[nodiscard]] auto CreateMusicSource(std::vector<uint8_t>, const atom::audio::AudioSpec&)
@@ -126,7 +189,17 @@ class StubBackend final : public atom::audio::IAudioBackend {
             if (!decoder || !decoder->IsOpen())
                 return nullptr;
             ++created_sources_;
+            if (block_next_source_) {
+                block_next_source_ = false;
+                return std::make_unique<BlockingStopSource>(live_sources_, blocking_stop_state_);
+            }
             return std::make_unique<StubSource>(live_sources_);
+        }
+
+        auto ArmBlockingStopSource() -> std::shared_ptr<BlockingStopState> {
+            blocking_stop_state_ = std::make_shared<BlockingStopState>();
+            block_next_source_ = true;
+            return blocking_stop_state_;
         }
 
         [[nodiscard]] auto LiveSources() const -> int {
@@ -139,6 +212,8 @@ class StubBackend final : public atom::audio::IAudioBackend {
     private:
         int live_sources_ = 0;
         int created_sources_ = 0;
+        bool block_next_source_ = false;
+        std::shared_ptr<BlockingStopState> blocking_stop_state_{};
 };
 
 } // namespace
@@ -203,5 +278,27 @@ auto main() -> int {
     ATOM_CHECK(backend.LiveSources() == 0);
     ATOM_CHECK(!player.IsLoaded("a"));
     ATOM_CHECK(!player.IsLoaded("b"));
+
+    // A slow Stop() may wait for the source's decode worker, but it must never
+    // monopolize the player registry: the render thread polls GetState() every
+    // frame and has to obtain an immediate atomic snapshot.
+    const auto stop_state = backend.ArmBlockingStopSource();
+    ATOM_CHECK(player.Load("blocking", *memory, track_path));
+    std::thread stopper{[&player] { player.Stop("blocking"); }};
+    {
+        std::unique_lock lock(stop_state->mutex);
+        stop_state->cv.wait(lock, [&stop_state] { return stop_state->entered; });
+    }
+    auto state_query = std::async(std::launch::async, [&player] { return player.GetState("blocking"); });
+    const bool state_query_completed =
+        state_query.wait_for(std::chrono::milliseconds{100}) == std::future_status::ready;
+    {
+        std::lock_guard lock(stop_state->mutex);
+        stop_state->release = true;
+    }
+    stop_state->cv.notify_all();
+    stopper.join();
+    ATOM_CHECK(state_query_completed);
+    ATOM_CHECK(state_query.get() == atom::audio::AudioSourceState::Stopped);
     return 0;
 }

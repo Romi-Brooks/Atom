@@ -120,9 +120,12 @@ auto Minimp3Decoder::OpenFromMemory(const void* data, const std::size_t size) ->
     impl_->io.seek = Mp3MemSeekCallback;
     impl_->io.seek_data = &impl_->mem;
 
-    // Same flags as Open(): the open-time scan is what makes the total length
-    // (and therefore seek/duration) available. See the note in Open().
-    const int open_result = mp3dec_ex_open_cb(&impl_->dec, &impl_->io, MP3D_SEEK_TO_SAMPLE);
+    // Opening a streaming neighbour must be bounded: scanning every MP3 frame
+    // merely to discover a duration turns "prefetch the next track" into a
+    // full-file I/O job. Keep sample-accurate seek available, but defer index
+    // construction until a caller actually seeks. VBR-tagged files still
+    // report their duration immediately.
+    const int open_result = mp3dec_ex_open_cb(&impl_->dec, &impl_->io, MP3D_SEEK_TO_SAMPLE | MP3D_DO_NOT_SCAN);
     if (open_result != 0) {
         LOG_DEBUG(atom::log::audio::Minimp3,
                   "Minimp3: failed to open memory stream (error " + std::to_string(open_result) + ")");
@@ -164,9 +167,10 @@ auto Minimp3Decoder::OpenStream(atom::fs::IFile& file) -> atom::audio::DecoderOp
     impl_->io.seek = Mp3FileSeekCallback;
     impl_->io.seek_data = &impl_->file;
 
-    // Same flags as Open(): the open-time scan is what makes the total length
-    // (and therefore seek/duration) available. See the note in Open().
-    const int open_result = mp3dec_ex_open_cb(&impl_->dec, &impl_->io, MP3D_SEEK_TO_SAMPLE);
+    // Do not scan an entire compressed file just to pre-open a stream. An
+    // exact index is built lazily by mp3dec_ex_seek() when seek is requested;
+    // VBR-tagged files still expose their duration at open time.
+    const int open_result = mp3dec_ex_open_cb(&impl_->dec, &impl_->io, MP3D_SEEK_TO_SAMPLE | MP3D_DO_NOT_SCAN);
     if (open_result != 0) {
         LOG_DEBUG(atom::log::audio::Minimp3,
                   "Minimp3: failed to open stream (error " + std::to_string(open_result) + ")");
