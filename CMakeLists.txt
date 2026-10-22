@@ -324,7 +324,7 @@ endif()
         Render/Text/Font.hpp
     )
     target_include_directories(Atom_Text PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Text PRIVATE Atom_3rd_Stb)
+    target_link_libraries(Atom_Text PRIVATE Atom_3rd_FreeType Atom_3rd_HarfBuzz)
 
 # 3f. Pipeline — backend-neutral pipeline descriptors shared by 2D and 3D.
     add_library(Atom_Render_Pipeline INTERFACE)

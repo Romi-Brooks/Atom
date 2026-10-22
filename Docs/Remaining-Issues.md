@@ -611,14 +611,14 @@ shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` �
 
 ### RENDER-005：Atom 文本与字体系统
 
-- [-] Renderer2D 已增加独立于 ImGui 的内存 Font、UTF-8 解码、stb_truetype 栅格与多页 GlyphAtlas；CJK fallback、文件/VFS/DPI 策略和 HarfBuzz shaping 待实现。
+- [-] Renderer2D 已增加独立于 ImGui 的内存 Font、UTF-8 解码、FreeType 栅格与多页 GlyphAtlas；CJK fallback、文件/VFS/DPI 策略和 HarfBuzz shaping 待实现。
 - [x] 字形栅格结果保持后端无关，由 RenderDevice 上传 atlas；公共 API 不暴露 ImGui、SDL 或平台字体类型。
-- [x] 图集页首次清零后，新增字形只上传合并后的脏矩形；不再为每个新增字形重传整张页。
+- [-] SDL_GPU/D3D12 的活动 glyph atlas 脏矩形上传会产生随机缺字；目前新增字形时回退为整页上传以保证像素正确。待 `RENDER-012` 的带版本、字节预算与截图 golden 的上传队列落地后，才能安全恢复分片上传。
 - [x] 英文 ASCII 单词按整体换行、tab 对齐至列停靠点、CRLF 的 `\r` 被忽略；缺字尝试显示当前字体的 `.notdef` glyph。
 - [ ] 完整 Unicode 换行（UAX #14）、词典断词、双向文本和 locale 规则不能继续堆在 `Renderer2D::ExpandTextOp`；应由 `TextLayout` 负责。
 - [ ] `.notdef` 不是 fallback：需要 `FontProvider` 管理字体族、覆盖范围与回退链，并保证度量、baseline 和缓存键与实际选中的字体一致。
 - [ ] atlas 尺号已量化到 0.5px，但图集/页面尚无内存预算与 LRU；淘汰必须与 GPU 延迟释放和正在录制的 draw packet 生命周期协同。
-- [ ] stb_truetype 仅提供简单轮廓栅格和 kern pair；连字、组合音标、阿拉伯文/Indic 重排、彩色 emoji、OpenType feature/variation/DPI 实例应由 FreeType + HarfBuzz 路径提供。
+- [ ] FreeType 已提供字体加载、hinting、度量和字形栅格；连字、组合音标、阿拉伯文/Indic 重排、OpenType feature/variation/DPI 实例仍须由 HarfBuzz + TextLayout 路径提供。
 - 现状：`atom::debugger::FontLoader` 只修复 Debugger 的 ImGui font atlas，不是 Atom Renderer 的字体实现，不应被正式游戏 UI 依赖。
 
 ### RENDER-007：SDLGPU 内部组件化
@@ -643,15 +643,24 @@ shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` �
 
 ### RENDER-010：生产级文字后端
 
-- [ ] 将现有 stb 字体路径继续封装为 `FontProvider`、`TextLayout`、`GlyphAtlas`、`TextRenderer`，Renderer2D 不再直接解析 UTF-8 或管理字体文件。
-- [ ] 评估并接入 FreeType + HarfBuzz，用于 CJK fallback、kerning、组合字符、阿拉伯文/Indic shaping 和 DPI 实例缓存。
-- [ ] 保留 stb_truetype 作为轻量构建或无 shaping fallback，统一错误和资源生命周期。
+- [ ] 将现有 FreeType 单字体路径继续封装为 `FontProvider`、`TextLayout`、`GlyphAtlas`、`TextRenderer`，Renderer2D 不再直接解析 UTF-8 或管理字体文件。
+- [-] 已以 pinned submodule 接入 FreeType 2.13.3（当前 Font raster provider）与 HarfBuzz 10.4.0；下一步由 `TextShaper` 消费 HarfBuzz，覆盖 CJK fallback、组合字符、阿拉伯文/Indic shaping 和 DPI 实例缓存。
+- [ ] 决定轻量构建的 provider 策略，并统一错误和资源生命周期；stb 继续只服务图片解码，不再是 Atom 的正式字体栅格路径。
 
 ### RENDER-011：渲染回归护栏
 
 - [ ] 增加 Null/Recording Render Backend，验证 frame/pass/资源顺序和释放协议。
 - [ ] 增加 shader reflection/layout 校验、资源生命周期测试和截图 golden test，减少对人工验收的依赖。
 - [ ] 覆盖 SDL_GPU 的 D3D12、Vulkan、Metal 运行时 shader variant 选择和区域后处理路径。
+
+### RENDER-012：带字节预算的分帧纹理上传队列
+
+- [ ] 将 GPU 纹理上传收敛为 RenderDevice/资源层拥有的队列：请求应包含优先级、字节数、完成状态和资源生命周期，而不是由各个 Renderer 在一帧内直接排空。
+- [ ] 为每帧设置可配置的上传字节预算；超预算请求留在队列中，不能让一张大 RGBA 图片的 CPU 拷贝和 GPU copy pass 挤占当前帧。
+- [ ] 支持按行或 tile 切分大纹理上传；纹理未完整就绪前使用明确的 fallback/旧纹理，且保证部分上传、延迟销毁和已录制 draw packet 的资源安全。
+- [ ] 保持 CPU 图片解码在工作线程；引擎接受 `DecodedImage` 并复用它，禁止为同一资源在 Renderer 中再次解码。（`TextureCache::AcquireFromDecodedImage` 已是这条边界的起点。）
+- [ ] 增加 Recording/Null 后端测试：验证帧上传字节不超过预算、分片顺序与像素正确性、优先级、取消/替换以及 shutdown 时资源释放。
+- 验收：无论用户传入多大的封面或纹理，主渲染帧的上传工作都受预算上限约束；游戏侧不需要通过 sleep、手工拆帧或阻塞等待来规避卡顿。
 
 ### 4.4 模块边界与构建
 

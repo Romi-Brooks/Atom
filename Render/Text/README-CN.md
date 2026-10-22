@@ -4,7 +4,7 @@
 
 `Render/Text` 是 CPU 侧的字体、排版和字形缓存服务；它不依赖 SDL_GPU、Vulkan、D3D、Metal 或具体窗口。渲染后端只接收已经生成的 glyph quad、纹理和材质。
 
-当前 `Font` 是 stb_truetype 的单字体 provider，保留它是为了让 Atom 在没有系统字体库时仍能跨平台构建。新代码直接使用：
+当前 `Font` 是 FreeType 的单字体 provider；它加载受信任的字体字节并提供 hinting、度量和 glyph rasterization。新代码直接使用：
 
 ```cpp
 #include <Render/Text/Font.hpp>
@@ -12,7 +12,7 @@
 
 ## 当前 provider 的适用范围
 
-stb_truetype 适合受信任的 TTF/TTC、单字体、简单左到右文字、轻量工具和基础 HUD。它不负责字体 fallback、复杂文字 shaping、双向文字、组合字符、字体变体轴、hinting 策略或持久化 atlas。不要在 `Font` 中继续增加这些业务开关。
+当前单字体 provider 适合受信任的 TTF/TTC、简单左到右文字、轻量工具和基础 HUD。FreeType 改善了加载、hinting 与小字号栅格质量，但它不负责字体 fallback、复杂文字 shaping、双向文字、组合字符、字体变体轴选择或持久化 atlas。不要在 `Font` 中继续增加这些业务开关。
 
 ## 推荐的文字流水线
 
@@ -26,7 +26,7 @@ FontProvider → TextShaper → immutable TextLayout → GlyphAtlas → TextRend
 - `GlyphAtlas` 管理 GPU 图集、采样、淘汰和 DPI 版本；
 - `TextRenderer` 只消费 `TextLayout` 并提交普通 draw packet。
 
-Renderer2D 不应解析 UTF-8、读取字体文件或直接调用 stb。
+Renderer2D 不应解析 UTF-8、读取字体文件或直接调用 FreeType。
 
 ## FreeType + HarfBuzz 迁移
 
@@ -34,7 +34,7 @@ Renderer2D 不应解析 UTF-8、读取字体文件或直接调用 stb。
 
 生产级多语言路径推荐 FreeType（解析、rasterization、hinting）+ HarfBuzz（复杂文字 shaping、kerning、组合字符和脚本规则），ICU 可作为更完整的 Unicode 分段和双向文字扩展。
 
-当前不立即替换的原因是仓库还没有 `TextShaper/TextLayout/fallback` 契约；直接把 stb 实现替换为 FreeType 只会增加包体和构建负担，无法解决 Renderer2D 过度承担文字职责的问题。完成这些接口后，新增 `FreeTypeFontProvider` 和 `HarfBuzzTextShaper` 即可替换，不需要改 SDL_GPU 后端。
+FreeType 2.13.3 与 HarfBuzz 10.4.0 已作为锁定 submodule 引入。当前 `Font` 已使用 FreeType；HarfBuzz 必须等 `TextShaper/TextLayout/fallback` 契约落地后才接管 shaping，否则只会把 UTF-8/排版职责继续错误地堆在 Renderer2D。完成这些接口后，新增 `HarfBuzzTextShaper` 即可接入，不需要改 SDL_GPU 后端。
 
 切换条件：TextLayout API 稳定；CJK、拉丁、阿拉伯文和组合字符 golden test 建立；依赖的跨平台构建和许可证归档完成；atlas 上传和 DPI 缩放不再依赖 Renderer2D 内部状态。
 

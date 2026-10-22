@@ -28,3 +28,9 @@
 [submodule "ThirdParty/EnTT"]
 	path = ThirdParty/EnTT
 	url = https://github.com/skypjack/entt.git
+[submodule "ThirdParty/FreeType"]
+	path = ThirdParty/FreeType
+	url = https://github.com/freetype/freetype.git
+[submodule "ThirdParty/HarfBuzz"]
+	path = ThirdParty/HarfBuzz
+	url = https://github.com/harfbuzz/harfbuzz.git

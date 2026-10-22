@@ -81,6 +81,18 @@ atom_add_test(Atom_Render_Resources.TextureCache
     Render/TextureCacheTest.cpp
     Atom_Render_Resources Atom_FS)
 
+atom_add_test(Atom_Render_Text.Font
+    Atom_Render_Text_Font_Tests
+    Render/FontTest.cpp
+    Atom_Text)
+target_compile_definitions(Atom_Render_Text_Font_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+
+atom_add_test(Atom_Renderer2D.Text
+    Atom_Renderer2D_Text_Tests
+    Render/Renderer2DTextTest.cpp
+    Atom_Renderer2D)
+target_compile_definitions(Atom_Renderer2D_Text_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+
 # --- Algorithm / Color / Event (header-heavy pure logic) ---
 atom_add_test(Atom_Algorithm.Scalar
     Atom_Algorithm_Scalar_Tests

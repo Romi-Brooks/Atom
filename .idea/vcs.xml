@@ -3,6 +3,8 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/EnTT" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ThirdParty/FreeType" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ThirdParty/HarfBuzz" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/ImGUI" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/Lua" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ThirdParty/SDL3" vcs="Git" />

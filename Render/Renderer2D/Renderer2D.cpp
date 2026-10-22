@@ -13,6 +13,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <limits>
 
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
@@ -86,11 +87,159 @@ auto ToRenderRect(const algo::Rect& rect) -> Rect {
     return {rect.x, rect.y, rect.width, rect.height};
 }
 
+// A single glyph's laid-out pen origin, in logical pixels. `x` is the position
+// after kerning (where the glyph's origin lands); `y` is its line's top.
+// (Struct definitions live in Renderer2D.hpp as TextGlyphRun / TextLayoutResult
+// so the per-renderer layout cache can store them.)
+
+// The single source of truth for text shaping and word-wrap. DrawText expands
+// the returned glyphs into atlas quads; MeasureText reads only width/height.
+// Any change to how text lays out belongs here and nowhere else.
+auto LayoutText(const Font& font, const std::string_view text, const float size_px, const float max_width,
+                const float start_x, const float start_y) -> TextLayoutResult {
+    TextLayoutResult result{};
+    if (text.empty())
+        return result;
+
+    const float atlas_size = QuantizeAtlasSize(size_px);
+    const float scale = font.ScaleForPixelHeight(atlas_size);
+    const auto metrics = font.MetricsForPixelHeight(atlas_size);
+    result.line_height = metrics.ascent - metrics.descent + metrics.line_gap;
+
+    const float limit = max_width > 0.0f ? start_x + max_width : std::numeric_limits<float>::infinity();
+
+    float cursor_x = start_x;
+    float cursor_y = start_y;
+    uint32_t previous = 0;
+    std::size_t line_count = 1;
+
+    const auto measure_run = [&](const std::size_t run_start, const std::size_t run_end, uint32_t run_previous) {
+        float advance = 0.0f;
+        std::size_t run_index = run_start;
+        while (run_index < run_end) {
+            const auto before = run_index;
+            const uint32_t cp = NextCodepoint(text, run_index);
+            if (cp == 0) {
+                if (run_index == before)
+                    ++run_index;
+                continue;
+            }
+            advance += font.Advance(cp, run_previous, scale);
+            run_previous = cp;
+        }
+        return advance;
+    };
+
+    const auto emit = [&](const uint32_t cp) {
+        const float base_advance = font.Advance(cp, 0, scale);
+        cursor_x += font.Advance(cp, previous, scale) - base_advance;
+        previous = cp;
+        result.glyphs.push_back(TextGlyphRun{cp, cursor_x, cursor_y});
+        cursor_x += base_advance;
+        result.width = std::max(result.width, cursor_x - start_x);
+    };
+
+    std::size_t index = 0;
+    while (index < text.size()) {
+        const auto previous_index = index;
+        const uint32_t cp = NextCodepoint(text, index);
+        if (cp == 0) {
+            if (index == previous_index)
+                ++index;
+            continue;
+        }
+        if (cp == '\n') {
+            cursor_x = start_x;
+            cursor_y += result.line_height;
+            previous = 0;
+            ++line_count;
+            continue;
+        }
+        if (cp == '\r')
+            continue;
+        if (cp == ' ') {
+            cursor_x += font.Advance(cp, previous, scale);
+            previous = cp;
+            result.width = std::max(result.width, cursor_x - start_x);
+            continue;
+        }
+        if (cp == '\t') {
+            const float tab_width = std::max(font.Advance(' ', 0, scale) * 4.0f, 1.0f);
+            const float column = std::max(cursor_x - start_x, 0.0f);
+            cursor_x = start_x + (std::floor(column / tab_width) + 1.0f) * tab_width;
+            previous = 0;
+            result.width = std::max(result.width, cursor_x - start_x);
+            continue;
+        }
+        if (IsAsciiWordCodepoint(cp)) {
+            const std::size_t word_start = previous_index;
+            std::size_t word_end = index;
+            while (word_end < text.size()) {
+                const std::size_t probe_start = word_end;
+                const uint32_t probe = NextCodepoint(text, word_end);
+                if (!IsAsciiWordCodepoint(probe)) {
+                    word_end = probe_start;
+                    break;
+                }
+            }
+            if (cursor_x + measure_run(word_start, word_end, previous) > limit && cursor_x > start_x) {
+                cursor_x = start_x;
+                cursor_y += result.line_height;
+                previous = 0;
+                ++line_count;
+            }
+            index = word_start;
+            while (index < word_end) {
+                const auto word_index = index;
+                const uint32_t word_cp = NextCodepoint(text, index);
+                if (word_cp == 0) {
+                    if (index == word_index)
+                        ++index;
+                    continue;
+                }
+                emit(word_cp);
+            }
+            continue;
+        }
+        const float advance = font.Advance(cp, previous, scale);
+        if (cursor_x + advance > limit && cursor_x > start_x) {
+            cursor_x = start_x;
+            cursor_y += result.line_height;
+            previous = 0;
+            ++line_count;
+        }
+        emit(cp);
+    }
+
+    result.height = static_cast<float>(line_count) * result.line_height;
+    return result;
+}
+
+// Grows a scissor by the glyph-padding inset. Text glyphs may ink outside
+// their pen origin (side bearings), and the backend rounds scissor edges to
+// whole framebuffer pixels; without this margin the first/last glyph of a
+// clipped run can be shaved off. Graphics ops keep the exact clip.
+auto ExpandClipForBearing(const Rect& clip) -> Rect {
+    const float inset = static_cast<float>(glyph_padding);
+    return Rect{clip.x - inset, clip.y - inset, clip.width + inset * 2.0f, clip.height + inset * 2.0f};
+}
+
 auto ClampColor(const Color& color) -> std::array<float, 4> {
     return {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f};
 }
 
 } // namespace
+
+auto TextLayoutKeyHash::operator()(const TextLayoutKey& key) const noexcept -> std::size_t {
+    std::size_t h = std::hash<const void*>{}(key.font);
+    const auto mix = [&h](const std::size_t value) {
+        h ^= value + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+    };
+    mix(std::hash<float>{}(key.size_px));
+    mix(std::hash<float>{}(key.max_width));
+    mix(std::hash<std::string>{}(key.text));
+    return h;
+}
 
 Renderer2D::Renderer2D() = default;
 
@@ -125,6 +274,13 @@ auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& 
         Shutdown();
         return false;
     }
+    glyph_sampler_ = context_->CreateSampler2D(
+        {Filter2D::Nearest, Filter2D::Nearest, AddressMode2D::ClampToEdge, AddressMode2D::ClampToEdge});
+    if (glyph_sampler_ == render::invalid_sampler_2d) {
+        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D failed to create its glyph atlas sampler");
+        Shutdown();
+        return false;
+    }
     white_texture_ = CreateTexture(1, 1, nullptr);
     if (!white_texture_) {
         LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D failed to create its white fallback texture");
@@ -154,6 +310,9 @@ auto Renderer2D::Shutdown() -> void {
     pending_uploads_.clear();
     atlases_.clear();
     fonts_.clear();
+    // Layout cache entries hold glyph origins for fonts owned above; those
+    // pointers die here, so the cache must go too.
+    text_layout_cache_.clear();
     if (context_) {
         for (auto& texture : textures_) {
             if (texture && texture->handle_ != render::invalid_texture_2d)
@@ -161,6 +320,8 @@ auto Renderer2D::Shutdown() -> void {
         }
         if (sampler_ != render::invalid_sampler_2d)
             context_->DestroySampler2D(sampler_);
+        if (glyph_sampler_ != render::invalid_sampler_2d)
+            context_->DestroySampler2D(glyph_sampler_);
     }
     textures_.clear();
     ops_.clear();
@@ -168,6 +329,7 @@ auto Renderer2D::Shutdown() -> void {
     layer_stack_.clear();
     white_texture_ = nullptr;
     sampler_ = render::invalid_sampler_2d;
+    glyph_sampler_ = render::invalid_sampler_2d;
     postprocess_params_ = {};
     context_ = nullptr;
     device_ = nullptr;
@@ -231,48 +393,21 @@ auto Renderer2D::EndFrame() -> bool {
             expanded.push_back(op);
     }
     ops_.clear();
-    // Coalesce glyph insertions: a new page is zero-initialized once; later
-    // frames upload only the union of newly written glyph bounds.
+    // A glyph page is a single GPU resource.  Upload the authoritative CPU
+    // page as one image whenever it changes.  SDL_GPU's region-upload path is
+    // used for ordinary images too, but using it to patch a live glyph atlas
+    // has produced non-deterministic missing texels on the D3D12 backend.
+    //
+    // This runs only when a previously unseen glyph is rasterized, never for
+    // steady-state text.  A future byte-budgeted upload queue can split this
+    // safely after it owns atlas residency/versioning end-to-end.
     for (auto& atlas : atlases_) {
         for (auto& page : atlas->pages) {
             if (!page.texture)
                 continue;
-            if (page.needs_initial_upload) {
+            if (page.needs_initial_upload || page.dirty) {
                 UpdateTexture(*page.texture, page.rgba.data());
                 page.needs_initial_upload = false;
-                page.dirty = false;
-            } else if (page.dirty) {
-                uint32_t left = page.dirty_left;
-                uint32_t top = page.dirty_top;
-                uint32_t right = page.dirty_right;
-                uint32_t bottom = page.dirty_bottom;
-                // Preserve a failed upload already queued for this page: the
-                // CPU atlas is authoritative, so requeue the union from it.
-                if (const auto pendingIt = pending_uploads_.find(page.texture->handle_);
-                    pendingIt != pending_uploads_.end()) {
-                    const auto& existing = pendingIt->second;
-                    left = std::min(left, existing.x);
-                    top = std::min(top, existing.y);
-                    right = std::max(right, existing.x + existing.width);
-                    bottom = std::max(bottom, existing.y + existing.height);
-                }
-                const uint32_t width = right - left;
-                const uint32_t height = bottom - top;
-                auto& pending = pending_uploads_[page.texture->handle_];
-                pending.handle = page.texture->handle_;
-                pending.x = left;
-                pending.y = top;
-                pending.width = width;
-                pending.height = height;
-                pending.pitch_bytes = width * 4u;
-                pending.rgba.resize(static_cast<std::size_t>(pending.pitch_bytes) * height);
-                const std::size_t page_pitch = static_cast<std::size_t>(page.size) * 4u;
-                for (uint32_t row = 0; row < height; ++row) {
-                    std::memcpy(pending.rgba.data() + static_cast<std::size_t>(row) * pending.pitch_bytes,
-                                page.rgba.data() + static_cast<std::size_t>(top + row) * page_pitch +
-                                    static_cast<std::size_t>(left) * 4u,
-                                pending.pitch_bytes);
-                }
                 page.dirty = false;
             }
         }
@@ -775,6 +910,33 @@ auto Renderer2D::DrawText(const Font& font, const std::string_view text, const f
     ops_.push_back(std::move(op));
 }
 
+auto Renderer2D::MeasureText(const Font& font, const std::string_view text, const float size_px,
+                             const float max_width) const -> TextSize {
+    if (text.empty() || !font.IsValid() || !std::isfinite(size_px) || !std::isfinite(max_width) ||
+        size_px <= 0.0f || size_px > max_text_size || max_width < 0.0f)
+        return {};
+    const auto& layout = GetOrLayoutText(font, text, size_px, max_width);
+    return {layout.width, layout.height};
+}
+
+auto Renderer2D::GetOrLayoutText(const Font& font, const std::string_view text, const float size_px,
+                                 const float max_width) const -> const TextLayoutResult& {
+    TextLayoutKey key{&font, size_px, max_width, std::string{text}};
+    if (const auto it = text_layout_cache_.find(key); it != text_layout_cache_.end())
+        return it->second;
+
+    // Miss: lay out relative to origin and reuse it for both draw and measure.
+    auto result = LayoutText(font, text, size_px, max_width, 0.0f, 0.0f);
+    // Keep the cache bounded: a fresh clear is cheap and a typical static-UI
+    // working set is only a handful of entries, so simple full eviction is
+    // enough rather than a real LRU. (Superseded by the explicit TextLayout
+    // object on the TextShaper/TextLayout roadmap.)
+    if (text_layout_cache_.size() >= text_layout_cache_capacity)
+        text_layout_cache_.clear();
+    const auto [it, inserted] = text_layout_cache_.emplace(std::move(key), std::move(result));
+    return it->second;
+}
+
 auto Renderer2D::PushClip(const algo::Rect& rect) -> void {
     if (!in_frame_)
         return;
@@ -923,19 +1085,6 @@ auto Renderer2D::EnsureGlyph(GlyphAtlas& atlas, const uint32_t codepoint) -> con
     }
     page.cursor_x += gw;
     page.row_height = std::max(page.row_height, gh);
-    const uint32_t right = glyph.u + glyph.width;
-    const uint32_t bottom = glyph.v + glyph.height;
-    if (!page.dirty) {
-        page.dirty_left = glyph.u;
-        page.dirty_top = glyph.v;
-        page.dirty_right = right;
-        page.dirty_bottom = bottom;
-    } else {
-        page.dirty_left = std::min(page.dirty_left, glyph.u);
-        page.dirty_top = std::min(page.dirty_top, glyph.v);
-        page.dirty_right = std::max(page.dirty_right, right);
-        page.dirty_bottom = std::max(page.dirty_bottom, bottom);
-    }
     page.dirty = true;
     return &atlas.glyphs.emplace(codepoint, glyph).first->second;
 }
@@ -961,45 +1110,31 @@ auto Renderer2D::ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -
     }
 
     const auto metrics = op.font->MetricsForPixelHeight(atlasSize);
-    const float lineHeight = metrics.ascent - metrics.descent + metrics.line_gap;
-    const float limit = op.max_width > 0.0f ? op.dst.x + op.max_width : std::numeric_limits<float>::infinity();
 
-    float cursorX = op.dst.x;
-    float cursorY = op.dst.y;
-    uint32_t previous = 0;
+    // Text inherits the active scissor, but a glyph may ink outside its pen
+    // origin (side bearing) and the backend rounds scissor edges to whole
+    // pixels. Widen the clip by the glyph-padding inset so the first/last glyph
+    // of a clipped run is never shaved off. Graphics ops keep the exact clip.
+    const Rect text_clip = op.has_clip ? ExpandClipForBearing(op.clip) : Rect{};
 
-    const auto measureRun = [&](const std::size_t start, const std::size_t end, uint32_t runPrevious) {
-        float advance = 0.0f;
-        std::size_t runIndex = start;
-        while (runIndex < end) {
-            const auto before = runIndex;
-            const uint32_t codepoint = NextCodepoint(op.text, runIndex);
-            if (codepoint == 0) {
-                if (runIndex == before)
-                    ++runIndex;
-                continue;
-            }
-            advance += op.font->Advance(codepoint, runPrevious, atlas->scale);
-            runPrevious = codepoint;
-        }
-        return advance;
-    };
-    const auto emitGlyph = [&](const uint32_t codepoint) {
-        const float baseAdvance = op.font->Advance(codepoint, 0, atlas->scale);
-        cursorX += op.font->Advance(codepoint, previous, atlas->scale) - baseAdvance;
-        previous = codepoint;
-        const AtlasGlyph* glyph = EnsureGlyph(*atlas, codepoint);
+    // Layout is shared with MeasureText (and cached per font/text/size/wrap):
+    // identical glyph origins, identical wrap decisions, so a measurement can
+    // never disagree with what is drawn. The cached origins are relative to
+    // (0,0), so the draw position is added here.
+    const auto& layout = GetOrLayoutText(*op.font, op.text, op.size_px, op.max_width);
+    for (const auto& run : layout.glyphs) {
+        const AtlasGlyph* glyph = EnsureGlyph(*atlas, run.codepoint);
         if (glyph && glyph->width != 0 && glyph->height != 0 && glyph->page < atlas->pages.size()) {
             const auto& page = atlas->pages[glyph->page];
             DrawOp quad{};
             quad.layer = op.layer;
-            quad.sampler = sampler_;
-            quad.clip = op.clip;
+            quad.sampler = glyph_sampler_;
+            quad.clip = text_clip;
             quad.has_clip = op.has_clip;
             quad.color = op.color;
             quad.texture = page.texture;
-            quad.dst = Rect{cursorX + static_cast<float>(glyph->offset_x),
-                            cursorY + metrics.ascent + static_cast<float>(glyph->offset_y),
+            quad.dst = Rect{op.dst.x + run.x + static_cast<float>(glyph->offset_x),
+                            op.dst.y + run.y + metrics.ascent + static_cast<float>(glyph->offset_y),
                             static_cast<float>(glyph->width), static_cast<float>(glyph->height)};
             // Half-texel inset keeps linear sampling away from the transparent
             // gutter between glyphs (avoids edge erosion / garbled small text).
@@ -1009,75 +1144,6 @@ auto Renderer2D::ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -
             quad.has_source = true;
             expanded.push_back(std::move(quad));
         }
-        cursorX += baseAdvance;
-    };
-
-    std::size_t index = 0;
-    while (index < op.text.size()) {
-        const auto previousIndex = index;
-        const uint32_t codepoint = NextCodepoint(op.text, index);
-        if (codepoint == 0) {
-            // Skip one malformed byte instead of truncating the rest of the line.
-            if (index == previousIndex)
-                ++index;
-            continue;
-        }
-        if (codepoint == '\n') {
-            cursorX = op.dst.x;
-            cursorY += lineHeight;
-            previous = 0;
-            continue;
-        }
-        if (codepoint == '\r')
-            continue;
-        if (codepoint == ' ') {
-            cursorX += op.font->Advance(codepoint, previous, atlas->scale);
-            previous = codepoint;
-            continue;
-        }
-        if (codepoint == '\t') {
-            const float tabWidth = std::max(op.font->Advance(' ', 0, atlas->scale) * 4.0f, 1.0f);
-            const float column = std::max(cursorX - op.dst.x, 0.0f);
-            cursorX = op.dst.x + (std::floor(column / tabWidth) + 1.0f) * tabWidth;
-            previous = 0;
-            continue;
-        }
-        if (IsAsciiWordCodepoint(codepoint)) {
-            const std::size_t wordStart = previousIndex;
-            std::size_t wordEnd = index;
-            while (wordEnd < op.text.size()) {
-                const std::size_t probeStart = wordEnd;
-                const uint32_t probe = NextCodepoint(op.text, wordEnd);
-                if (!IsAsciiWordCodepoint(probe)) {
-                    wordEnd = probeStart;
-                    break;
-                }
-            }
-            if (cursorX + measureRun(wordStart, wordEnd, previous) > limit && cursorX > op.dst.x) {
-                cursorX = op.dst.x;
-                cursorY += lineHeight;
-                previous = 0;
-            }
-            index = wordStart;
-            while (index < wordEnd) {
-                const auto wordIndex = index;
-                const uint32_t wordCodepoint = NextCodepoint(op.text, index);
-                if (wordCodepoint == 0) {
-                    if (index == wordIndex)
-                        ++index;
-                    continue;
-                }
-                emitGlyph(wordCodepoint);
-            }
-            continue;
-        }
-        const float advance = op.font->Advance(codepoint, previous, atlas->scale);
-        if (cursorX + advance > limit && cursorX > op.dst.x) {
-            cursorX = op.dst.x;
-            cursorY += lineHeight;
-            previous = 0;
-        }
-        emitGlyph(codepoint);
     }
 }
 

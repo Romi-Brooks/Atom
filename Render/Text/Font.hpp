@@ -2,7 +2,7 @@
   * @file           : Font.hpp
   * @author         : Romi Brooks
   * @brief          : Backend-neutral trusted-font rasterization and glyph atlas data.
-  * @attention      : stb_truetype is a lightweight provider; shaping and fallback remain future work.
+ * @attention      : FreeType rasterizes one trusted face; shaping and fallback remain future work.
   * @date           : 2026/9/4
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
@@ -33,9 +33,9 @@ struct RasterizedGlyph {
         int offset_y = 0;
 };
 
-// Lightweight stb_truetype provider. The API is provider-shaped so a future
-// FreeType + HarfBuzz implementation can replace it without changing the
-// render backend or Renderer2D public contract.
+// Lightweight FreeType-backed single-face provider. The API remains
+// provider-shaped so HarfBuzz TextLayout/fallback can be added without
+// changing the render backend or Renderer2D public contract.
 class Font {
     public:
         Font() = default;
