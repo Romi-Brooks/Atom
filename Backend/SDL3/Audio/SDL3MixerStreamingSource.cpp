@@ -10,6 +10,7 @@
 
 #include "SDL3MixerContext.hpp"
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
+#include <Concurrency/ThreadRegistry.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3mixer {
@@ -340,6 +341,7 @@ auto SDL3MixerStreamingSource::IsValid() const -> bool {
 }
 
 auto SDL3MixerStreamingSource::DecodeLoop() -> void {
+    atom::concurrency::ThreadRegistry::ScopedRegistration registration{"AudioDecode(mixer)"};
     std::array<uint8_t, decode_chunk_bytes> buffer{};
     const auto bytes_per_frame =
         static_cast<std::uint64_t>(SDL_AUDIO_BYTESIZE(spec_.format)) * static_cast<std::uint64_t>(spec_.channels);

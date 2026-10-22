@@ -8,6 +8,7 @@
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
+#include <Concurrency/ThreadRegistry.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3 {
@@ -78,9 +79,22 @@ auto SDL3StreamingMusicSource::EnsureStream() -> bool {
         return false;
     }
 
-    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Opening streaming stream: fmt=" + std::to_string(spec_.format) +
-                                                          " freq=" + std::to_string(spec_.freq) +
-                                                          " ch=" + std::to_string(spec_.channels));
+    // Log source vs device format at INFO: a mismatch means SDL converts or
+    // resamples every callback on the audio threads, which is the first thing
+    // to correlate when per-track playback cost varies.
+    SDL_AudioSpec device_spec{};
+    int device_sample_frames = 0;
+    const bool has_device_spec =
+        SDL_GetAudioDeviceFormat(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &device_spec, &device_sample_frames);
+    LOG_INFO(atom::log::backend::Audio::sdl3,
+             "Opening streaming stream: source fmt=" + std::to_string(static_cast<int>(spec_.format)) +
+                 " freq=" + std::to_string(spec_.freq) + " ch=" + std::to_string(spec_.channels) +
+                 "; device " +
+                 (has_device_spec ? "fmt=" + std::to_string(static_cast<int>(device_spec.format)) +
+                                        " freq=" + std::to_string(device_spec.freq) +
+                                        " ch=" + std::to_string(device_spec.channels) +
+                                        " buffer=" + std::to_string(device_sample_frames) + " frames"
+                                  : "format unavailable"));
 
     stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, nullptr, nullptr);
     if (!stream_) {
@@ -89,7 +103,6 @@ auto SDL3StreamingMusicSource::EnsureStream() -> bool {
         return false;
     }
 
-    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Streaming audio stream opened successfully");
     return true;
 }
 
@@ -327,6 +340,7 @@ auto SDL3StreamingMusicSource::IsFinished() const -> bool {
 }
 
 auto SDL3StreamingMusicSource::DecodeLoop() -> void {
+    atom::concurrency::ThreadRegistry::ScopedRegistration registration{"AudioDecode"};
     SDL_SetAudioStreamGain(stream_, volume_.load() / 100.0f);
     SDL_ResumeAudioStreamDevice(stream_);
 
@@ -423,8 +437,13 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         // converted output bytes. A flushed stream can retain a small input
         // tail that cannot produce another output frame, so completion must
         // be based on output availability rather than queued input bytes.
-        const auto available_after_push = SDL_GetAudioStreamAvailable(stream_);
-        if (eof_.load() && ReadableBytes() == 0 && available_after_push == 0) {
+        //
+        // The available() query takes the same stream lock the device callback
+        // holds while converting/resampling the current block, and its answer
+        // only matters once EOF is reached. For a 44.1 kHz source on a 48 kHz
+        // device that lock is the contended one, so it is queried only when
+        // EOF makes the result relevant instead of on every throttle pass.
+        if (eof_.load() && ReadableBytes() == 0 && SDL_GetAudioStreamAvailable(stream_) == 0) {
             if (loop_.load()) {
                 LOG_DEBUG(atom::log::backend::Audio::sdl3, "Looping: rewinding decoder");
                 if (decoder_->Rewind()) {
