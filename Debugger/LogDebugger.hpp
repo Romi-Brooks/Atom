@@ -15,6 +15,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 #include <Debugger/DebugPanel.hpp>
 #include <Log/LogSystem.hpp>
@@ -29,10 +30,11 @@ namespace atom::debugger {
 // rejected with a warning.
 class LogDebugger final : public DebugPanel {
     private:
-        struct State {
-                std::mutex mutex;
-                std::deque<LogRecord> records;
-        };
+        // Defined in LogDebugger.cpp: a record plus its precomputed display
+        // strings (line/location/channel), so the render loop never rebuilds
+        // them per frame. Kept out of the header so LogRecord's full layout
+        // stays confined to the log module.
+        struct State;
 
     public:
         LogDebugger() : DebugPanel("LogDebugger") {}
@@ -54,11 +56,16 @@ class LogDebugger final : public DebugPanel {
         LogConnection log_connection_;
         LogLevel minimum_level_ = LogLevel::ATOM_DEBUG;
         std::unordered_set<std::string> selected_channels_;
+        std::vector<LogChannelInfo> cached_channels_;
+        double channels_refresh_time_ = -1.0;
         bool auto_scroll_ = true;
         bool window_open_ = true;
         bool slot_applied_ = false;
         char text_filter_[256]{};
-        std::size_t max_entries_ = 10000;
+        // The on-screen ring is small on purpose: it bounds both the per-frame
+        // scan and the memory the viewer can hold. The authoritative history is
+        // the file sink (see Log::SetFileSinkPath), not this panel.
+        std::size_t max_entries_ = 1024;
 };
 
 } // namespace atom::debugger
