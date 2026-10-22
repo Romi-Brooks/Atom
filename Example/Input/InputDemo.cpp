@@ -13,8 +13,9 @@
 **/
 
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
+#include <Runtime/ScreenManager.hpp>
 
 #include <Debugger/Overlay.hpp>
 #include <Input/ActionMap.hpp>
@@ -486,7 +487,8 @@ auto main() -> int {
     }
 
     auto& window = atom::RenderWindow::GetInstance();
-    const auto initialized = window.Initialize("Atom Engine - Input System Demo", atom::algo::Vec2{1280, 720},
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom Engine - Input System Demo", atom::algo::Vec2{1280, 720},
                                               atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
@@ -501,6 +503,6 @@ auto main() -> int {
              "Input demo running. WASD/arrows move the box, T opens a chat box, Space pauses, R recenters, "
              "Escape quits.");
 
-    window.Run();
+    application.Run();
     return 0;
 }

@@ -8,9 +8,10 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
 #include <Debugger/FpsDebugger.hpp>
@@ -104,8 +105,9 @@ auto main() -> int {
 
     // Give a window instance
     auto& window = atom::RenderWindow::GetInstance();
+    auto& application = atom::runtime::Application::GetInstance();
     // Init the window instance, Can pass a render backend explicit
-    const auto initialized = window.Initialize("Atom Engine - Debug Overlay Example",  // Title (also the window name)
+    const auto initialized = application.Initialize("Atom Engine - Debug Overlay Example",  // Title (also the window name)
                                               atom::algo::Vec2{1280, 720},  // Resolution
                                               atom::backend::RenderBackendId::SdlGpu  // Render Backend
     );
@@ -132,5 +134,5 @@ auto main() -> int {
     fps_panel.Attach(window);
 
     // Main loop
-    window.Run();
+    application.Run();
 }

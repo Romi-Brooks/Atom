@@ -1,12 +1,10 @@
 /**
   * @file           : RenderWindow.hpp
   * @author         : Romi Brooks
-  * @brief          : Main render window singleton (Engine Core)
+  * @brief          : Platform window and render-frame host.
  * @attention      : Wraps an atom::render::IRenderBackend selected by the engine runtime.
   *                   behind a stable singleton API. Never depends on a concrete
   *                   backend type; pick one with RenderBackendId.
-  *                   Overlay/event hooks are multi-slot listeners registered
-  *                   with RAII ListenerConnection (ARCH-112).
   * @date           : 2025/9/28
   Copyright (c) 2025 Romi Brooks, All rights reserved.
 **/
@@ -15,64 +13,28 @@
 #define ATOM_RENDER_WINDOW_HPP
 
 #include <cstdint>
-#include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
-#include <vector>
+#include <functional>
+#include <memory>
 
 #include <Backend/Contracts/Render/IRenderBackend.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
 #include <Error/Error.hpp>
-#include <Time/TimeSystem.hpp>
-#include <Window/ScreenManager.hpp>
-#include <Window/OverlayManager.hpp>
 
 namespace atom {
 
-// RAII connection for RenderWindow listener registrations. The listener is
-// removed on destruction or explicit Reset(); move-only. Connections remain
-// valid for the lifetime of the RenderWindow singleton.
-class ListenerConnection {
-    public:
-        ListenerConnection() = default;
-        ~ListenerConnection() {
-            Reset();
-        }
-
-        ListenerConnection(ListenerConnection&& other) noexcept : remove_(std::move(other.remove_)) {}
-        auto operator=(ListenerConnection&& other) noexcept -> ListenerConnection& {
-            if (this != &other) {
-                Reset();
-                remove_ = std::move(other.remove_);
-            }
-            return *this;
-        }
-        ListenerConnection(const ListenerConnection&) = delete;
-        auto operator=(const ListenerConnection&) -> ListenerConnection& = delete;
-
-        auto Reset() noexcept -> void {
-            if (remove_) {
-                remove_();
-                remove_ = nullptr;
-            }
-        }
-
-    private:
-        friend class RenderWindow;
-        explicit ListenerConnection(std::function<void()> remove) : remove_(std::move(remove)) {}
-
-        std::function<void()> remove_;
-};
+namespace runtime {
+class Application;
+}
 
 class RenderWindow {
     private:
+        friend class runtime::Application;
         std::unique_ptr<atom::render::IRenderBackend> backend_;
-        std::unique_ptr<atom::debugger::OverlayManager> overlay_manager_;
         std::string name_{};
         std::string backend_id_{};
         unsigned int fps_ = 60;
@@ -85,58 +47,20 @@ class RenderWindow {
         std::optional<PendingResize> pending_resize_{};
         static constexpr double resize_settle_delay_seconds = 0.2;
 
-        // --- Listener registry storage (multi-slot) ---
-        struct EventListenerEntry {
-                uint64_t id;
-                std::function<void(atom::window::IEvent&)> fn;
-                using ListenerFn = std::function<void(atom::window::IEvent&)>;
-        };
-        struct UpdateListenerEntry {
-                uint64_t id;
-                std::function<void(float)> fn;
-                using ListenerFn = std::function<void(float)>;
-        };
-        struct FixedUpdateListenerEntry {
-                uint64_t id;
-                std::function<void(float)> fn;
-                using ListenerFn = std::function<void(float)>;
-        };
-        struct OverlayListenerEntry {
-                uint64_t id;
-                std::function<void()> fn;
-                using ListenerFn = std::function<void()>;
-        };
-        struct ResizeListenerEntry {
-                uint64_t id;
-                std::function<void(uint32_t, uint32_t)> fn;
-                using ListenerFn = std::function<void(uint32_t, uint32_t)>;
-        };
-        struct ShutdownListenerEntry {
-                uint64_t id;
-                std::function<void()> fn;
-                using ListenerFn = std::function<void()>;
-        };
-
-        std::vector<EventListenerEntry> event_listeners_;
-        std::vector<UpdateListenerEntry> update_listeners_;
-        std::vector<FixedUpdateListenerEntry> fixed_update_listeners_;
-        std::vector<OverlayListenerEntry> overlay_listeners_;
-        std::vector<ResizeListenerEntry> resize_listeners_;
-        std::vector<ShutdownListenerEntry> shutdown_listeners_;
-        uint64_t next_listener_id_ = 1;
-
-        template <typename Entry>
-        auto AddListener(std::vector<Entry>& list, typename Entry::ListenerFn listener) -> ListenerConnection {
-            const uint64_t id = next_listener_id_++;
-            list.push_back(Entry{id, std::move(listener)});
-            return ListenerConnection(
-                [this, &list, id] { std::erase_if(list, [id](const Entry& e) { return e.id == id; }); });
-        }
-
-        auto ProcessEvents(const ScreenManager& screenManager) -> void;
-
         RenderWindow() = default;
         ~RenderWindow();
+
+        using EventSink = std::function<void(atom::window::IEvent&)>;
+
+        [[nodiscard]] auto Initialize(const std::string& title, algo::Vec2 resolution,
+                                      backend::RenderBackendId backendId = backend::RenderBackendId::SdlGpu)
+            -> Result<void>;
+        auto PumpEvents(const EventSink& sink) -> void;
+        [[nodiscard]] auto BeginFrame() -> bool;
+        auto EndFrame() -> void;
+        auto WaitForNextFrame() -> void;
+        auto Shutdown() -> void;
+        [[nodiscard]] auto GetTimeSource() -> atom::backend::ITimeSource*;
 
     public:
         RenderWindow(const RenderWindow&) = delete;
@@ -144,48 +68,17 @@ class RenderWindow {
 
         [[nodiscard]] static auto GetInstance() -> RenderWindow&;
 
-        // --- Listener registry (multiple listeners may coexist; unregistering one
-        // never clears the others). Listeners must not unregister themselves while
-        // being dispatched. ---
-
-        using EventListener = std::function<void(atom::window::IEvent&)>; // translated engine event
-        using UpdateListener = std::function<void(float)>;                // variable update, before rendering
-        using FixedUpdateListener = std::function<void(float)>;           // fixed step, 0..N per frame (CORE-001)
-        using OverlayListener = std::function<void()>;                    // per frame, after scene render
-        using ResizeListener = std::function<void(uint32_t, uint32_t)>;   // after backend HandleResize
-        using ShutdownListener = std::function<void()>;                   // once, on Shutdown
-
-        [[nodiscard]] auto AddEventListener(EventListener listener) -> ListenerConnection;
-        [[nodiscard]] auto AddUpdateListener(UpdateListener listener) -> ListenerConnection;
-        [[nodiscard]] auto AddFixedUpdateListener(FixedUpdateListener listener) -> ListenerConnection;
-        [[nodiscard]] auto AddOverlayListener(OverlayListener listener) -> ListenerConnection;
-        [[nodiscard]] auto AddResizeListener(ResizeListener listener) -> ListenerConnection;
-        [[nodiscard]] auto AddShutdownListener(ShutdownListener listener) -> ListenerConnection;
-
-        // Core API
-        // backendId selects a built-in render backend (engine-curated enum).
-        // The default is RenderBackendId::SdlGpu; new members are added by Atom
-        // releases, not by game/mod code.
-        //
-        // Fails when the backend is not registered or the backend itself could
-        // not initialize (device creation, swapchain claim, ...). The reason is
-        // returned instead of only logged: this used to be a void function, so a
-        // failed initialization was indistinguishable from a successful one
-        // until Run() threw much later (CORE-004). Callers that cannot proceed
-        // should report it and exit; the window stays uninitialized either way.
-        [[nodiscard]] auto Initialize(const std::string& title, algo::Vec2 resolution,
-                                      backend::RenderBackendId backendId = backend::RenderBackendId::SdlGpu)
-            -> Result<void>;
-        auto Run() -> void;
+        // Runtime/Application owns initialization, the frame loop, time
+        // domains, ScreenStack, and shutdown. This public surface is limited
+        // to presentation configuration, stop requests, and debugger access.
         auto SetFPS(unsigned int fps) -> void;
         [[nodiscard]] auto GetFPS() const -> unsigned;
         auto SetVSync(bool enabled) -> bool;
         [[nodiscard]] auto IsVSyncEnabled() const -> bool;
         [[nodiscard]] auto IsOpen() const -> bool;
-        auto Shutdown() -> void;
         // Requests the window to close without releasing resources. Screens use
-        // this to exit from event handling; teardown happens once in Run()'s
-        // Shutdown(), so a screen is never destroyed on its own stack.
+        // this to exit from event handling; Runtime tears down at a frame
+        // boundary, so a screen is never destroyed on its own stack.
         auto RequestClose() -> void;
 
         // Window name (the title passed to Initialize). Used by debugger logs.
@@ -195,13 +88,6 @@ class RenderWindow {
         [[nodiscard]] auto GetIWindow() -> atom::window::IWindow*;
         [[nodiscard]] auto GetRenderDevice() -> atom::render::IRenderDevice*;
         [[nodiscard]] auto GetBackendId() const -> const std::string&;
-
-        // Time domains (game/physics/render/ui/audio) after Initialize.
-        [[nodiscard]] auto GetTimeSystem() -> atom::time::TimeSystem&;
-
-        // Window-owned shared ImGui lifecycle. Individual Debugger instances
-        // register panels here instead of creating separate ImGui contexts.
-        [[nodiscard]] auto GetOverlayManager() -> atom::debugger::OverlayManager&;
 };
 
 } // namespace atom

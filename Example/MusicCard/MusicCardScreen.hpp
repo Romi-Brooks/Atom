@@ -29,7 +29,7 @@
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <Render/Resources/TextureCache.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Screen.hpp>
 
 class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioBackendChangeListener {
     public:
@@ -131,6 +131,12 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         // Schedules a Play() on the job system so the (potentially blocking)
         // stream-buffer fill never runs on the render thread.
         auto DispatchPlayOnJobSystem(const std::string& id) -> void;
+        // Stop/Pause used to run synchronously on the render thread, where the
+        // backend joins the decode thread (up to a full sleep interval). They
+        // are dispatched onto the job system the same way Play() is, so no
+        // audio control call can stall a frame.
+        auto DispatchStopOnJobSystem(const std::string& id) -> void;
+        auto DispatchPauseOnJobSystem(const std::string& id) -> void;
 
         atom::MusicPlayer& music_;
         std::shared_ptr<atom::fs::NativeFileSystem> filesystem_;
@@ -151,9 +157,13 @@ class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioB
         // Track ids the render thread wants released, drained by the loader
         // thread. Guarded by tracks_mutex_.
         std::vector<std::string> pending_unloads_;
-        // Handles for in-flight audio loads (music_.Load) so the screen can
-        // observe completion without joining anything on the render thread.
+        // Handles for in-flight audio jobs (music_.Load / Play / Stop / Pause)
+        // so the screen can observe completion without joining anything on the
+        // render thread. Guarded by audio_jobs_mutex_: jobs are pushed from both
+        // the render thread (Play/Stop/Pause) and the loader thread (Load), and
+        // pruned every frame by TryStartAfterLoad.
         std::vector<atom::job::JobHandle> audio_jobs_;
+        mutable std::mutex audio_jobs_mutex_;
         CardCorner corner_ = CardCorner::BottomLeft;
         AnimationState animation_state_ = AnimationState::Entering;
         float animation_progress_ = 0.0f;

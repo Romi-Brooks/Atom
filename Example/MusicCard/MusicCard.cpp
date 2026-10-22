@@ -34,7 +34,8 @@
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/ScreenManager.hpp>
 
 namespace {
 
@@ -145,7 +146,8 @@ auto main(int argc, char** argv) -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("MusicCard");
 
     auto& window = atom::RenderWindow::GetInstance();
-    const auto initialized = window.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
                                               atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
@@ -165,9 +167,9 @@ auto main(int argc, char** argv) -> int {
 
     MusicCardDebugger debugger{*music_card_screen};
     debugger.Attach(window);
-    auto renderer_shutdown = window.AddShutdownListener([music_card_screen] { music_card_screen->Shutdown(); });
+    auto renderer_shutdown = application.AddShutdownObserver([music_card_screen] { music_card_screen->Shutdown(); });
     music_card_screen->LoadInterfaceFont();
 
-    window.Run();
+    application.Run();
     return 0;
 }

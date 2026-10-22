@@ -56,6 +56,10 @@ class InternalPhysicsWorld final : public IPhysicsWorld {
         auto UpdateSleepState(float delta_time) -> void;
         // 在 bodies_ 中查找 InternalPhysicsBody*，未找到返回 nullptr。
         [[nodiscard]] auto FindInternal(IPhysicsBody* body) const -> InternalPhysicsBody*;
+        // Step 内的接触回调可以请求销毁刚体。真正释放必须延后到本步完成，
+        // 否则求解器持有的 ContactSolverInput 会悬垂。
+        auto DestroyBodyImmediate(InternalPhysicsBody* body) -> void;
+        auto FlushDeferredBodyDestroys() -> void;
 
         std::vector<std::unique_ptr<InternalPhysicsBody>> bodies_{};
         std::vector<std::unique_ptr<InternalRevoluteJoint>> joints_{};
@@ -66,8 +70,10 @@ class InternalPhysicsWorld final : public IPhysicsWorld {
         bool sleeping_enabled_ = true;
         // 无效 Step 参数只告警一次（避免持续错误配置时每帧刷屏）。
         bool step_input_warned_ = false;
+        bool stepping_ = false;
         std::set<ContactPair> prev_contacts_{};
         std::set<ContactPair> no_collide_pairs_{}; // collide_connected=false 的关节对
+        std::vector<InternalPhysicsBody*> deferred_body_destroys_{};
 };
 
 } // namespace atom::physics

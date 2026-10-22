@@ -8,9 +8,10 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -76,10 +77,11 @@ auto main() -> int {
 
     // Give a window instance
     auto& window = atom::RenderWindow::GetInstance();
+    auto& application = atom::runtime::Application::GetInstance();
     // Init the window instance, Can pass a render backend explicit. Loading a
     // render backend can fail; the reason comes back instead of only reaching
     // the log, so a headless CI run fails on the actual cause.
-    const auto initialized = window.Initialize("Atom Engine - Simple Window Example",  // Title
+    const auto initialized = application.Initialize("Atom Engine - Simple Window Example",  // Title
                                               atom::algo::Vec2{1280, 720},  // Resolution
                                               atom::backend::RenderBackendId::SdlGpu  // Render Backend
     );
@@ -94,5 +96,5 @@ auto main() -> int {
     window.SetFPS(60);
 
     // Main loop
-    window.Run();
+    application.Run();
 }

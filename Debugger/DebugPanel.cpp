@@ -7,9 +7,9 @@
 #include <utility>
 
 #include <Log/LogSystem.hpp>
-#include <Window/OverlayManager.hpp>
+#include <Debugger/OverlayManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 
 namespace atom::debugger {
 DebugPanel::DebugPanel(std::string panel_name) : panel_name_(std::move(panel_name)) {}
@@ -53,7 +53,7 @@ auto DebugPanel::AttachScoped(atom::RenderWindow& window, atom::Screen* screen) 
         return;
     }
 
-    auto& overlay_manager = window.GetOverlayManager();
+    auto& overlay_manager = OverlayManager::GetInstance(window);
     overlay_connection_ = std::make_unique<OverlayConnection>(overlay_manager.AddPanel([this] {
         if (!enabled_ || !IsScopeVisible())
             return;

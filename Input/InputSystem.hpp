@@ -103,7 +103,7 @@ class InputSystem {
         // Called once per frame, before polling events. Flips the previous
         // frame's edges to steady state and clears mouse delta / wheel.
         //
-        // RenderWindow::Run() calls this automatically at the start of its event
+        // Runtime::Application calls this automatically at the start of its event
         // poll, so application code must not call it again inside the same
         // frame: a second call would settle a real press into Held before
         // anyone could observe the Pressed edge. Call it directly only when
@@ -111,7 +111,7 @@ class InputSystem {
         auto BeginFrame() -> void;
 
         // Clears keyboard and mouse-button state, so no stale "held" edge
-        // survives an event gap. RenderWindow feeds focus-loss events here
+        // survives an event gap. Runtime::Application feeds focus-loss events here
         // automatically; screens that manage their own "paused" state may also
         // call it when switching screens.
         //

@@ -7,6 +7,7 @@
 #include <Test/Support/TestHelpers.hpp>
 
 #include <array>
+#include <limits>
 
 namespace {
 
@@ -14,6 +15,7 @@ using atom::algo::Vec2;
 using atom::physics::BodyDef;
 using atom::physics::BodyType;
 using atom::physics::InternalPhysicsBackend;
+using atom::physics::IPhysicsWorld;
 using atom::physics::Shape;
 
 struct PairListener final : atom::physics::IContactListener {
@@ -24,6 +26,27 @@ struct PairListener final : atom::physics::IContactListener {
         }
         auto EndContact(atom::physics::IPhysicsBody*, atom::physics::IPhysicsBody*) -> void override {
             ++end_count;
+        }
+};
+
+struct DestroyingListener final : atom::physics::IContactListener {
+        IPhysicsWorld* world = nullptr;
+        atom::physics::IPhysicsBody* victim = nullptr;
+        int begin_count = 0;
+
+        auto BeginContact(atom::physics::IPhysicsBody*, atom::physics::IPhysicsBody*) -> void override {
+            ++begin_count;
+            world->DestroyBody(victim);
+        }
+};
+
+struct ClearingListener final : atom::physics::IContactListener {
+        IPhysicsWorld* world = nullptr;
+        int begin_count = 0;
+
+        auto BeginContact(atom::physics::IPhysicsBody*, atom::physics::IPhysicsBody*) -> void override {
+            ++begin_count;
+            world->SetContactListener(nullptr);
         }
 };
 
@@ -157,6 +180,88 @@ auto main() -> int {
             world->Step(1.0f / 60.0f, 8, 3);
         }
         ATOM_CHECK(b->IsAwake());
+    }
+
+    // --- 两个分离的休眠体共享宽相 cell 不能伪造接触事件 ---
+    {
+        auto world = backend.CreateWorld();
+        PairListener listener{};
+        world->SetContactListener(&listener);
+
+        BodyDef body{};
+        body.type = BodyType::Dynamic;
+        body.shape = *Shape::MakeCircle(0.1f);
+        body.position = Vec2{0.0f, 0.0f};
+        auto* a = world->CreateBody(body);
+        body.position = Vec2{0.9f, 0.0f}; // 与 a 分离，但 AABB 都落入 cell 0。
+        auto* b = world->CreateBody(body);
+        ATOM_CHECK(a != nullptr && b != nullptr);
+        a->SetAwake(false);
+        b->SetAwake(false);
+
+        world->Step(1.0f / 60.0f, 8, 3);
+        ATOM_CHECK(listener.begin_count == 0);
+    }
+
+    // --- 回调中销毁刚体延后到本步结束，求解器不解引用悬垂 contact ---
+    {
+        auto world = backend.CreateWorld();
+        DestroyingListener listener{};
+        listener.world = world.get();
+        world->SetContactListener(&listener);
+
+        BodyDef body{};
+        body.type = BodyType::Dynamic;
+        body.shape = *Shape::MakeCircle(1.0f);
+        auto* a = world->CreateBody(body);
+        body.position = Vec2{0.0f, 1.0f};
+        auto* b = world->CreateBody(body);
+        ATOM_CHECK(a != nullptr && b != nullptr);
+        listener.victim = b;
+
+        world->Step(1.0f / 60.0f, 8, 3);
+        ATOM_CHECK(listener.begin_count == 1);
+        // 下一步验证 deferred destroy 已完成且 world 仍可安全推进。
+        world->Step(1.0f / 60.0f, 8, 3);
+    }
+
+    // --- 回调可替换 listener，不使同一批已开始的事件派发失效 ---
+    {
+        auto world = backend.CreateWorld();
+        ClearingListener listener{};
+        listener.world = world.get();
+        world->SetContactListener(&listener);
+
+        BodyDef body{};
+        body.type = BodyType::Dynamic;
+        body.shape = *Shape::MakeCircle(1.0f);
+        ATOM_CHECK(world->CreateBody(body) != nullptr);
+        body.position = Vec2{0.0f, 0.5f};
+        ATOM_CHECK(world->CreateBody(body) != nullptr);
+        body.position = Vec2{0.0f, -0.5f};
+        ATOM_CHECK(world->CreateBody(body) != nullptr);
+
+        world->Step(1.0f / 60.0f, 8, 3);
+        ATOM_CHECK(listener.begin_count == 3);
+    }
+
+    // --- 外部 NaN 输入被拒绝，不污染 world 状态 ---
+    {
+        auto world = backend.CreateWorld();
+        BodyDef invalid{};
+        invalid.type = BodyType::Dynamic;
+        invalid.shape = *Shape::MakeCircle(0.5f);
+        invalid.position = Vec2{std::numeric_limits<float>::quiet_NaN(), 0.0f};
+        ATOM_CHECK(world->CreateBody(invalid) == nullptr);
+
+        BodyDef valid{};
+        valid.type = BodyType::Dynamic;
+        valid.shape = *Shape::MakeCircle(0.5f);
+        auto* body = world->CreateBody(valid);
+        ATOM_CHECK(body != nullptr);
+        const Vec2 old_position = body->GetPosition();
+        body->SetTransform(Vec2{std::numeric_limits<float>::quiet_NaN(), 0.0f}, 0.0f);
+        ATOM_CHECK(body->GetPosition() == old_position);
     }
 
     return 0;

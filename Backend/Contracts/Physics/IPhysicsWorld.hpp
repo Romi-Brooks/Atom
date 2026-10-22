@@ -21,7 +21,8 @@ class IPhysicsBody;
 class IPhysicsJoint;
 
 // 碰撞生命周期回调。默认空实现，游戏按需覆写。回调发生在 Step 期间，
-// 世界处于一致的模拟状态，但不保证刚体顺序。
+// 世界处于一致的模拟状态，但不保证刚体顺序。回调内请求 DestroyBody
+// 会在当前 Step 完成后实际释放，保证本步求解器引用仍有效。
 class IContactListener {
     public:
         virtual ~IContactListener() = default;

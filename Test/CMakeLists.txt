@@ -122,6 +122,12 @@ atom_add_test(Atom_Input.InputSystem
     Input/InputSystemTest.cpp
     Atom_InputSystem)
 
+# --- Retained game UI -------------------------------------------------------
+atom_add_test(Atom_UI.UiTree
+    Atom_UI_UiTree_Tests
+    UI/UiTreeTest.cpp
+    Atom_UI)
+
 # --- Unified error value (CORE-004) ---
 atom_add_test(Atom_Error.Error
     Atom_Error_Error_Tests
@@ -178,6 +184,11 @@ atom_add_test(Atom_Physics.RevoluteJoint
 atom_add_test(Atom_Physics.Integration
     Atom_Physics_Integration_Tests
     Physics/PhysicsIntegrationTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.Parallel
+    Atom_Physics_Parallel_Tests
+    Physics/PhysicsParallelTest.cpp
     Atom_Physics)
 
 # --- Backend extension registries ---
@@ -287,11 +298,11 @@ atom_add_test(Atom_Packager.PackageBuilder
     Utilities/PackageBuilderTest.cpp
     Atom_Packager Atom_FS)
 
-# --- Window ---
-atom_add_test(Atom_Window.ScreenManager
-    Atom_Window_ScreenManager_Tests
-    Window/ScreenManagerTest.cpp
-    Atom_Window)
+# --- Runtime ---
+atom_add_test(Atom_Runtime.ScreenManager
+    Atom_Runtime_ScreenManager_Tests
+    Runtime/ScreenManagerTest.cpp
+    Atom_Runtime)
 
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---
 atom_add_test(Atom_Lua.LuaHost

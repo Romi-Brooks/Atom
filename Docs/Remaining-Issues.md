@@ -151,9 +151,15 @@
 
 ### ARCH-101：可选的运行时组合层
 
-- [!] Beta 阶段不引入强制 `AudioSystem` 或完整 `EngineRuntime`。
-- [ ] 后续根据统一初始化、失败回滚、停止请求、headless 测试和服务生命周期的实际需求，评估可选 `ApplicationRunner/EngineRuntime`。
-- 约束：不得破坏用户独立组合 Music、SFX、Mixer 和 Transition 的能力。
+- [x] `Runtime/Application` 已成为唯一帧循环拥有者：初始化 `RenderWindow` 与 `TimeSystem`，固定执行
+      Tick → 输入/事件 → FixedUpdate × N → Update → Render → Overlay → Present，并负责 screen/GPU 资源
+      在 backend 销毁前释放。`RenderWindow` 已收窄到平台窗口、事件泵、交换链与帧提交。
+- [x] `Screen` / `ScreenManager` 已移入 `Runtime/`；Screen 负责菜单、暂停、加载等呈现导航，而非可序列化游戏世界。
+- [x] Window 的旧 listener registry 已迁入 Runtime observer registry，仅供 Debugger/Overlay 等工具集成；游戏系统由
+      Runtime 显式调度，不以匿名窗口回调作为核心执行模型。
+- [ ] 后续建立 `GameWorld`、系统调度和 Scene/Prefab；大世界应由 `WorldSession` + 可流送 `WorldChunk` 承载，不能把
+      整个游戏世界折叠为一个 Screen。
+- 约束：不得破坏用户独立组合 Music、SFX、Mixer 和 Transition 的能力；不在 Runtime 引入强制 `AudioSystem`。
 
 ### ARCH-107：统一资源系统与 VFS
 
@@ -189,6 +195,7 @@
 - 决策：**引入 EnTT v4.0.0 作为后端**（原计划写的是「不直接引入复杂 archetype ECS」）。理由：后续物理是「每物体挂一堆组件、系统遍历」的形态，要的正是可扩展的开箱实现；而 EnTT 的 `registry`/`view`/稀疏集语义足够简单，不构成 archetype 复杂度。代价与约束记录在 `ECS/README.md`：不使用其自带 CMake（3.28 下限、sanitizer 参数外泄、目标名不符合 `Atom_3rd_*` 约定），并因其实测在 `-DNDEBUG` 下会静默损坏状态，门面必须自行预校验。
 - 关联：`Physics/README.md` 已预留 ECS 职责边界（ECS 持有 entity/component 存储，Physics 持有操作其物理组件的 system）。
 - 未做：行为系统尚未接入（无系统消费 `EntityWorld`）；类型擦除遍历、事件/调度器、序列化、多线程均未实现。可运行示例见 `Example/ECS/EntityWorldTour.cpp`。
+- [ ] **ECS 遍历顺序契约（后续处理）**：`ForEach` 的公开注释曾称按 entity index 升序，而实现实际使用稳定的 backend pool order；`With` 才排序为 index 升序。先决定是否以稳定 pool order 作为正式确定性约定，再统一 `EntityWorld.hpp` / `ECS/README.md` 并添加契约测试；本轮 Runtime 拆分不改热路径实现。
 - CI 未验证：MSVC 与 Linux GCC 编译（本地仅 MinGW GCC 15.2 验证），需 CI 跑过一次才算验收。
 
 ### ARCH-109：Lua 对象生命周期与隔离
@@ -200,7 +207,7 @@
 
 ### ARCH-112：扩展回调由单槽改为 Listener Registry
 
-- [x] Event、Update、Overlay、Shutdown 使用 token/RAII Connection 注册。（已落地：`RenderWindow` 提供 `Add*Listener` + `ListenerConnection`。）
+- [x] Event、Update、Overlay、Shutdown 使用 token/RAII Connection 注册。（Runtime 拥有 observer registry；`RenderWindow` 不再承担游戏/工具调度。）
 - [x] Debugger、Profiler、Console 和用户 Overlay 可以并存。（共享 ImGui context 已落地，见 ARCH-113。）
 - [x] 注销一个监听器不得清空其他监听器。（已落地：按 id 独立注销。）
 - 约束：监听器不得在自身被分发期间注销。
@@ -274,8 +281,8 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 > 状态说明：Time 模块已接入主循环，本节前两项已完成；剩余为音频/渲染对齐等后续调度。
 
 - [x] 将逻辑更新与渲染帧率解耦，支持 accumulator、最大追帧次数和插值。（`Time/` 分域时钟 + 固定步 accumulator + max catch-up + alpha；见 `Docs/Plans/Time-System-Plan-CN.md`）
-- [x] 明确 Event → Fixed Update → Variable Update → Render → Present 顺序。（`RenderWindow::Run` 已落地）
-- [ ] 接入细节：physics domain（120Hz）已创建但未被 `Run()` 消费；alpha 插值系数尚无消费方（依赖精灵/变换状态，归 ECS/渲染范畴）。
+- [x] 明确 Event → Fixed Update → Variable Update → Render → Present 顺序。（`Runtime::Application::Run` 已落地）
+- [ ] 接入细节：physics domain（120Hz）已创建但未被 `Application::Run()` 消费；alpha 插值系数尚无消费方（依赖精灵/变换状态，归 ECS/渲染范畴）。
 - [ ] P3 音频设备钟 `SyncTo`、卡点与 A/V 对齐（设计见 `Docs/Plans/Time-System-Plan-CN.md`）。
 - [ ] P4 渲染插值与统一 shader time（同上）。
 
@@ -283,8 +290,8 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 
 - [x] 建立按帧维护的按下、持续、释放状态。（2026-10-15：`Input/InputSystem` 落地，单例 + BeginFrame/ProcessEvent + 键/鼠标三态 + chord/action 查询，含单测）
 - [x] 支持动作映射，避免业务代码直接依赖 SDL keycode。（`Input/ActionMap` 由 `Event/` 迁入，`atom::input` 命名空间）
-- [x] 接入 `RenderWindow::Run()`：`ProcessEvents()` 在事件轮询前调用一次 `InputSystem::BeginFrame()`，每个规范化事件先经
-      `InputSystem::ProcessEvent()` 再分发给监听器与 Screen，因此 `HandleEvent` 内读到的就是当前事件的状态。
+- [x] 接入 `Runtime::Application::Run()`：在事件轮询前调用一次 `InputSystem::BeginFrame()`，每个规范化事件先经
+      `InputSystem::ProcessEvent()` 再分发给 Runtime observer 与 Screen，因此 `HandleEvent` 内读到的就是当前事件的状态。
       由此**业务代码不得再自行调用 `BeginFrame()`**（同一帧调用两次会把真实的按下边沿提前结算成 Held）。
 - [x] 修复首版三处缺陷（2026-10-15 复查）：未映射 scancode 译成 `Key::Unknown`（值为 0）会被写进 `keys_[0]`，
       污染真实按键，现已显式丢弃；窗口失焦后 SDL 不再发 key-up，按住的方向键会永久卡在 Held，现由
@@ -456,6 +463,47 @@ shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` �
       计数器本身的回绕防护仍未做。）
 - [ ] `CurrentWorkerIndex()` 是死代码（`SubmitRunnable` 直接读 `thread_local g_worker_index`），删除或改用它。
 - [ ] `WorkerCount()` 无同步读 `workers_.size()`，Start/Shutdown 并发调用时是数据竞争；返回稳定快照或加锁。
+
+### CONCURRENCY-010：Packager 哈希/压缩 fork-join（P2，新增 2026-10-22）
+
+**背景**：`PackageBuilder` 构建循环里每个 asset 顺序执行「读源文件 → 逐块写 output → 逐块 FNV 哈希」，
+`data_offset` 由前序 asset 字节数累加、chunk/asset section 按序序列化 `content_hash`，哈希与写盘交织、
+天然单线程。哈希（及未来压缩）是纯 CPU、无共享可变状态，可并行；落盘顺序是包格式硬约束，必须串行。
+
+- [ ] 两阶段拆分：阶段一（并行）一 asset 一 job（`packager:hash`）只算 FNV `content_hash`、写 `results[i]`、
+      保持逐块流式不整读文件；阶段二（串行）按 asset 顺序写 output——累加 `data_offset` + 拷贝 payload +
+      写入已算好的 `content_hash`。`!IsRunning()` 顺序回退。
+- [ ] 压缩预留：未来非 store 压缩时，压缩也放阶段一（产出压缩块 + 压缩后 hash），阶段二串行落盘；压缩块
+      缓冲策略（临时文件/分块）避免大包整包驻留内存。
+- [ ] 验收：并行打包与单线程**逐字节一致**（content/manifest/header hash 全等）+ 顺序回退测试 + 大文件集压力，
+      且 `Atom_Packager.PackageBuilder` 无回归。
+
+### CONCURRENCY-011：音频流式解码统一 DecodeProducer 抽象（P2，新增 2026-10-22）
+
+**背景**：三处手写 `std::thread` + `DecodeLoop` 样板功能同构、实现重复——`SDL3MixerStreamingSource`（`worker_`）、
+`SDL3MusicSource`（`decode_thread_`）、`SDL3StreamingMusicSource`（`decode_thread_`）。三者是长生命周期生产者、
+属专用线程（worker）而非 job，本项**不改其性质、不改成 job**，只统一抽象去重。
+
+- [ ] 抽取 `DecodeProducer` 统一「启动/停止、填充 ring buffer、seek、错误上报、进度、线程 join / 退出等待」生命周期，
+      三个 source 委托实现、只保留后端特定的读/解码细节，消除三份重复 `DecodeLoop` 样板（chunk 边界、seek、退出等待、join）。
+- [ ] 验收：三 source 行为等价（播放中 seek / 停止后 seek 再播 / 播放中切换后端 / 退出不崩溃）+ producer 生命周期单测。
+
+### CONCURRENCY-012：物理宽/窄相并行（P2，门槛触发，新增 2026-10-22）
+
+**背景**：宽相（均匀网格，预留 AABB Tree）与窄相（SAT）当前单线程。并行化有同步/分摊开销，未确认热点前属负优化。
+
+- [ ] 先 profiling 确认宽/窄相在真实多刚体场景是热点；**未达门槛不做**。
+- [ ] 达标后：宽相收集 pair → 窄相一 pair 一 job 并行求流形（`physics:narrow`，纯函数）→ 串行按确定性顺序归并；
+      **求解器（Sequential Impulse）保持串行**（冲量求解有跨接触顺序写依赖）。
+- [ ] 验收：多刚体场景结果与单线程确定性一致 + profiling 实测提升。
+
+### CONCURRENCY-013：ThreadRegistry + ThreadDebugger（P3，新增 2026-10-22）
+
+**背景**：`JobDebugger` 只看得到 JobSystem 的 job，看不到专用线程（log writer、音频解码线程），无法看引擎并发全景。
+
+- [ ] 建 `ThreadRegistry`：统一注册线程 `name / id / 角色`（job worker / 专用生产者 / 主线程），JobSystem worker 与
+      专用线程启动时注册、退出时注销；registry 访问线程安全。
+- [ ] 建 `ThreadDebugger` 面板展示引擎全部线程及角色，与 `JobDebugger` 的 job 视图互补。
 
 ### 4.2 音频
 

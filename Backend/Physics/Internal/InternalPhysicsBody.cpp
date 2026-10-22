@@ -4,6 +4,7 @@
 #include <Backend/Physics/Internal/InternalPhysicsBody.hpp>
 
 #include <utility>
+#include <cmath>
 
 namespace atom::physics {
 
@@ -22,6 +23,9 @@ auto InternalPhysicsBody::GetAngle() const -> float {
 }
 
 auto InternalPhysicsBody::SetTransform(const algo::Vec2 position, const float angle) -> void {
+    if (!std::isfinite(position.GetX()) || !std::isfinite(position.GetY()) || !std::isfinite(angle)) {
+        return;
+    }
     body_.position = position;
     body_.angle = angle;
     Wake();
@@ -32,6 +36,9 @@ auto InternalPhysicsBody::GetLinearVelocity() const -> algo::Vec2 {
 }
 
 auto InternalPhysicsBody::SetLinearVelocity(const algo::Vec2 velocity) -> void {
+    if (!std::isfinite(velocity.GetX()) || !std::isfinite(velocity.GetY())) {
+        return;
+    }
     body_.linear_velocity = velocity;
     Wake();
 }
@@ -41,12 +48,16 @@ auto InternalPhysicsBody::GetAngularVelocity() const -> float {
 }
 
 auto InternalPhysicsBody::SetAngularVelocity(const float angular_velocity) -> void {
+    if (!std::isfinite(angular_velocity)) {
+        return;
+    }
     body_.angular_velocity = angular_velocity;
     Wake();
 }
 
 auto InternalPhysicsBody::ApplyForce(const algo::Vec2 force, const algo::Vec2 world_point) -> void {
-    if (body_.type != BodyType::Dynamic) {
+    if (body_.type != BodyType::Dynamic || !std::isfinite(force.GetX()) || !std::isfinite(force.GetY()) ||
+        !std::isfinite(world_point.GetX()) || !std::isfinite(world_point.GetY())) {
         return;
     }
     body_.force += force;
@@ -55,7 +66,8 @@ auto InternalPhysicsBody::ApplyForce(const algo::Vec2 force, const algo::Vec2 wo
 }
 
 auto InternalPhysicsBody::ApplyLinearImpulse(const algo::Vec2 impulse, const algo::Vec2 world_point) -> void {
-    if (body_.type != BodyType::Dynamic) {
+    if (body_.type != BodyType::Dynamic || !std::isfinite(impulse.GetX()) || !std::isfinite(impulse.GetY()) ||
+        !std::isfinite(world_point.GetX()) || !std::isfinite(world_point.GetY())) {
         return;
     }
     body_.linear_velocity += impulse * body_.inverse_mass;
@@ -64,7 +76,7 @@ auto InternalPhysicsBody::ApplyLinearImpulse(const algo::Vec2 impulse, const alg
 }
 
 auto InternalPhysicsBody::ApplyTorque(const float torque) -> void {
-    if (body_.type != BodyType::Dynamic) {
+    if (body_.type != BodyType::Dynamic || !std::isfinite(torque)) {
         return;
     }
     body_.torque += torque;

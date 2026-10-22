@@ -1,6 +1,6 @@
 /**
   * @file           : OverlayManager.hpp
-  * @brief          : Window-owned shared ImGui overlay lifetime.
+  * @brief          : Runtime-integrated shared ImGui overlay lifetime.
   */
 
 #ifndef ATOM_OVERLAY_MANAGER_HPP
@@ -13,8 +13,10 @@
 
 namespace atom {
 
-class ListenerConnection;
 class RenderWindow;
+namespace runtime {
+class RuntimeConnection;
+}
 
 namespace debugger {
 
@@ -64,17 +66,16 @@ class OverlayManager final {
     public:
         using DrawCallback = std::function<void()>;
 
-        explicit OverlayManager(RenderWindow& window);
         ~OverlayManager();
 
         OverlayManager(const OverlayManager&) = delete;
         auto operator=(const OverlayManager&) -> OverlayManager& = delete;
 
         [[nodiscard]] auto AddPanel(DrawCallback callback) -> OverlayConnection;
+        [[nodiscard]] static auto GetInstance(RenderWindow& window) -> OverlayManager&;
         [[nodiscard]] auto IsInitialized() const noexcept -> bool {
             return initialized_;
         }
-        auto OnRenderWindowInitialized() -> void;
 
     private:
         struct PanelEntry {
@@ -85,12 +86,14 @@ class OverlayManager final {
         auto EnsureInitialized() -> bool;
         auto ShutdownBackend() -> void;
 
+        explicit OverlayManager(RenderWindow& window);
+
         RenderWindow& window_;
         std::unique_ptr<IDebugImGuiBackend> backend_;
-        std::unique_ptr<ListenerConnection> event_connection_;
-        std::unique_ptr<ListenerConnection> update_connection_;
-        std::unique_ptr<ListenerConnection> overlay_connection_;
-        std::unique_ptr<ListenerConnection> shutdown_connection_;
+        std::unique_ptr<runtime::RuntimeConnection> event_connection_;
+        std::unique_ptr<runtime::RuntimeConnection> update_connection_;
+        std::unique_ptr<runtime::RuntimeConnection> overlay_connection_;
+        std::unique_ptr<runtime::RuntimeConnection> shutdown_connection_;
         std::vector<PanelEntry> panels_;
         std::size_t next_panel_id_ = 1;
         bool initialized_ = false;

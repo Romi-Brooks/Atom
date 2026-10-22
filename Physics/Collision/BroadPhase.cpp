@@ -15,12 +15,6 @@ auto UniformGrid::EncodeCell(const int cell_x, const int cell_y) -> CellKey {
     return (static_cast<CellKey>(cell_x) << 32) ^ static_cast<std::uint32_t>(cell_y);
 }
 
-auto UniformGrid::EncodePair(const int a, const int b) -> CellKey {
-    const int lo = std::min(a, b);
-    const int hi = std::max(a, b);
-    return (static_cast<CellKey>(lo) << 32) ^ static_cast<std::uint32_t>(hi);
-}
-
 auto UniformGrid::Clear() -> void {
     cells_.clear();
 }
@@ -38,18 +32,23 @@ auto UniformGrid::Insert(const int proxy_id, const algo::Aabb2& aabb) -> void {
 }
 
 auto UniformGrid::FindPairs(const std::function<void(int, int)>& callback) const -> void {
-    std::unordered_set<CellKey> seen{};
+    std::vector<std::pair<int, int>> pairs;
     for (const auto& [cell, proxies] : cells_) {
         (void)cell;
         for (std::size_t i = 0; i < proxies.size(); ++i) {
             for (std::size_t j = i + 1; j < proxies.size(); ++j) {
-                const int a = proxies[i];
-                const int b = proxies[j];
-                if (seen.insert(EncodePair(a, b)).second) {
-                    callback(a, b);
-                }
+                pairs.emplace_back(std::min(proxies[i], proxies[j]), std::max(proxies[i], proxies[j]));
             }
         }
+    }
+
+    // cells_ is an unordered_map, so its traversal order is intentionally not
+    // part of the simulation contract. Sort and deduplicate candidate pairs
+    // before handing them to narrow phase/solver code.
+    std::ranges::sort(pairs);
+    pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
+    for (const auto& [a, b] : pairs) {
+        callback(a, b);
     }
 }
 

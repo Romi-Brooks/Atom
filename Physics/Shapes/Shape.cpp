@@ -27,7 +27,7 @@ constexpr float kEpsilon = 1.0e-6f;
 // --- factories ---------------------------------------------------------------
 
 auto Shape::MakeCircle(const float radius) -> atom::Result<Shape> {
-    if (radius <= kEpsilon) {
+    if (!std::isfinite(radius) || radius <= kEpsilon) {
         return InvalidShape("circle radius must be positive");
     }
     Shape shape{};
@@ -42,6 +42,11 @@ auto Shape::MakePolygon(std::span<const algo::Vec2> vertices) -> atom::Result<Sh
     }
     if (vertices.size() > ConvexPolygon::kMaxVertices) {
         return InvalidShape("polygon exceeds 8 vertices");
+    }
+    for (const algo::Vec2& vertex : vertices) {
+        if (!std::isfinite(vertex.GetX()) || !std::isfinite(vertex.GetY())) {
+            return InvalidShape("polygon vertices must be finite");
+        }
     }
 
     // 有向面积的两倍（shoelace）。符号给出环绕方向：CCW 为正，CW 为负。
@@ -87,7 +92,8 @@ auto Shape::MakePolygon(std::span<const algo::Vec2> vertices) -> atom::Result<Sh
 }
 
 auto Shape::MakeSegment(algo::Vec2 a, algo::Vec2 b) -> atom::Result<Shape> {
-    if ((b - a).LengthSquared() <= kEpsilon * kEpsilon) {
+    if (!std::isfinite(a.GetX()) || !std::isfinite(a.GetY()) || !std::isfinite(b.GetX()) || !std::isfinite(b.GetY()) ||
+        (b - a).LengthSquared() <= kEpsilon * kEpsilon) {
         return InvalidShape("segment has zero length");
     }
     Shape shape{};

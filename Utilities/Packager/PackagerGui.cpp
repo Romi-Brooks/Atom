@@ -23,9 +23,10 @@
 #include <vector>
 
 // Engine Headers
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Log/LogSystem.hpp>
 
@@ -142,7 +143,7 @@ class PackagerScreen final : public atom::Screen {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
                 if (key.key == atom::input::Key::Escape) {
-                    atom::RenderWindow::GetInstance().Shutdown();
+                    atom::runtime::Application::GetInstance().RequestStop();
                     return true;
                 }
             }
@@ -387,8 +388,9 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("Packager");
 
     auto& window = atom::RenderWindow::GetInstance();
+    auto& application = atom::runtime::Application::GetInstance();
     const auto initialized =
-        window.Initialize("Atom Packager", atom::algo::Vec2{1280, 720}, atom::backend::RenderBackendId::SdlGpu);
+        application.Initialize("Atom Packager", atom::algo::Vec2{1280, 720}, atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
@@ -398,5 +400,5 @@ auto main() -> int {
     PackagerPanel panel{};
     panel.Attach(window, *screen);
 
-    window.Run();
+    application.Run();
 }

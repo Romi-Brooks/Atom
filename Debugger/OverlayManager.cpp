@@ -7,11 +7,17 @@
 #include <Debugger/DebuggerConfig.hpp>
 #include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
+#include <Runtime/Application.hpp>
 #include <Window/RenderWindow.hpp>
 
 namespace atom::debugger {
 
 OverlayManager::OverlayManager(RenderWindow& window) : window_(window) {}
+
+auto OverlayManager::GetInstance(RenderWindow& window) -> OverlayManager& {
+    static OverlayManager instance{window};
+    return instance;
+}
 
 OverlayManager::~OverlayManager() {
     event_connection_.reset();
@@ -44,16 +50,17 @@ auto OverlayManager::EnsureInitialized() -> bool {
         return false;
     }
 
-    event_connection_ = std::make_unique<ListenerConnection>(
-        window_.AddEventListener([this](window::IEvent& event) {
+    auto& application = runtime::Application::GetInstance();
+    event_connection_ = std::make_unique<runtime::RuntimeConnection>(
+        application.AddEventObserver([this](window::IEvent& event) {
             if (backend_)
                 backend_->ProcessEvent(event);
         }));
-    update_connection_ = std::make_unique<ListenerConnection>(window_.AddUpdateListener([this](float) {
+    update_connection_ = std::make_unique<runtime::RuntimeConnection>(application.AddUpdateObserver([this](float) {
         if (backend_)
             backend_->NewFrame();
     }));
-    overlay_connection_ = std::make_unique<ListenerConnection>(window_.AddOverlayListener([this] {
+    overlay_connection_ = std::make_unique<runtime::RuntimeConnection>(application.AddOverlayObserver([this] {
         for (const auto& panel : panels_) {
             if (panel.callback)
                 panel.callback();
@@ -69,7 +76,7 @@ auto OverlayManager::EnsureInitialized() -> bool {
             backend_->Render();
         }
     }));
-    shutdown_connection_ = std::make_unique<ListenerConnection>(window_.AddShutdownListener([this] {
+    shutdown_connection_ = std::make_unique<runtime::RuntimeConnection>(application.AddShutdownObserver([this] {
         ShutdownBackend();
     }));
 
@@ -91,13 +98,6 @@ auto OverlayManager::AddPanel(DrawCallback callback) -> OverlayConnection {
     return OverlayConnection([this, id] {
         std::erase_if(panels_, [id](const PanelEntry& panel) { return panel.id == id; });
     });
-#endif
-}
-
-auto OverlayManager::OnRenderWindowInitialized() -> void {
-#if ATOM_ENABLE_DEBUGGER
-    if (!panels_.empty())
-        EnsureInitialized();
 #endif
 }
 

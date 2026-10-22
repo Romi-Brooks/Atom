@@ -5,11 +5,13 @@
 
 #include <cmath>
 #include <cstdint>
+#include <algorithm>
 #include <string>
 #include <vector>
 
 #include <Backend/Physics/Internal/InternalPhysicsBody.hpp>
 #include <Backend/Physics/Internal/InternalRevoluteJoint.hpp>
+#include <Concurrency/JobSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Physics/Collision/NarrowPhase.hpp>
 #include <Physics/Shapes/Shape.hpp>
@@ -23,6 +25,17 @@ namespace {
 constexpr float kSleepLinearTol = 0.05f;
 constexpr float kSleepAngularTol = 0.05f;
 constexpr float kSleepTimeThreshold = 0.5f;
+// SAT work for a single candidate is deliberately small. Avoid scheduling
+// overhead on ordinary scenes; large candidate batches are range-partitioned
+// rather than creating one job per pair.
+constexpr std::size_t kNarrowPhaseParallelThreshold = 128;
+constexpr std::size_t kNarrowPhaseMinimumGrain = 32;
+
+struct NarrowPhaseResult final {
+        bool preserve_sleeping_contact = false;
+        bool hit = false;
+        ContactManifold manifold{};
+};
 
 [[nodiscard]] inline auto MakePair(InternalPhysicsBody* a, InternalPhysicsBody* b)
     -> std::pair<InternalPhysicsBody*, InternalPhysicsBody*> {
@@ -62,6 +75,17 @@ InternalPhysicsWorld::~InternalPhysicsWorld() {
 }
 
 auto InternalPhysicsWorld::CreateBody(const BodyDef& def) -> IPhysicsBody* {
+    const auto finite_vec = [](const algo::Vec2 value) {
+        return std::isfinite(value.GetX()) && std::isfinite(value.GetY());
+    };
+    if (!finite_vec(def.position) || !std::isfinite(def.angle) || !std::isfinite(def.material.density) ||
+        !std::isfinite(def.material.friction) || !std::isfinite(def.material.restitution) ||
+        def.material.density < 0.0f || def.material.friction < 0.0f || def.material.restitution < 0.0f ||
+        def.material.restitution > 1.0f) {
+        LOG_WARNING(atom::log::physics::Body, "Rejected body with non-finite or invalid material/transform");
+        return nullptr;
+    }
+
     RigidBody body{};
     body.type = def.type;
     body.shape = def.shape;
@@ -75,6 +99,12 @@ auto InternalPhysicsWorld::CreateBody(const BodyDef& def) -> IPhysicsBody* {
     body.inertia = mp.inertia;
     body.inverse_inertia = mp.inverse_inertia;
     body.local_center = mp.centroid;
+
+    if (!std::isfinite(body.mass) || !std::isfinite(body.inertia) || !std::isfinite(body.inverse_mass) ||
+        !std::isfinite(body.inverse_inertia) || !finite_vec(body.local_center)) {
+        LOG_WARNING(atom::log::physics::Body, "Rejected body with non-finite mass properties");
+        return nullptr;
+    }
 
     // 只有 Dynamic 体有有限质量；Static/Kinematic 在求解中视为无限质量，
     // 否则求解器会在单步内"推动"静态体速度（被下步积分清零，能量账目错误）。
@@ -104,7 +134,21 @@ auto InternalPhysicsWorld::DestroyBody(IPhysicsBody* body) -> void {
         LOG_WARNING(atom::log::physics::Body, "DestroyBody called with a null body");
         return;
     }
-    auto* internal = static_cast<InternalPhysicsBody*>(body);
+    InternalPhysicsBody* internal = FindInternal(body);
+    if (internal == nullptr) {
+        LOG_WARNING(atom::log::physics::Body, "DestroyBody: body does not belong to this world");
+        return;
+    }
+    if (stepping_) {
+        if (std::ranges::find(deferred_body_destroys_, internal) == deferred_body_destroys_.end()) {
+            deferred_body_destroys_.push_back(internal);
+        }
+        return;
+    }
+    DestroyBodyImmediate(internal);
+}
+
+auto InternalPhysicsWorld::DestroyBodyImmediate(InternalPhysicsBody* internal) -> void {
 
     // 销毁依附于该刚体的关节（Box2D 同语义：先清关节再清刚体）。
     for (auto it = joints_.begin(); it != joints_.end();) {
@@ -128,13 +172,21 @@ auto InternalPhysicsWorld::DestroyBody(IPhysicsBody* body) -> void {
     }
 
     for (auto it = bodies_.begin(); it != bodies_.end(); ++it) {
-        if (it->get() == body) {
+        if (it->get() == internal) {
             bodies_.erase(it);
             LOG_DEBUG(atom::log::physics::Body, "Destroyed body");
             return;
         }
     }
-    LOG_WARNING(atom::log::physics::Body, "DestroyBody: body does not belong to this world");
+}
+
+auto InternalPhysicsWorld::FlushDeferredBodyDestroys() -> void {
+    for (InternalPhysicsBody* body : deferred_body_destroys_) {
+        if (FindInternal(body) != nullptr) {
+            DestroyBodyImmediate(body);
+        }
+    }
+    deferred_body_destroys_.clear();
 }
 
 auto InternalPhysicsWorld::FindInternal(IPhysicsBody* body) const -> InternalPhysicsBody* {
@@ -191,6 +243,10 @@ auto InternalPhysicsWorld::DestroyJoint(IPhysicsJoint* joint) -> void {
 
 auto InternalPhysicsWorld::Step(const float delta_time, const int velocity_iterations,
                                 const int position_iterations) -> void {
+    if (stepping_) {
+        LOG_WARNING(atom::log::physics::World, "Ignored recursive PhysicsWorld::Step call");
+        return;
+    }
     // 输入校验：非法参数是配置错误（正常路径由 FixedStepper 保证合法）。这是
     // 低频边界——只在首次出现时告警一次，避免持续错误配置时每帧刷屏拖慢主线程。
     if (!step_input_warned_ &&
@@ -201,6 +257,11 @@ auto InternalPhysicsWorld::Step(const float delta_time, const int velocity_itera
                         ", position_iterations=" + std::to_string(position_iterations) + ")");
         step_input_warned_ = true;
     }
+    if (delta_time < 0.0f || !std::isfinite(delta_time) || velocity_iterations <= 0 || position_iterations <= 0) {
+        return;
+    }
+
+    stepping_ = true;
 
     // 1. 积分速度（休眠体跳过；静态体清零、运动学体只由代码驱动）。
     for (auto& body : bodies_) {
@@ -219,44 +280,86 @@ auto InternalPhysicsWorld::Step(const float delta_time, const int velocity_itera
         broad_phase_.Insert(static_cast<int>(i), bodies_[i]->Body().aabb);
     }
 
-    // 3. 窄相位 + 接触收集 + 事件配对 + 接触唤醒。
+    // 3. 先稳定收集候选对。UniformGrid guarantees the list is sorted by
+    // body index, so the later merge (and therefore solver order) stays
+    // deterministic even when Collide itself runs on workers.
+    std::vector<std::pair<int, int>> candidates{};
+    broad_phase_.FindPairs([&](const int i, const int j) { candidates.emplace_back(i, j); });
+
+    // 3.5 窄相位：每个 range 只写自己的 result 槽，既没有共享可变状态，
+    // 也不允许 worker 触发唤醒/事件。WaitAll 后按候选索引串行归并。
+    std::vector<NarrowPhaseResult> narrow_results(candidates.size());
+    const auto narrow_range = [&](const std::size_t begin, const std::size_t end) {
+        for (std::size_t index = begin; index < end; ++index) {
+            const auto [i, j] = candidates[index];
+            RigidBody& body_a = bodies_[i]->Body();
+            RigidBody& body_b = bodies_[j]->Body();
+            const ContactPair key = MakePair(bodies_[i].get(), bodies_[j].get());
+
+            if (no_collide_pairs_.contains(key)) {
+                continue;
+            }
+
+            NarrowPhaseResult& result = narrow_results[index];
+            if (body_a.asleep && body_b.asleep) {
+                result.preserve_sleeping_contact = prev_contacts_.contains(key);
+                continue;
+            }
+            result.hit = Collide(body_a.shape, body_a.position, body_a.angle, body_b.shape, body_b.position,
+                                 body_b.angle, result.manifold);
+        }
+    };
+
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    const bool use_parallel_narrow = jobs.IsRunning() && jobs.WorkerCount() > 1 &&
+                                     candidates.size() >= kNarrowPhaseParallelThreshold;
+    if (use_parallel_narrow) {
+        const std::size_t target_jobs = jobs.WorkerCount() * 4;
+        const std::size_t grain =
+            std::max(kNarrowPhaseMinimumGrain, (candidates.size() + target_jobs - 1) / target_jobs);
+        std::vector<atom::job::JobHandle> handles{};
+        handles.reserve((candidates.size() + grain - 1) / grain);
+        for (std::size_t begin = 0; begin < candidates.size(); begin += grain) {
+            const std::size_t end = std::min(begin + grain, candidates.size());
+            handles.push_back(jobs.Schedule("physics:narrow", [&, begin, end] { narrow_range(begin, end); }));
+        }
+        jobs.WaitAll(handles);
+    } else {
+        narrow_range(0, candidates.size());
+    }
+
+    // 3.6 确定性归并：接触收集、事件和唤醒仍只在编排线程发生。
     std::set<ContactPair> current_contacts{};
     std::vector<ContactSolverInput> contacts{};
-    broad_phase_.FindPairs([&](const int i, const int j) {
+    contacts.reserve(candidates.size());
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+        const auto [i, j] = candidates[index];
         RigidBody& body_a = bodies_[i]->Body();
         RigidBody& body_b = bodies_[j]->Body();
         const ContactPair key = MakePair(bodies_[i].get(), bodies_[j].get());
-
-        // 关节明确禁碰的对直接跳过。
-        if (no_collide_pairs_.find(key) != no_collide_pairs_.end()) {
-            return;
-        }
-
-        // 双方都睡着：跳过窄相位（零成本），但保留配对，避免误发 EndContact。
-        if (body_a.asleep && body_b.asleep) {
+        const NarrowPhaseResult& result = narrow_results[index];
+        if (result.preserve_sleeping_contact) {
             current_contacts.insert(key);
-            return;
-        }
-
-        ContactManifold manifold{};
-        if (Collide(body_a.shape, body_a.position, body_a.angle, body_b.shape, body_b.position, body_b.angle,
-                    manifold)) {
+        } else if (result.hit) {
             current_contacts.insert(key);
-            contacts.push_back(ContactSolverInput{&body_a, &body_b, manifold});
+            contacts.push_back(ContactSolverInput{&body_a, &body_b, result.manifold});
             WakeOnContact(body_a, body_b, key);
         }
-    });
+    }
 
-    // 3.5 事件配对：Begin = 当前 − 历史；End = 历史 − 当前。
-    if (contact_listener_ != nullptr) {
+    // 3.7 事件配对：Begin = 当前 − 历史；End = 历史 − 当前。
+    // Snapshot the listener for this dispatch. A callback may replace or clear
+    // the listener, which must not invalidate the remainder of this event pass.
+    IContactListener* const listener = contact_listener_;
+    if (listener != nullptr) {
         for (const ContactPair& key : current_contacts) {
             if (prev_contacts_.find(key) == prev_contacts_.end()) {
-                contact_listener_->BeginContact(key.first, key.second);
+                listener->BeginContact(key.first, key.second);
             }
         }
         for (const ContactPair& key : prev_contacts_) {
             if (current_contacts.find(key) == current_contacts.end()) {
-                contact_listener_->EndContact(key.first, key.second);
+                listener->EndContact(key.first, key.second);
             }
         }
     }
@@ -303,6 +406,8 @@ auto InternalPhysicsWorld::Step(const float delta_time, const int velocity_itera
 
     // 7. 休眠判定。
     UpdateSleepState(delta_time);
+    stepping_ = false;
+    FlushDeferredBodyDestroys();
 }
 
 auto InternalPhysicsWorld::SetGravity(const algo::Vec2 gravity) -> void {

@@ -115,12 +115,18 @@ auto MusicCardScreen::Shutdown() -> void {
     if (loader_thread_.joinable())
         loader_thread_.join();
 
-    // Wait for any in-flight audio-load jobs before tearing the screen down.
-    // Those lambdas capture `this` (music_ and filesystem_), so they must be
-    // finished before members are destroyed.
-    for (const auto& handle : audio_jobs_)
+    // Wait for any in-flight audio jobs before tearing the screen down. Those
+    // lambdas capture `this` (music_ and filesystem_), so they must be finished
+    // before members are destroyed. Swap the list out under the lock so a Wait()
+    // (which can run other jobs, and those jobs could push more handles) never
+    // races or deadlocks against a concurrent push.
+    std::vector<atom::job::JobHandle> pending_audio_jobs;
+    {
+        std::lock_guard lock{audio_jobs_mutex_};
+        pending_audio_jobs.swap(audio_jobs_);
+    }
+    for (const auto& handle : pending_audio_jobs)
         handle.Wait();
-    audio_jobs_.clear();
 
     background_texture_ = {};
     for (auto& handle : artwork_textures_)
@@ -969,9 +975,13 @@ auto MusicCardScreen::RestartEntrance() -> void {
 }
 
 auto MusicCardScreen::TryStartAfterLoad() -> void {
-    // Prune completed audio-load handles so audio_jobs_ does not grow
-    // unbounded across many track switches.
-    std::erase_if(audio_jobs_, [](const atom::job::JobHandle& h) { return h.IsComplete(); });
+    // Prune completed audio-job handles so audio_jobs_ does not grow unbounded
+    // across many track switches. Guarded because the loader thread pushes Load
+    // handles concurrently.
+    {
+        std::lock_guard lock{audio_jobs_mutex_};
+        std::erase_if(audio_jobs_, [](const atom::job::JobHandle& h) { return h.IsComplete(); });
+    }
 
     if (!start_after_load_ || current_track_ >= tracks_.size())
         return;
@@ -1021,7 +1031,7 @@ auto MusicCardScreen::PauseCurrentTrack() -> void {
             return;
         id = tracks_[current_track_].id;
     }
-    music_.Pause(id);
+    DispatchPauseOnJobSystem(id);
     is_playing_ = false;
 }
 
@@ -1053,7 +1063,7 @@ auto MusicCardScreen::StartCurrentTrack() -> void {
 
 auto MusicCardScreen::DispatchPlayOnJobSystem(const std::string& id) -> void {
     auto& jobs = atom::job::JobSystem::GetInstance();
-    jobs.Schedule(
+    const auto handle = jobs.Schedule(
         "musiccard:play",
         [this, id] {
             music_.Play(id);
@@ -1066,6 +1076,24 @@ auto MusicCardScreen::DispatchPlayOnJobSystem(const std::string& id) -> void {
             }
         },
         atom::job::Priority::High);
+    std::lock_guard lock{audio_jobs_mutex_};
+    audio_jobs_.push_back(handle);
+}
+
+auto MusicCardScreen::DispatchStopOnJobSystem(const std::string& id) -> void {
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    const auto handle = jobs.Schedule(
+        "musiccard:stop", [this, id] { music_.Stop(id); }, atom::job::Priority::High);
+    std::lock_guard lock{audio_jobs_mutex_};
+    audio_jobs_.push_back(handle);
+}
+
+auto MusicCardScreen::DispatchPauseOnJobSystem(const std::string& id) -> void {
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    const auto handle = jobs.Schedule(
+        "musiccard:pause", [this, id] { music_.Pause(id); }, atom::job::Priority::High);
+    std::lock_guard lock{audio_jobs_mutex_};
+    audio_jobs_.push_back(handle);
 }
 
 auto MusicCardScreen::StopCurrentTrack() -> void {
@@ -1085,7 +1113,7 @@ auto MusicCardScreen::StopCurrentTrack() -> void {
     }
     if (is_loaded) {
         LOG_INFO(atom::log::audio::Music, "Music card stopping track: " + title);
-        music_.Stop(id);
+        DispatchStopOnJobSystem(id);
     }
     is_playing_ = false;
 }
@@ -1224,7 +1252,10 @@ auto MusicCardScreen::LoadTrackAudio(std::size_t index) -> void {
                           " on worker: " + id);
         },
         atom::job::Priority::Low);
-    audio_jobs_.push_back(handle);
+    {
+        std::lock_guard lock{audio_jobs_mutex_};
+        audio_jobs_.push_back(handle);
+    }
 }
 
 auto MusicCardScreen::DrainPendingUnloads() -> void {

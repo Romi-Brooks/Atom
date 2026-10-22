@@ -2,6 +2,9 @@
 #include <Physics/Collision/BroadPhase.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
+#include <utility>
+#include <vector>
+
 auto main() -> int {
     using namespace atom::physics;
     using namespace atom::algo;
@@ -59,6 +62,17 @@ auto main() -> int {
         int pairs = 0;
         grid.FindPairs([&](int, int) { ++pairs; });
         ATOM_CHECK(pairs == 1);
+    }
+
+    // unordered_map 的 cell 遍历不得泄漏到调用方：候选对按稳定索引顺序输出。
+    {
+        UniformGrid grid{1.0f};
+        grid.Insert(2, aabb(0.0f, 0.0f, 1.0f, 1.0f));
+        grid.Insert(0, aabb(0.1f, 0.0f, 1.0f, 1.0f));
+        grid.Insert(1, aabb(0.2f, 0.0f, 1.0f, 1.0f));
+        std::vector<std::pair<int, int>> pairs;
+        grid.FindPairs([&](const int a, const int b) { pairs.emplace_back(a, b); });
+        ATOM_CHECK(pairs == std::vector<std::pair<int, int>>{{0, 1}, {0, 2}, {1, 2}});
     }
 
     // Clear 后无 pair

@@ -15,7 +15,6 @@
 #include <cstdint>
 #include <functional>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <Algorithm/Geometry/Primitives.hpp>
@@ -27,7 +26,8 @@ class IBroadPhase {
         virtual ~IBroadPhase() = default;
         virtual auto Clear() -> void = 0;
         virtual auto Insert(int proxy_id, const algo::Aabb2& aabb) -> void = 0;
-        // 输出每个潜在重叠对（proxy_id, proxy_id），不保证顺序、不保证去重。
+        // 按 (min(proxy_id), max(proxy_id)) 升序输出每个潜在重叠对，且不重复。
+        // 稳定顺序是顺序冲量求解与未来并行窄相归并的确定性前提。
         virtual auto FindPairs(const std::function<void(int, int)>& callback) const -> void = 0;
 };
 
@@ -44,8 +44,6 @@ class UniformGrid final : public IBroadPhase {
         using CellKey = std::int64_t;
 
         static auto EncodeCell(int cell_x, int cell_y) -> CellKey;
-        static auto EncodePair(int a, int b) -> CellKey;
-
         float cell_size_ = 1.0f;
         std::unordered_map<CellKey, std::vector<int>> cells_{};
 };

@@ -42,8 +42,9 @@
 #include <Physics/Shapes/Shape.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
+#include <Runtime/ScreenManager.hpp>
 
 namespace {
 
@@ -307,7 +308,8 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("PhysicsDemo");
 
     auto& window = atom::RenderWindow::GetInstance();
-    const auto initialized = window.Initialize("Atom - Physics Demo", atom::algo::Vec2{1280.0f, 720.0f},
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom - Physics Demo", atom::algo::Vec2{1280.0f, 720.0f},
                                                atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
@@ -340,7 +342,7 @@ auto main() -> int {
         jobs.Start();
     }
 
-    window.Run();
+    application.Run();
     jobs.Shutdown();
     return 0;
 }

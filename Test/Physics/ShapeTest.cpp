@@ -4,11 +4,20 @@
 #include <Test/Support/TestHelpers.hpp>
 
 #include <array>
+#include <limits>
 #include <vector>
 
 auto main() -> int {
     using namespace atom::physics;
     using atom::algo::Vec2;
+
+    // 工厂拒绝 NaN/Inf，避免把非法数据带入 AABB/求解器。
+    ATOM_CHECK(!Shape::MakeCircle(std::numeric_limits<float>::quiet_NaN()));
+    const std::array<Vec2, 3> non_finite = {Vec2{0.0f, 0.0f},
+                                             Vec2{std::numeric_limits<float>::infinity(), 0.0f},
+                                             Vec2{0.0f, 1.0f}};
+    ATOM_CHECK(!Shape::MakePolygon(non_finite));
+    ATOM_CHECK(!Shape::MakeSegment(Vec2{0.0f, 0.0f}, Vec2{std::numeric_limits<float>::infinity(), 0.0f}));
 
     // --- 圆 ---
     auto circle = Shape::MakeCircle(1.0f);

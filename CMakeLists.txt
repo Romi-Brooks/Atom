@@ -254,7 +254,11 @@ endif()
         Backend/Physics/Internal/InternalPhysicsBackend.cpp
     )
     target_include_directories(Atom_Physics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    # Physics can fork pure narrow-phase batches through the engine scheduler.
+    # The scheduler remains an implementation detail: IPhysics* headers do not
+    # expose JobSystem types and callers retain a serial fallback when it is off.
     target_link_libraries(Atom_Physics PUBLIC Atom_Algorithm Atom_Error Atom_Log)
+    target_link_libraries(Atom_Physics PRIVATE Atom_Concurrency)
 
 # 3. SDL3 Core
     add_library(Atom_Backend_SDL3_Core STATIC
@@ -344,6 +348,18 @@ endif()
     target_include_directories(Atom_Renderer2D PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Renderer2D PUBLIC Atom_Backend_Contracts Atom_Render_Pipeline Atom_Render_Core Atom_Text)
     target_link_libraries(Atom_Renderer2D PRIVATE Atom_Log)
+
+# 3h-bis. Game UI — retained widgets over Layout, normalized input, and a
+# screen-space Renderer2D canvas. Runtime-owned pages may consume this module;
+# UI itself has no dependency on Runtime, Window implementations, ECS, or ImGui.
+    add_library(Atom_UI STATIC
+        UI/UiTree.hpp
+        UI/UiTree.cpp
+        UI/UiCanvas.hpp
+        UI/UiCanvas.cpp
+    )
+    target_include_directories(Atom_UI PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_UI PUBLIC Atom_Layout Atom_InputSystem Atom_Renderer2D)
 
 # 3i. Render resources — bridges decoded media assets into renderer-owned GPU resources.
     add_library(Atom_Render_Resources STATIC
@@ -537,16 +553,11 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
     target_include_directories(Atom_Packager PUBLIC Utilities/Packager)
     target_link_libraries(Atom_Packager PUBLIC Atom_UTF8 Atom_Log)
 
-# 9. Windows
+# 9. Window/render host. It owns native window, backend and frame submission;
+# Runtime owns the frame loop, time domains and screen dispatch.
     add_library(Atom_Window STATIC
             Window/RenderWindow.hpp
             Window/RenderWindow.cpp
-            Window/Screen.cpp
-            Window/Screen.hpp
-            Window/ScreenManager.cpp
-            Window/ScreenManager.hpp
-            Window/OverlayManager.hpp
-            Window/OverlayManager.cpp
     )
     target_include_directories(Atom_Window PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Window PUBLIC
@@ -554,13 +565,25 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
         Atom_Error
         Atom_InputSystem
         Atom_Log
-        Atom_Algorithm
-        Atom_Time)
+        Atom_Algorithm)
     target_link_libraries(Atom_Window PRIVATE
         Atom_Backend_Extension
         Atom_Backend_Render_Runtime)
 
-# 10. Debugger
+# 10. Runtime. This is the sole game frame-loop owner; Window intentionally
+# remains usable by tools that only need a platform/render host.
+    add_library(Atom_Runtime STATIC
+            Runtime/Application.hpp
+            Runtime/Application.cpp
+            Runtime/Screen.hpp
+            Runtime/Screen.cpp
+            Runtime/ScreenManager.hpp
+            Runtime/ScreenManager.cpp
+    )
+    target_include_directories(Atom_Runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Runtime PUBLIC Atom_Window Atom_Time Atom_Log)
+
+# 11. Debugger
     # Debug overlay follows NDEBUG by default (on in Debug, off in Release).
     # Force either way with -DATOM_ENABLE_DEBUGGER=ON/OFF (or ATOM_ENABLE_DEBUGGER=0/1).
     set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow NDEBUG), ON, or OFF")
@@ -575,6 +598,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Debugger/PanelLayout.hpp
             Debugger/PanelLayout.cpp
             Debugger/Overlay.hpp
+            Debugger/OverlayManager.hpp
+            Debugger/OverlayManager.cpp
             Debugger/JobDebugger.hpp
             Debugger/JobDebugger.cpp
             Debugger/FpsDebugger.hpp
@@ -588,13 +613,13 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
         target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=0)
         target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=0)
     endif()
-    target_link_libraries(Atom_Debugger PUBLIC Atom_Window Atom_3rd_ImGui_SDL3 Atom_Concurrency)
+    target_link_libraries(Atom_Debugger PUBLIC Atom_Runtime Atom_3rd_ImGui_SDL3 Atom_Concurrency)
     target_link_libraries(Atom_Debugger PRIVATE Atom_Backend_SDLGPU_Debug)
     if(WIN32)
         target_link_libraries(Atom_Debugger PUBLIC opengl32 gdi32)
     endif()
 
-# 11. Engine Core
+# 12. Engine Core
     add_library(Atom_Core INTERFACE)
     target_include_directories(Atom_Core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Core INTERFACE
@@ -607,6 +632,10 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Atom_Media
             Atom_Packager
             Atom_Window
+            Atom_Runtime
+            Atom_UI
+            Atom_ECS
+            Atom_Physics
             Atom_Log
             Atom_Lua
             Atom_UTF8
@@ -617,7 +646,7 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Atom_Image
     )
 
-# 12. Lua Binding
+# 13. Lua Binding
     add_library(Atom_Lua STATIC
             Lua/lua.hpp
             Lua/LuaContext.hpp
@@ -654,17 +683,17 @@ target_link_libraries(Atom_Engine PRIVATE
 # Examples
 add_executable(Example_Audio_Playback Example/Media/AudioPlayback.cpp)
 target_link_libraries(Example_Audio_Playback PRIVATE
-        Atom_Media Atom_Window Atom_Debugger)
+        Atom_Media Atom_Runtime Atom_Debugger)
 
 add_executable(Example_SFX_Playback Example/Media/SFXPlayback.cpp)
 target_link_libraries(Example_SFX_Playback PRIVATE
-        Atom_Media Atom_Window Atom_Debugger)
+        Atom_Media Atom_Runtime Atom_Debugger)
 
 add_executable(Example_Simple_Window Example/Window/SimpleWindow.cpp)
-target_link_libraries(Example_Simple_Window PRIVATE Atom_Window)
+target_link_libraries(Example_Simple_Window PRIVATE Atom_Runtime)
 
 add_executable(Example_Simple_Window_Debug Example/Window/SimpleWindowWithDebugger.cpp)
-target_link_libraries(Example_Simple_Window_Debug PRIVATE Atom_Window Atom_Debugger)
+target_link_libraries(Example_Simple_Window_Debug PRIVATE Atom_Runtime Atom_Debugger)
 
 # Audio metadata example (uses the engine's AudioMetadataReader)
 add_executable(Example_Audio_Metadata Example/Media/AudioMetadata.cpp)
@@ -677,7 +706,7 @@ target_link_libraries(Example_Job_System_Tour PRIVATE Atom_Concurrency)
 # Resource-pack playback example
 add_executable(Example_Packaged_Music Example/Media/PackagedMusicPlayback.cpp)
 target_link_libraries(Example_Packaged_Music PRIVATE
-        Atom_Media Atom_Window Atom_Debugger Atom_Packager)
+        Atom_Media Atom_Runtime Atom_Debugger Atom_Packager)
 
 # Log channel
 add_executable(Example_Log_Channel_Demo Example/Log/LogChannelDemo.cpp Example/Log/GameChannels.hpp)
@@ -686,7 +715,7 @@ target_link_libraries(Example_Log_Channel_Demo PRIVATE Atom_Log)
 # Lua scripting example (loads an external script and plays a track via Lua)
 add_executable(Example_Lua_Scripting Example/Lua/LuaScripting.cpp)
 target_link_libraries(Example_Lua_Scripting PRIVATE
-        Atom_Lua Atom_Media Atom_Log Atom_Window Atom_Debugger)
+        Atom_Lua Atom_Media Atom_Log Atom_Runtime Atom_Debugger)
 
 # MusicCard example — Yoga music HUD card migrated onto Renderer2D (phase C):
 # cover art decode via Atom_Image, production drawing/text via Renderer2D,
@@ -699,7 +728,7 @@ add_executable(Example_MusicCard
     Example/MusicCard/MusicCardDebugger.hpp
 )
 target_link_libraries(Example_MusicCard PRIVATE
-    Atom_Media Atom_Window Atom_Debugger Atom_Layout Atom_Renderer2D Atom_Render_Resources Atom_Image)
+    Atom_Media Atom_Runtime Atom_Debugger Atom_Layout Atom_Renderer2D Atom_Render_Resources Atom_Image)
 target_compile_definitions(Example_MusicCard PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_MusicCard Atom_Shaders)
@@ -708,19 +737,32 @@ add_dependencies(Example_MusicCard Atom_Shaders)
 # an overlay that prints the raw state. Proves the main loop feeds the input
 # state machine, so the screen never touches SDL or Window events itself.
 add_executable(Example_Input_Demo Example/Input/InputDemo.cpp)
-target_link_libraries(Example_Input_Demo PRIVATE Atom_Window Atom_Debugger Atom_Renderer2D)
+target_link_libraries(Example_Input_Demo PRIVATE Atom_Runtime Atom_Debugger Atom_Renderer2D)
 target_compile_definitions(Example_Input_Demo PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_Input_Demo Atom_Shaders)
+
+# Retained game-UI acceptance example. It uses Runtime's ScreenManager for a
+# menu/settings/game/pause flow; UI only owns widgets inside each page.
+add_executable(Example_UI_Runtime_Demo Example/UI/UiRuntimeDemo.cpp)
+target_link_libraries(Example_UI_Runtime_Demo PRIVATE Atom_Runtime Atom_UI)
+target_compile_definitions(Example_UI_Runtime_Demo PRIVATE
+    ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
+add_dependencies(Example_UI_Runtime_Demo Atom_Shaders)
 
 # Physics demo — interactive Renderer2D visualization of the Internal physics
 # backend: gravity, stacking, a pendulum, a revolute chain, and click-to-spawn.
 add_executable(Example_Physics_Demo Example/Physics/PhysicsDemo.cpp)
 target_link_libraries(Example_Physics_Demo PRIVATE
-    Atom_Physics Atom_Window Atom_Renderer2D Atom_Debugger)
+    Atom_Physics Atom_Runtime Atom_Renderer2D Atom_Debugger)
 target_compile_definitions(Example_Physics_Demo PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}")
 add_dependencies(Example_Physics_Demo Atom_Shaders)
+
+# Headless baseline for the physics JobSystem profiling gate. It intentionally
+# has no renderer/window dependency so measurements isolate Step().
+add_executable(Example_Physics_Benchmark Example/Physics/PhysicsBenchmark.cpp)
+target_link_libraries(Example_Physics_Benchmark PRIVATE Atom_Physics Atom_Concurrency)
 
 # ECS tour — a headless console walk through the entity/component store, ending in
 # a real integration loop. Console rather than windowed on purpose: the ECS is pure
@@ -737,7 +779,7 @@ add_executable(Atom_Tool_Packager
 )
 
 add_executable(Example_Spatial_Backend_Probe EXCLUDE_FROM_ALL Example/Audio/SpatialBackendProbe.cpp)
-target_link_libraries(Example_Spatial_Backend_Probe PRIVATE Atom_Media Atom_Window Atom_Debugger)
+target_link_libraries(Example_Spatial_Backend_Probe PRIVATE Atom_Media Atom_Runtime Atom_Debugger)
 set_target_properties(Atom_Tool_Packager PROPERTIES OUTPUT_NAME packager_tool)
 target_link_libraries(Atom_Tool_Packager PRIVATE Atom_Packager)
 
@@ -746,7 +788,7 @@ add_executable(Atom_Tool_PackagerGui
         Utilities/Packager/PackagerGui.cpp
 )
 set_target_properties(Atom_Tool_PackagerGui PROPERTIES OUTPUT_NAME packager_gui)
-target_link_libraries(Atom_Tool_PackagerGui PRIVATE Atom_Window Atom_Debugger Atom_Packager Atom_FS)
+target_link_libraries(Atom_Tool_PackagerGui PRIVATE Atom_Runtime Atom_Debugger Atom_Packager Atom_FS)
 
 include(CTest)
 # Third-party projects may force the generic BUILD_TESTING cache option off.
@@ -791,7 +833,7 @@ if(MINGW)
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo
                                 Example_MusicCard Example_Lua_Scripting Example_Job_System_Tour
-                                Example_Input_Demo Example_ECS_Tour Example_Physics_Demo
+                                Example_Input_Demo Example_UI_Runtime_Demo Example_ECS_Tour Example_Physics_Demo Example_Physics_Benchmark
                                Atom_Tool_Packager
                                Atom_Tool_PackagerGui)
             add_dependencies(${atom_exe} Atom_Mingw_Runtime_DLL)

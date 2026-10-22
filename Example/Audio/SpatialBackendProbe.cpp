@@ -15,9 +15,10 @@
 #include <Utilities/Utf8/Utf8.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 
 namespace {
 // Absolute path of the probe clip. Its parent directory is mounted under the
@@ -255,7 +256,8 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("Probe");
 
     auto& window = atom::RenderWindow::GetInstance();
-    const auto initialized = window.Initialize("Atom - Spatial Audio Backend Probe", atom::algo::Vec2{860, 780},
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom - Spatial Audio Backend Probe", atom::algo::Vec2{860, 780},
                                               atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
@@ -266,5 +268,5 @@ auto main() -> int {
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
     debugger.Attach(window);
-    window.Run();
+    application.Run();
 }
