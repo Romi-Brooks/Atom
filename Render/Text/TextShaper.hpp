@@ -60,7 +60,7 @@ class TextShaper {
         TextShaper& operator=(const TextShaper&) = delete;
 
         [[nodiscard]] virtual auto Shape(FontInstanceId instance, std::string_view utf8,
-                                         const ShapeParams& params = {}) -> ShapedRun = 0;
+                                         const ShapeParams& params = {}) const -> ShapedRun = 0;
 
     protected:
         TextShaper() = default;

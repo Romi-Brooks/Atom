@@ -155,11 +155,11 @@ class FreeTypeFontInstance final : public FontInstance {
             return id_;
         }
 
+        [[nodiscard]] auto SizePx() const -> float override { return size_px_; }
+
         [[nodiscard]] auto Bytes() const -> std::span<const std::byte> {
             return bytes_ ? std::span<const std::byte>{*bytes_} : std::span<const std::byte>{};
         }
-
-        [[nodiscard]] auto SizePx() const -> float { return size_px_; }
 
         [[nodiscard]] auto HasGlyph(std::uint32_t codepoint) const -> bool override {
             return GlyphIndex(codepoint) != 0;

@@ -64,7 +64,7 @@ HarfBuzzTextShaper::~HarfBuzzTextShaper() {
 }
 
 auto HarfBuzzTextShaper::Shape(const FontInstanceId instance, const std::string_view utf8,
-                               const ShapeParams& params) -> ShapedRun {
+                               const ShapeParams& params) const -> ShapedRun {
     ShapedRun run{};
     run.font_instance = instance;
 

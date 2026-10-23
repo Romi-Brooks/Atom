@@ -340,6 +340,8 @@ endif()
         Render/Text/FreeTypeFontProvider.hpp
         Render/Text/HarfBuzzTextShaper.cpp
         Render/Text/HarfBuzzTextShaper.hpp
+        Render/Text/TextLayoutBuilder.cpp
+        Render/Text/TextLayoutBuilder.hpp
     )
     target_include_directories(Atom_Text PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Text PRIVATE Atom_3rd_FreeType Atom_3rd_HarfBuzz Atom_Concurrency)

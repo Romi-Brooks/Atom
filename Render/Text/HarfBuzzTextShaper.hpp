@@ -37,7 +37,7 @@ class HarfBuzzTextShaper final : public TextShaper {
         HarfBuzzTextShaper& operator=(const HarfBuzzTextShaper&) = delete;
 
         [[nodiscard]] auto Shape(FontInstanceId instance, std::string_view utf8,
-                                 const ShapeParams& params = {}) -> ShapedRun override;
+                                 const ShapeParams& params = {}) const -> ShapedRun override;
 
     private:
         struct Impl;

@@ -44,6 +44,10 @@ class FontInstance {
         FontInstance& operator=(const FontInstance&) = delete;
 
         [[nodiscard]] virtual auto Id() const -> FontInstanceId = 0;
+        // Pixel size this instance was created at. Intrinsic to the instance:
+        // the shaper scales to it and the layout builder derives line boxes from
+        // Metrics(SizePx()).
+        [[nodiscard]] virtual auto SizePx() const -> float = 0;
         [[nodiscard]] virtual auto HasGlyph(std::uint32_t codepoint) const -> bool = 0;
         // Maps a codepoint to its glyph id in this face, or 0 when absent. This
         // is the lookup the shaper needs from a font (HarfBuzz's get_glyph

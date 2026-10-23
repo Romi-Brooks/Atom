@@ -115,6 +115,13 @@ atom_add_test(Atom_Render_Text.HarfBuzzTextShaper
     Atom_Text)
 target_compile_definitions(Atom_Render_Text_HarfBuzzTextShaper_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 
+# W3: immutable TextLayout builder (shaping-driven line breaking, clusters, alignment, line boxes).
+atom_add_test(Atom_Render_Text.TextLayoutBuilder
+    Atom_Render_Text_TextLayoutBuilder_Tests
+    Render/TextLayoutBuilderTest.cpp
+    Atom_Text Atom_Concurrency)
+target_compile_definitions(Atom_Render_Text_TextLayoutBuilder_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+
 atom_add_test(Atom_Renderer2D.Text
     Atom_Renderer2D_Text_Tests
     Render/Renderer2DTextTest.cpp
