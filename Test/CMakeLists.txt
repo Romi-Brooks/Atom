@@ -101,11 +101,11 @@ atom_add_test(Atom_Render_Text.Font
 target_compile_definitions(Atom_Render_Text_Font_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 
 # W2a: FreeType-backed FontProvider (family registration, instance handout,
-# glyph-id mapping, metrics, on-demand rasterization).
+# glyph-id mapping, metrics, on-demand rasterization) + W2b batch rasterization.
 atom_add_test(Atom_Render_Text.FreeTypeFontProvider
     Atom_Render_Text_FreeTypeFontProvider_Tests
     Render/FreeTypeFontProviderTest.cpp
-    Atom_Text)
+    Atom_Text Atom_Concurrency)
 target_compile_definitions(Atom_Render_Text_FreeTypeFontProvider_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 
 # W2c: HarfBuzz shaping (glyph ids, byte-offset clusters, advances, mark positioning).

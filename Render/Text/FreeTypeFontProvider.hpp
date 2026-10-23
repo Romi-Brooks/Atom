@@ -20,10 +20,29 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#include <vector>
 
 #include <Render/Text/FontProvider.hpp>
 
 namespace atom::text {
+
+// One glyph to rasterize. `instance` resolves the family bytes; `size_px` and
+// `mode` are the rasterization parameters. Workers clone their own FT_Library +
+// FT_Face from the (read-only) family bytes, so no shared face is touched
+// concurrently.
+struct RasterizeRequest {
+        FontInstanceId instance;
+        std::uint32_t glyph_id = 0;
+        float size_px = 16.0f;
+        RenderMode mode = RenderMode::Normal;
+};
+
+// Result of one rasterize request. `ok` is false for an invalid instance, a
+// missing/out-of-range glyph, or a FreeType failure; `raster` is then empty.
+struct RasterizeResult {
+        bool ok = false;
+        GlyphRaster raster{};
+};
 
 class FreeTypeFontProvider final : public FontProvider {
     public:
@@ -52,6 +71,14 @@ class FreeTypeFontProvider final : public FontProvider {
         [[nodiscard]] auto BytesFor(FontInstanceId id) const -> std::span<const std::byte>;
         // Pixel size the instance was created at (the shaper's hb_font scale).
         [[nodiscard]] auto SizePxFor(FontInstanceId id) const -> float;
+
+        // Rasterizes a batch in parallel through the job system: one job per
+        // request, each cloning its own FT_Library + FT_Face from the family
+        // bytes (no shared face, no lock). Results are returned in input order.
+        // Falls back to sequential rasterization when the job system is not
+        // running. Blocks until all requests finish (the calling thread helps
+        // run pending jobs, matching AudioMetadataReader::ReadBatch).
+        [[nodiscard]] auto RasterizeBatch(std::span<const RasterizeRequest> requests) -> std::vector<RasterizeResult>;
 
     private:
         struct Impl;

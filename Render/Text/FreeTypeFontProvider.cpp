@@ -17,6 +17,8 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <Concurrency/JobSystem.hpp>
+
 namespace atom::text {
 namespace {
 
@@ -57,10 +59,87 @@ auto RenderModeOf(RenderMode mode) -> FT_Render_Mode {
     }
 }
 
+auto PixelHeight(float size_px) -> FT_UInt {
+    return static_cast<FT_UInt>(std::max(1.0f, std::round(size_px)));
+}
+
+auto PackGray(const FT_Bitmap& bitmap, GlyphRaster& out) -> bool {
+    out.format = RasterFormat::AlphaBitmap;
+    out.pixels.resize(static_cast<std::size_t>(bitmap.width) * bitmap.rows);
+    for (std::uint32_t y = 0; y < bitmap.rows; ++y) {
+        const auto* row = BitmapRow(bitmap, y);
+        for (std::uint32_t x = 0; x < bitmap.width; ++x)
+            out.pixels[static_cast<std::size_t>(y) * bitmap.width + x] = row[x];
+    }
+    return true;
+}
+
+auto PackMono(const FT_Bitmap& bitmap, GlyphRaster& out) -> bool {
+    // A 1-bit bitmap is normalized to 8-bit alpha so the consumer has a
+    // single well-defined AlphaBitmap packing to reason about.
+    out.format = RasterFormat::AlphaBitmap;
+    out.pixels.resize(static_cast<std::size_t>(bitmap.width) * bitmap.rows);
+    for (std::uint32_t y = 0; y < bitmap.rows; ++y) {
+        const auto* row = BitmapRow(bitmap, y);
+        for (std::uint32_t x = 0; x < bitmap.width; ++x) {
+            const bool set = (row[x / 8u] & (0x80u >> (x % 8u))) != 0;
+            out.pixels[static_cast<std::size_t>(y) * bitmap.width + x] = set ? 255 : 0;
+        }
+    }
+    return true;
+}
+
+auto PackBgra(const FT_Bitmap& bitmap, GlyphRaster& out) -> bool {
+    out.format = RasterFormat::ColorBitmap;
+    out.pixels.resize(static_cast<std::size_t>(bitmap.width) * bitmap.rows * 4u);
+    for (std::uint32_t y = 0; y < bitmap.rows; ++y) {
+        const auto* row = BitmapRow(bitmap, y);
+        for (std::uint32_t x = 0; x < bitmap.width; ++x) {
+            const auto* src = row + static_cast<std::size_t>(x) * 4u;
+            std::memcpy(out.pixels.data() + (static_cast<std::size_t>(y) * bitmap.width + x) * 4u, src, 4u);
+        }
+    }
+    return true;
+}
+
+// Rasterizes one glyph on an already-open face. The caller owns the face's
+// concurrency (the single-instance path holds the instance mutex; the batch path
+// uses a per-job clone). Shared by both so the packing rules stay in one place.
+auto RasterizeFace(FT_Face face, std::uint32_t glyph_id, float size_px, RenderMode mode, GlyphRaster& out) -> bool {
+    out = {};
+    if (!face || !std::isfinite(size_px) || size_px <= 0.0f)
+        return false;
+    if (FT_Set_Pixel_Sizes(face, 0, PixelHeight(size_px)) != 0 ||
+        FT_Load_Glyph(face, glyph_id, FT_LOAD_DEFAULT | LoadTarget(mode)) != 0 ||
+        FT_Render_Glyph(face->glyph, RenderModeOf(mode)) != 0)
+        return false;
+
+    const auto& bitmap = face->glyph->bitmap;
+    if (!bitmap.buffer || bitmap.width == 0 || bitmap.rows == 0)
+        return false;
+
+    out.width = bitmap.width;
+    out.height = bitmap.rows;
+    out.offset_x = face->glyph->bitmap_left;
+    out.offset_y = -face->glyph->bitmap_top;
+
+    switch (bitmap.pixel_mode) {
+        case FT_PIXEL_MODE_GRAY:
+            return PackGray(bitmap, out);
+        case FT_PIXEL_MODE_MONO:
+            return PackMono(bitmap, out);
+        case FT_PIXEL_MODE_BGRA:
+            return PackBgra(bitmap, out);
+        default:
+            return false; // LCD and other modes arrive in a later wave
+    }
+}
+
 // One FreeType face owned by a FontInstance. The bytes buffer is shared with the
 // provider's family table (FT_New_Memory_Face borrows it), so it stays alive for
 // the instance's lifetime. A single mutex guards the face: FreeType forbids
-// concurrent use of one face, and W2b replaces this with per-worker clones.
+// concurrent use of one face, and W2b's batch path avoids this face entirely via
+// per-job clones.
 class FreeTypeFontInstance final : public FontInstance {
     public:
         FreeTypeFontInstance(FontInstanceId id, float size_px, FT_Face face,
@@ -112,86 +191,45 @@ class FreeTypeFontInstance final : public FontInstance {
 
         [[nodiscard]] auto Rasterize(std::uint32_t glyph_id, float size_px, RenderMode mode, GlyphRaster& out) const
             -> bool override {
-            out = {};
-            if (!face_ || !std::isfinite(size_px) || size_px <= 0.0f)
-                return false;
             std::scoped_lock lock{mutex_};
-            if (FT_Set_Pixel_Sizes(face_, 0, PixelHeight(size_px)) != 0 ||
-                FT_Load_Glyph(face_, glyph_id, FT_LOAD_DEFAULT | LoadTarget(mode)) != 0 ||
-                FT_Render_Glyph(face_->glyph, RenderModeOf(mode)) != 0)
-                return false;
-
-            const auto& bitmap = face_->glyph->bitmap;
-            if (!bitmap.buffer || bitmap.width == 0 || bitmap.rows == 0)
-                return false;
-
-            out.width = bitmap.width;
-            out.height = bitmap.rows;
-            out.offset_x = face_->glyph->bitmap_left;
-            out.offset_y = -face_->glyph->bitmap_top;
-
-            switch (bitmap.pixel_mode) {
-                case FT_PIXEL_MODE_GRAY:
-                    return PackGray(bitmap, out);
-                case FT_PIXEL_MODE_MONO:
-                    return PackMono(bitmap, out);
-                case FT_PIXEL_MODE_BGRA:
-                    return PackBgra(bitmap, out);
-                default:
-                    return false; // LCD and other modes arrive in a later wave
-            }
+            return RasterizeFace(face_, glyph_id, size_px, mode, out);
         }
 
     private:
-        static auto PixelHeight(float size_px) -> FT_UInt {
-            return static_cast<FT_UInt>(std::max(1.0f, std::round(size_px)));
-        }
-
-        static auto PackGray(const FT_Bitmap& bitmap, GlyphRaster& out) -> bool {
-            out.format = RasterFormat::AlphaBitmap;
-            out.pixels.resize(static_cast<std::size_t>(bitmap.width) * bitmap.rows);
-            for (std::uint32_t y = 0; y < bitmap.rows; ++y) {
-                const auto* row = BitmapRow(bitmap, y);
-                for (std::uint32_t x = 0; x < bitmap.width; ++x)
-                    out.pixels[static_cast<std::size_t>(y) * bitmap.width + x] = row[x];
-            }
-            return true;
-        }
-
-        static auto PackMono(const FT_Bitmap& bitmap, GlyphRaster& out) -> bool {
-            // A 1-bit bitmap is normalized to 8-bit alpha so the consumer has a
-            // single well-defined AlphaBitmap packing to reason about.
-            out.format = RasterFormat::AlphaBitmap;
-            out.pixels.resize(static_cast<std::size_t>(bitmap.width) * bitmap.rows);
-            for (std::uint32_t y = 0; y < bitmap.rows; ++y) {
-                const auto* row = BitmapRow(bitmap, y);
-                for (std::uint32_t x = 0; x < bitmap.width; ++x) {
-                    const bool set = (row[x / 8u] & (0x80u >> (x % 8u))) != 0;
-                    out.pixels[static_cast<std::size_t>(y) * bitmap.width + x] = set ? 255 : 0;
-                }
-            }
-            return true;
-        }
-
-        static auto PackBgra(const FT_Bitmap& bitmap, GlyphRaster& out) -> bool {
-            out.format = RasterFormat::ColorBitmap;
-            out.pixels.resize(static_cast<std::size_t>(bitmap.width) * bitmap.rows * 4u);
-            for (std::uint32_t y = 0; y < bitmap.rows; ++y) {
-                const auto* row = BitmapRow(bitmap, y);
-                for (std::uint32_t x = 0; x < bitmap.width; ++x) {
-                    const auto* src = row + static_cast<std::size_t>(x) * 4u;
-                    std::memcpy(out.pixels.data() + (static_cast<std::size_t>(y) * bitmap.width + x) * 4u, src, 4u);
-                }
-            }
-            return true;
-        }
-
         FontInstanceId id_;
         float size_px_ = 0.0f;
         FT_Face face_ = nullptr;
         std::shared_ptr<const std::vector<std::byte>> bytes_; // keeps the face's buffer alive
         mutable std::mutex mutex_;
 };
+
+// Rasterizes one glyph on a fresh, private FT_Library + FT_Face cloned from the
+// family bytes. Each batch job runs this independently, so no FreeType object is
+// shared across workers (FreeType forbids concurrent use of one face).
+auto RasterizeOne(const std::span<const std::byte> bytes, const std::uint32_t glyph_id, const float size_px,
+                  const RenderMode mode) -> RasterizeResult {
+    RasterizeResult result{};
+    if (bytes.empty())
+        return result;
+
+    FT_Library library = nullptr;
+    if (FT_Init_FreeType(&library) != 0)
+        return result;
+
+    FT_Face face = nullptr;
+    if (FT_New_Memory_Face(library, reinterpret_cast<const FT_Byte*>(bytes.data()), static_cast<FT_Long>(bytes.size()),
+                           0, &face) != 0 ||
+        !face) {
+        FT_Done_FreeType(library);
+        return result;
+    }
+
+    result.ok = RasterizeFace(face, glyph_id, size_px, mode, result.raster);
+
+    FT_Done_Face(face);
+    FT_Done_FreeType(library);
+    return result;
+}
 
 } // namespace
 
@@ -295,6 +333,41 @@ auto FreeTypeFontProvider::SizePxFor(const FontInstanceId id) const -> float {
     std::lock_guard lock{impl_->mutex};
     const auto it = impl_->instances.find(id.value);
     return it != impl_->instances.end() ? it->second->SizePx() : 0.0f;
+}
+
+auto FreeTypeFontProvider::RasterizeBatch(const std::span<const RasterizeRequest> requests)
+    -> std::vector<RasterizeResult> {
+    std::vector<RasterizeResult> results(requests.size());
+
+    // Pre-resolve the family bytes on the calling thread (a short mutex hold),
+    // so each worker only does read-only rasterization. The spans are valid for
+    // the provider's lifetime, which outlives this blocking call.
+    std::vector<std::span<const std::byte>> byte_spans(requests.size());
+    for (std::size_t i = 0; i < requests.size(); ++i)
+        byte_spans[i] = BytesFor(requests[i].instance);
+
+    auto& jobs = atom::job::JobSystem::GetInstance();
+    if (!jobs.IsRunning()) {
+        // Scheduler not started: fall back to sequential rasterization so callers
+        // never have to reason about scheduler state.
+        for (std::size_t i = 0; i < requests.size(); ++i)
+            results[i] = RasterizeOne(byte_spans[i], requests[i].glyph_id, requests[i].size_px, requests[i].mode);
+        return results;
+    }
+
+    // One job per request, each cloning its own FT_Library + FT_Face (no shared
+    // FreeType object across workers). Distinct result indices mean no data race.
+    std::vector<atom::job::JobHandle> handles;
+    handles.reserve(requests.size());
+    for (std::size_t i = 0; i < requests.size(); ++i) {
+        const auto bytes = byte_spans[i];
+        const RasterizeRequest request = requests[i];
+        handles.push_back(jobs.Schedule("text:rasterize", [bytes, request, &results, i] {
+            results[i] = RasterizeOne(bytes, request.glyph_id, request.size_px, request.mode);
+        }));
+    }
+    jobs.WaitAll(handles);
+    return results;
 }
 
 } // namespace atom::text

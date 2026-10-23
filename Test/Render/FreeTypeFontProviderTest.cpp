@@ -10,6 +10,8 @@
 #include <Render/Text/FreeTypeFontProvider.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
+#include <Concurrency/JobSystem.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -93,6 +95,48 @@ auto main() -> int {
 
     // No fallback chain in W2a.
     ATOM_CHECK(!provider.FallbackFor(id, 'A').IsValid());
+
+    // --- RasterizeBatch (W2b) -------------------------------------------------
+    const std::vector<std::uint32_t> glyph_ids{instance->GlyphIndex('A'), instance->GlyphIndex('V'),
+                                               instance->GlyphIndex('g'), instance->GlyphIndex('x')};
+    std::vector<RasterizeRequest> requests;
+    for (const auto glyph_id : glyph_ids)
+        requests.push_back(RasterizeRequest{id, glyph_id, 21.0f, RenderMode::Normal});
+
+    // Sequential fallback (job system not started yet): results in input order,
+    // byte-identical to the single-face Rasterize path.
+    const auto sequential = provider.RasterizeBatch(requests);
+    ATOM_CHECK(sequential.size() == requests.size());
+    for (std::size_t i = 0; i < requests.size(); ++i) {
+        ATOM_CHECK(sequential[i].ok);
+        ATOM_CHECK(sequential[i].raster.format == RasterFormat::AlphaBitmap);
+        ATOM_CHECK(sequential[i].raster.width > 0 && sequential[i].raster.height > 0);
+
+        GlyphRaster single{};
+        ATOM_CHECK(instance->Rasterize(requests[i].glyph_id, 21.0f, RenderMode::Normal, single));
+        ATOM_CHECK(sequential[i].raster.pixels == single.pixels);
+        ATOM_CHECK(sequential[i].raster.offset_x == single.offset_x);
+        ATOM_CHECK(sequential[i].raster.offset_y == single.offset_y);
+    }
+
+    // Parallel path: per-job FT_Face clones produce byte-identical results.
+    ATOM_CHECK(atom::job::JobSystem::GetInstance().Start());
+    const auto parallel = provider.RasterizeBatch(requests);
+    atom::job::JobSystem::GetInstance().Shutdown();
+    ATOM_CHECK(parallel.size() == requests.size());
+    for (std::size_t i = 0; i < requests.size(); ++i) {
+        ATOM_CHECK(parallel[i].ok);
+        ATOM_CHECK(parallel[i].raster.pixels == sequential[i].raster.pixels);
+    }
+
+    // Failure paths: invalid instance and out-of-range glyph both fail cleanly.
+    std::vector<RasterizeRequest> bad{};
+    bad.push_back(RasterizeRequest{FontInstanceId{999}, instance->GlyphIndex('A'), 21.0f, RenderMode::Normal});
+    bad.push_back(RasterizeRequest{id, 0xFFFFFFFFu, 21.0f, RenderMode::Normal});
+    const auto bad_results = provider.RasterizeBatch(bad);
+    ATOM_CHECK(bad_results.size() == 2);
+    ATOM_CHECK(!bad_results[0].ok && bad_results[0].raster.pixels.empty());
+    ATOM_CHECK(!bad_results[1].ok && bad_results[1].raster.pixels.empty());
 
     return 0;
 }
