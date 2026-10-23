@@ -45,6 +45,10 @@ class FontInstance {
 
         [[nodiscard]] virtual auto Id() const -> FontInstanceId = 0;
         [[nodiscard]] virtual auto HasGlyph(std::uint32_t codepoint) const -> bool = 0;
+        // Maps a codepoint to its glyph id in this face, or 0 when absent. This
+        // is the lookup the shaper needs from a font (HarfBuzz's get_glyph
+        // callback) and the probe point for fallback detection.
+        [[nodiscard]] virtual auto GlyphIndex(std::uint32_t codepoint) const -> std::uint32_t = 0;
         [[nodiscard]] virtual auto Metrics(float size_px) const -> FontMetrics = 0;
         [[nodiscard]] virtual auto ScaleForPixelHeight(float size_px) const -> float = 0;
 
