@@ -15,7 +15,7 @@
 
 #include <Algorithm/Geometry/Primitives.hpp>
 #include <Algorithm/Vector/Vec2.hpp>
-#include <Backend/Contracts/Physics/PhysicsTypes.hpp>
+#include <Physics/Contracts/PhysicsTypes.hpp>
 #include <Physics/Shapes/Material.hpp>
 #include <Physics/Shapes/Shape.hpp>
 

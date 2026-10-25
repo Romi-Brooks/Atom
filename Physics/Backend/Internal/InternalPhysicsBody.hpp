@@ -9,7 +9,7 @@
 #ifndef ATOM_PHYSICS_BACKEND_INTERNAL_INTERNAL_PHYSICS_BODY_HPP
 #define ATOM_PHYSICS_BACKEND_INTERNAL_INTERNAL_PHYSICS_BODY_HPP
 
-#include <Backend/Contracts/Physics/IPhysicsBody.hpp>
+#include <Physics/Contracts/IPhysicsBody.hpp>
 #include <Physics/Dynamics/RigidBody.hpp>
 
 namespace atom::physics {

@@ -12,7 +12,7 @@
 #define ATOM_PHYSICS_BACKEND_I_PHYSICS_BODY_HPP
 
 #include <Algorithm/Vector/Vec2.hpp>
-#include <Backend/Contracts/Physics/PhysicsTypes.hpp>
+#include <Physics/Contracts/PhysicsTypes.hpp>
 
 namespace atom::physics {
 

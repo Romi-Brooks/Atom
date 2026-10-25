@@ -52,7 +52,7 @@ Backend/（物理的后端层与引擎其余后端同树，对齐音频分层）
 
 ## 4. 契约 API 摘要（已实现）
 
-见 `Physics/Shapes/Shape.hpp` 与 `Backend/Contracts/Physics/`：
+见 `../../Physics/Shapes/Shape.hpp` 与 `Physics/Contracts/`：
 
 - `Shape::MakeCircle/MakePolygon/MakeSegment` → `Result<Shape>`（非法输入不静默截断）
 - `ComputeArea/Centroid/Aabb/MassProperties`（纯函数）

@@ -4,7 +4,7 @@
 `Algorithm/Math` and `Algorithm/Geometry`; those lower modules must never
 depend on `Physics`.
 
-Design and roadmap: [`Docs/Physics-Plan-CN.md`](../Docs/Physics-Plan-CN.md).
+Design and roadmap: [`../Docs/Plans/Physics-Plan-CN.md`](../Docs/Plans/Physics-Plan-CN.md).
 
 ## Boundary
 
@@ -25,12 +25,13 @@ Physics/
   Collision/    // Broad phase, narrow phase, contact manifolds                      [M2/M3]
   Solver/       // Impulses and constraints                                          [M4/M6]
   PhysicsWorld/ // Lifetime, fixed-step orchestration, queries, events, sleeping     [M5]
-
-Backend/              // physics backends live in the shared Backend/ tree
-  Contracts/Physics/  // IPhysicsBody / IPhysicsWorld / IPhysicsBackend contract   [M1 done]
-  Physics/Internal/   // self-developed Internal backend (Box2D is a future peer)
+  Contracts/    // IPhysicsBody / IPhysicsWorld / IPhysicsBackend contract           [M1 done]
+  Backend/      // self-developed Internal provider; Box2D is a future peer
+    Internal/
 ```
 
 Units: meters (MKS), y-up, radians internally; the game layer converts from
 render pixels (y-down) via PPM. The public contract never exposes third-party
-types; a Box2D backend (future) stays hidden behind `IPhysicsBackend`.
+types; a Box2D provider (future) stays hidden behind `IPhysicsBackend`. The
+directory is owned by Physics, not root `Backend/`; its pending mechanical
+rename to `Physics/Backends/` is tracked in `Docs/Remaining-Issues.md`.

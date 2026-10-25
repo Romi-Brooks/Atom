@@ -17,7 +17,7 @@
 #include <set>
 #include <vector>
 
-#include <Backend/Contracts/Physics/IPhysicsWorld.hpp>
+#include <Physics/Contracts/IPhysicsWorld.hpp>
 #include <Physics/Collision/BroadPhase.hpp>
 #include <Physics/Solver/ContactSolver.hpp>
 

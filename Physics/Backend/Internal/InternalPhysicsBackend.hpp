@@ -12,7 +12,7 @@
 #include <memory>
 #include <string_view>
 
-#include <Backend/Contracts/Physics/IPhysicsBackend.hpp>
+#include <Physics/Contracts/IPhysicsBackend.hpp>
 
 namespace atom::physics {
 

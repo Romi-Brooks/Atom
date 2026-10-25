@@ -9,7 +9,7 @@
 #ifndef ATOM_PHYSICS_BACKEND_INTERNAL_INTERNAL_REVOLUTE_JOINT_HPP
 #define ATOM_PHYSICS_BACKEND_INTERNAL_INTERNAL_REVOLUTE_JOINT_HPP
 
-#include <Backend/Contracts/Physics/IPhysicsJoint.hpp>
+#include <Physics/Contracts/IPhysicsJoint.hpp>
 #include <Physics/Solver/RevoluteJoint.hpp>
 
 namespace atom::physics {

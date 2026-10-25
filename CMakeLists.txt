@@ -250,20 +250,20 @@ endif()
         Physics/Solver/RevoluteJoint.hpp
         Physics/Solver/RevoluteJoint.cpp
         Physics/PhysicsWorld/FixedStepper.hpp
-        Backend/Contracts/Physics/PhysicsTypes.hpp
-        Backend/Contracts/Physics/IPhysicsBody.hpp
-        Backend/Contracts/Physics/IPhysicsWorld.hpp
-        Backend/Contracts/Physics/IPhysicsJoint.hpp
-        Backend/Contracts/Physics/IPhysicsBackend.hpp
-        Backend/Contracts/Physics/PhysicsBackendId.hpp
-        Backend/Physics/Internal/InternalPhysicsBody.hpp
-        Backend/Physics/Internal/InternalPhysicsBody.cpp
-        Backend/Physics/Internal/InternalPhysicsWorld.hpp
-        Backend/Physics/Internal/InternalPhysicsWorld.cpp
-        Backend/Physics/Internal/InternalRevoluteJoint.hpp
-        Backend/Physics/Internal/InternalRevoluteJoint.cpp
-        Backend/Physics/Internal/InternalPhysicsBackend.hpp
-        Backend/Physics/Internal/InternalPhysicsBackend.cpp
+        Physics/Contracts/PhysicsTypes.hpp
+        Physics/Contracts/IPhysicsBody.hpp
+        Physics/Contracts/IPhysicsWorld.hpp
+        Physics/Contracts/IPhysicsJoint.hpp
+        Physics/Contracts/IPhysicsBackend.hpp
+        Physics/Contracts/PhysicsBackendId.hpp
+        Physics/Backend/Internal/InternalPhysicsBody.hpp
+        Physics/Backend/Internal/InternalPhysicsBody.cpp
+        Physics/Backend/Internal/InternalPhysicsWorld.hpp
+        Physics/Backend/Internal/InternalPhysicsWorld.cpp
+        Physics/Backend/Internal/InternalRevoluteJoint.hpp
+        Physics/Backend/Internal/InternalRevoluteJoint.cpp
+        Physics/Backend/Internal/InternalPhysicsBackend.hpp
+        Physics/Backend/Internal/InternalPhysicsBackend.cpp
     )
     target_include_directories(Atom_Physics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     # Physics can fork pure narrow-phase batches through the engine scheduler.

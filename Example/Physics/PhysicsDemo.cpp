@@ -29,11 +29,11 @@
 #include <Algorithm/Color/Color.hpp>
 #include <Algorithm/Geometry/Rect.hpp>
 #include <Algorithm/Vector/Vec2.hpp>
-#include <Backend/Contracts/Physics/IPhysicsBody.hpp>
-#include <Backend/Contracts/Physics/IPhysicsWorld.hpp>
-#include <Backend/Contracts/Physics/PhysicsTypes.hpp>
+#include <Physics/Contracts/IPhysicsBody.hpp>
+#include <Physics/Contracts/IPhysicsWorld.hpp>
+#include <Physics/Contracts/PhysicsTypes.hpp>
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
-#include <Backend/Physics/Internal/InternalPhysicsBackend.hpp>
+#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Debugger/FpsDebugger.hpp>
 #include <Debugger/JobDebugger.hpp>

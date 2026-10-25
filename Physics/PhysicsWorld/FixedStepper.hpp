@@ -20,7 +20,7 @@
 
 #include <algorithm>
 
-#include <Backend/Contracts/Physics/IPhysicsWorld.hpp>
+#include <Physics/Contracts/IPhysicsWorld.hpp>
 
 namespace atom::physics {
 

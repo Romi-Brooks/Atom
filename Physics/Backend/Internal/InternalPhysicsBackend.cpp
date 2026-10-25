@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Romi Brooks
 // SPDX-License-Identifier: MIT
 
-#include <Backend/Physics/Internal/InternalPhysicsBackend.hpp>
+#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
 
-#include <Backend/Physics/Internal/InternalPhysicsWorld.hpp>
+#include <Physics/Backend/Internal/InternalPhysicsWorld.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::physics {

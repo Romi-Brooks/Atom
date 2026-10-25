@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Romi Brooks
 // SPDX-License-Identifier: MIT
 
-#include <Backend/Physics/Internal/InternalPhysicsWorld.hpp>
+#include <Physics/Backend/Internal/InternalPhysicsWorld.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 
-#include <Backend/Physics/Internal/InternalPhysicsBody.hpp>
-#include <Backend/Physics/Internal/InternalRevoluteJoint.hpp>
+#include <Physics/Backend/Internal/InternalPhysicsBody.hpp>
+#include <Physics/Backend/Internal/InternalRevoluteJoint.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Physics/Collision/NarrowPhase.hpp>
