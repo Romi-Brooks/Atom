@@ -660,10 +660,13 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
         target_link_libraries(Atom_Debugger PUBLIC opengl32 gdi32)
     endif()
 
-# 12. Engine Core
-    add_library(Atom_Core INTERFACE)
-    target_include_directories(Atom_Core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Core INTERFACE
+# 12. Convenience package
+    # Atom_All is intentionally a convenience package for applications and
+    # legacy samples. Engine modules and new samples must link the smallest
+    # explicit set of domain targets they consume.
+    add_library(Atom_All INTERFACE)
+    target_include_directories(Atom_All INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_All INTERFACE
             Atom_Algorithm
             # Time is consumed directly by upper layers through
             # TimeSystem::GetInstance(), not only transitively via Atom_Window.
@@ -686,6 +689,11 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Atom_Render_Resources
             Atom_Image
     )
+
+    # Compatibility only. Keep this target while external consumers migrate;
+    # do not add new dependencies or new users of Atom_Core.
+    add_library(Atom_Core INTERFACE)
+    target_link_libraries(Atom_Core INTERFACE Atom_All)
 
 # 13. Lua Binding
     add_library(Atom_Lua STATIC
@@ -718,7 +726,7 @@ add_executable(Atom_Engine Atom.cpp)
 set_target_properties(Atom_Engine PROPERTIES OUTPUT_NAME Atom)
 
 target_link_libraries(Atom_Engine PRIVATE
-        Atom_Core
+        Atom_All
 )
 
 # Examples
