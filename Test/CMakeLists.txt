@@ -363,6 +363,11 @@ atom_add_test(Atom_Runtime.ScreenManager
     Runtime/ScreenManagerTest.cpp
     Atom_Runtime)
 
+atom_add_test(Atom_Runtime.GameWorld
+    Atom_Runtime_GameWorld_Tests
+    Runtime/GameWorldTest.cpp
+    Atom_Runtime)
+
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---
 atom_add_test(Atom_Lua.LuaHost
     Atom_Lua_LuaHost_Tests

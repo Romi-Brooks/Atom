@@ -632,9 +632,18 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
     add_library(Atom_Runtime STATIC
             Runtime/Application.hpp
             Runtime/Application.cpp
+            Runtime/EntityCommandBuffer.hpp
+            Runtime/EntityCommandBuffer.cpp
+            Runtime/GameEventQueue.hpp
+            Runtime/GameEventQueue.cpp
+            Runtime/GameWorld.hpp
+            Runtime/GameWorld.cpp
             Runtime/Screen.hpp
             Runtime/ScreenManager.hpp
             Runtime/ScreenManager.cpp
+            Runtime/System.hpp
+            Runtime/SystemScheduler.hpp
+            Runtime/SystemScheduler.cpp
     )
     target_include_directories(Atom_Runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Runtime PUBLIC Atom_Window Atom_Display Atom_Time Atom_Log Atom_ECS)
