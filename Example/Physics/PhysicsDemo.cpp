@@ -18,7 +18,7 @@
  *   Esc       退出
  */
 
-#include "Debugger/ThreadDebugger.hpp"
+#include "Debugger/Panels/ThreadDebugger.hpp"
 
 #include <array>
 #include <cstddef>
@@ -36,8 +36,8 @@
 #include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Debugger/FpsDebugger.hpp>
-#include <Debugger/JobDebugger.hpp>
-#include <Debugger/LogDebugger.hpp>
+#include <Debugger/Panels/JobDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
 #include <Input/InputSystem.hpp>
 #include <Input/Key.hpp>
 #include <Log/LogSystem.hpp>

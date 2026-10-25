@@ -14,7 +14,7 @@
 #include <Media/Audio/Resources/AudioClipLoader.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 #include <Debugger/Overlay.hpp>
-#include <Debugger/LogDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
 #include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Runtime/Application.hpp>

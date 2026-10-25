@@ -5,7 +5,7 @@
   * @attention      : Re-exports ImGui + DebugPanel + PanelLayout. Game code
   *                   writes panels through this header instead of <imgui.h>
   *                   or Backend headers. Optional helpers:
-  *                     #include <Debugger/LogDebugger.hpp>
+  *                     #include <Debugger/Panels/LogDebugger.hpp>
   *                     #include <Debugger/FontLoader.hpp>
   *                   Panels own default geometry via PanelLayout — no imgui.ini.
   * @date           : 2026/8/16

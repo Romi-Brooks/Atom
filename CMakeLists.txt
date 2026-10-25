@@ -648,8 +648,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
     add_library(Atom_Debugger STATIC
             Debugger/DebugPanel.hpp
             Debugger/DebugPanel.cpp
-            Debugger/LogDebugger.hpp
-            Debugger/LogDebugger.cpp
+            Debugger/Panels/LogDebugger.hpp
+            Debugger/Panels/LogDebugger.cpp
             Debugger/FontLoader.hpp
             Debugger/FontLoader.cpp
             Debugger/PanelLayout.hpp
@@ -657,10 +657,10 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Debugger/Overlay.hpp
             Debugger/OverlayManager.hpp
             Debugger/OverlayManager.cpp
-            Debugger/JobDebugger.hpp
-            Debugger/JobDebugger.cpp
-            Debugger/ThreadDebugger.hpp
-            Debugger/ThreadDebugger.cpp
+            Debugger/Panels/JobDebugger.hpp
+            Debugger/Panels/JobDebugger.cpp
+            Debugger/Panels/ThreadDebugger.hpp
+            Debugger/Panels/ThreadDebugger.cpp
             Debugger/FpsDebugger.hpp
             Debugger/FpsDebugger.cpp
     )

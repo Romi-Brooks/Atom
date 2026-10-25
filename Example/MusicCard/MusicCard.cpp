@@ -26,10 +26,10 @@
 
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Backend/Composition/BackendRuntime.hpp>
-#include <Debugger/LogDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
 #include <Debugger/Overlay.hpp>
-#include <Debugger/JobDebugger.hpp>
-#include <Debugger/ThreadDebugger.hpp>
+#include <Debugger/Panels/JobDebugger.hpp>
+#include <Debugger/Panels/ThreadDebugger.hpp>
 #include <Debugger/FpsDebugger.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Media/Audio/AudioBackend.hpp>

@@ -30,7 +30,7 @@
 #include <Window/RenderWindow.hpp>
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
-#include <Debugger/LogDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
 
 namespace {
 // Usually, this directory is open to Lua script developers,

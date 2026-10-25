@@ -75,6 +75,7 @@ auto OverlayManager::EnsureInitialized() -> bool {
             atom::input::InputSystem::GetInstance().SetOverlayMouseCapture(backend_->WantsMouse());
             backend_->Render();
         }
+
     }));
     shutdown_connection_ = std::make_unique<runtime::RuntimeConnection>(application.AddShutdownObserver([this] {
         ShutdownBackend();

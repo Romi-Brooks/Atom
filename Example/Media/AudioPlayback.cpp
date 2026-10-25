@@ -21,7 +21,7 @@
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
-#include <Debugger/LogDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
