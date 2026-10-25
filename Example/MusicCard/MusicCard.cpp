@@ -25,7 +25,7 @@
 #include <vector>
 
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Backend/Composition/BackendRuntime.hpp>
 #include <Debugger/LogDebugger.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/JobDebugger.hpp>

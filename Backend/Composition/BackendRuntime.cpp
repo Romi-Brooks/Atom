@@ -5,12 +5,12 @@
 #include <stdexcept>
 #include <utility>
 
-#include <Backend/Audio/Decoder/minimp3/Minimp3Decoder.hpp>
-#include <Backend/Audio/Decoder/SDL3Wav/SDL3WavDecoder.hpp>
-#include <Backend/Audio/Decoder/WavProf/WavProfDecoder.hpp>
+#include <Media/Audio/Codecs/minimp3/Minimp3Decoder.hpp>
+#include <Media/Audio/Codecs/SDL3Wav/SDL3WavDecoder.hpp>
+#include <Media/Audio/Codecs/WavProf/WavProfDecoder.hpp>
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Backend/Contracts/Audio/NullAudioBackend.hpp>
-#include <Backend/Runtime/IAudioBackendChangeListener.hpp>
+#include <Backend/Composition/IAudioBackendChangeListener.hpp>
 #include <Backend/SDL3/Audio/SDL3AudioBackend.hpp>
 #include <Backend/SDL3/Audio/SDL3MixerAudioBackend.hpp>
 

@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#include <Backend/Audio/Decoder/WavProf/RiffWaveReader.hpp>
+#include <Media/Audio/Codecs/WavProf/RiffWaveReader.hpp>
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 
 namespace atom::backend::audio_decoder {

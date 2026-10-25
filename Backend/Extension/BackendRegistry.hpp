@@ -17,7 +17,7 @@ class BackendRegistry final {
     public:
         using AudioBackendFactory = std::function<std::unique_ptr<audio::IAudioBackend>()>;
 
-        // Advanced extension API. Read Backend/Runtime/README-CN.md before
+        // Advanced extension API. Read Backend/Composition/README-CN.md before
         // registering custom factories or exposing selection to game code.
         auto RegisterAudioBackend(std::string id, AudioBackendFactory factory) -> bool;
 

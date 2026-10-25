@@ -6,7 +6,7 @@
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Backend/Extension/AudioDecoderRegistry.hpp>
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Backend/Composition/BackendRuntime.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>

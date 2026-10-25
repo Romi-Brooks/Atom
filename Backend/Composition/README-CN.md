@@ -1,8 +1,8 @@
-# Atom Backend Runtime 高阶扩展指南
+# Atom Backend Composition 高阶扩展指南
 
 ## 适用范围
 
-普通游戏项目不需要操作 `BackendRegistry`，也不应该包含 `Backend/SDL3/*`。默认构造的 `MusicPlayer`、`SFXPlayer` 和 `AudioClipCache` 会自动使用全局 `BackendRuntime`，播放后端默认是 SDL3（`sdl3`），格式解码器由引擎默认注册（`.wav` → WavProf 首选 + SDL3Wav 兜底，`.mp3` → Minimp3Decoder）。
+普通游戏项目不需要操作 `BackendRegistry`，也不应该包含 `Backend/SDL3/*` 或 `Backend/Composition/*`。默认构造的 `MusicPlayer`、`SFXPlayer` 和 `AudioClipCache` 会自动使用全局 `BackendRuntime`，播放后端默认是 SDL3（`sdl3`），格式解码器由引擎默认注册（`.wav` → WavProf 首选 + SDL3Wav 兜底，`.mp3` → Minimp3Decoder）。
 
 本文面向实现新播放后端、Fake/Null 测试后端，或添加新音频格式解码器的开发者。
 
@@ -18,7 +18,7 @@ Playback : PCM → Source/Stream → Audio Device（BackendRegistry 按 ID 查�
 ## 注册自定义播放后端
 
 ```cpp
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Backend/Composition/BackendRuntime.hpp>
 
 auto& runtime = atom::backend::BackendRuntime::GetInstance();
 
@@ -66,7 +66,7 @@ auto MyBackend::Quiesce() -> void { sources_.DetachAll(); }
 解码器按扩展名直接注册到全局 `AudioDecoderRegistry`：
 
 ```cpp
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Backend/Composition/BackendRuntime.hpp>
 
 auto& decoders = atom::backend::BackendRuntime::GetInstance().AudioDecoders();
 decoders.Register(".ogg", [] { return std::make_unique<MyOggDecoder>(); }, "MyOgg");
@@ -212,9 +212,9 @@ Audio Playback Backend:
                           buffered（SFX）与 streaming（Music）source 都实现该扩展集
 
 Default Decoders（BackendRuntime::RegisterDefaultAudioDecoders）:
-- .wav → 首选 WavProfDecoder（Backend/Audio/Decoder/WavProf；流式、任意帧 Seek）
-         兜底 SDL3WavDecoder（Backend/Audio/Decoder/SDL3Wav；SDL_LoadWAV，覆盖 ADPCM/A-Law/µ-Law）
-- .mp3 → Minimp3Decoder（minimp3 封装，Backend/Audio/Decoder/minimp3；采样级 Seek）
+- .wav → 首选 WavProfDecoder（Media/Audio/Codecs/WavProf；流式、任意帧 Seek）
+         兜底 SDL3WavDecoder（Media/Audio/Codecs/SDL3Wav；SDL_LoadWAV，覆盖 ADPCM/A-Law/µ-Law）
+- .mp3 → Minimp3Decoder（minimp3 封装，Media/Audio/Codecs/minimp3；采样级 Seek）
 ```
 
 重复设置当前后端不触发清理或重建。新增播放后端后，只要它实现了 `Quiesce()`，同一套全局切换协议无需修改 Player。

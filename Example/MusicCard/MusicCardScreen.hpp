@@ -26,7 +26,7 @@
 #include <thread>
 #include <vector>
 
-#include <Backend/Runtime/IAudioBackendChangeListener.hpp>
+#include <Backend/Composition/IAudioBackendChangeListener.hpp>
 #include <Concurrency/Future.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Layout/LayoutTree.hpp>

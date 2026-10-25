@@ -6,8 +6,8 @@
  * @brief Product-level audio backend selection (wraps BackendRuntime).
  *
  * Gameplay and app code should use this header instead of
- * <Backend/Runtime/BackendRuntime.hpp>. Advanced backend/decoder authoring
- * still goes through BackendRuntime (see Backend/Runtime/README-CN.md).
+ * <Backend/Composition/BackendRuntime.hpp>. Advanced backend/decoder authoring
+ * still goes through BackendRuntime (see Backend/Composition/README-CN.md).
  */
 
 #ifndef ATOM_MEDIA_AUDIO_AUDIO_BACKEND_HPP

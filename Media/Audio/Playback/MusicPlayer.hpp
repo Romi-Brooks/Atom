@@ -9,7 +9,7 @@
 
 #include <Backend/Contracts/Audio/AudioTypes.hpp>
 #include <Backend/Contracts/Audio/IAudioSource.hpp>
-#include <Backend/Runtime/IAudioBackendChangeListener.hpp>
+#include <Backend/Composition/IAudioBackendChangeListener.hpp>
 #include <Filesystem/FileSystem.hpp>
 
 namespace atom::audio {

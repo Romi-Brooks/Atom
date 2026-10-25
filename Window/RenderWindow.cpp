@@ -10,7 +10,7 @@
 #include "RenderWindow.hpp"
 
 #include <Backend/Extension/RenderBackendRegistry.hpp>
-#include <Backend/Runtime/RenderBackendRuntime.hpp>
+#include <Backend/Composition/RenderBackendRuntime.hpp>
 #include <Error/Error.hpp>
 #include <Log/LogSystem.hpp>
 

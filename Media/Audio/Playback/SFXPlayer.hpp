@@ -6,7 +6,7 @@
 #include <unordered_map>
 
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
-#include <Backend/Runtime/IAudioBackendChangeListener.hpp>
+#include <Backend/Composition/IAudioBackendChangeListener.hpp>
 #include <Media/Audio/Playback/VoicePool.hpp>
 #include <Media/Audio/Resources/AudioClipCache.hpp>
 

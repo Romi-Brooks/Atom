@@ -3,7 +3,7 @@
 
 #include "AudioBackend.hpp"
 
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Backend/Composition/BackendRuntime.hpp>
 
 namespace atom::audio {
 

@@ -322,13 +322,17 @@ endif()
 # 3d. Render Backend Runtime — the sanctioned layer that knows the concrete
 #     backends and registers them (window + render-device factory);
 #     upper layers only consume the registries and the I* interfaces.
-    add_library(Atom_Backend_Render_Runtime STATIC
-        Backend/Runtime/RenderBackendRuntime.cpp
-        Backend/Runtime/RenderBackendRuntime.hpp
+    add_library(Atom_Backend_Render_Composition STATIC
+        Backend/Composition/RenderBackendRuntime.cpp
+        Backend/Composition/RenderBackendRuntime.hpp
     )
-    target_include_directories(Atom_Backend_Render_Runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_Render_Runtime PUBLIC Atom_Backend_Extension Atom_Backend_SDL_GPU)
-    target_link_libraries(Atom_Backend_Render_Runtime PRIVATE Atom_Backend_SDLGPU_Debug)
+    target_include_directories(Atom_Backend_Render_Composition PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Backend_Render_Composition PUBLIC Atom_Backend_Extension Atom_Backend_SDL_GPU)
+    target_link_libraries(Atom_Backend_Render_Composition PRIVATE Atom_Backend_SDLGPU_Debug)
+
+    # Compatibility only; new code should name the composition role directly.
+    add_library(Atom_Backend_Render_Runtime INTERFACE)
+    target_link_libraries(Atom_Backend_Render_Runtime INTERFACE Atom_Backend_Render_Composition)
 
 # 3e. Text — backend-neutral font provider and glyph rasterization service.
     add_library(Atom_Text STATIC
@@ -395,7 +399,7 @@ endif()
     # link stays PRIVATE; consumers only see JobHandle by value in the header.
     target_link_libraries(Atom_Render_Resources PRIVATE Atom_Concurrency)
 
-# 4. Backend extension registration and engine audio decoders
+# 4. Backend extension registration and format codecs
     add_library(Atom_Backend_Extension STATIC
         Backend/Extension/AudioDecoderRegistry.hpp
         Backend/Extension/AudioDecoderRegistry.cpp
@@ -409,18 +413,24 @@ endif()
     target_include_directories(Atom_Backend_Extension PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Backend_Extension PUBLIC Atom_Backend_Contracts)
 
-    add_library(Atom_Backend_Audio STATIC
-        Backend/Audio/Decoder/WavProf/RiffWaveReader.hpp
-        Backend/Audio/Decoder/WavProf/RiffWaveReader.cpp
-        Backend/Audio/Decoder/WavProf/WavProfDecoder.hpp
-        Backend/Audio/Decoder/WavProf/WavProfDecoder.cpp
-        Backend/Audio/Decoder/SDL3Wav/SDL3WavDecoder.hpp
-        Backend/Audio/Decoder/SDL3Wav/SDL3WavDecoder.cpp
-        Backend/Audio/Decoder/minimp3/Minimp3Decoder.hpp
-        Backend/Audio/Decoder/minimp3/Minimp3Decoder.cpp
+    # Codecs parse media formats into PCM; they are not playback backends.
+    add_library(Atom_Audio_Codecs STATIC
+        Media/Audio/Codecs/WavProf/RiffWaveReader.hpp
+        Media/Audio/Codecs/WavProf/RiffWaveReader.cpp
+        Media/Audio/Codecs/WavProf/WavProfDecoder.hpp
+        Media/Audio/Codecs/WavProf/WavProfDecoder.cpp
+        Media/Audio/Codecs/SDL3Wav/SDL3WavDecoder.hpp
+        Media/Audio/Codecs/SDL3Wav/SDL3WavDecoder.cpp
+        Media/Audio/Codecs/minimp3/Minimp3Decoder.hpp
+        Media/Audio/Codecs/minimp3/Minimp3Decoder.cpp
     )
-    target_include_directories(Atom_Backend_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_3rd_Minimp3 Atom_UTF8 Atom_3rd_SDL3)
+    target_include_directories(Atom_Audio_Codecs PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Audio_Codecs PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_3rd_Minimp3 Atom_UTF8 Atom_3rd_SDL3)
+
+    # Compatibility target for out-of-tree consumers. New CMake code must use
+    # Atom_Audio_Codecs so the target name matches its Media/Audio location.
+    add_library(Atom_Backend_Audio INTERFACE)
+    target_link_libraries(Atom_Backend_Audio INTERFACE Atom_Audio_Codecs)
 
 # 5. SDL3 Audio Backend
     add_library(Atom_Backend_SDL3_Audio STATIC
@@ -449,18 +459,23 @@ endif()
     target_include_directories(Atom_Backend_SDL3_Mixer_Audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Backend_SDL3_Mixer_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_SDL3_Core Atom_Log Atom_3rd_SDL3_mixer)
 
-    add_library(Atom_Backend_Runtime STATIC
-        Backend/Runtime/BackendRuntime.hpp
-        Backend/Runtime/BackendRuntime.cpp
-        Backend/Runtime/IAudioBackendChangeListener.hpp
+    add_library(Atom_Backend_Composition STATIC
+        Backend/Composition/BackendRuntime.hpp
+        Backend/Composition/BackendRuntime.cpp
+        Backend/Composition/IAudioBackendChangeListener.hpp
     )
-    target_include_directories(Atom_Backend_Runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Backend_Runtime PUBLIC
+    target_include_directories(Atom_Backend_Composition PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Backend_Composition PUBLIC
         Atom_Backend_Contracts
         Atom_Backend_Extension
-        Atom_Backend_Audio
+        Atom_Audio_Codecs
         Atom_Backend_SDL3_Audio
         Atom_Backend_SDL3_Mixer_Audio)
+
+    # Compatibility only; BackendRuntime is a composition service, not the
+    # game Runtime module.
+    add_library(Atom_Backend_Runtime INTERFACE)
+    target_link_libraries(Atom_Backend_Runtime INTERFACE Atom_Backend_Composition)
 
 # 6. Media
     add_library(Atom_Media STATIC
@@ -487,11 +502,9 @@ endif()
         Media/Audio/Playback/VoicePool.hpp
         Media/Audio/Transitions/MusicCrossfade.cpp
         Media/Audio/Transitions/MusicCrossfade.hpp
-        Media/Video/Video.cpp
-        Media/Video/Video.hpp
     )
     target_include_directories(Atom_Media PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Media PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_Runtime Atom_Concurrency Atom_Log Atom_UTF8 Atom_3rd_TagLib)
+    target_link_libraries(Atom_Media PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_Composition Atom_Concurrency Atom_Log Atom_UTF8 Atom_3rd_TagLib)
 
 # 7. UTF-8 encoding utilities
 add_library(Atom_UTF8 STATIC
@@ -525,8 +538,8 @@ target_link_libraries(Atom_FS PUBLIC Atom_Error)
 target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
 # Render resources need AssetPath/IFileSystem for VFS-backed texture loads.
 target_link_libraries(Atom_Render_Resources PUBLIC Atom_FS)
-# Audio decoders and the clip loader consume IFile for VFS-backed audio (ARCH-107 C3).
-target_link_libraries(Atom_Backend_Audio PUBLIC Atom_FS)
+# Audio codecs and the clip loader consume IFile for VFS-backed audio (ARCH-107 C3).
+target_link_libraries(Atom_Audio_Codecs PUBLIC Atom_FS)
 target_link_libraries(Atom_Media PUBLIC Atom_FS)
 
 # 7c. Resource identity, handles, loader registry, and identity-keyed cache.
