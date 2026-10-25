@@ -87,6 +87,7 @@ submodule。如果没有使用 `--recurse-submodules` 克隆，请在配置 CMak
 相关文档：
 
 - [API 使用指南](API-Guide-CN.md)
+- [源码架构地图](Architecture-Map-CN.md)
 - [未完成工作统一清单](Remaining-Issues.md)
 
 ***

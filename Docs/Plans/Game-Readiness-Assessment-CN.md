@@ -1,160 +1,339 @@
-# Atom 面向简易 2D 游戏的就绪度评估与路线图
+# Atom 2D 游戏就绪度：任务清单与实施计划
 
-> 状态：架构评估与实施建议；其中 Runtime 与游戏 UI P0 已落地，其余项目仍待实施。
+> 更新日期：2026-10-24
+> 目标：Windows/Linux 桌面端、键盘鼠标优先的通用 2D 引擎底座。它优先支持正交 Tilemap 与中大型可流送世界，
+> 但不把经营、RPG、横版、弹幕等任何具体玩法写进引擎核心。
 >
-> 更新日期：2026-10-22
->
-> 范围：以“可交付的单机简易 2D 游戏”（启动、进入关卡、核心玩法、HUD/菜单、重新开始或切关、打包运行）为目标；不预设联网、编辑器或 3D。
+> 本文是“从现有引擎底座到第一个可玩 vertical slice”的实施清单。`Docs/Remaining-Issues.md` 仍是所有引擎
+> 整改项的汇总入口；本文只展开游戏就绪度路线、顺序与验收。
 
-## 1. 总结
+## 1. 状态说明与成功标准
 
-Atom 已具备良好的引擎底座：窗口与固定步时钟、输入、2D 批渲染、资源/VFS/打包、音频、ECS 存储、Lua 与 2D 物理均已落地。
+| 标记 | 含义 |
+|---|---|
+| `[x]` | 已完成并至少有构建或自动化测试验证 |
+| `[-]` | 已有基础实现，仍缺接入、功能或验收 |
+| `[ ]` | 已确定要做，尚未开始 |
+| `[!]` | 有明确价值，但不得阻塞当前 vertical slice |
 
-当前缺失的不是某一个绘制 API，而是将这些基础设施稳定组合为**游戏世界、游戏循环和内容**的中间层。因此动画与粒子渲染是重要能力，但不是首要缺口；先让一个实体能被加载、更新、碰撞、绘制并通过 UI 完整开始/结束一局，动画和粒子才有可靠的宿主。
+### P0 完成定义
 
-## 2. 已有能力与边界
-
-| 领域 | 当前能力 | 尚不等于游戏能力的部分 |
-|---|---|---|
-| 窗口/时间/输入 | `Runtime::Application` 主循环/时间域/Screen 调度，`RenderWindow` 窗口与帧提交，键鼠输入与 ActionMap | 没有加载策略、手柄输入与设置持久化 |
-| 游戏 UI | `Atom_UI` 保留模式控件树、Yoga 布局、屏幕坐标 Canvas、Panel/Label/Button、命中/焦点/鼠标捕获/模态层 | 无 TextField/IME、滚动、Image/九宫格、手柄导航、主题与本地化/字体回退 |
-| 2D 渲染 | 纹理、source rect/atlas、批处理、基础 camera、layer、clip、文本、后处理 | 没有 Sprite、Camera、Tilemap、RenderSystem 等游戏侧抽象；旋转/origin、render texture 仍待补 |
-| 资源 | VFS、APKG、Texture/Script/Audio 的资源句柄与缓存 | 无依赖图、异步加载、热重载、内存预算、内容导入/cook |
-| ECS | 安全实体句柄、组件存储、确定性遍历基础 | 无系统调度、事件、序列化、多线程；尚无任何行为系统消费它 |
-| 物理 | 2D 刚体、接触、关节、固定步、确定性窄相 job 并行 | 无 ECS 桥、游戏碰撞层/触发器/查询接口；CCD、复杂形状与更多关节尚未具备 |
-| 音频/脚本 | 音乐、SFX、流式播放、Lua Host | 缺游戏音频事件/总线；Lua 主要绑定音频，未形成实体/场景脚本层 |
-| 调试 | Log、ImGui Overlay、FPS/Job 面板 | 缺 profiler、帧统计、实体检查器、碰撞可视化、资源统计 |
-
-## 3. 缺失模块与优先级
-
-### P0：形成最小可玩闭环
-
-1. **运行时组合层（Runtime）**
-   - 明确初始化、帧阶段、暂停、退出、失败回滚与 shutdown 顺序。
-   - 只允许一个帧循环拥有者；由 `Runtime::Application::Run()` 驱动，`RenderWindow` 只提供窗口、事件泵与帧提交，不再创建第二个 while-loop。
-2. **ECS 游戏系统**
-   - 最小组件：`Transform2D`、`SpriteRenderer`、`Camera2D`、`PhysicsBody`/`Collider`、`Script`、`Lifetime`。
-   - 最小系统：输入/玩法、物理同步、动画（以后）、渲染提交、寿命回收。
-3. **Scene 与 Prefab**
-   - Scene 描述世界实体和资源引用；Prefab 是可复用实体模板与覆盖值；两者均需版本号和明确的资源 URI。
-   - 最小实现先覆盖引擎自有 POD 组件，拒绝未知组件并给出诊断；不在第一版做任意 C++ 对象序列化。
-4. **游戏 UI**
-   - **P0 已完成**：`Atom_UI` 已将 Layout、Renderer2D、InputSystem 组合为 Panel/Label/Button、HUD/菜单/暂停层、焦点/鼠标命中与模态输入阻断；`Example_UI_Runtime_Demo` 演示 Screen 页面切换与暂停叠加。
-   - TextField 与 IME 组合文本、滚动、Image/九宫格、键盘/手柄导航、主题/本地化留给 P1；不要把这些较高复杂度项伪装成 Button P0 的一部分。
-5. **游戏物理桥**
-   - 物理 world 与 ECS entity 的双向同步、碰撞/触发事件、销毁时序、像素/米换算及 debug draw。
-
-### P1：完成典型 2D 内容生产
-
-- SpriteSheet/Atlas 元数据、逐帧动画、Animator 状态机、帧事件、翻转、pivot。
-- Tilemap/对象层、图块碰撞生成、地图加载（平台动作、RPG、解谜高度依赖）。
-- Camera 跟随/边界/平滑、视差、屏幕震动与场景转场。
-- 存档、设置、键位重映射；游戏状态版本迁移。
-- 游戏化音频事件、Master/Music/SFX/UI bus、音效池与场景切歌。
-- Profiler、帧统计、实体/资源/物理检查工具。
-
-### P2：表现、规模与产品化
-
-- 粒子发射器、生命周期曲线、对象池、批渲染、预热和调试可视化。粒子不应一颗一个 ECS entity。
-- 本地化、字体回退、可访问性、手柄支持。
-- 异步资源加载、热重载、资源依赖图和内存预算。
-- 按游戏类型决定 AI/寻路、联网、回放、mod 支持或复杂物理。
-
-## 4. 推荐实施顺序
+P0 的完成不是“API 能编译”，而是一个新示例能在 Windows 和 Linux 上完成下面整条链路：
 
 ```text
-Runtime 的帧阶段与生命周期
-  -> Transform / SpriteRenderer / Camera + RenderSystem
-  -> Scene / Prefab + 最小关卡加载
-  -> PhysicsSystem + 输入驱动的一项核心玩法
-  -> HUD、菜单、暂停与重新开始
-  -> 动画 + Tilemap
-  -> 存档、音频事件、开发诊断
-  -> 粒子与视觉打磨
+启动 -> 加载一个 Scene -> 生成角色、障碍物和 HUD
+     -> 键盘输入驱动角色 -> 固定步物理与碰撞/触发事件
+     -> Sprite/Camera 绘制 -> 暂停 -> 重新开始 -> 退出
 ```
 
-建议以一个很小的 vertical slice 验收：启动后进入一个场景；加载角色和障碍物；输入驱动角色；发生碰撞；绘制 HUD；暂停、重新开始及退出均不泄漏资源。不要先实现通用编辑器、联网或完整异步物理。
+场景加载失败不能留下半个世界；游戏实体销毁不能在 ECS 遍历中发生；资源、物理对象与 GPU 资源在重新开始和退出后
+都必须按所有权顺序释放。P0 不要求开放世界流送、动画、粒子、手柄、编辑器或联网。
 
-## 5. Runtime 的最小设计
+## 2. 已有基线
 
-Runtime 不是“包办一切的全局单例”，而是一个可显式构造、可测试的组合层。推荐新建 `Runtime/` 模块：
+| 领域 | 状态 | 已有能力 | 尚缺的游戏层 |
+|---|---|---|---|
+| Runtime | `[-]` | `Application` 是唯一主循环拥有者；Screen 生命周期、固定步、事件泵和 shutdown 顺序已存在 | `GameScreen` 对 `GameWorld` 的实际接入、加载/重开流程 |
+| GameWorld | `[-]` | 固定的 Input → FixedUpdate → Update → LateUpdate；稳定注册顺序；命令缓冲；FIFO 事件队列 | 没有游戏组件、Scene、渲染/物理系统消费它 |
+| ECS | `[-]` | 安全 Entity handle、显式组件存储、查询与迭代 | 只有基础 Position/Velocity 等组件；没有游戏系统 |
+| 2D 渲染 | `[-]` | 纹理、source rect/atlas、批渲染、基础 Camera 数学、层、裁剪、文本 | SpriteRenderer、CameraComponent、排序与 RenderSystem |
+| UI | `[x]` | Panel/Label/Button、输入命中、焦点、模态层、Runtime 示例 | 游戏实际 HUD、暂停和重开流程；TextField/手柄导航为后续 |
+| 物理 | `[-]` | 2D 刚体、接触、关节、固定步、Internal backend | ECS 绑定、触发器、查询、单位转换、debug draw |
+| 资源 | `[-]` | VFS、APKG、Texture/Script/Audio 资源管理 | Scene loader、依赖图、预算、热重载与 cook |
+| 音频/脚本 | `[-]` | 音乐、SFX、流式播放、Lua Host | 游戏事件到音频的映射；实体/场景脚本层 |
+
+已完成实现的入口：
+
+- `Runtime/Application`：窗口、时间、Screen 和帧阶段组合。
+- `Runtime/GameWorld`、`SystemScheduler`、`EntityCommandBuffer`、`GameEventQueue`：P0 世界运行基础。
+- `UI/`：P0 菜单/HUD 控件。
+- 详见 [2D-Core-Scope-v1-CN.md](2D-Core-Scope-v1-CN.md)。
+
+## 3. 架构边界（冻结）
 
 ```text
-Runtime/
-  Application.hpp/.cpp      // 初始化、Run/RequestStop、失败回滚、shutdown
-  GameWorld.hpp/.cpp        // 一个 EntityWorld、scene 状态、系统集合
-  System.hpp                // 明确的 phase 接口和依赖
-  SystemScheduler.hpp/.cpp  // 固定顺序调度，未来才考虑并行
+Screen        菜单、暂停、加载、设置等“呈现导航”
+GameWorld     一个运行中的 ECS world、系统、命令和事件
+Scene         一个可序列化的世界片段；可以是小关卡或未来的 world chunk
+Prefab        可复用的实体模板与有限字段覆盖
+WorldSession  多个 Scene/WorldChunk 的加载、卸载和持久状态（后续）
 ```
 
-首期帧顺序应与现有 `RenderWindow` 对齐：
+`Screen` 绝不等于 `Scene`。首个 `GameScreen` 拥有一个 `GameWorld`，并在安全边界请求加载、卸载或替换 Scene。
+`WorldSession` 与无缝流送不是 P0 的前置条件；P0 的一个 Scene 只需能成为它将来的一个 chunk。
+
+### 固定帧顺序
 
 ```text
-事件 -> Input begin/frame state -> FixedUpdate × N
-     -> Update -> Render submit -> Overlay -> Present
+Application：事件/输入采样 -> 固定步时钟 -> Screen
+GameWorld   ：Input -> commit -> FixedUpdate × N -> commit
+                         -> Update -> commit -> LateUpdate -> commit
+Render      ：读取已提交的插值/显示状态 -> 提交 draw packet
+UI/Overlay  ：HUD、暂停和工具层 -> Present
 ```
 
-`Runtime::Application` 直接拥有这些阶段并显式调度 Screen；其 RAII observer 只供 Debugger、Overlay 等工具集成，不混用两套游戏业务调度。首期系统顺序写死并可测试，等有真实独立系统及 profiling 证据后，再引入依赖图与 JobSystem 并行。
+系统注册顺序就是执行顺序。系统可直接修改**已有组件的值**，但实体创建、销毁、添加/删除组件等结构变更必须进入
+`EntityCommandBuffer`，在阶段边界提交。事件使用 FIFO 队列，消费方必须明确其消费阶段；Runtime 不隐式调用游戏回调。
 
-### Runtime 难度评估
+### 3.1 2026-10-24 架构复核：P0 前置收敛门
 
-算法难度为**中等偏低**，主要风险是生命周期和职责边界，不是循环本身：
+这次复核确认：大子系统本身已经具备可复用基础，但它们之间仍有几个**依赖方向和目录归属**问题。若直接实施
+T1.1，会把资源、渲染和具体 backend 反向拖入 ECS，后续每增加一个“很小的”游戏能力都会扩大耦合。因此以下 A0
+任务是 T1.1 的前置门，不是可选的文档美化。
 
-| 子项 | 难度 | 主要风险 |
-|---|---|---|
-| phase/系统接口与固定顺序调度 | 低 | 不要过早实现通用 DAG 调度器 |
-| 资源与窗口初始化/销毁顺序 | 中 | GPU 资源、Screen、Audio、JobSystem 的停止顺序 |
-| 暂停、切场景、加载失败回滚 | 中 | 不能在遍历 ECS 时立刻销毁对象 |
-| 支持异步加载、热重载和多世界 | 高 | 不属于 P0，等最小闭环稳定后再做 |
+| 规则 | 冻结决定 |
+|---|---|
+| `ECS` 组件 | 只持有值、稳定 id、字符串或纯算法类型；不得持有 `Renderer2D::Texture*`、`TextureHandle`、SDL/GPU/物理 backend 指针或 `AssetPath` 等会给 ECS 引入高层模块的类型。资源解析由 Render/Scene2D、Scene loader 等系统完成。 |
+| 数学与游戏数据 | `Algorithm/` 仅保留无所有权、无资源访问、无平台依赖的数学值类型；`ecs::Transform2D` 可以使用独立的游戏数据结构，不能把 entity 生命周期塞进 `algo::Transform2D`。Sprite pivot 属于 Sprite 数据而不是通用 world transform。 |
+| backend contract | `Backend/Contracts` 只能依赖基础值类型与必要的字节流/输入契约，绝不依赖具体 SDL、SDL_GPU、渲染器或完整 Physics 域实现。每个 public include 都必须由 CMake 的 `PUBLIC`/`INTERFACE` 依赖显式表达。 |
+| Physics | 物理 interface、形状值类型、Internal backend 和 ECS integration 属于同一 Physics 域；Render 只读取同步后的显示 Transform，绝不拥有 body。 |
+| 游戏 Runtime | `Runtime/` 是 Application、Screen、GameWorld、调度和生命周期；`Backend/Composition` 是后端装配层，不是游戏 Runtime，二者目录已经分离。 |
+| 示例与工具 | `Example/` 只验证能力，不容纳引擎通用实现；`Utilities/Packager` 是工具，非运行时游戏模块。 |
 
-## 6. ECS 系统、Scene 与 Prefab 难度评估
+### 阶段 A0：架构收敛与目录校正（T1.1 前必须完成）
 
-### ECS 游戏系统：中等
+**硬门：** A0.1、A0.2、A0.3 与 A0.6 必须在 T1.1 前完成，因为它们决定组件、target 与错误依赖的方向。
+A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；不得为了赶进度把新的 Scene2D、codec 或 Video 代码
+继续放入旧的错误边界。
 
-`EntityWorld` 的存储、句柄和迭代已完成，难点在于定义清楚的所有权及写入时序：
+- [ ] **A0.1 — 组件可扩展性与 ECS 依赖边界。**
+  - 问题：当前 `EntityWorld` 的显式实例化由 `ECS/Components.hpp` 单一列表驱动。若将含资源或渲染类型的
+    `SpriteRenderer` 直接加进去，`Atom_ECS` 会反向依赖 Asset/Render，随后形成 ECS ↔ Render 的循环。
+  - 决策：首批 Scene2D 组件在 ECS 中仅保存纯数据（例如 `texture_uri`/稳定资源 key、source rect 数值、颜色、
+    layer、排序键），不保存资源 handle。T1.1 实施前要写出“哪些组件可进入当前显式列表”的准入规则；长期若需
+    插件组件，再单独重构组件注册/实例化机制，不在 P0 偷渡动态注册。
+  - 验收：`Atom_ECS` 的 public include 和 CMake 依赖仍只到 Algorithm、Error、Log 等基础层；Scene2D target 可以
+    依赖 ECS，反方向不成立。
 
-- 物理是 simulation 真源，渲染只读插值后的 Transform；不能让 PhysicsSystem 与 RenderSystem 各自写坐标。
-- 系统在遍历中不立即改变实体结构；创建/销毁使用命令缓冲并在帧边界提交。
-- 碰撞、动画帧、脚本调用需进入有序事件队列，避免回调重入破坏确定性。
-- 首期只支持固定的一组引擎组件。当前 ECS 的显式组件/迭代实例化设计意味着“自动注册任意 mod 组件”本来就不是低成本能力，应明确推迟。
+- [ ] **A0.2 — 消除 Contracts 的隐藏反向依赖。**
+  - 已审计问题：`IRenderBackend.hpp` 在 public API 使用 `algo::Vec2`，但 `Atom_Algorithm` 又依赖
+    `Atom_Backend_Contracts`；`IAudioDecoder.hpp` public include `Filesystem/FileSystem.hpp`，而 Contracts target
+    没有显式声明 FS；`Physics/Contracts/PhysicsTypes.hpp` 又 include `Physics/Shapes/*`。这些在当前单仓库
+    include 路径下能编译，却不能形成可移植、可导出的 target 图。
+  - 工作：将 Render contract 改用 Contracts 自有的 extent/value type 或拆出真正无依赖的 value target；为 Audio 的
+    `IFile` 契约建立正确的低层依赖；把 Physics contracts 与 Internal backend 收敛到 `Physics/Contracts` 与
+    `Physics/Backend/Internal`，移除 `Backend/Contracts -> Physics` 的方向。
+  - 验收：每个 public header 的直接依赖都由 target 的 PUBLIC/INTERFACE 依赖表达；不存在 Algorithm ↔ Contracts、
+    Filesystem/UTF8/Contracts 或 Physics ↔ Backend Contracts 的 target 环。
 
-建议按 `Physics/Integration/`、`Render/Scene2D/`、未来 `Animation/` 放置系统，而非把所有行为堆入 `ECS/`。ECS 保持存储职责。
+- [ ] **A0.3 — Error 平台捕获下沉。**
+  - 问题：`Atom_Error` 直接链接 SDL3，并公开 `CaptureSdlError()`；这违背 Error 作为最低层错误值的定位，且让
+    Filesystem/Asset/ECS 等所有错误消费者间接依赖 SDL。
+  - 工作：保留平台无关的 `Error`、errno/system-error 格式化；将 SDL 错误捕获移动至 `Backend/SDL3/Core`（或
+    SDL 专属诊断帮助器），由失败点把已捕获文字写入 Error。
+  - 验收：`Atom_Error` 不再链接/包含 SDL；纯 ECS、Filesystem、Asset 测试可在没有 SDL backend implementation 的
+    情况下链接。
 
-### Scene/Prefab：中等偏高
+- [~] **A0.4 — 目录职责机械迁移。**
+  - 已完成：`Backend/Runtime` → `Backend/Composition`；`Backend/Audio/Decoder` → `Media/Audio/Codecs`；
+    `Backend/Physics/Internal` 与 `Backend/Contracts/Physics` → `Physics/Backend/Internal` 与 `Physics/Contracts`。include、
+    CMake source list、测试与文档引用已同步更新。
+  - 剩余：A0.2 仍需真正解除 contracts 的依赖环；本项只校正文件归属，不把“移动成功”误当作 target 边界已经正确。
+  - 命名待办：`Physics/Backend/Internal` 的领域归属正确，但与根级 `Backend/` 容易混淆。下一次仅重命名的机械迁移应改为
+    `Physics/Backends/Internal`；不得与 A0.2 的 contract 依赖拆分或任何新物理功能混在同一个变更中。
+  - 验收：`Backend/` 只保留 backend implementation、registry/extension 和 composition；`Physics/`、`Media/Audio/`
+    各自拥有其领域的 contract 与可替换实现。
 
-格式解析不难，真正难处是长期兼容：实体引用、资源引用、嵌套 Prefab 覆盖、循环引用、版本升级、未知字段保留以及加载失败时的原子回滚。
+- [~] **A0.5 — 空壳与双轨模块处理。**
+  - 已完成：移除无实现且命名空间错误的 `Media/Video/Video.*`，并从 `Atom_Media` source list 删除；未来 Video 必须以
+    明确的 Experimental 设计和真实最小能力重新进入仓库，不能复用该空壳。
+  - `Render/Renderer2D` 仍含旧字体、glyph atlas 与 text layout 实现，而 `Render/Text/` 已建立新 contract。冻结规则：
+    新 Scene2D/UI 工作只接 Text 模块接口；旧路径只允许做兼容和迁移，不能继续增加功能。
+  - 验收：每个公开模块都至少有真实能力、测试和 README；不存在“同一职责两套都可继续扩展”的路径。
 
-首期应采用受约束设计：一个可读文本格式（例如 JSON/TOML）或预烘焙二进制；`res://` 资源 URI；显式 schema version；仅支持平面 Prefab 和组件字段覆盖；加载到临时 world，成功后才切换为当前 world。嵌套 Prefab、热重载合并、编辑器 round-trip 和任意脚本对象序列化均放到后续版本。
+- [~] **A0.6 — 聚合 target 与构建拓扑。**
+  - 问题：`Atom_Core` 聚合 Runtime、Lua、Packager、媒体、渲染、物理等几乎全部 target；它适合当前空入口，但不应
+    成为游戏或工具的默认依赖，否则模块化只停留在目录层面。
+  - 已完成：全量聚合 target 改名为 `Atom_All`；`Atom_Core` 保留为兼容 shim，新入口只链接 `Atom_All`。新代码禁止以
+    `Atom_Core` 作为默认依赖。
+  - 剩余：导出面向消费者的细粒度 `Atom::*` targets；新 vertical-slice example 显式链接其所需
+    Runtime/ECS/Scene2D/Physics/UI/Assets target，不链接任何全量聚合。
+  - 验收：CI 至少有一个最小 ECS/GameWorld target、一个 Runtime+UI target 和一个完整示例 target；它们都不靠
+    “全量链接碰巧补齐头文件依赖”。
 
-## 7. 当前架构与目录的审查结论
+## 4. P0 任务清单：最小可玩闭环
 
-### 应优先处理
+### 阶段 0：边界与运行时基础
 
-1. **缺少 Runtime 边界是最主要的定位空洞。** `Atom.cpp` 只是日志入口；`RenderWindow` 同时承担窗口、主循环、Screen 调度和部分运行时职责。应新增 `Runtime/`，让 Window 保持平台/帧泵职责，让 Runtime 组合游戏服务。
-2. **`Screen` 与未来 `Scene` 不能混为同一概念。** Screen 适合菜单、加载页、暂停层等呈现导航；Scene 是可序列化的游戏世界。Scene 不应塞进 `Window/`，也不能只靠 ScreenManager 替代。
-3. **`Atom_Core` 聚合目标没有纳入 `Atom_ECS` 和 `Atom_Physics`。** 这对当前空入口无害，但名称会让游戏使用者误以为 Core 足以构建玩法。Runtime/Game 示例应显式依赖它们，或在 Runtime 落地时重新定义/收窄 `Atom_Core` 的语义。
-4. **物理/ECS 桥必须放在 Physics 侧。** `Physics/README.md` 的职责约束是正确的；不要在 `ECS/` 放 `PhysicsSystem`，也不要让 Renderer 持有物理体。
-5. **ECS 的 `ForEach` 顺序契约需要统一。** `ECS/EntityWorld.hpp` 声明它按 entity index 升序，而实现和 README 后段说明它走后端 pool order；两者不能同时成立。应以实现为准，或改为真的排序遍历，并在 Physics/Animation 的确定性约定中明确“稳定 pool order”是否足够。
-6. **`Atom_Error` 的“无 backend 依赖”定位与实现不一致。** 公开头文件的注释承诺它不依赖 backend，但实现直接调用 SDL error API，且 CMake 对 SDL3 为 PUBLIC 链接。这会把 SDL 传播给所有 Error 消费者。应在 Runtime 之前厘清：要么承认 Error 是平台诊断层，要么把 SDL 错误捕获移动到 SDL backend 并仅把已捕获字符串传入 Error。
+- [x] **T0.1 — Runtime 唯一帧循环。**
+  - 落点：`Runtime/Application.*`、`Runtime/ScreenManager.*`。
+  - 验收：Window 不再拥有第二套游戏循环；Screen/GPU 资源先于 backend 释放。
 
-### 合理但需要保持约束
+- [x] **T0.2 — GameWorld、固定系统阶段、命令缓冲与事件队列。**
+  - 落点：`Runtime/GameWorld.*`、`Runtime/System.*`、`Runtime/SystemScheduler.*`、
+    `Runtime/EntityCommandBuffer.*`、`Runtime/GameEventQueue.*`。
+  - 已验证：`Atom_Runtime.GameWorld` 覆盖阶段/注册顺序、阶段边界创建销毁、事件 FIFO、非法时间参数和运行中禁止改调度表。
+  - 尚缺：应用级 `GameScreen` 尚未拥有它；当前事件只有类型与 source/target，实际事件语义由后续 Physics/玩法模块定义。
 
-1. **`Backend/Contracts` 与 `Backend/<实现>` 的分层合理。** `Backend/Physics/Internal` 与未来 Box2D 后端并列是正确位置；不要把第三方类型放进 Physics 或 ECS 公共头。
-2. **`Algorithm/Camera` 与游戏 CameraComponent 分离是合理的。** 前者是数学值类型；组件、跟随和镜头行为应落在 Render/Scene2D 或 Runtime 系统层。
-3. **`Asset`、`Filesystem`、`Media`、`Render/Resources` 分开是可接受的。** 它们分别是资源身份/加载、字节来源、解码、GPU 驻留。后续只需补一份“资产生命周期”文档，防止调用方跨层直接加载文件。
-4. **`Layout` 不是 UI。** 保留其独立模块；新增 UI 时由 UI 模块依赖 Layout、Renderer2D、InputSystem，反向依赖禁止。
+- [x] **T0.3 — P0 游戏 UI。**
+  - 落点：`UI/`、`Example/UI/UiRuntimeDemo.cpp`。
+  - 验收：菜单、按钮、暂停覆盖层、键鼠焦点/模态输入可工作。
 
-### 可在后续重构时改善
+### 阶段 1：游戏对象与 2D 显示（A0 完成后）
 
-- `Backend/Runtime` 同时包含 audio 与 render 的运行时注册，名称略泛；当 Runtime 层建立后，可将“backend 选择/注册”统一为明确子目录或保持它仅做 backend runtime，避免与游戏 Runtime 混淆。
-- `Media/Image` 目前与 Audio、Video 并列，但其主要消费者是渲染纹理；无需立即移动，先用 loader/资源接口保持边界。若未来发展通用图片处理，再保留在 Media；若只服务纹理导入，则可迁至 `Asset/Import`。
-- `Render/Core/RenderGraph` 与现有轻量 2D 渲染路线并存时应明确状态；未投入正式使用前，不要让游戏系统依赖它。
+- [ ] **T1.1 — 冻结首批游戏组件词汇。**
+  - 前置条件：A0.1、A0.2、A0.3、A0.6 完成；A0.4/A0.5 在涉及的目录新增功能前完成。
+  - 新增位置：`ECS/Components.hpp` 只放纯数据；跨域系统实现不放进 ECS。
+  - 首批组件：`Transform2D`（位置、旋转、缩放）、`RenderTransform2D`（插值后的只读显示状态）、
+    `SpriteRenderer`（预验证的 texture URI/key、source rect 数值、pivot、layer、排序键）、`Camera2D`、
+    `Lifetime`、`SceneEntityId`。Physics 的 body/collider 壳放在 `Physics/Integration/`。
+  - 不做：Animator、Tilemap、任意脚本对象、游戏特有 Health/Inventory/Quest 组件。
+  - 验收：组件能安全注册、查询、在命令缓冲回调中创建；组件不会泄漏 SDL、GPU 或第三方物理类型。
+  - 预计：约 400–800 行实现与测试。
 
-## 8. 不应在 P0 提前做的事项
+- [ ] **T1.2 — Render/Scene2D 的 Sprite 和 Camera 系统。**
+  - 新增位置：`Render/Scene2D/`；依赖 `ECS`、`Renderer2D`、资源句柄，不反向依赖 Runtime。
+  - 工作：从 `Transform2D + SpriteRenderer` 收集 draw item；按 layer/sort/entity 稳定排序；应用 `Camera2D`；
+    提交既有 Renderer2D。RenderSystem 只读显示 Transform，不写模拟坐标。
+  - 首期范围：一张 texture、source rect、颜色、翻转、pivot、层排序；仅一个活动相机。
+  - 验收：同一实体集合在稳定输入下产生稳定 draw 顺序；相机平移/缩放正确；不可见或失效纹理有明确 fallback/诊断。
+  - 预计：约 1,200–2,000 行实现、测试与 headless/recording 验证。
 
-- 通用 ECS DAG 调度器、自动系统并行、异步物理线程。
-- 完整编辑器、嵌套 Prefab 图、脚本对象的任意序列化。
-- 通用 RHI、复杂 3D、全屏材质系统重构。
-- 联网、回放、mod 热卸载。
+- [ ] **T1.3 — GameScreen 接入与无资源硬编码 smoke scene。**
+  - 新增位置：`Example/Game/` 或独立 `Example_2D_Vertical_Slice`；不得污染 `Atom.cpp`。
+  - 工作：`GameScreen` 创建/销毁 `GameWorld`，将 Application 的固定步和 variable update 转发给它；先用硬编码
+    实体验证 T1.1/T1.2，随后由 T2 Scene 替换。
+  - 验收：无 Scene loader 时也能创建一个角色和静态障碍、按键移动、由 SpriteRenderer 绘制。
+  - 依赖：T1.1、T1.2。
+  - 预计：约 500–1,000 行示例与集成测试。
 
-这些能力都可能有价值，但在一个可玩样例验证 Runtime/ECS/Scene 边界前实施，会把架构风险成倍放大。
+### 阶段 2：Scene 与 Prefab（先可加载，再通用）
+
+- [ ] **T2.1 — Scene schema 与资源格式决策。**
+  - 新增位置：`Scene/` 或 `Runtime/Scene/`；格式文档放 `Docs/Plans/`。
+  - 首期建议：人可读 JSON/JSONC 源文件，显式 `schema_version`，所有资产使用 `res://` URI；发布期可再 cook 为二进制。
+  - 最小字段：Scene id/version、实体局部 id、名称、Transform、Sprite、Camera、后续 Physics 壳、资源 URI。
+  - 明确拒绝：未知组件、未知字段、循环 Prefab、跨 Scene entity 引用、任意 C++/Lua 对象序列化。
+  - 验收：schema 有样例、版本号和错误诊断规范；选择/引入的解析器不泄漏进 ECS/Render 公共 API。
+  - 依赖：T1.1。
+
+- [ ] **T2.2 — SceneData、SceneLoader 与原子切换。**
+  - 新增位置：`Scene/SceneData.*`、`Scene/SceneLoader.*`、`Scene/SceneTransition.*`。
+  - 工作：VFS 读取；解析/语义校验；在临时 `GameWorld` 创建实体；所有步骤成功后才替换 active world。
+    加载失败保留旧 world 并返回携带 URI、实体 id 和字段名的 `Error`。
+  - 验收：有效 Scene 加载后实体数量/组件/引用正确；缺资源、无效 URI、重复 id、版本不支持和未知组件都不会部分替换当前世界。
+  - 依赖：T1.1、T1.2、T2.1。
+  - 预计：约 1,500–2,500 行实现与测试。
+
+- [ ] **T2.3 — 平面 Prefab。**
+  - 工作：一个 Prefab 是受同一 schema 约束的实体模板；Scene 内可实例化并覆盖白名单字段。
+  - 首期不做：Prefab 嵌套、循环检测图、instance 热重载 merge、编辑器 round-trip。
+  - 验收：同一 Prefab 多实例的 override 互不污染；无法解析的 Prefab 使整个 Scene 加载失败而不破坏旧 world。
+  - 依赖：T2.2。
+  - 预计：约 700–1,200 行实现与测试。
+
+### 阶段 3：物理、输入与可玩验证
+
+- [ ] **T3.1 — Physics/ECS 集成层。**
+  - 新增位置：`Physics/Integration/`，绝不放入 `ECS/` 或 `Render/`。
+  - 工作：`PhysicsBodyComponent`/`ColliderComponent` 只保存 engine 侧 id 与配置；创建/销毁在命令边界同步；
+    FixedUpdate 执行物理；模拟结果写 `Transform2D`；Render 读取插值结果。
+  - 单位：物理固定使用 MKS、y-up、弧度；game/render 边界集中做 pixels-per-meter 与 y 轴转换，禁止散落换算。
+  - 事件：将碰撞开始/持续/结束和 trigger 事件转为 `GameEvent`，顺序稳定、无回调重入。
+  - 验收：销毁实体不会遗留 body；触发器不产生物理解算响应；固定帧率变化下结果一致；debug draw 可核对 collider。
+  - 依赖：T0.2、T1.1、T2.2。
+  - 预计：约 1,200–2,000 行实现、测试与可视化示例。
+
+- [ ] **T3.2 — 游戏输入动作边界。**
+  - 工作：示例玩法只消费 `MoveLeft`/`MoveRight`/`MoveUp`/`MoveDown`/`Interact`/`Pause` 等游戏 action，
+    不直接散落读取具体 Key。现有 `ActionMap` 保持键盘优先，但 API 需预留多个 binding source。
+  - 不做：手柄映射、键位设置 UI、云同步。
+  - 验收：同一玩法系统可通过替换 action binding 工作；Pause 阻断 gameplay input 但不阻断 UI input。
+  - 依赖：T1.3。
+
+- [ ] **T3.3 — 第一个 vertical slice。**
+  - 新增位置：`Example/2DVerticalSlice/`，使用真实 Scene、至少一个 Prefab、Sprite、物理障碍和 UI。
+  - 内容：角色、静态障碍、一个 trigger/终点、HUD、暂停、重开；美术可以是占位资源。
+  - 验收：本节“P0 完成定义”全部满足；Windows/Linux CI 均构建该 example，并运行无窗口逻辑测试。
+  - 依赖：T1.3、T2.3、T3.1、T3.2。
+
+### 阶段 4：P0 质量门禁
+
+- [ ] **T4.1 — 无窗口/Recording render 测试后端。**
+  - 工作：断言 RenderSystem 的排序、相机变换、frame/pass 顺序和资源生命周期，不依赖人工截图。
+  - 依赖：T1.2。
+
+- [ ] **T4.2 — 跨平台 CI 测试矩阵。**
+  - 工作：Windows 与 Linux 都执行 ECS/Scene/GameWorld/Physics 核心测试；新增 Scene 测试资源使用 VFS，禁止绝对路径。
+  - 验收：任何一个平台的 schema、物理同步或 deterministic 排序回归都能阻断合并。
+
+- [ ] **T4.3 — P0 内存与生命周期回归。**
+  - 工作：反复 load/restart/unload scene，覆盖 texture handle、physics body、Screen、GameWorld 和事件队列。
+  - 验收：ASan/UBSan 可用平台纳入 CI；无悬垂句柄、未释放 body 或使用已销毁 GPU 资源。
+
+## 5. P1 任务清单：2D 内容生产与大世界准备
+
+- [ ] **T5.1 — 正交 Tilemap 与对象层。**
+  - Tile layer、object layer、tileset 元数据、chunk 边界、图块碰撞生成；对象层保留自由放置实体。
+  - Tilemap 不得成为 SpriteRenderer 的特殊分支，应产出可批处理的 draw item 和 collider 描述。
+  - 依赖：T1.2、T2.2、T3.1。
+
+- [ ] **T5.2 — Camera 行为层。**
+  - 跟随、边界、平滑、视差、屏幕震动和 Scene 转场；`Camera2D` 数据组件保持与数学 Camera 分离。
+
+- [ ] **T5.3 — 逐帧动画。**
+  - SpriteSheet/Atlas 元数据、clip、Animator 状态机、帧事件、翻转、pivot。
+  - 动画帧事件进入 `GameEventQueue`，不能直接重入改 ECS 结构。
+
+- [ ] **T5.4 — WorldManifest、WorldSession 与同步切块。**
+  - `WorldManifest` 声明 Scene/Chunk 坐标、边界和入口；`WorldSession` 管理当前 active chunk 集合。
+  - 首版同步加载/卸载相邻 chunk，先解决跨 chunk 坐标、实体归属、传送门和持久 id，再考虑后台流送。
+  - 这项是“星露谷式世界”的首个引擎级能力，不等于现在实现无限地图。
+  - 依赖：T2.2、T5.1。
+
+- [ ] **T5.5 — 存档、设置与音频事件。**
+  - 版本化 save data；用户配置与键位；Master/Music/SFX/UI bus、音效池、场景切歌。
+  - 存档记录游戏定义的持久数据与 Scene/Prefab stable id，不序列化任意内存对象或第三方指针。
+
+- [ ] **T5.6 — 开发诊断。**
+  - 实体检查、碰撞/触发器可视化、资源统计、帧时间、系统阶段耗时和地图/chunk overlay。
+
+## 6. P2 与后续：规模、表现和可选类型能力
+
+- [ ] **T6.1 — 异步资源加载与 WorldChunk 流送。**
+  - 资源依赖图、取消、安全替换、内存预算、预加载半径和加载失败降级；必须在 T5.4 的同步语义稳定后实施。
+
+- [ ] **T6.2 — 粒子系统。**
+  - 发射器、生命周期曲线、对象池、批渲染、预热、预算与调试可视化。
+  - 粒子不是“一颗一个 ECS entity”；只把 emitter 配置挂在实体，模拟粒子使用专用连续存储。
+
+- [ ] **T6.3 — 输入扩展与可访问性。**
+  - SDL 手柄 binding、键位重映射 UI、导航焦点、字体 fallback、本地化、缩放与减少动态效果选项。
+  - 手柄是后续能力：P0 不直接读取 SDL joystick，也不把 keyboard chord 写死到玩法系统。
+
+- [ ] **T6.4 — 类型扩展包。**
+  - 横版：one-way platform、slope、coyote time、jump buffer。
+  - 俯视角世界：交互、昼夜、背包、任务、NPC 日程、寻路。
+  - 动作/弹幕：命中框、投射物池、伤害事件、回放（如有确定性需求）。
+  - 以上必须位于游戏项目或可选扩展层，不成为 P0 `GameWorld` 的内置规则。
+
+- [!] **T6.5 — 编辑器、联网、mod 热卸载、通用 ECS DAG 并行调度、完整 3D。**
+  - 在已有真实游戏需求、性能证据和稳定的 Scene/资源协议前不启动。
+
+## 7. 执行顺序、依赖与里程碑
+
+```text
+已完成：T0.1 / T0.2 / T0.3
+
+M1 可见实体：T1.1 -> T1.2 -> T1.3
+M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3
+M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3
+M4 P0 可交付：M3 -> T4.1 / T4.2 / T4.3
+M5 内容与世界：M4 -> T5.1 / T5.2 / T5.3 -> T5.4
+M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3
+```
+
+### 当前下一项
+
+**立即开始 A0.1：组件可扩展性与 ECS 依赖边界。** 它是 Sprite、Camera、Scene 与 Physics 集成共同依赖；A0 完成后
+才实施 T1.1，随后按 T1.2 实现 `Render/Scene2D`，先以硬编码 smoke scene 验证，再进入 Scene schema。
+
+## 8. 明确禁止的提前扩张
+
+- 在 `GameWorld` 已有固定顺序的情况下，先做通用 DAG/自动并行系统调度。
+- 在真实 Scene 已加载之前，设计嵌套 Prefab 图、任意对象序列化或完整编辑器。
+- 在同步 WorldSession 还未验证前，实现异步物理、全世界常驻或无边界流送。
+- 将 SDL、SDL_GPU、EnTT 或具体物理 backend 类型泄漏到 Scene、ECS 或游戏组件公共 API。
+- 为了支持未来手柄而让 P0 玩法直接消费 SDL 原始输入事件。
+
+这些约束不是缩小目标，而是保证每一层均由可运行的前一层验证，最终能成长为通用 2D 世界引擎，而非只由规划拼成的框架。

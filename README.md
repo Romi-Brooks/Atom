@@ -91,6 +91,7 @@ before configuring CMake.
 Architecture and development references:
 
 - [API guide (Chinese)](Docs/API-Guide-CN.md)
+- [Architecture map (Chinese)](Docs/Architecture-Map-CN.md)
 - [Unified remaining-work list (Chinese)](Docs/Remaining-Issues.md)
 
 ---

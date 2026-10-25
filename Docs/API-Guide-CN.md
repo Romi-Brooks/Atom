@@ -68,10 +68,116 @@ window.Run();
 ```
 
 `Initialize` 的第三个参数选择**引擎内置**渲染后端（枚举 `atom::backend::RenderBackendId`），
-默认 `SdlGpu`（内部注册表 ID `"sdl_gpu"`）。SDL_GPU 根据平台、驱动和本次构建提供的
-Shader 格式选择 D3D12、Vulkan 或 Metal；Atom 上层不直接选择这些原生 API。
-新后端由 Atom 引擎侧实现并在发版时加入枚举；游戏/Mod 代码不注册渲染后端。
+默认 `SdlGpu`（内部注册表 ID `"sdl_gpu"`）。
 
+### 渲染后端 vs 图形 API（两个正交的轴）
+
+这两个概念必须分开，不能合成一个枚举：
+
+| 轴 | 类型 | 回答的问题 | 何时新增成员 |
+|---|---|---|---|
+| 后端 | `RenderBackendId` | **哪份代码**实现 `IRenderBackend`（拥有 device、swapchain、管线、资源缓存） | 新写一个后端实现并产品化时 |
+| 图形 API | `GpuDriver` | 这份后端**跑在哪个原生 API 上** | 几乎不变（D3D12 / Vulkan / Metal） |
+
+所以：
+
+- **SDL_GPU + Vulkan** = `RenderBackendId::SdlGpu` + `GpuDriver::Vulkan`（同一份代码换 API）
+- **原子级 Vulkan 后端** = 未来的 `RenderBackendId::Vulkan` + `GpuDriver::Auto`（另一份代码）
+- `GpuDriver::Auto` = 让后端自己挑（SDL_GPU 在 Windows 优先 D3D12，macOS 用 Metal，其余 Vulkan）
+
+如果合成一个枚举，成员数会变成「后端 × 驱动」，而且再也回答不了"这份后端是谁实现的"。
+
+### 显示与呈现（窗口模式 / 垂直同步）
+
+```cpp
+atom::runtime::ApplicationConfig config{};
+config.title = "My Game";
+config.resolution = atom::algo::Vec2{2560, 1440};
+config.render_backend = atom::backend::RenderBackendId::SdlGpu;
+config.gpu_driver = atom::backend::GpuDriver::Vulkan;          // 默认 Auto
+config.window_mode = atom::window::WindowMode::Windowed;        // 默认 Windowed
+config.present_mode = atom::render::PresentMode::VSync;        // 默认 VSync
+application.Initialize(config);
+
+// 运行期修改（这是游戏内"显示设置"页要调的两个选项）
+window.SetWindowMode(atom::window::WindowMode::Borderless);
+window.SetPresentMode(atom::render::PresentMode::Immediate);
+```
+
+| `PresentMode` | 提交是否阻塞 | 名义上是否跟随刷新率 | **实测（SDL_GPU / D3D12，RTX 4060）** | 典型游戏内文案 |
+|---|---|---|---|---|
+| `VSync` | 阻塞 | 是 | 窗口/无边框/独占 **全部 144** | 垂直同步：开 |
+| `Mailbox` | 不阻塞（丢旧帧） | 是（Vulkan 语义） | 窗口/无边框 **≈2500（不限帧）**；独占 **144** | 垂直同步：开 + 三重缓冲 |
+| `Immediate` | 不阻塞 | 否 | 窗口/无边框 **≈2500**；独占 **≈2000（撕裂）** | 垂直同步：关 |
+
+**注意 Mailbox 这一行**：SDL_GPU 的 D3D12 路径把它实现成 `syncInterval=0` 且**不带** `ALLOW_TEARING`，
+所以在窗口里它并不限速（合成器丢多余帧），只有在独占全屏下因为"不允许撕裂 → DXGI 强制 vblank 同步"才掉回刷新率。
+Vulkan 路径才是真正的 mailbox（`VK_PRESENT_MODE_MAILBOX_KHR`，等 vblank）。
+所以判断"现在到底有没有被限速"必须问设备：`IRenderDevice::IsPresentRefreshPaced()`，
+不要用 `IsRefreshPaced(mode)` 这个纯函数（它只表达名义语义），更不要写 `mode != VSync`。
+
+### 用计时拆解判断限速，不要用帧率推断
+
+一个反例，值得记住：Vulkan 路径在四种窗口/呈现组合下都测到 143–151 fps，看起来像"Vulkan 被限制在刷新率"。
+把 `FrameTiming` 拆开之后，同一帧是：
+
+```
+CPU record  6.637 ms      CPU submit  0.052 ms      GPU wait  0.002 ms
+```
+
+`submit` 和 `wait` 都是空的 —— **present 根本没有阻塞**。那个 144 是 6.9ms CPU 成本的倒数，恰好接近刷新率而已。
+
+结论：**"帧率≈刷新率"不是限速的证据**。判断谁在限速只能看 `cpu_encode_ms` / `cpu_submit_ms` / `cpu_wait_ms`
+三者各占多少（`Render` 面板已经直接给出判定）。任何"某个 API 被限制在刷新率"的结论，都必须先排除 CPU 成本。
+
+| `WindowMode` | 语义 | 典型游戏内文案 |
+|---|---|---|
+| `Windowed` | 有边框、可缩放，使用 `config.resolution` | 窗口化 |
+| `Borderless` | 无边框窗口，使用 `config.resolution`，居中；设成显示器分辨率就覆盖全屏 | 无边框窗口 |
+| `ExclusiveFullscreen` | 真实切换显示模式，真正拿走显示输出 | 全屏（独占） |
+
+**没有单独的"无边框全屏"模式**：无边框窗口 + 显示器分辨率就是那个状态。给它一个独立枚举值，
+只会让调用方在同一个状态上做二选一，还要多维护一条代码路径。判断用
+`IsFullscreen(mode)`（只有独占全屏为真）和 `IsUndecorated(mode)`（无边框/独占为真）。
+
+三条硬约束：
+
+1. **两个 setter 都延迟到帧边界生效**（`RenderWindow::BeginFrame`），因为 swapchain 不能在帧中途重建。
+   已排队的请求被后端拒绝时只记一条警告，`GetWindowMode()` / `GetPresentMode()` 始终报告**实际生效值**。
+2. **`Mailbox` 不是"不限帧"**。它只是不阻塞提交，仍然被刷新率限速；判断是否被限速请用
+   `atom::render::IsRefreshPaced(mode)`，不要写 `mode != VSync`。
+3. **`PresentMode` 是应用请求，不是驱动策略**。显卡控制面板的全局垂直同步（NVIDIA "Vertical sync"、
+   AMD "Wait for vertical refresh"）可以覆盖它，引擎读不回来。所以 `Immediate` 只保证"请求已被接受"，
+   不保证"一定不限帧"；若抓帧工具显示 `SyncInterval=1` 而应用请求的是 `Immediate`，是驱动或兼容层赢了。
+
+`IsVSyncEnabled()` / `SetVSync(bool)` 保留为兼容层（true → `VSync`，false → `Immediate`）。
+新代码不要再加二态选项：游戏内设置应当暴露三态，否则"关"到底指 `Mailbox` 还是 `Immediate` 永远说不清。
+
+这套设置由 `Display/` 模块拥有（`DisplaySettings` 值对象 + `DisplaySystem` 单例），**不在 `RenderWindow` 上**：
+swapchain 只能在帧边界重建，而设置页、配置文件、调试面板都想改它，状态放在窗口门面上会有多个所有者。
+
+```cpp
+#include <Display/DisplaySystem.hpp>
+
+// 请求（排队，下一帧边界生效；重复请求同一值不会重建 swapchain）
+atom::display::DisplaySystem::GetInstance().RequestWindowMode(atom::window::WindowMode::Borderless);
+atom::display::DisplaySystem::GetInstance().RequestPresentMode(atom::render::PresentMode::Immediate);
+
+// 读取实际生效值（被后端拒绝时保持原值，不会假装设置成功）
+const auto applied = atom::display::DisplaySystem::GetInstance().Applied();
+```
+
+`Application::Run` 每帧在 `Window::BeginFrame()` 之前调一次 `ApplyPending()`，这就是唯一的应用点。
+
+三个调试面板各答一个问题，互不重叠：
+
+| 面板 | 回答 |
+|---|---|
+| `Debugger/Panels/FpsDebugger.hpp` | 多快：帧率、frame ms、min/avg/max、spike、曲线 |
+| `Debugger/Panels/RenderDebugger.hpp` | 时间花在哪、跑在什么设备上：CPU submit / GPU wait、限速判定、backend/API/device/driver/version |
+| `Debugger/Panels/DisplayDebugger.hpp` | 谁在限制它：窗口模式 + 呈现模式下拉、实际生效值、是否受刷新率限速 |
+
+新后端由 Atom 引擎侧实现并在发版时加入枚举；游戏/Mod 代码不注册渲染后端。
 具体后端实现（`Backend/SDL3/*` 等）由引擎运行时内部注册与持有；普通用户通过
 `Window/*`、`Render/*`、`Media/*` 和 `Event/*` 编程，不直接包含具体后端头文件。
 
@@ -83,7 +189,7 @@ Shader 格式选择 D3D12、Vulkan 或 Metal；Atom 上层不直接选择这些�
 
 ```cpp
 #include <Debugger/Overlay.hpp>
-#include <Debugger/LogDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
 
 class MyPanel final : public atom::debugger::DebugPanel {
 protected:
@@ -107,7 +213,7 @@ logs.SetEnabled(true);
 ```
 
 - 用户**不要**直接 `#include <imgui.h>` 或任何 `Backend/*` 头文件；`Debugger/Overlay.hpp` 是唯一入口。
-- 可选工具按需 include：`Debugger/LogDebugger.hpp`、`Debugger/FontLoader.hpp`。
+- 可选工具按需 include：`Debugger/Panels/LogDebugger.hpp`、`Debugger/FontLoader.hpp`。
 - 调试面板默认位置由 `atom::debugger::Apply*PanelSlot()` 在首次绘制时写入；ImGui 不再读写 `imgui.ini`。
 - 一个 `Runtime::Application` 由 Runtime 集成的 `OverlayManager` 维护一份 ImGui context/backend；多个 `DebugPanel` 可独立 attach。
 - 每个面板应使用不同的 `ImGui::Begin()` 窗口名，并在 `Begin` 前调用合适的 `Apply*PanelSlot()`。
@@ -410,7 +516,7 @@ audio backend = sdl3
 游戏设置页面可以这样切换：
 
 ```cpp
-#include <Backend/Runtime/BackendRuntime.hpp>
+#include <Backend/Composition/BackendRuntime.hpp>
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
 
 auto& backends = atom::backend::BackendRuntime::GetInstance();

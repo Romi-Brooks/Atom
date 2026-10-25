@@ -1,6 +1,6 @@
 # Atom 字形渲染发展路线（架构线 + 性能线合并版）
 
-> 状态：提案，待 review。本文把 `TextLayout-Design-CN.md`（架构）、
+> 状态：W0–W3 已落地（见文末「实施状态」），W4–W6 待排期。本文把 `TextLayout-Design-CN.md`（架构）、
 > `TextLayout-Implementation-Plan-CN.md`（分阶段计划）与性能审计中的文本相关 P0
 > （RENDER-012 字形栅格化同步、ARCH-107 异步加载、RENDER-010 HarfBuzz shaping）
 > 合并为一条可执行的路线。
@@ -118,3 +118,47 @@ atlas LRU）已经隐含了这个依赖，这里把它显式化为 W0。
   W2/W2/W3/W5；原 P0 升级为 W1 并加 `raster_format` 修订；原 P4 升级为 W4
   并扩展 format 维度；原"P3 备用"的定级改为 **W1 立即、W2–W3 随 UI 走**，
   W4–W5 仍可保持备用定级。
+
+## 实施状态（截至 2026-10-23）
+
+| 波次 | 内容 | 状态 |
+|---|---|---|
+| W0 | 帧边界 GPU 上传队列 + 延迟释放协议 + ARCH-107（Future/Promise + AcquireAsync） | ✅ 完成 |
+| W1 | 契约冻结（TextTypes / FontProvider / TextShaper / TextLayout / GlyphAtlas / TextRenderer，raster_format 一等维度） | ✅ 完成 |
+| W2 | FreeTypeFontProvider（W2a）+ 栅格化 job 化（W2b）+ HarfBuzzTextShaper（W2c） | ✅ 完成 |
+| W3 | immutable `TextLayoutBuilder`（纯 CPU 排版真源） | ✅ 完成 |
+| W3 | Renderer2D 集成（`DrawTextLayout` / 旧 `DrawText` 切换 / `MeasureText` 单一真源 / 退役 `text_layout_cache_`） | ⏳ 未做 |
+| W4 | atlas key 升级 `(FontInstanceId, glyph_id, ...)` + 旧 `Font` 迁移 + fallback 链 | ⏳ 未做 |
+| W5 | golden tests + 切换到 glyph quad 消费 | ⏳ 未做 |
+| W6 | libunibreak / SDF / 离线烘焙 / ICU bidi（增量） | ⏳ 未做 |
+
+### 剩余工作（按依赖顺序）
+
+1. **W3 收尾**：让 Renderer2D 消费 `TextLayoutBuilder`。前置是 W4 的 atlas key
+   升级——当前旧 `Font` 仍以 `(Font*, codepoint)` 为 key，新管线以
+   `(FontInstanceId, glyph_id)` 为 key，二者不能混用，所以 Renderer2D 集成必须
+   等 W4 一起做（否则要维护两套 key 空间）。
+2. **W4**：atlas key 升级 + 旧 `Font` 迁薄 + fallback 链（`FallbackFor` 当前返回空）。
+3. **W5**：golden tests（Latin/CJK/Arabic/组合字符/换行/裁剪/DPI/atlas 淘汰/字体销毁）
+   + 删除 Renderer2D 内联 UTF-8 解码 / kerning / wrap。
+
+### 已知局限（第一版）
+
+- **tab 降级为单空格**：`TextLayoutBuilder` 把 tab 1:1 替换为空格做 shape 与测宽，
+  不做四空格列对齐（对齐现有 Renderer2D 语义，后续若需列对齐再补 tab stop 表）。
+- **新老管线隔离并存**：`atom::text` 新管线与旧 `atom::render::Font` 路径互不感知，
+  在 W4 切换前二者并行存在，业务层仍走旧路径，无行为变化。
+- **fallback 未实现**：`FreeTypeFontProvider::FallbackFor` 返回空，多字体 fallback
+  留到 W4。
+
+### 注意事项（潜在风险，落地后复查）
+
+- **`TextureCache::LoadAsync(filesystem)` 引用生命周期**：worker lambda 按引用捕获
+  文件系统，要求引用 outlive 请求。MusicCard 用成员 `background_filesystem_` 保证，
+  但 Shutdown 时须先等 `background_load_` 落地再 reset 文件系统，顺序敏感。
+- **`ResourceManager::AcquireAsync` promise 生命周期**：回调以 shared_ptr 持有
+  promise，caller 若丢弃 future 且从不 `PumpAsync`，回调永不触发、promise 无 GC
+  回收——这是 pull 模型的已知权衡，需由调用方保证每帧 Pump 或主动 Cancel。
+- **`TextureCache::EvictAll` 不清 `in_flight_`**：与 `ResourceManager::Evict`
+  （会取消在途）语义不一致，在途 decode 完成后仍会 materialize 回填 cache。
+  当前无实际危害，待 W4 atlas LRU 引入淘汰时统一取消语义。

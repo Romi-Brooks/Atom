@@ -157,8 +157,11 @@
 - [x] `Screen` / `ScreenManager` 已移入 `Runtime/`；Screen 负责菜单、暂停、加载等呈现导航，而非可序列化游戏世界。
 - [x] Window 的旧 listener registry 已迁入 Runtime observer registry，仅供 Debugger/Overlay 等工具集成；游戏系统由
       Runtime 显式调度，不以匿名窗口回调作为核心执行模型。
-- [ ] 后续建立 `GameWorld`、系统调度和 Scene/Prefab；大世界应由 `WorldSession` + 可流送 `WorldChunk` 承载，不能把
-      整个游戏世界折叠为一个 Screen。
+- [-] `GameWorld` 第一阶段已落地：它拥有一个 `EntityWorld`、固定的 Input → FixedUpdate → Update → LateUpdate
+      阶段、注册顺序稳定的系统调度、阶段边界实体命令缓冲和 FIFO 游戏事件队列。系统仍须遵守「结构修改仅经命令缓冲」
+      的约定；Scene/Prefab、游戏组件与具体系统尚未接入。回归：`Atom_Runtime.GameWorld`。
+- [ ] 后续建立 Scene/Prefab；大世界应由 `WorldSession` + 可流送 `WorldChunk` 承载，不能把整个游戏世界折叠为一个
+      Screen。
 - 约束：不得破坏用户独立组合 Music、SFX、Mixer 和 Transition 的能力；不在 Runtime 引入强制 `AudioSystem`。
 
 ### ARCH-107：统一资源系统与 VFS
@@ -214,7 +217,7 @@
 
 ### ARCH-113：多个 ImGui Overlay 需要共享上下文
 
-- [x] 由窗口级 `OverlayManager` 共享一份 ImGui 上下文；Debugger/LogDebugger/未来的 Profiler/Console 只贡献 panel 内容。
+- [x] 由窗口级 `OverlayManager` 共享一份 ImGui 上下文；Debugger/Panels/LogDebugger/未来的 Profiler/Console 只贡献 panel 内容。
 - [x] 旧 SDL_Renderer ImGui 适配器已退出 Atom target，SDL_GPU 的 `imgui_impl_sdlgpu3` 已注册并通过单 Debugger 验收。
 - [x] `Log` 提供线程安全的 RAII subscription；`LogDebugger` 是 `DebugPanel` 子类，与自定义面板平级 `Attach`，不再经由 `SetLoggerEnabled` 托管。
 - [x] 可见性 `SetEnabled` 与生命周期 `Attach/Detach` 分离；调试面板默认槽位由 `Debugger/PanelLayout` 写入，ImGui `IniFilename=nullptr`，不再依赖 imgui.ini。
@@ -536,7 +539,7 @@ shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` �
 - [x] 内置实现：WavProf（字节偏移）、SDL3Wav（内存游标）、Minimp3（`mp3dec_ex_seek`，采样级）；流式音源按"停线程 → 清缓冲 → 定位 → 重启"实现，buffered 音源直接移动播放游标。
 - [x] 实测通过：解码器级 seek 与"从头解码并丢弃"逐字节一致；两个后端上播放中 seek、停止后 seek 再播、越界钳制均正确。
 - [ ] 前向-only 解码器的回退策略：当前非 0 目标返回 `false`（只保留回起点），尚未提供"解码并丢弃"的近似实现。
-- [ ] 如需 24-bit 内存优化，评估 `AudioSampleFormat::Signed24` 作为解码侧载体 + 推送路径转换（原因与代价见 `Backend/Runtime/README-CN.md`）。（目前不需要）
+- [ ] 如需 24-bit 内存优化，评估 `AudioSampleFormat::Signed24` 作为解码侧载体 + 推送路径转换（原因与代价见 `Backend/Composition/README-CN.md`）。（目前不需要）
 
 ### AUDIO-008：解码器注册链与职责边界
 
@@ -587,6 +590,15 @@ shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` �
 
 - [-] 作为新渲染架构的首个实现，与 RENDER-001/002 同步推进。
 - [x] SDL 根据平台和构建时可用 Shader 格式自动选择 D3D12、Vulkan 或 Metal；Atom 不维护原生 API 选择逻辑。
+- [x] 图形 API 由调用方显式选择：`RenderBackendId`（哪份后端实现）与 `GpuDriver`（哪条原生 API）是两个正交的轴，
+      `ApplicationConfig::gpu_driver` / `RenderBackendConfig::driver` 可指定 Auto/D3D12/Vulkan/Metal；
+      指定驱动不可用时回退 Auto 并记警告，`ATOM_GPU_DRIVER` 保留为开发者覆盖。
+- [x] 呈现模式与窗口模式开放给用户侧：`PresentMode`（VSync/Mailbox/Immediate）、`WindowMode`（窗口化/无边框窗口/独占全屏；
+      无边框窗口尺寸等于显示器分辨率即"无边框全屏"，不单列模式），
+      启动时经 `ApplicationConfig`，运行期经 `RenderWindow::SetPresentMode` / `SetWindowMode`（延迟到帧边界生效），
+      `Display/` 模块持有这套策略（`DisplaySettings` + `DisplaySystem`，帧边界应用）；
+`Debugger/Panels/{Fps,Render,Display}Debugger` 三个面板分别答"多快 / 时间花在哪 / 谁在限制它"。
+能力查询见 `IRenderDevice::SupportedPresentModes()`。
 - [x] GLSL 是唯一人工维护源，CMake 总是生成并校验 SPIR-V，Windows 默认附加 DXIL，macOS 默认附加 MSL。
 - [x] 已完成 device/window claim、command buffer、swapchain、render pass、pipeline、buffer、texture、sampler 与 depth 的最小闭环。
 - [ ] 将最小闭环重构为可供 Renderer2D/Renderer3D 使用的正式 RHI 资源与命令接口。
@@ -601,6 +613,15 @@ shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` �
 - [ ] 复用同一 Shader manifest、Renderer2D 和 Renderer3D，上层仅通过后端 ID `sdl_gpu` / `vulkan` 选择。
 - [ ] GPU 资源严格归属创建它的 device；不支持进程运行期间热切换后端。
 - [ ] 增加两后端截图一致性、resize、设备错误和资源生命周期测试。
+- [!] 已知平台约束（排查"帧率上不去"前先读）：SDL_GPU 的 D3D12 路径用 `CreateSwapChainForHwnd` 且
+      `fullscreenDesc.Windowed` 恒为 true，即**没有真正的 DXGI 独占全屏**；`WindowMode::ExclusiveFullscreen`
+      在这条路径上只是全屏窗口 + 显示模式切换，能否绕过桌面合成器（Independent Flip）由系统决定。
+- [!] 实测修正（RTX 4060 Laptop + i7-13650HX）：不能从帧率推断呈现模式。Vulkan 四种窗口/呈现组合都落在
+      143–151 fps，最初被误读为"Vulkan 被限制在刷新率"；`FrameTiming` 拆开后才看清那一帧是
+      `CPU record 6.6ms / submit 0.05ms / wait 0.002ms`——**present 没有阻塞，144 是 CPU 录制成本的倒数**。
+      排查顺序固定为：先看 record/submit/wait 的占比（`Render` 面板直接给判定），再怀疑 present 或驱动。
+      待查：Vulkan 路径的 record 成本为何这么高（校验层已确认关闭；下一步是同一构建下换 D3D12 做对照，
+      以及 `SDLGPU2D` 每次纹理上传都新建 transfer buffer 而非复用 `AcquireUploadBuffer` 池这一点）。
 
 ### RENDER-004：跨平台图片解码与纹理上传
 
@@ -669,20 +690,27 @@ shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` �
 - [ ] 继续清理空目录和错误命名；`Render/Shader/TODO` 空占位文件已删除。
 - [x] 已删除早期 `Config` 目录；引擎配置应归属于各自的模块，而非新的通用目录。
 - [ ] 明确 Public/Internal/Backend 的头文件边界。
-- [ ] **空壳模块清理（新增，2026-09-29）**：`Media/Video/Video.hpp` 是空壳且命名空间错误（`engine::video`，应为 `atom::video`），`Physics/` 只有 README。空壳模块应标为 Experimental 或移除，见 CORE-006。
+- [ ] **Physics provider 目录命名（新增，2026-10-24）**：`Physics/Backend/Internal` 的归属正确，但单数
+      `Backend` 易与根级 `Backend/` 混淆。下次纯机械路径迁移改为 `Physics/Backends/Internal`，并同步 include、CMake、
+      测试和文档；不得与 contracts 解耦或新物理特性合并提交。
+- [ ] **Filesystem mount 目录阈值（新增，2026-10-24）**：当前 `NativeFileSystem`、`MemoryFileSystem`、
+      `PackageFileSystem`、`OverlayFileSystem` 规模仍可扁平放在 `Filesystem/`。当新增至少一个 mount provider 时，执行
+      独立机械迁移为 `Contracts/` + `Mounts/{Native,Memory,Package,Overlay}`；它们是 VFS mount，不得误命名为
+      `Backends/`。详细判断见 `Docs/Architecture-Map-CN.md`。
+- [x] **空壳模块清理（2026-10-24）**：已移除 `Media/Video/Video.*` 空壳及其 `Atom_Media` source-list 条目。未来 Video 必须先以 Experimental 设计和真实最小能力进入仓库。
 
 ### CORE-005：CMake target 与可移植性
 
-- [-] 清理全局 include/link directories，改为 target 级依赖。（渲染链已拆为 `Atom_Backend_SDL3_Window`、`Atom_Backend_SDL_GPU` 与 `Atom_Backend_Render_Runtime`。）
+- [-] 清理全局 include/link directories，改为 target 级依赖。（渲染链已拆为 `Atom_Backend_SDL3_Window`、`Atom_Backend_SDL_GPU` 与 `Atom_Backend_Render_Composition`。）
 - [ ] 明确 PUBLIC/PRIVATE/INTERFACE 传播边界。
 - [x] Shader 工具优先由 `VULKAN_SDK`/`PATH` 发现；SDK 根目录只允许作为本机 CMake cache 提示，仓库不保存绝对路径。
 - [ ] 增加 install/export/package config 和 `Atom::*` 导出目标。
 
 ### CORE-006：未实现模块的正式 API 管理
 
-- [ ] Video 等空壳模块在实现前标为 Experimental，或不进入稳定公共 API。
+- [x] Video 空壳已移除；后续 Video 在实现前不得进入稳定公共 API。
 - [ ] 每个公开模块至少具备最小能力、错误返回和示例。
-- 现状：`Media/Video/Video.hpp` 为空壳类且命名空间错误，需一并处理。
+- 现状：无 Video 公开模块；重新引入前须完成 Experimental 设计、最小能力、测试和 README。
 
 ### CORE-008：外部 Shader 工具链
 
@@ -756,7 +784,8 @@ rg -L "SPDX-License-Identifier: MIT" -g "*.h" -g "*.hpp" -g "*.c" -g "*.cpp" -g 
 
 以下决策原先分散在各路线文档中，现集中维护于本清单：
 
-1. 首个正式渲染后端是 SDL_GPU；由 SDL 根据平台和设备选择 D3D12、Vulkan 或 Metal，Atom 不复制一套底层 API 选择逻辑。
+1. 首个正式渲染后端是 SDL_GPU；默认由 SDL 根据平台和设备选择 D3D12、Vulkan 或 Metal，Atom 不复制一套底层 API 选择逻辑。
+   `GpuDriver` 只提供"钉住某条 API"的能力（排障、对比、玩家反馈复现），不改变这条基线：选择器仍归 SDL，Atom 只传名字。
 2. SDL_Renderer、SDL_Texture 和 `imgui_impl_sdlrenderer3` 不再作为 Atom 运行时后端；无 GPU 测试应使用未来的 Null/Recording Backend。
 3. RHI 同时面向 2D 和基础 3D，公共头文件不得暴露 SDL_GPU、Vk、D3D 或 Metal 类型。Renderer2D/Renderer3D 只产生渲染意图，后端负责执行。
 4. GLSL 是唯一人工维护的 shader 源语言，优先生成 SPIR-V；DXIL/MSL 是可选离线变体。shader 资源与 Atom C/C++ 链接方式无关。
