@@ -29,18 +29,20 @@
 #include <Algorithm/Color/Color.hpp>
 #include <Algorithm/Geometry/Rect.hpp>
 #include <Algorithm/Vector/Vec2.hpp>
-#include <Physics/Contracts/IPhysicsBody.hpp>
-#include <Physics/Contracts/IPhysicsWorld.hpp>
-#include <Physics/Contracts/PhysicsTypes.hpp>
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
-#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
 #include <Concurrency/JobSystem.hpp>
-#include <Debugger/FpsDebugger.hpp>
+#include <Debugger/Panels/FpsDebugger.hpp>
+#include <Debugger/Panels/RenderDebugger.hpp>
 #include <Debugger/Panels/JobDebugger.hpp>
 #include <Debugger/Panels/LogDebugger.hpp>
+#include <Display/DisplaySystem.hpp>
 #include <Input/InputSystem.hpp>
 #include <Input/Key.hpp>
 #include <Log/LogSystem.hpp>
+#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Physics/Contracts/IPhysicsBody.hpp>
+#include <Physics/Contracts/IPhysicsWorld.hpp>
+#include <Physics/Contracts/PhysicsTypes.hpp>
 #include <Physics/Shapes/Shape.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <Window/RenderWindow.hpp>
@@ -317,16 +319,21 @@ auto main() -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-    window.SetVSync(false);
+    // 呈现策略归 DisplaySystem：VSync 关 == PresentMode::Immediate（不限帧，
+    // 切换在下一帧边界生效）。运行期可在 Display 面板里再改。
+    atom::display::DisplaySystem::GetInstance().RequestVSync(false);
     window.SetFPS(165);
 
     LOG_INFO(atom::log::core::Main,
              "Physics demo ready: click to drop a ball, R to reset, Space to pause, Esc to quit");
 
-    // 调试面板：FPS（曲线）、日志、任务调度，三者都走共享 ImGui overlay 的
-    // Attach，窗口级可见，无需示例自行维护。
+    // 调试面板：帧率（曲线）、帧预算（CPU/GPU 时间）、日志、任务调度，都走共享 ImGui
+    // overlay 的 Attach，窗口级可见，无需示例自行维护。
     atom::debugger::FpsDebugger fps_panel{};
     fps_panel.Attach(window);
+
+    atom::debugger::RenderDebugger render_panel{};
+    render_panel.Attach(window);
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);

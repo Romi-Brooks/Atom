@@ -89,10 +89,13 @@ endif()
         Backend/Contracts/Render/IRenderTarget.hpp
         Backend/Contracts/Render/IRenderTypes.hpp
         Backend/Contracts/Render/ITexture.hpp
+        Backend/Contracts/Render/PresentMode.hpp
+        Backend/Contracts/Render/RenderBackendConfig.hpp
         Backend/Contracts/Render/RenderBackendId.hpp
         Backend/Contracts/Time/ITimeSource.hpp
         Backend/Contracts/Video/IVideoDecoder.hpp
         Backend/Contracts/Window/IWindow.hpp
+        Backend/Contracts/Window/WindowMode.hpp
     )
     target_include_directories(Atom_Backend_Contracts INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -609,7 +612,20 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
         Atom_Algorithm)
     target_link_libraries(Atom_Window PRIVATE
         Atom_Backend_Extension
-        Atom_Backend_Render_Runtime)
+        Atom_Backend_Render_Composition)
+
+# 9b. Display policy. Owns the two player-facing presentation choices (window
+# placement + present mode) and the frame-boundary application of a change.
+# It sits above the contracts (it only needs IWindow/IRenderDevice) and below
+# Runtime (which ticks it), so neither the window facade nor a debug panel has
+# to own the state.
+    add_library(Atom_Display STATIC
+            Display/DisplaySettings.hpp
+            Display/DisplaySystem.hpp
+            Display/DisplaySystem.cpp
+    )
+    target_include_directories(Atom_Display PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Display PUBLIC Atom_Backend_Contracts Atom_Log)
 
 # 10. Runtime. This is the sole game frame-loop owner; Window intentionally
 # remains usable by tools that only need a platform/render host.
@@ -617,12 +633,11 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Runtime/Application.hpp
             Runtime/Application.cpp
             Runtime/Screen.hpp
-            Runtime/Screen.cpp
             Runtime/ScreenManager.hpp
             Runtime/ScreenManager.cpp
     )
     target_include_directories(Atom_Runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Runtime PUBLIC Atom_Window Atom_Time Atom_Log)
+    target_link_libraries(Atom_Runtime PUBLIC Atom_Window Atom_Display Atom_Time Atom_Log Atom_ECS)
 
 # 11. Debugger
     # Debug overlay build switch. AUTO (default) follows the build type:
@@ -661,8 +676,12 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Debugger/Panels/JobDebugger.cpp
             Debugger/Panels/ThreadDebugger.hpp
             Debugger/Panels/ThreadDebugger.cpp
-            Debugger/FpsDebugger.hpp
-            Debugger/FpsDebugger.cpp
+            Debugger/Panels/FpsDebugger.hpp
+            Debugger/Panels/FpsDebugger.cpp
+            Debugger/Panels/RenderDebugger.hpp
+            Debugger/Panels/RenderDebugger.cpp
+            Debugger/Panels/DisplayDebugger.hpp
+            Debugger/Panels/DisplayDebugger.cpp
     )
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=$<BOOL:${_atom_debugger_enabled}>)

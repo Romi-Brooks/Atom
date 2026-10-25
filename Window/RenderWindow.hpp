@@ -21,8 +21,10 @@
 
 #include <Backend/Contracts/Render/IRenderBackend.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Backend/Contracts/Render/RenderBackendConfig.hpp>
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
+#include <Backend/Contracts/Window/WindowMode.hpp>
 #include <Error/Error.hpp>
 
 namespace atom {
@@ -39,6 +41,7 @@ class RenderWindow {
         std::string backend_id_{};
         unsigned int fps_ = 60;
         bool shutdown_notified_ = false;
+
         struct PendingResize {
                 uint32_t width = 0;
                 uint32_t height = 0;
@@ -52,9 +55,7 @@ class RenderWindow {
 
         using EventSink = std::function<void(atom::window::IEvent&)>;
 
-        [[nodiscard]] auto Initialize(const std::string& title, algo::Vec2 resolution,
-                                      backend::RenderBackendId backendId = backend::RenderBackendId::SdlGpu)
-            -> Result<void>;
+        [[nodiscard]] auto Initialize(const backend::RenderBackendConfig& config) -> Result<void>;
         auto PumpEvents(const EventSink& sink) -> void;
         [[nodiscard]] auto BeginFrame() -> bool;
         auto EndFrame() -> void;
@@ -70,11 +71,16 @@ class RenderWindow {
 
         // Runtime/Application owns initialization, the frame loop, time
         // domains, ScreenStack, and shutdown. This public surface is limited
-        // to presentation configuration, stop requests, and debugger access.
+        // to frame-rate pacing, stop requests, and debugger access.
+        //
+        // Window placement and present mode are NOT here: they are the
+        // DisplaySystem's policy (Display/DisplaySystem.hpp), because a
+        // swapchain reconfiguration has to happen at the frame boundary and a
+        // settings page, a config file and a debug panel all need to request it.
+        // Keeping that state in this facade would give it two owners.
         auto SetFPS(unsigned int fps) -> void;
         [[nodiscard]] auto GetFPS() const -> unsigned;
-        auto SetVSync(bool enabled) -> bool;
-        [[nodiscard]] auto IsVSyncEnabled() const -> bool;
+
         [[nodiscard]] auto IsOpen() const -> bool;
         // Requests the window to close without releasing resources. Screens use
         // this to exit from event handling; Runtime tears down at a frame

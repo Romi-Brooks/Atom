@@ -16,6 +16,7 @@
 #include <variant>
 
 #include <Algorithm/Vector/Vec2.hpp>
+#include <Backend/Contracts/Window/WindowMode.hpp>
 #include <Input/Key.hpp>
 
 namespace atom::window {
@@ -78,6 +79,17 @@ class IWindow {
         [[nodiscard]] virtual auto GetTimeSeconds() const -> double = 0;
         virtual auto WaitForNextFrame() -> void = 0;
         [[nodiscard]] virtual auto GetSize() const -> algo::Vec2 = 0;
+
+        // Window placement. SetWindowMode() may change the display mode and
+        // therefore the size reported by GetSize(), so callers must treat it as
+        // a resize: never call it between BeginFrame() and EndFrame() of the
+        // render device, and reconcile cached sizes afterwards.
+        //
+        // Returns false when the backend cannot provide that placement; the
+        // mode is then left unchanged and GetWindowMode() still reports the
+        // current one. It does not silently substitute a different mode.
+        virtual auto SetWindowMode(WindowMode mode) -> bool = 0;
+        [[nodiscard]] virtual auto GetWindowMode() const -> WindowMode = 0;
 };
 
 } // namespace atom::window

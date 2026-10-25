@@ -20,7 +20,7 @@ namespace atom::backend::sdlgpu {
 class SDLGPUBackend final : public render::IRenderBackend {
     public:
         ~SDLGPUBackend() override;
-        auto Initialize(const std::string& title, algo::Vec2 resolution) -> bool override;
+        auto Initialize(const RenderBackendConfig& config) -> bool override;
         auto Shutdown() -> void override;
         [[nodiscard]] auto Window() -> window::IWindow& override;
         [[nodiscard]] auto Device() -> render::IRenderDevice& override;

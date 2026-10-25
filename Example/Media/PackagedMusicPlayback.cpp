@@ -27,7 +27,8 @@
 #include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/Panels/LogDebugger.hpp>
-#include <Debugger/FpsDebugger.hpp>
+#include <Debugger/Panels/FpsDebugger.hpp>
+#include <Debugger/Panels/RenderDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -256,6 +257,9 @@ auto main() -> int {
 
     atom::debugger::FpsDebugger fps_panel{};
     fps_panel.Attach(window);
+
+    atom::debugger::RenderDebugger render_panel{};
+    render_panel.Attach(window);
 
     PackedMusicDebugger debugger{music, entries, pack_path, pack_status};
     debugger.Attach(window);

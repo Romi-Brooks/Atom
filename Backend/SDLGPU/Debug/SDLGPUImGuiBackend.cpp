@@ -10,6 +10,8 @@
 #include "SDLGPUImGuiBackend.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 
 #include <Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
@@ -190,7 +192,14 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
         auto Render() -> void override {
             if (!initialized_)
                 return;
+            // ImGui::Render() builds the draw data: per-window draw lists merged
+            // into vertex/index copies. Timed because it is the one step between
+            // "the panels ran" and "we upload", and a pathological draw-list build
+            // would otherwise hide inside the overlay's total.
+            const auto draw_data_start = std::chrono::steady_clock::now();
             ImGui::Render();
+            device_.Phases().overlay_build_ms += std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - draw_data_start).count();
             auto* drawData = ImGui::GetDrawData();
             auto* command = device_.GetNativeCommandBuffer();
             auto* swapchain = device_.GetNativeSwapchainTexture();
@@ -198,8 +207,14 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
                 return;
 
             // Uploads ImGui vertex/index data into the current frame's command
-            // buffer; must run before the render pass that consumes it.
+            // buffer; must run before the render pass that consumes it. Timed
+            // separately from the draw because on some backends the upload
+            // (staging buffer + copy pass) costs far more than the drawing.
+            const auto overlay_upload_start = std::chrono::steady_clock::now();
             ImGui_ImplSDLGPU3_PrepareDrawData(drawData, command);
+            device_.Phases().overlay_upload_ms += std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - overlay_upload_start).count();
+            device_.Phases().overlay_vertices += static_cast<std::uint64_t>(drawData->TotalVtxCount);
 
             SDL_GPUColorTargetInfo target{};
             target.texture = swapchain;
@@ -208,14 +223,23 @@ class SDLGPUImGuiBackend final : public debugger::IDebugImGuiBackend {
             target.load_op = device_.IsFrameEncoded() ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
             target.store_op = SDL_GPU_STOREOP_STORE;
 
+            const auto overlay_pass_start = std::chrono::steady_clock::now();
             auto* pass = SDL_BeginGPURenderPass(command, &target, 1, nullptr);
+            device_.Phases().overlay_pass_ms += std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - overlay_pass_start).count();
             if (!pass) {
                 LOG_ERROR(atom::log::debugger::ImGui,
                           "SDL_GPU ImGui failed to begin render pass: " + std::string{SDL_GetError()});
                 return;
             }
+            const auto overlay_draw_start = std::chrono::steady_clock::now();
             ImGui_ImplSDLGPU3_RenderDrawData(drawData, command, pass);
+            device_.Phases().overlay_draw_ms += std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - overlay_draw_start).count();
+            const auto overlay_pass_end_start = std::chrono::steady_clock::now();
             SDL_EndGPURenderPass(pass);
+            device_.Phases().overlay_pass_ms += std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - overlay_pass_end_start).count();
             device_.MarkFrameEncoded();
         }
 

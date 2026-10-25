@@ -11,6 +11,7 @@
 #define ATOM_BACKEND_SDLGPU_DEVICE_HPP
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -21,6 +22,7 @@
 
 #include <Backend/Contracts/Render/IRender2DContext.hpp>
 #include <Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Backend/Contracts/Render/RenderBackendConfig.hpp>
 #include <Backend/SDLGPU/Pipelines/SDLGPU2DPipelineFactory.hpp>
 
 namespace atom::backend::sdlgpu {
@@ -44,16 +46,30 @@ struct SDLGPUUploadBufferEntry {
 class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2DContext {
     public:
         ~SDLGPUDevice() override;
-        auto Initialize(SDL_Window* window) -> bool;
+        // `driver` selects which graphics API SDL_GPU runs on. Auto lets SDL
+        // choose; an explicit driver that the build or the machine cannot
+        // provide falls back to Auto with a warning instead of failing startup.
+        // `validation` decides whether the API's debug layer comes up; Auto
+        // follows the build type.
+        auto Initialize(SDL_Window* window, backend::GpuDriver driver = backend::GpuDriver::Auto,
+                        backend::ValidationMode validation = backend::ValidationMode::Auto) -> bool;
         auto Shutdown() -> void;
         [[nodiscard]] auto BeginFrame() -> bool override;
         auto Clear(const render::Color& color) -> void override;
         auto EndFrame() -> void override;
         auto HandleResize(uint32_t width, uint32_t height) -> void override;
-        auto SetVSync(bool enabled) -> bool override;
-        [[nodiscard]] auto IsVSyncEnabled() const -> bool override;
+        auto SetPresentMode(render::PresentMode mode) -> bool override;
+        [[nodiscard]] auto GetPresentMode() const -> render::PresentMode override;
+        [[nodiscard]] auto SupportedPresentModes() const -> std::uint8_t override;
         [[nodiscard]] auto GetOutputSize() const -> algo::Vec2 override;
         [[nodiscard]] auto GetBackendInfo() const -> const render::RenderBackendInfo& override;
+        [[nodiscard]] auto GetFrameTiming() const -> render::FrameTiming override;
+        [[nodiscard]] auto IsPresentRefreshPaced() const -> bool override;
+
+        // Drops the cached present-mode capability mask. Called when the surface
+        // can have changed (resize, fullscreen transition). Public so a window
+        // mode change can force a re-query without recreating the device.
+        auto InvalidatePresentModeCache() -> void;
 
         // Backend-internal encoding extension used by SDL_GPU resource and
         // renderer implementations. Never expose these handles through RHI.
@@ -90,6 +106,38 @@ class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2
         // Number of frames the CPU may be ahead of the GPU. 2 keeps latency
         // low while removing the per-frame CPU<->GPU stall.
         static constexpr std::size_t kMaxFramesInFlight = 2;
+
+    public:
+        // --- submit-phase diagnostics ---------------------------------------
+        // Per-frame accounting of where the record window spends its time, for
+        // backends whose per-call cost differs wildly: SDL_GPU's Vulkan encoder
+        // measured 34x the D3D12 one on an identical command stream (10.0 ms vs
+        // 0.30 ms of CPU record), which is invisible in a total.
+        //
+        // Filled by the encoders (2D, post-process, ImGui overlay) and reported
+        // once every kPhaseReportFrames frames from EndFrame(), so the panel shows
+        // a steady average instead of a per-frame flicker.
+        // The contract's diagnostic struct; this backend fills every field.
+        using PhaseStats = render::EncoderPhases;
+
+        [[nodiscard]] auto Phases() -> PhaseStats& {
+            return phases_;
+        }
+
+        // Averaged over the last completed sample window: what the Render panel
+        // displays. There is no logging path -- these numbers are a live readout,
+        // not a log line, so a profiling session costs nothing extra.
+        [[nodiscard]] auto GetEncoderPhases() const -> render::EncoderPhases override;
+        [[nodiscard]] auto GetEncoderPhaseFrames() const -> int override;
+
+    private:
+        // Frames per aggregated phase sample; ~2 s at 60 fps.
+        static constexpr int kPhaseReportFrames = 120;
+
+        PhaseStats phases_{};
+        PhaseStats phase_snapshot_{};
+        int phase_snapshot_frames_ = 0;
+        int phase_frames_ = 0;
 
         // Everything that is written once per frame and read by the GPU while
         // that frame is in flight. Fence-ordered so the CPU can encode frame
@@ -135,10 +183,29 @@ class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2
         SDL_Window* window_ = nullptr;
         render::Color clear_color_ = render::Color::Black();
         render::RenderBackendInfo info_{};
-        bool vsync_enabled_ = true;
+        // The mode the swapchain is actually running (SDL starts every claimed
+        // window on VSYNC, so this is VSYNC until SetPresentMode succeeds).
+        render::PresentMode present_mode_ = render::PresentMode::VSync;
 
         std::array<FrameContext, kMaxFramesInFlight> frames_{};
         std::size_t frame_index_ = 0;
+
+        // Frame timing. Every value is measured where the cost is actually paid:
+        // the frame period here, the GPU backpressure inside the fence wait, the
+        // encode cost between BeginFrame() and EndFrame(). `last_fence_done`
+        // gives the GPU its own clock without needing timestamp queries.
+        using Clock = std::chrono::steady_clock;
+        render::FrameTiming timing_{};
+        Clock::time_point last_begin_{};
+        Clock::time_point encode_start_{};
+        Clock::time_point last_fence_done_{};
+        bool has_fence_sample_ = false;
+        bool has_begin_sample_ = false;
+
+        // Cached present-mode capabilities (see SupportedPresentModes): querying
+        // them costs a driver round-trip on Vulkan, and UI asks per frame.
+        mutable std::uint8_t supported_present_modes_ = 0;
+        mutable bool supported_present_modes_valid_ = false;
 
         // 2D context state (shared across frames; see Encoding/SDLGPU2D.cpp).
         std::filesystem::path shader_root_2d_{};

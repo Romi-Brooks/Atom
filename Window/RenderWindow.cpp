@@ -78,13 +78,12 @@ auto RenderWindow::PumpEvents(const EventSink& sink) -> void {
         sink(settledEvent);
 }
 
-auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 resolution,
-                              const atom::backend::RenderBackendId backendId) -> Result<void> {
+auto RenderWindow::Initialize(const atom::backend::RenderBackendConfig& config) -> Result<void> {
     // The runtime layer owns concrete backends; this facade only consumes the
     // registry and the IRenderBackend/IWindow/IRenderDevice contracts.
     atom::backend::RenderBackendRuntime::GetInstance().EnsureDefaultRenderBackend();
-    const auto backend_id = atom::backend::ToString(backendId);
-    name_ = title;
+    const auto backend_id = atom::backend::ToString(config.backend);
+    name_ = config.title;
     backend_id_ = std::string{backend_id};
 
     shutdown_notified_ = false;
@@ -101,7 +100,7 @@ auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 r
         return std::unexpected<Error>{std::move(error)};
     }
 
-    if (!backend_->Initialize(title, resolution)) {
+    if (!backend_->Initialize(config)) {
         backend_.reset();
         auto error = Error{ErrorCode::RenderDeviceCreationFailed, Module::Window, "RenderWindow::Initialize"}
                          .WithDetail("render backend '" + backend_id_ + "' failed to initialize");
@@ -114,7 +113,9 @@ auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 r
 }
 
 auto RenderWindow::BeginFrame() -> bool {
-    return backend_ && backend_->Device().BeginFrame();
+    if (!backend_)
+        return false;
+    return backend_->Device().BeginFrame();
 }
 
 auto RenderWindow::EndFrame() -> void {
@@ -146,14 +147,6 @@ auto RenderWindow::GetTimeSource() -> atom::backend::ITimeSource* {
 
 auto RenderWindow::GetFPS() const -> unsigned {
     return fps_;
-}
-
-auto RenderWindow::SetVSync(const bool enabled) -> bool {
-    return backend_ != nullptr && backend_->Device().SetVSync(enabled);
-}
-
-auto RenderWindow::IsVSyncEnabled() const -> bool {
-    return backend_ != nullptr && backend_->Device().IsVSyncEnabled();
 }
 
 auto RenderWindow::IsOpen() const -> bool {

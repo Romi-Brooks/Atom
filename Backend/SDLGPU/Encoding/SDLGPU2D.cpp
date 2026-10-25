@@ -13,9 +13,11 @@
 // texture/sampler handle maps. No SDL types escape this file's interface.
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <vector>
 
 #include <Backend/SDL3/Core/SDLRuntime.hpp>
@@ -31,6 +33,28 @@ static_assert(vertex_stride == 32, "Vertex2D layout must stay a clean 32 bytes")
 
 constexpr uint32_t max_2d_vertices = 65535;
 constexpr uint32_t max_2d_indices = 196605;
+
+using PhaseClock = std::chrono::steady_clock;
+
+inline auto PhaseNow() -> PhaseClock::time_point {
+    return PhaseClock::now();
+}
+
+inline auto MsSince(const PhaseClock::time_point& start) -> double {
+    return std::chrono::duration<double, std::milli>(PhaseClock::now() - start).count();
+}
+
+// Adds its lifetime to `target`, so every early return is still accounted for.
+struct PhaseTimer {
+        explicit PhaseTimer(double& target) : target_{target}, start_{PhaseNow()} {}
+        ~PhaseTimer() { target_ += MsSince(start_); }
+        PhaseTimer(const PhaseTimer&) = delete;
+        auto operator=(const PhaseTimer&) -> PhaseTimer& = delete;
+
+    private:
+        double& target_;
+        PhaseClock::time_point start_;
+};
 
 } // namespace
 
@@ -84,6 +108,7 @@ auto SDLGPUDevice::ResolvePostProcess2D() -> bool {
     auto& frame = CurrentFrame();
     if (postprocess_params_.effect == render::PostProcess2DEffect::None || !frame.postprocess_encoded)
         return true;
+    PhaseTimer postprocess_timer{Phases().postprocess_ms};
     if (!EncodePostProcess(frame.postprocess_texture, frame.postprocess_width, frame.postprocess_height)) {
         LOG_ERROR(atom::log::backend::sdl3::Render, "Renderer2D post-process pass failed");
         return false;
@@ -96,6 +121,10 @@ auto SDLGPUDevice::EnsurePostProcessTarget(const uint32_t width, const uint32_t 
     auto& frame = CurrentFrame();
     if (frame.postprocess_texture && frame.postprocess_width == width && frame.postprocess_height == height)
         return true;
+    // Counted because a size that flips every frame turns this into a per-frame
+    // vkCreateImage/vkAllocateMemory, which is milliseconds on Vulkan and looks
+    // like "the encoder is slow" from the outside.
+    ++Phases().postprocess_targets;
     if (frame.postprocess_texture)
         SDL_ReleaseGPUTexture(device_, frame.postprocess_texture);
     SDL_GPUTextureCreateInfo targetInfo{SDL_GPU_TEXTURETYPE_2D,
@@ -240,6 +269,7 @@ auto SDLGPUDevice::CreateTexture2D(const uint32_t width, const uint32_t height) 
                     "CreateTexture2D rejected invalid device or zero-sized texture");
         return render::invalid_texture_2d;
     }
+    ++Phases().texture_creates;
     SDL_GPUTextureCreateInfo info{SDL_GPU_TEXTURETYPE_2D,
                                   SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
                                   SDL_GPU_TEXTUREUSAGE_SAMPLER,
@@ -363,8 +393,10 @@ auto SDLGPUDevice::DestroyTexture2D(const render::Texture2D texture) -> void {
     const auto it = textures_2d_.find(texture);
     if (it == textures_2d_.end())
         return;
-    if (it->second.texture)
+    if (it->second.texture) {
+        ++Phases().texture_destroys;
         SDL_ReleaseGPUTexture(device_, it->second.texture);
+    }
     textures_2d_.erase(it);
 }
 
@@ -491,6 +523,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     // Reuse a persistent upload staging buffer instead of creating and freeing
     // one every segment of every frame (the high-frequency alloc/free was the
     // main GPU-allocator pressure behind the frame-time regression).
+    const auto upload_start = PhaseNow();
     auto* transfer = AcquireUploadBuffer(vertexBytes + indexBytes);
     if (!transfer) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
@@ -520,6 +553,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     SDL_GPUBufferRegion indexTarget{ctx.index_buffer, 0, indexBytes};
     SDL_UploadToGPUBuffer(copy, &indexSource, &indexTarget, true);
     SDL_EndGPUCopyPass(copy);
+    Phases().encoder_upload_ms += MsSince(upload_start);
     // Persistent: the buffer stays in this frame's upload pool and is reused
     // the next time this context comes around (fence-ordered).
 
@@ -537,6 +571,7 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
                                        : (ctx.encoded ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR);
     target.store_op = SDL_GPU_STOREOP_STORE;
 
+    const auto pass_start = PhaseNow();
     auto* pass = SDL_BeginGPURenderPass(ctx.command_buffer, &target, 1, nullptr);
     if (!pass) {
         LOG_ERROR(atom::log::backend::sdl3::Render,
@@ -554,6 +589,9 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
     SDL_BindGPUIndexBuffer(pass, &indexBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
     bool allItemsValid = true;
+    Phases().encoder_pass_ms += MsSince(pass_start);
+    const auto items_start = PhaseNow();
+    ++Phases().segments;
     for (uint32_t i = 0; i < frame.item_count; ++i) {
         const auto& item = frame.items[i];
         if (item.index_count == 0)
@@ -603,6 +641,8 @@ auto SDLGPUDevice::Submit2DFrame(const render::Render2DFrame& frame) -> bool {
         }
         SDL_DrawGPUIndexedPrimitives(pass, item.index_count, 1, item.first_index, item.vertex_offset, 0);
     }
+    Phases().encoder_items_ms += MsSince(items_start);
+    Phases().items += frame.item_count;
     SDL_EndGPURenderPass(pass);
     if (postProcessActive)
         ctx.postprocess_encoded = true;

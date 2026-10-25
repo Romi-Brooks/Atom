@@ -1,7 +1,7 @@
 /**
   * @file           : Screen.hpp
   * @author         : Romi Brooks
-  * @brief          : Abstract screen base class using engine interfaces
+  * @brief          : Runtime presentation-state lifecycle contract.
   * @attention      :
   * @date           : 2025/9/28
   Copyright (c) 2025 Romi Brooks, All rights reserved.
@@ -18,6 +18,9 @@ class Screen {
     public:
         virtual ~Screen() = default;
 
+        // A Screen orchestrates presentation and input for one runtime state.
+        // It deliberately sees only IRenderDevice: drawing policy belongs to
+        // Renderer2D/UI/Scene2D, never to Runtime or this lifecycle contract.
         virtual auto Render(atom::render::IRenderDevice& device) -> void = 0;
         virtual auto HandleEvent(const atom::window::IEvent& event) -> bool = 0;
         // Variable-rate update (animations, presentation). See FixedUpdate for

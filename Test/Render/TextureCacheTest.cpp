@@ -46,11 +46,14 @@ class StubRenderDevice final : public atom::render::IRenderDevice, public atom::
         auto Clear(const atom::render::Color&) -> void override {}
         auto EndFrame() -> void override {}
         auto HandleResize(uint32_t, uint32_t) -> void override {}
-        auto SetVSync(bool) -> bool override {
+        auto SetPresentMode(atom::render::PresentMode) -> bool override {
             return true;
         }
-        [[nodiscard]] auto IsVSyncEnabled() const -> bool override {
-            return false;
+        [[nodiscard]] auto GetPresentMode() const -> atom::render::PresentMode override {
+            return atom::render::PresentMode::VSync;
+        }
+        [[nodiscard]] auto SupportedPresentModes() const -> std::uint8_t override {
+            return atom::render::all_present_modes;
         }
         [[nodiscard]] auto GetOutputSize() const -> atom::algo::Vec2 override {
             return {1280.0f, 720.0f};

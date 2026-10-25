@@ -15,6 +15,7 @@
 
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Debugger/DebugPanel.hpp>
+#include <Display/DisplaySystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Media/Audio/AudioBackend.hpp>
 #include <Window/RenderWindow.hpp>
@@ -28,11 +29,16 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
     protected:
         auto OnDrawOverlay() -> void override {
             ImGui::Begin("Music Card Debugger");
-            ImGui::Text("VSync: %s", atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off");
+            // Presentation policy lives in DisplaySystem now, not on the window:
+            // show the applied mode (what the swapchain actually runs) instead of
+            // a two-state "vsync on/off", which could not express Mailbox.
+            const auto& display = atom::display::DisplaySystem::GetInstance();
+            ImGui::Text("Present: %s", std::string{atom::render::ToString(display.Applied().present_mode)}.c_str());
             if (!reported_frame_pacing_ && ImGui::GetIO().Framerate > 0.0f) {
                 LOG_INFO(atom::log::core::Window,
-                         "Music card debugger frame pacing: " + std::to_string(ImGui::GetIO().Framerate) + " FPS, VSync " +
-                             (atom::RenderWindow::GetInstance().IsVSyncEnabled() ? "on" : "off"));
+                         "Music card debugger frame pacing: " + std::to_string(ImGui::GetIO().Framerate) +
+                             " FPS, present " +
+                             std::string{atom::render::ToString(display.Applied().present_mode)});
                 reported_frame_pacing_ = true;
             }
             ImGui::Separator();
@@ -62,11 +68,6 @@ class MusicCardDebugger final : public atom::debugger::DebugPanel {
             ImGui::Text("Position: %s", screen_.GetCornerName().data());
             ImGui::Text("Playback: %s", screen_.IsPlaying() ? "playing" : "stopped");
 
-            // Read-only playback readout. Seeking and track switching are the
-            // application's job now (the bottom-centre seek bar and the on-card
-            // Previous/Next buttons); this panel never drives them. The values
-            // come from the screen's throttled playback cache, not a live
-            // audio-stream query, so this costs nothing per frame.
             const auto& playback = screen_.GetPlaybackInfo();
             if (!playback.id.empty()) {
                 if (playback.duration > 0.0f)

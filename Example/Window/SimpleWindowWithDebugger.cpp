@@ -14,7 +14,8 @@
 #include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/Panels/LogDebugger.hpp>
-#include <Debugger/FpsDebugger.hpp>
+#include <Debugger/Panels/FpsDebugger.hpp>
+#include <Debugger/Panels/RenderDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -132,6 +133,10 @@ auto main() -> int {
     // Attach the shared FPS debugger (replaces the ad-hoc FPS text).
     atom::debugger::FpsDebugger fps_panel{};
     fps_panel.Attach(window);
+
+    // Frame budget + device identity, next to the frame rate that it explains.
+    atom::debugger::RenderDebugger render_panel{};
+    render_panel.Attach(window);
 
     // Main loop
     application.Run();

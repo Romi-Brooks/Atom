@@ -255,6 +255,18 @@ atom_add_test(Atom_Backend_Contracts.NumericContract
     Backend/NumericContractTest.cpp
     Atom_Backend_Contracts)
 
+# Display selection contract: window placement, present mode, capability mask.
+atom_add_test(Atom_Backend_Contracts.DisplayConfig
+    Atom_Backend_Contracts_DisplayConfig_Tests
+    Backend/DisplayConfigTest.cpp
+    Atom_Backend_Contracts)
+
+# Display policy: queue once, apply at the frame boundary, report the truth.
+atom_add_test(Atom_Display.DisplaySystem
+    Atom_Display_DisplaySystem_Tests
+    Display/DisplaySystemTest.cpp
+    Atom_Display)
+
 # --- Media / Image / Layout / Log / Utilities ---
 atom_add_test(Atom_Media.AudioMixer
     Atom_Media_AudioMixer_Tests

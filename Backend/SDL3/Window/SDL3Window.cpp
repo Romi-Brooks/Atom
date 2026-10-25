@@ -262,6 +262,8 @@ auto SDL3Window::Initialize(const std::string& title, const algo::Vec2 resolutio
         LOG_ERROR(atom::log::backend::sdl3::Window, "SDL_CreateWindow failed: " + std::string{SDL_GetError()});
         return false;
     }
+    windowed_width_ = static_cast<int>(resolution.GetX());
+    windowed_height_ = static_cast<int>(resolution.GetY());
     // SDL3 starts with text input disabled; enable it so SDL_EVENT_TEXT_INPUT
     // flows (the debugger overlay forwards it to ImGui AddInputCharactersUTF8).
     SDL_StartTextInput(window_);
@@ -338,6 +340,97 @@ auto SDL3Window::GetSize() const -> algo::Vec2 {
     if (window_)
         SDL_GetWindowSizeInPixels(window_, &width, &height);
     return {static_cast<float>(width), static_cast<float>(height)};
+}
+
+auto SDL3Window::GetWindowMode() const -> window::WindowMode {
+    return window_mode_;
+}
+
+auto SDL3Window::SetWindowMode(const window::WindowMode mode) -> bool {
+    if (!window_) {
+        LOG_WARNING(atom::log::backend::sdl3::Window, "SetWindowMode called before initialization");
+        return false;
+    }
+    if (mode == window_mode_)
+        return true;
+
+    // Three placements, two of which are ordinary windows:
+    //   ExclusiveFullscreen -> SetWindowFullscreenMode(displayMode) then
+    //                          SetWindowFullscreen(true)
+    //   Windowed / Borderless -> the same window, decorated or not. SDL cannot
+    //                          change the border of a fullscreen window, so
+    //                          leaving fullscreen has to happen first.
+    switch (mode) {
+    case window::WindowMode::Windowed: {
+        if (!SDL_SetWindowFullscreen(window_, false)) {
+            LOG_ERROR(atom::log::backend::sdl3::Window,
+                      std::string{"SDL_SetWindowFullscreen(false) failed: "} + SDL_GetError());
+            return false;
+        }
+        if (!SDL_SetWindowBordered(window_, true)) {
+            LOG_ERROR(atom::log::backend::sdl3::Window,
+                      std::string{"SDL_SetWindowBordered(true) failed: "} + SDL_GetError());
+            return false;
+        }
+        break;
+    }
+    case window::WindowMode::Borderless: {
+        // A borderless *window*, not a fullscreen state: no display-mode switch,
+        // the configured size is kept. Sized to the display, this covers the
+        // screen -- which is the "borderless fullscreen" players ask for, without
+        // a second mode value to express it.
+        if (!SDL_SetWindowFullscreen(window_, false)) {
+            LOG_ERROR(atom::log::backend::sdl3::Window,
+                      std::string{"SDL_SetWindowFullscreen(false) failed: "} + SDL_GetError());
+            return false;
+        }
+        if (!SDL_SetWindowBordered(window_, false)) {
+            LOG_ERROR(atom::log::backend::sdl3::Window,
+                      std::string{"SDL_SetWindowBordered(false) failed: "} + SDL_GetError());
+            return false;
+        }
+        // Undecorating can leave the client size where the decoration used to
+        // be, and a frameless window has no title bar to drag or maximize with,
+        // so restore the configured size and put it in the middle of the screen.
+        SDL_SetWindowSize(window_, windowed_width_, windowed_height_);
+        SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+        break;
+    }
+    case window::WindowMode::ExclusiveFullscreen: {
+        // Exclusive fullscreen means a real display-mode switch. Reuse the
+        // desktop mode so the requested resolution/refresh is kept instead of
+        // guessing a manufacturer mode; SDL fails the call when the driver
+        // cannot switch at all, and the caller then keeps the old placement.
+        const SDL_DisplayID display = SDL_GetDisplayForWindow(window_);
+        const SDL_DisplayMode* desktop = display != 0 ? SDL_GetDesktopDisplayMode(display) : nullptr;
+        if (desktop == nullptr) {
+            LOG_WARNING(atom::log::backend::sdl3::Window,
+                        "Exclusive fullscreen unavailable: no desktop display mode was reported");
+            return false;
+        }
+        if (!SDL_SetWindowFullscreenMode(window_, desktop)) {
+            LOG_ERROR(atom::log::backend::sdl3::Window,
+                      std::string{"SDL_SetWindowFullscreenMode(exclusive) failed: "} + SDL_GetError());
+            return false;
+        }
+        if (!SDL_SetWindowFullscreen(window_, true)) {
+            LOG_ERROR(atom::log::backend::sdl3::Window,
+                      std::string{"SDL_SetWindowFullscreen(true) failed: "} + SDL_GetError());
+            return false;
+        }
+        break;
+    }
+    }
+
+    // The transition is asynchronous on some windowing systems: block until the
+    // new pixel size is real, because the caller's next frame sizes its render
+    // targets from GetSize(). A resize event still follows, which is what
+    // RenderWindow uses to reconfigure the device.
+    SDL_SyncWindow(window_);
+    window_mode_ = mode;
+    LOG_INFO(atom::log::backend::sdl3::Window,
+             std::string{"Window mode set to '"} + std::string{window::ToString(mode)} + "'");
+    return true;
 }
 auto SDL3Window::GetNativeWindow() const -> SDL_Window* {
     return window_;

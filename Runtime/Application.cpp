@@ -1,9 +1,12 @@
 #include "Application.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <stdexcept>
 
 #include <Input/InputSystem.hpp>
+#include <Display/DisplaySystem.hpp>
+#include <Log/LogSystem.hpp>
 #include <Runtime/ScreenManager.hpp>
 #include <Time/TimeSystem.hpp>
 #include <Window/RenderWindow.hpp>
@@ -20,8 +23,23 @@ auto Application::Initialize(const ApplicationConfig& config) -> Result<void> {
         return std::unexpected<Error>{MakeError(ErrorCode::AlreadyInitialized, Module::Core, "Application::Initialize")};
 
     auto& window = GetWindow();
-    if (const auto result = window.Initialize(config.title, config.resolution, config.render_backend); !result)
+    // One request struct all the way down: the runtime does not re-assemble the
+    // backend's startup parameters from individual fields.
+    backend::RenderBackendConfig backend_config{};
+    backend_config.title = config.title;
+    backend_config.resolution = config.resolution;
+    backend_config.backend = config.render_backend;
+    backend_config.driver = config.gpu_driver;
+    backend_config.validation = config.validation;
+    backend_config.window_mode = config.window_mode;
+    backend_config.present_mode = config.present_mode;
+    if (const auto result = window.Initialize(backend_config); !result)
         return result;
+
+    // The backend came up with these values, so adopt them rather than queueing
+    // a change: the display system must start in agreement with reality.
+    display::DisplaySystem::GetInstance().Adopt(
+        display::DisplaySettings{config.window_mode, config.present_mode});
 
     auto* source = window.GetTimeSource();
     if (!source) {
@@ -81,16 +99,35 @@ auto Application::Run() -> void {
         for (const auto& observer : update_observers_)
             observer.callback(delta_time);
 
+        // The frame boundary is the only safe place to reconfigure a swapchain:
+        // the previous frame has been presented and this one has not acquired an
+        // image yet. DisplaySystem applies at most one queued change per frame.
+        if (auto* iwindow = window.GetIWindow()) {
+            if (auto* device = window.GetRenderDevice())
+                display::DisplaySystem::GetInstance().ApplyPending(*iwindow, *device);
+        }
         if (!window.BeginFrame()) {
             window.WaitForNextFrame();
             continue;
         }
         auto* device = window.GetRenderDevice();
         if (device) {
+            // Split the record window at the only boundary Runtime can see: the
+            // screen's own drawing versus the debugger overlay. Published for the
+            // Render panel, not logged: a per-frame number is something you watch,
+            // not a line you grep. It exists because a backend can make one of the
+            // two far more expensive without any single call looking slow.
+            const auto screen_start = std::chrono::steady_clock::now();
             device->Clear(render::Color::Black());
             screens.Render(*device);
+            const auto screen_end = std::chrono::steady_clock::now();
             for (const auto& observer : overlay_observers_)
                 observer.callback();
+            const auto overlay_end = std::chrono::steady_clock::now();
+            frame_loop_stats_.screen_ms =
+                std::chrono::duration<double, std::milli>(screen_end - screen_start).count();
+            frame_loop_stats_.overlay_ms =
+                std::chrono::duration<double, std::milli>(overlay_end - screen_end).count();
         }
         window.EndFrame();
         window.WaitForNextFrame();
@@ -99,6 +136,9 @@ auto Application::Run() -> void {
     Shutdown();
 }
 
+auto Application::GetFrameLoopStats() const -> const FrameLoopStats& {
+    return frame_loop_stats_;
+}
 auto Application::Shutdown() -> void {
     if (!initialized_)
         return;

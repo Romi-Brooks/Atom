@@ -18,13 +18,18 @@ class NullRenderDevice final : public atom::render::IRenderDevice {
         auto Clear(const atom::render::Color&) -> void override {}
         auto EndFrame() -> void override {}
         auto HandleResize(uint32_t, uint32_t) -> void override {}
-        auto SetVSync(bool) -> bool override { return true; }
-        [[nodiscard]] auto IsVSyncEnabled() const -> bool override { return false; }
+        auto SetPresentMode(atom::render::PresentMode) -> bool override { return true; }
+        [[nodiscard]] auto GetPresentMode() const -> atom::render::PresentMode override {
+            return atom::render::PresentMode::VSync;
+        }
+        [[nodiscard]] auto SupportedPresentModes() const -> std::uint8_t override {
+            return atom::render::all_present_modes;
+        }
         [[nodiscard]] auto GetOutputSize() const -> atom::algo::Vec2 override { return {800.0f, 600.0f}; }
         [[nodiscard]] auto GetBackendInfo() const -> const atom::render::RenderBackendInfo& override { return info_; }
 
     private:
-        atom::render::RenderBackendInfo info_{"null", "null", "null", 0, 0};
+        atom::render::RenderBackendInfo info_{"null", "null", "null", "null", 0, 0};
 };
 
 // Per-name tallies that outlive every screen generation, so the replacement

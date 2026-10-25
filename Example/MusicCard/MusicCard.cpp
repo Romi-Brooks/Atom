@@ -10,14 +10,12 @@
  */
 
 #include "MusicCardDebugger.hpp"
+#include "Backend/SDLGPU/Device/SDLGPUBackend.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <chrono>
-#include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <filesystem>
 #include <memory>
 #include <ranges>
@@ -30,7 +28,9 @@
 #include <Debugger/Overlay.hpp>
 #include <Debugger/Panels/JobDebugger.hpp>
 #include <Debugger/Panels/ThreadDebugger.hpp>
-#include <Debugger/FpsDebugger.hpp>
+#include <Debugger/Panels/FpsDebugger.hpp>
+#include <Debugger/Panels/RenderDebugger.hpp>
+#include <Debugger/Panels/DisplayDebugger.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
@@ -41,26 +41,6 @@
 #include <Runtime/ScreenManager.hpp>
 
 namespace {
-
-// A timestamped log-file name so each run of the single main program gets its
-// own file instead of overwriting a fixed name (the standard practice for a
-// long-lived process). Format: <prefix>-YYYYMMDD-HHMMSS.log.
-[[nodiscard]] auto TimestampedLogPath(const std::string& prefix) -> std::string {
-    const auto now = std::chrono::system_clock::now();
-    const auto seconds = std::chrono::system_clock::to_time_t(now);
-    std::tm local{};
-#ifdef _WIN32
-    if (localtime_s(&local, &seconds) != 0)
-        return prefix + ".log";
-#else
-    if (localtime_r(&seconds, &local) == nullptr)
-        return prefix + ".log";
-#endif
-    char stamp[32]{};
-    std::snprintf(stamp, sizeof(stamp), "%04d%02d%02d-%02d%02d%02d", local.tm_year + 1900, local.tm_mon + 1,
-                  local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec);
-    return prefix + "-" + stamp + ".log";
-}
 
 // Discovers audio files under the configured directory. Metadata and decoder
 // work are deferred to the background prefetch loader so startup remains
@@ -127,22 +107,19 @@ namespace {
 
 auto main(int argc, char** argv) -> int {
     atom::Log::SetConsoleOutputUtf8();
-#ifdef _WIN32
-    // Raise the C runtime file-descriptor ceiling. Each streaming audio decoder
-    // keeps its source file open; with lazy loading we keep <= 3 decoders alive,
-    // but a generous ceiling prevents EMFILE surprises during metadata reads.
-    _setmaxstdio(512);
-#endif // _WIN32
+
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
-    // Persist the log to a timestamped file (the on-screen viewer keeps only a
-    // small 1024-entry ring). Open it before any subsystem logs so the whole
-    // run is captured.
-    const std::string log_file = TimestampedLogPath("atom");
-    if (!atom::Log::SetFileSinkPath(log_file)) {
-        LOG_WARNING(atom::log::core::Main, "Could not open log file: " + log_file);
-    } else {
+
+    // Persist the log to Log/atom-YYYYMMDD-HHMMSS.log (the on-screen viewer keeps
+    // only a small 1024-entry ring). The engine owns the directory-naming policy,
+    // so a program never rebuilds this by hand. Open it before any subsystem
+    // logs so the whole run is captured.
+    const std::string log_file = atom::Log::EnableTimestampedFileSink();
+    if (log_file.empty())
+        LOG_WARNING(atom::log::core::Main, "Could not open the log file sink");
+    else
         LOG_INFO(atom::log::core::Main, "Log file sink enabled: " + log_file);
-    }
+
     atom::AudioMixer mixer;
     atom::MusicPlayer music{mixer};
     const std::string music_root = argc > 1 ? std::string{argv[1]} : std::string{MusicPath};
@@ -179,14 +156,31 @@ auto main(int argc, char** argv) -> int {
 
     auto& window = atom::RenderWindow::GetInstance();
     auto& application = atom::runtime::Application::GetInstance();
-    const auto initialized = application.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
-                                              atom::backend::RenderBackendId::SdlGpu);
+    // Startup presentation is the conservative desktop default: a normal window
+    // paced to the display refresh. The Display panel attached below switches
+    // window placement and present mode live, so every combination (windowed /
+    // borderless / exclusive x vsync / mailbox / immediate) can be compared
+    // without a restart -- which is the only honest way to separate what the
+    // engine costs per frame from what the compositor allows.
+    atom::runtime::ApplicationConfig display_config{};
+    display_config.title = "Atom - Music Card Layout";
+    display_config.resolution = atom::algo::Vec2{1920.0f, 1080.0f};
+    display_config.render_backend = atom::backend::RenderBackendId::SdlGpu;
+    display_config.present_mode = atom::render::PresentMode::VSync;
+    display_config.gpu_driver     = atom::backend::GpuDriver::Direct3D12;
+
+    const auto initialized = application.Initialize(display_config);
+
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-    window.SetVSync(false);
-    window.SetFPS(std::numeric_limits<unsigned int>::max());
+
+    // What means unlimited: 0 disables the frame limiter entirely.
+    // The loop then runs as fast as presentation allows, so a refresh-paced
+    // present mode caps it at the display refresh while Immediate
+    // exposes the engine's own per-frame cost.
+    window.SetFPS(0);
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
@@ -197,8 +191,16 @@ auto main(int argc, char** argv) -> int {
     atom::debugger::ThreadDebugger thread_panel{};
     thread_panel.Attach(window);
 
+    // Three panels, one question each: how fast (FPS), where the time goes and
+    // on what device (Render), and which presentation is producing it (Display).
     atom::debugger::FpsDebugger fps_panel{};
     fps_panel.Attach(window);
+
+    atom::debugger::RenderDebugger render_panel{};
+    render_panel.Attach(window);
+
+    atom::debugger::DisplayDebugger display_panel{};
+    display_panel.Attach(window);
 
     MusicCardDebugger debugger{*music_card_screen};
     debugger.Attach(window);

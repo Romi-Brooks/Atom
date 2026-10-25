@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <Algorithm/Vector/Vec2.hpp>
+#include <Backend/Contracts/Render/RenderBackendConfig.hpp>
 #include <Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Backend/Contracts/Window/IWindow.hpp>
 #include <Error/Error.hpp>
@@ -60,6 +61,17 @@ struct ApplicationConfig final {
         std::string title = "Atom";
         algo::Vec2 resolution{1280.0f, 720.0f};
         backend::RenderBackendId render_backend = backend::RenderBackendId::SdlGpu;
+        // Startup presentation request, normally fed from the player's saved
+        // settings. Everything here stays changeable at runtime through
+        // RenderWindow (SetWindowMode / SetPresentMode), which is what an
+        // in-game display options page drives; these are only the defaults the
+        // process starts with.
+        backend::GpuDriver gpu_driver = backend::GpuDriver::Auto;
+        // API debug/validation layer. Auto follows the build type; a profiling
+        // run forces Off so the frame times it measures are the engine's.
+        backend::ValidationMode validation = backend::ValidationMode::Auto;
+        window::WindowMode window_mode = window::WindowMode::Windowed;
+        render::PresentMode present_mode = render::PresentMode::VSync;
 };
 
 class Application final {
@@ -99,6 +111,18 @@ class Application final {
         [[nodiscard]] auto AddResizeObserver(ResizeObserver observer) -> RuntimeConnection;
         [[nodiscard]] auto AddShutdownObserver(ShutdownObserver observer) -> RuntimeConnection;
 
+        // Coarse per-frame split of the record window: the screen's own drawing
+        // versus the debugger overlay. Published for the Render panel rather than
+        // logged, because a per-frame number is something you watch, not a line
+        // you grep. It exists because a backend can make one of the two far more
+        // expensive without any single call looking slow.
+        struct FrameLoopStats {
+                double screen_ms = 0.0;
+                double overlay_ms = 0.0;
+        };
+        // Valid after the first frame has been submitted.
+        [[nodiscard]] auto GetFrameLoopStats() const -> const FrameLoopStats&;
+
     private:
         template <typename Callback> struct ObserverEntry final {
                 uint64_t id = 0;
@@ -115,6 +139,8 @@ class Application final {
         template <typename Entry, typename Callback>
         auto AddObserver(std::vector<Entry>& entries, Callback observer) -> RuntimeConnection;
         auto DispatchEvent(window::IEvent& event) -> void;
+
+        FrameLoopStats frame_loop_stats_{};
 
         std::vector<EventEntry> event_observers_{};
         std::vector<UpdateEntry> update_observers_{};
