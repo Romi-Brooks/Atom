@@ -12,3 +12,9 @@
 
 # forward (temp)
 learning-guide
+
+# Runtime logs written by Log::EnableTimestampedFileSink().
+# Only the .log files, never the directory: "Log/" is also an engine source
+# directory, and ignoring it wholesale would silently drop new engine sources.
+/Log/*.log
+*.log

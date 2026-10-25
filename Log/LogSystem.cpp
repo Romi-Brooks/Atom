@@ -8,8 +8,11 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
+#include <filesystem>
 #include <iostream>
+#include <string_view>
 #include <utility>
 
 #include <Concurrency/ThreadRegistry.hpp>
@@ -538,6 +541,44 @@ auto Log::GetDroppedConsoleLineCount() -> uint64_t {
     return GetLogInstance().dropped_console_lines_.load(std::memory_order_relaxed);
 }
 
+auto Log::EnableTimestampedFileSink(const std::string_view directory, const std::string_view prefix) -> std::string {
+    // Empty directory means "next to the working directory"; an empty prefix
+    // would produce a nameless "<stamp>.log", so keep a usable default rather
+    // than inventing a file nobody can find.
+    const std::filesystem::path directory_path =
+        directory.empty() ? std::filesystem::path{"."} : std::filesystem::path{std::string{directory}};
+    std::error_code ec;
+    std::filesystem::create_directories(directory_path, ec);
+    if (ec) {
+        // Not fatal for logging: write next to the working directory so a
+        // read-only tree still produces a log instead of none at all.
+        LOG_WARNING(atom::log::core::Main,
+                    "Cannot create the log directory '" + directory_path.string() + "': " + ec.message() +
+                        "; falling back to the working directory");
+        return EnableTimestampedFileSink(".", prefix);
+    }
+
+    const auto now = std::chrono::system_clock::now();
+    const auto seconds = std::chrono::system_clock::to_time_t(now);
+    std::tm local{};
+#ifdef _WIN32
+    if (localtime_s(&local, &seconds) != 0)
+        return {};
+#else
+    if (localtime_r(&seconds, &local) == nullptr)
+        return {};
+#endif
+    char stamp[32]{};
+    std::snprintf(stamp, sizeof(stamp), "%04d%02d%02d-%02d%02d%02d", local.tm_year + 1900, local.tm_mon + 1,
+                  local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec);
+
+    const std::string stem = prefix.empty() ? std::string{"atom"} : std::string{prefix};
+    const auto path = directory_path / (stem + "-" + stamp + ".log");
+    if (!SetFileSinkPath(path.string()))
+        return {};
+    return path.string();
+}
+
 auto Log::SetFileSinkPath(const std::string& path) -> bool {
     auto& instance = GetLogInstance();
     bool opened = false;
@@ -563,7 +604,6 @@ auto Log::GetFileSinkPath() -> std::string {
     std::lock_guard<std::mutex> lock(instance.file_stream_mutex_);
     return instance.file_path_;
 }
-
 auto Log::SetFileSinkEnabled(const bool enabled) -> void {
     auto& instance = GetLogInstance();
     instance.file_sink_enabled_.store(enabled, std::memory_order_relaxed);

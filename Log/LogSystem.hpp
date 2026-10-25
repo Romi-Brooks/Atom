@@ -288,10 +288,26 @@ class Log {
         // same view_log_level_ as the console, so a single SetViewLogLevel
         // governs both.
         //
+        // Opens <directory>/<prefix>-YYYYMMDD-HHMMSS.log (local time), creating
+        // the directory when it does not exist, and returns the path that was
+        // opened ("" when it could not be, leaving the sink disabled).
+        //
+        // This is the one-call entry point every program should use. The name
+        // format lives here, not at the call site, for two reasons: there is
+        // exactly one file sink in the process, so the format can only ever
+        // drift when callers rebuild it by hand; and "one timestamped file per
+        // run" is the behaviour every run wants -- a fixed name silently
+        // overwrites the log of the run that just crashed, which is exactly the
+        // run whose log is worth keeping.
+        //
+        // Call once at startup, before the lines you want persisted are emitted.
+        [[nodiscard]] static auto EnableTimestampedFileSink(std::string_view directory = "Log",
+                                                            std::string_view prefix = "atom") -> std::string;
+
+        // Explicit-path form, for a tool that must own the name itself.
         // The path is opened (truncating) immediately on the calling thread;
-        // returns false when the file cannot be opened (invalid directory, no
-        // permission) and leaves the sink disabled. Call it once at startup,
-        // before the logs you want persisted are emitted.
+        // returns false when the file cannot be opened (missing directory, no
+        // permission) and leaves the sink disabled.
         static auto SetFileSinkPath(const std::string& path) -> bool;
         [[nodiscard]] static auto GetFileSinkPath() -> std::string;
         static auto SetFileSinkEnabled(bool enabled) -> void;
