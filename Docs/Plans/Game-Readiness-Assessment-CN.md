@@ -1,6 +1,6 @@
 # Atom 2D 游戏就绪度：任务清单与实施计划
 
-> 更新日期：2026-10-24
+> 更新日期：2026-10-25（新增 §3.2 实施复核：五处被低估的工作量；A0.1/A0.2/A0.3 已实施，见各项状态）
 > 目标：Windows/Linux 桌面端、键盘鼠标优先的通用 2D 引擎底座。它优先支持正交 Tilemap 与中大型可流送世界，
 > 但不把经营、RPG、横版、弹幕等任何具体玩法写进引擎核心。
 >
@@ -90,22 +90,92 @@ T1.1，会把资源、渲染和具体 backend 反向拖入 ECS，后续每增加
 | 游戏 Runtime | `Runtime/` 是 Application、Screen、GameWorld、调度和生命周期；`Backend/Composition` 是后端装配层，不是游戏 Runtime，二者目录已经分离。 |
 | 示例与工具 | `Example/` 只验证能力，不容纳引擎通用实现；`Utilities/Packager` 是工具，非运行时游戏模块。 |
 
+### 3.2 2026-10-25 实施复核：五处被低估的工作量
+
+对照 `dev` 分支实际代码逐项复核后确认：原有 A0/T1/T2/T3 的任务描述**不足以覆盖落地所需工作**。以下五项不是新增
+功能，而是原任务里遗漏的实做内容与依赖；它们必须在对应任务内一并完成，否则该任务的验收无法达成。
+
+| 编号 | 遗漏项 | 现状证据 | 归入 |
+|---|---|---|---|
+| G0.1 | `Screen` 与 `GameWorld` 的帧节奏不一致 | `Application.cpp:84-98` 每帧调用 `Screen::FixedUpdate` 0..N 次、`Update` 1 次；`GameWorld::RunFrame(delta, steps, fixed_dt)` 一次跑完四个阶段，`RunPhase` 仍是 private | T1.3 |
+| G0.2 | 查询组合的显式实例化税 | 新增组件需改三处：`ECS/Components.hpp:84`、`ECS/EntityWorld.cpp:309-318`、每种查询组合一行的 `ATOM_ECS_INSTANTIATE_ITERATION`（`EntityWorld.cpp:341-346` 目前只有两个组合） | A0.1 |
+| G0.3 | `Renderer2D` 能力缺口与两个孤儿值类型 | `DrawTexture` 只接受轴对齐 `algo::Rect`，无翻转/旋转/pivot/逐次采样器；`BeginFrame(origin_x, origin_y, zoom)` 无旋转、无 `Camera2D` 入口；`algo::Camera2D` 与 `algo::Transform2D` 除自身 `.cpp` 外零调用者 | T1.2 |
+| G0.4 | 物理契约缺触发器、查询与 user-data | `IPhysicsWorld` 只有 Begin/End 接触回调；`BodyDef`（`Physics/Contracts/PhysicsTypes.hpp:31`）无 sensor 标记、无 user-data；无 raycast/形状查询 | T3.1 |
+| G0.5 | 内容根与 CI 缺口 | 仓库无 `Assets/` 内容根，`MusicCardScreen.cpp:781` 在运行时把宿主目录挂成 `res://`；`.github/workflows/build.yml` 只 `cmake --build`，从不执行 ctest | T1.3 / T4.2 |
+
+#### G0.1 帧节奏：`Screen` 与 `GameWorld` 的阶段所有权不一致
+
+`GameWorld` 把四个阶段原子地跑完，而 `Screen` 只被告知"这一帧该跑几次固定步"的**结果**，拿不到步数。若不先决策，
+T1.3 只能二选一：在 `FixedUpdate` 里每次跑一个 `RunFrame(0, 1, dt)`（Input/Update/LateUpdate 被放大 N 倍），或在
+`Update` 里跑 `RunFrame(delta, N, fixed_dt)`（`Screen::FixedUpdate` 形同废弃，且固定步对 Screen 不可见）。两者都会
+把错误语义固化进示例。T1.3 的第一步必须是显式决策，方向建议：让 `Screen` 拿到"本帧固定步数"，或让 `GameWorld`
+暴露按阶段推进的入口，使"Input 每帧一次、FixedUpdate N 次、Update/LateUpdate 每帧一次"仍然成立，并且该顺序可被
+headless 测试断言。
+
+#### G0.2 查询实例化：显式列表的税
+
+A0.1 原任务只回答"哪些组件可以进 `ATOM_ECS_COMPONENTS`"（依赖方向问题），没有回答"查询组合怎么增长"。当前每
+出现一个新的 `With<A,B>()` / `ForEach<A,B>()` 调用点，都要回到 `ECS/EntityWorld.cpp` 增加一行实例化，这意味着
+T1.1、T1.2、T3.1 会依次修改引擎文件。决策：**P0 接受逐组合显式实例化**（编译期可控、无运行时注册），但必须把
+列表中文化集中在 `EntityWorld.cpp` 一处，并注释"新增查询 = 增加一行"；若组合数量超过可维护阈值，再单独评估类型
+擦除式迭代，**不得**在 T1.1 期间偷渡动态组件注册。
+
+#### G0.3 渲染器：能出图，但画不出"精灵"
+
+`DrawTexture` 支持图集子矩形与色调，这是 Sprite 的最小可用面；但下列四项缺失，前两项决定 T1.2 的边界：
+
+1. **翻转**：无 flag、无负数宽高处理。角色左右朝向是任何 2D 玩法的第一需求，必须补；最小改法是给 `DrawTexture`
+   增加 `flip_x`/`flip_y`，在生成 UV 后交换 U 或 V。
+2. **相机桥接**：`algo::Camera2D` 已有 `ViewMatrix`/`WorldToScreen`/`ScreenToWorld` 且是完整值类型，却无人使用；
+   `Renderer2D` 只认 `BeginFrame(origin, zoom)`。T1.2 必须显式定义 `Camera2D` 的 position/viewport/zoom 如何映射到
+   `BeginFrame`，并明确 **P0 不支持 `Camera2D::rotation`**（写进文档，不得静默忽略）。
+3. **排序键**：`Renderer2D.cpp:415` 只按 layer 稳定排序，层内顺序等于提交顺序。因此 `(layer, sort_key, entity)`
+   的排序必须在 Scene2D 提交前完成；这是 T1.2 的实现要求，不是渲染器的责任。
+4. **采样器**：全局 Linear，无法表达最近邻。像素风项目需要它；P0 可延后，但必须写进 T1.2 的验收说明，避免美术
+   接入后才发现。
+
+旋转同理：`Transform2D::rotation` 在 P0 允许存在但**不可见**，T1.2 的验收不得声称"旋转精灵正确绘制"。
+
+#### G0.4 物理契约：T3.1 不是纯集成层
+
+原任务把 `Physics/Contracts` 视为已冻结。实际缺：`BodyDef` 无 sensor/trigger 标记（触发器会产生解算响应）；无
+user-data（`IContactListener` 只交出 `IPhysicsBody*`，无法可靠映射回 entity，除非维护旁路表）；`IPhysicsWorld` 无
+raycast/形状/点查询；接触生命周期只有 Begin/End，没有 persist。因此 T3.1 必须拆成两步：先扩契约与 Internal 后端
+（sensor 不产生速度响应、user-data 或稳定 id、至少点/射线查询），再做 ECS 绑定；估计量按此上调。
+
+#### G0.5 内容根与 CI
+
+示例资源目前来自宿主目录（`MusicCardScreen.cpp:781` 运行时 `NativeFileSystem::Create("res", ...)`），仓库内没有
+可交付的内容根。vertical slice 需要一条约定：`Assets/` 目录 + `res://` 挂载点 + CMake 复制规则（或运行期以源码
+树为根的开发挂载），否则 `res://` URI 在示例中没有意义。CI 侧：`build.yml` 只构建不测试，T4.2 的第一步是把
+`ctest` 加入两个平台的 job。
+
 ### 阶段 A0：架构收敛与目录校正（T1.1 前必须完成）
 
 **硬门：** A0.1、A0.2、A0.3 与 A0.6 必须在 T1.1 前完成，因为它们决定组件、target 与错误依赖的方向。
 A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；不得为了赶进度把新的 Scene2D、codec 或 Video 代码
 继续放入旧的错误边界。
 
-- [ ] **A0.1 — 组件可扩展性与 ECS 依赖边界。**
+- [x] **A0.1 — 组件可扩展性与 ECS 依赖边界。**
   - 问题：当前 `EntityWorld` 的显式实例化由 `ECS/Components.hpp` 单一列表驱动。若将含资源或渲染类型的
     `SpriteRenderer` 直接加进去，`Atom_ECS` 会反向依赖 Asset/Render，随后形成 ECS ↔ Render 的循环。
   - 决策：首批 Scene2D 组件在 ECS 中仅保存纯数据（例如 `texture_uri`/稳定资源 key、source rect 数值、颜色、
     layer、排序键），不保存资源 handle。T1.1 实施前要写出“哪些组件可进入当前显式列表”的准入规则；长期若需
     插件组件，再单独重构组件注册/实例化机制，不在 P0 偷渡动态注册。
+  - 补充（G0.2 查询实例化）：A0.1 同时决定“查询组合怎么增长”。P0 接受逐组合显式实例化，但要求
+    `ECS/EntityWorld.cpp` 的实例化列表集中、带注释，并把“新增查询 = 增加一行”写成规则；禁止在 T1.1 期间引入
+    动态组件注册或类型擦除式迭代。验收附带一条：新增 `With<A,B>()`/`ForEach<A,B>()` 组合只改动该文件的一处
+    列表，不得分散到多个 `.cpp`。
+  - **已落地（2026-10-25）**：准入规则与实例化策略冻结在
+    [ECS-Component-Vocabulary-CN.md](ECS-Component-Vocabulary-CN.md)；规则摘要写入 `ECS/Components.hpp` 头注释，
+    实例化规则写入 `ECS/EntityWorld.cpp` 的迭代区块。CMake 修正了隐藏依赖：`Components.hpp` 公开 include
+    `Algorithm/Vector/Vec2.hpp`，但此前只把 `Atom_Algorithm` 以 PRIVATE 链接；现改为 `PUBLIC Atom_Math`
+    （`Vec2` 的新属主），并移除对 `Atom_Algorithm` 的边缘依赖。`ECS/` 公开头文件不含任何 `Render/`、`Asset/`、
+    `Physics/`、`Media/`、`Runtime/`、`Backend/` include。
   - 验收：`Atom_ECS` 的 public include 和 CMake 依赖仍只到 Algorithm、Error、Log 等基础层；Scene2D target 可以
     依赖 ECS，反方向不成立。
 
-- [ ] **A0.2 — 消除 Contracts 的隐藏反向依赖。**
+- [x] **A0.2 — 消除 Contracts 的隐藏反向依赖。**
   - 已审计问题：`IRenderBackend.hpp` 在 public API 使用 `algo::Vec2`，但 `Atom_Algorithm` 又依赖
     `Atom_Backend_Contracts`；`IAudioDecoder.hpp` public include `Filesystem/FileSystem.hpp`，而 Contracts target
     没有显式声明 FS；`Physics/Contracts/PhysicsTypes.hpp` 又 include `Physics/Shapes/*`。这些在当前单仓库
@@ -113,14 +183,26 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
   - 工作：将 Render contract 改用 Contracts 自有的 extent/value type 或拆出真正无依赖的 value target；为 Audio 的
     `IFile` 契约建立正确的低层依赖；把 Physics contracts 与 Internal backend 收敛到 `Physics/Contracts` 与
     `Physics/Backend/Internal`，移除 `Backend/Contracts -> Physics` 的方向。
+  - **已落地（2026-10-25）**：新增叶子 target `Atom_Math`（`Vec2/Vec3/Vec4/Mat3/Mat4/Rect/Primitives/Scalar/
+    Easing`，文件仍留在 `Algorithm/`，只改 target 归属），`Atom_Algorithm` 收敛为 `Transform*`+`Camera*` 并
+    PUBLIC 依赖 `Atom_Math`。`Atom_Backend_Contracts` 的公开依赖改为显式声明：
+    `INTERFACE Atom_Math Atom_Color Atom_Input` + `INTERFACE Atom_FS`（在 `Atom_FS` 定义处追加，避免前向引用）。
+    同时删除三条**空边**：`Atom_Algorithm -> Atom_Backend_Contracts`、`Atom_UTF8 -> Atom_Backend_Contracts`、
+    `Atom_Log -> Atom_Backend_Contracts`（三者的头文件都不 include 任何 Backend 契约，正是这些空边造出了环）。
+    现在 `Contracts -> {Math, Color, Input, FS}`、`FS -> Error`、`UTF8 -> UtfCpp`、`Algorithm -> Math`，无环。
   - 验收：每个 public header 的直接依赖都由 target 的 PUBLIC/INTERFACE 依赖表达；不存在 Algorithm ↔ Contracts、
     Filesystem/UTF8/Contracts 或 Physics ↔ Backend Contracts 的 target 环。
 
-- [ ] **A0.3 — Error 平台捕获下沉。**
+- [x] **A0.3 — Error 平台捕获下沉。**
   - 问题：`Atom_Error` 直接链接 SDL3，并公开 `CaptureSdlError()`；这违背 Error 作为最低层错误值的定位，且让
     Filesystem/Asset/ECS 等所有错误消费者间接依赖 SDL。
   - 工作：保留平台无关的 `Error`、errno/system-error 格式化；将 SDL 错误捕获移动至 `Backend/SDL3/Core`（或
     SDL 专属诊断帮助器），由失败点把已捕获文字写入 Error。
+  - **已落地（2026-10-25）**：新增 `Backend/SDL3/Core/SdlError.{hpp,cpp}`（`CaptureError` 读并清除、
+    `PeekError` 不清除、`FormatErrorSuffix` 产出 `"; sdl=..."`），并从 `Atom_Error` 删除 `CaptureSdlError` 与
+    `<SDL3/SDL_error.h>`。`Atom_Error` 不再链接 `Atom_3rd_SDL3`；`ErrorTest` 移除 SDL 用例，新行为由
+    `Atom_Backend_SDL3_Core.SdlError` 覆盖。`CaptureErrnoMessage`/`CaptureLastSystemError` 保留（平台无关的
+    errno 与 Win32 格式化不引入 SDL）。
   - 验收：`Atom_Error` 不再链接/包含 SDL；纯 ECS、Filesystem、Asset 测试可在没有 SDL backend implementation 的
     情况下链接。
 
@@ -186,13 +268,24 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
   - 工作：从 `Transform2D + SpriteRenderer` 收集 draw item；按 layer/sort/entity 稳定排序；应用 `Camera2D`；
     提交既有 Renderer2D。RenderSystem 只读显示 Transform，不写模拟坐标。
   - 首期范围：一张 texture、source rect、颜色、翻转、pivot、层排序；仅一个活动相机。
+  - 补充（G0.3 渲染器前置）：T1.2 必须同步做三件渲染器侧工作——(1) `Renderer2D::DrawTexture` 增加
+    `flip_x`/`flip_y`，否则角色朝向无法表达；(2) 显式定义 `algo::Camera2D` 的 position/viewport/zoom 到
+    `BeginFrame(origin, zoom)` 的映射，并注明 P0 不支持 `Camera2D::rotation`；(3) 把 `(layer, sort_key, entity)`
+    的稳定排序放在 Scene2D 提交前完成（`Renderer2D` 只按 layer 稳定排序，层内顺序等于提交顺序）。
+    最近邻采样器与旋转精灵明确不在 T1.2 内，验收说明不得声称支持。
   - 验收：同一实体集合在稳定输入下产生稳定 draw 顺序；相机平移/缩放正确；不可见或失效纹理有明确 fallback/诊断。
-  - 预计：约 1,200–2,000 行实现、测试与 headless/recording 验证。
+  - 预计：约 1,200–2,000 行实现、测试与 headless/recording 验证；含上述渲染器侧改动约 +200–400 行。
 
 - [ ] **T1.3 — GameScreen 接入与无资源硬编码 smoke scene。**
   - 新增位置：`Example/Game/` 或独立 `Example_2D_Vertical_Slice`；不得污染 `Atom.cpp`。
   - 工作：`GameScreen` 创建/销毁 `GameWorld`，将 Application 的固定步和 variable update 转发给它；先用硬编码
     实体验证 T1.1/T1.2，随后由 T2 Scene 替换。
+  - 补充（G0.1 帧节奏决策，必须最先做）：`Application` 每帧调 `Screen::FixedUpdate` 0..N 次、`Update` 1 次，
+    而 `GameWorld::RunFrame` 原子跑完四个阶段且 `RunPhase` 为 private。T1.3 第一步必须显式决策二者映射，使
+    “Input 每帧一次、FixedUpdate N 次、Update/LateUpdate 每帧一次”成立且可被 headless 测试断言；不得用
+    “`FixedUpdate` 里跑完整 `RunFrame`”或“`Update` 里吞掉固定步”这类会放大阶段次数的临时接法。
+  - 补充（G0.5 内容根）：示例需要一个仓库内的 `Assets/` 内容根与 `res://` 挂载约定（开发期以源码树为根或
+    CMake 复制），否则 `SpriteRenderer` 的 texture URI 在示例中没有意义；挂载与卸载必须在帧安全点完成。
   - 验收：无 Scene loader 时也能创建一个角色和静态障碍、按键移动、由 SpriteRenderer 绘制。
   - 依赖：T1.1、T1.2。
   - 预计：约 500–1,000 行示例与集成测试。
@@ -226,13 +319,19 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 
 - [ ] **T3.1 — Physics/ECS 集成层。**
   - 新增位置：`Physics/Integration/`，绝不放入 `ECS/` 或 `Render/`。
+  - 前置（G0.4 契约扩展，必须先做）：现有 `Physics/Contracts` 不足以支撑本任务。需先补
+    `BodyDef::is_sensor`（触发器不产生速度/位置响应）、body 的稳定 user-data 或 id（否则 `IContactListener`
+    拿到的 `IPhysicsBody*` 无法可靠映射回 entity，只能靠旁路表）、至少点/射线查询，以及接触 persist 语义
+    （目前只有 `BeginContact`/`EndContact`）。这些是契约与 Internal 后端的改动，不是集成层可以兜住的。
   - 工作：`PhysicsBodyComponent`/`ColliderComponent` 只保存 engine 侧 id 与配置；创建/销毁在命令边界同步；
     FixedUpdate 执行物理；模拟结果写 `Transform2D`；Render 读取插值结果。
   - 单位：物理固定使用 MKS、y-up、弧度；game/render 边界集中做 pixels-per-meter 与 y 轴转换，禁止散落换算。
-  - 事件：将碰撞开始/持续/结束和 trigger 事件转为 `GameEvent`，顺序稳定、无回调重入。
+  - 事件：将碰撞开始/持续/结束和 trigger 事件转为 `GameEvent`，顺序稳定、无回调重入。注意
+    `GameEventQueue::GameEvent` 目前只有 `{type, source, target}`，无 payload；需要 collider 细节时须先决策
+    是扩事件结构还是让消费方回查组件。
   - 验收：销毁实体不会遗留 body；触发器不产生物理解算响应；固定帧率变化下结果一致；debug draw 可核对 collider。
   - 依赖：T0.2、T1.1、T2.2。
-  - 预计：约 1,200–2,000 行实现、测试与可视化示例。
+  - 预计：约 1,200–2,000 行实现、测试与可视化示例；含契约扩展约 +400–800 行。
 
 - [ ] **T3.2 — 游戏输入动作边界。**
   - 工作：示例玩法只消费 `MoveLeft`/`MoveRight`/`MoveUp`/`MoveDown`/`Interact`/`Pause` 等游戏 action，
@@ -255,6 +354,8 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 
 - [ ] **T4.2 — 跨平台 CI 测试矩阵。**
   - 工作：Windows 与 Linux 都执行 ECS/Scene/GameWorld/Physics 核心测试；新增 Scene 测试资源使用 VFS，禁止绝对路径。
+  - 现状（G0.5）：`.github/workflows/build.yml` 两个平台都只做 `cmake --build`，**从不执行 ctest**，所以本任务是
+    “让现有 60+ 个 CTest 真正进 CI”，而不是从零搭矩阵；第一步即为两个 job 各加一次 `ctest --output-on-failure`。
   - 验收：任何一个平台的 schema、物理同步或 deterministic 排序回归都能阻断合并。
 
 - [ ] **T4.3 — P0 内存与生命周期回归。**
@@ -313,7 +414,7 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 ## 7. 执行顺序、依赖与里程碑
 
 ```text
-已完成：T0.1 / T0.2 / T0.3
+已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3
 
 M1 可见实体：T1.1 -> T1.2 -> T1.3
 M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3
@@ -325,8 +426,14 @@ M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3
 
 ### 当前下一项
 
-**立即开始 A0.1：组件可扩展性与 ECS 依赖边界。** 它是 Sprite、Camera、Scene 与 Physics 集成共同依赖；A0 完成后
-才实施 T1.1，随后按 T1.2 实现 `Render/Scene2D`，先以硬编码 smoke scene 验证，再进入 Scene schema。
+**A0 硬门已通过（2026-10-25）**：A0.1（组件准入规则 + ECS 依赖边界 + 查询实例化策略）、A0.2（Contracts 依赖
+方向）、A0.3（Error 平台捕获下沉）均已完成并有构建与 CTest 覆盖。A0.4/A0.5/A0.6 的剩余项按各自领域节奏推进，
+不阻塞 M1。
+
+**下一步进入 M1**：T1.1 冻结首批游戏组件（遵守
+[ECS-Component-Vocabulary-CN.md](ECS-Component-Vocabulary-CN.md)），随后 T1.2 实现 `Render/Scene2D` 并补齐
+G0.3 的三项渲染器前置（翻转、`Camera2D` 桥接、提交前排序），最后 T1.3 以硬编码 smoke scene 验证，先解决 G0.1
+的帧节奏决策与 G0.5 的内容根约定，再进入 Scene schema。
 
 ## 8. 明确禁止的提前扩张
 

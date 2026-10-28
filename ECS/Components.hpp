@@ -15,6 +15,18 @@
  * lets the backend stay out of every public header: the instantiations happen in
  * one .cpp, and a translation unit that merely includes EntityWorld.hpp compiles
  * no backend templates at all.
+ *
+ * ADMISSION RULES (A0.1, frozen - Docs/Plans/ECS-Component-Vocabulary-CN.md):
+ * a type listed below must be
+ *   1. pure data - no virtuals, no behaviour, no pointer back to the world;
+ *   2. handle-free - no TextureHandle, Texture*, GPU or physics backend types;
+ *   3. platform-free - no SDL/SDL_GPU/EnTT/third-party types;
+ *   4. module-free - no AssetPath, ResourceId, IFile, Loader or Renderer types;
+ *   5. default constructible, movable and destructible.
+ * Resources are referenced by a stable string key (e.g. texture_uri) and resolved
+ * by a system (Scene2D, Scene loader), never by the component itself. Allowed
+ * value types come from Atom_Math / Atom_Color, the two leaf targets, so adding a
+ * component never gives Atom_ECS a dependency on Render, Asset or Physics.
 **/
 
 #ifndef ATOM_ECS_COMPONENTS_HPP

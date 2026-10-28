@@ -255,6 +255,13 @@ atom_add_test(Atom_Backend_Contracts.NumericContract
     Backend/NumericContractTest.cpp
     Atom_Backend_Contracts)
 
+# A0.3: SDL error capture belongs to the SDL3 backend, so Atom_Error stays
+# linkable without SDL and this behaviour is covered where it lives.
+atom_add_test(Atom_Backend_SDL3_Core.SdlError
+    Atom_Backend_SDL3_Core_SdlError_Tests
+    Backend/Sdl3ErrorTest.cpp
+    Atom_Backend_SDL3_Core)
+
 # Display selection contract: window placement, present mode, capability mask.
 atom_add_test(Atom_Backend_Contracts.DisplayConfig
     Atom_Backend_Contracts_DisplayConfig_Tests

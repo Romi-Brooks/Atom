@@ -509,13 +509,13 @@ class Error {
 // --- Platform error capture -------------------------------------------------
 //
 // Platform error state is a single slot that the next API call overwrites
-// (SDL_GetError, GetLastError, errno), so it must be copied at the failure site
-// rather than read later by an upper layer. These live in the implementation
-// file so Error.hpp stays free of platform headers.
-
-// Copies SDL_GetError() and clears it. Returns an empty string when SDL has no
-// error recorded.
-[[nodiscard]] auto CaptureSdlError() -> std::string;
+// (GetLastError, errno), so it must be copied at the failure site rather than
+// read later by an upper layer. These live in the implementation file so
+// Error.hpp stays free of platform headers.
+//
+// SDL has no capture helper here on purpose (A0.3): SDL is a backend detail, and
+// Atom_Error must stay linkable without any SDL backend. Backends use
+// Backend/SDL3/Core/SdlError.hpp and pass the captured text to WithDetail.
 
 // Copies and clears GetLastError(), formatted by FormatMessage.
 [[nodiscard]] auto CaptureLastSystemError() -> std::string;

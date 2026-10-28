@@ -70,6 +70,33 @@ endif()
     )
     target_include_directories(Atom_Color INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
+# 0a-bis. Math — pure value/math types with no engine dependency at all (A0.2).
+#     Split out of Atom_Algorithm so the backend contracts can use Vec2/Mat3/Rect
+#     without depending on the higher "algorithm" module (transforms, cameras).
+#     Atom_Algorithm keeps the behaviour-bearing types and links this one.
+#     Files stay under Algorithm/ because that is where they have always lived;
+#     the ownership move is a target-graph change, not a directory move.
+    add_library(Atom_Math STATIC
+        Algorithm/Vector/Vec2.cpp
+        Algorithm/Vector/Vec2.hpp
+        Algorithm/Vector/Vec3.cpp
+        Algorithm/Vector/Vec3.hpp
+        Algorithm/Vector/Vec4.cpp
+        Algorithm/Vector/Vec4.hpp
+        Algorithm/Matrix/Mat3.cpp
+        Algorithm/Matrix/Mat3.hpp
+        Algorithm/Matrix/Mat4.cpp
+        Algorithm/Matrix/Mat4.hpp
+        Algorithm/Geometry/Primitives.hpp
+        Algorithm/Geometry/Rect.hpp
+        Algorithm/Math/Scalar.hpp
+        Algorithm/Interpolation/Easing.hpp
+    )
+    target_include_directories(Atom_Math PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    # Color is a header-only value type; Vec2/Mat3 do not use it, but keeping the
+    # edge here means every math consumer gets the full value vocabulary.
+    target_link_libraries(Atom_Math PUBLIC Atom_Color)
+
 # 0b. Interfaces (header-only, no SDL3 dependency)
     add_library(Atom_Backend_Contracts INTERFACE)
     target_sources(Atom_Backend_Contracts INTERFACE
@@ -100,7 +127,13 @@ endif()
     target_include_directories(Atom_Backend_Contracts INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Color Atom_Input)
+    # A0.2: the contracts' public headers include Algorithm/Vector/Vec2.hpp,
+    # Algorithm/Color/Color.hpp and Input/Key.hpp, and Audio's decoder contract
+    # includes Filesystem/FileSystem.hpp for IFile. Every one of those is now a
+    # declared dependency instead of an include path that merely happens to
+    # resolve in a single-tree checkout. Atom_FS is attached further down, next
+    # to the Atom_FS definition, so no target is referenced before it exists.
+    target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Math Atom_Color Atom_Input)
 
 # 0b. Error — the engine's unified failure value (CORE-004).
 #     Leaf module: no engine dependency at all, not even Log. Every other
@@ -111,7 +144,10 @@ endif()
         Error/Error.cpp
     )
     target_include_directories(Atom_Error PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Error PUBLIC Atom_3rd_SDL3)
+    # A0.3: Atom_Error is platform-free by contract. It must stay linkable
+    # without any backend compiled in, so SDL error capture lives in
+    # Backend/SDL3/Core/SdlError.hpp instead of being exported from here. This
+    # is what lets Filesystem/Asset/ECS/Scene tests link with no SDL backend.
 
 # 0b-bis. Input system — per-frame keyboard/mouse state folded from the window
 #     event stream. Consumes window::IEvent, so it sits above the contracts.
@@ -170,7 +206,10 @@ endif()
             Log/AtomLogChannels.hpp
     )
     target_include_directories(Atom_Log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Log PUBLIC Atom_Backend_Contracts Atom_Threading)
+    # A0.2: Log's headers include no backend contract. The previous
+    # "PUBLIC Atom_Backend_Contracts" here was a stale edge that pulled the whole
+    # contract (and now Filesystem) into every Log consumer, ECS included.
+    target_link_libraries(Atom_Log PUBLIC Atom_Threading)
 
     # The job scheduler logs lifecycle + swallowed-exception diagnostics, so it
     # depends on the log runtime. PUBLIC so any JobSystem consumer (e.g. the
@@ -189,36 +228,30 @@ endif()
             ECS/EntityWorld.cpp
     )
     target_include_directories(Atom_ECS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_ECS PUBLIC Atom_Error Atom_Log)
-    target_link_libraries(Atom_ECS PRIVATE Atom_3rd_EnTT Atom_Algorithm)
+    # A0.1: Components.hpp is a public header that includes Algorithm/Vector/Vec2.hpp,
+    # so the math target must be PUBLIC - previously only Atom_Algorithm was linked
+    # PRIVATE, which meant the dependency was real but undeclared. Atom_Math is the
+    # leaf that now owns Vec2, so ECS no longer reaches the transform/camera module.
+    # Admission rules for ATOM_ECS_COMPONENTS: Docs/Plans/ECS-Component-Vocabulary-CN.md
+    target_link_libraries(Atom_ECS PUBLIC Atom_Error Atom_Log Atom_Math)
+    target_link_libraries(Atom_ECS PRIVATE Atom_3rd_EnTT)
 
-# 2. Algorithm
+# 2. Algorithm — behaviour-bearing math (transforms, cameras).
+#     A0.2: pure values moved to Atom_Math. This target used to link
+#     Atom_Backend_Contracts although not one of its headers includes anything
+#     from Backend/, which is what closed the Algorithm <-> Contracts cycle.
     add_library(Atom_Algorithm STATIC
-            Algorithm/Vector/Vec2.cpp
-            Algorithm/Vector/Vec2.hpp
-            Algorithm/Vector/Vec3.cpp
-            Algorithm/Vector/Vec3.hpp
-            Algorithm/Vector/Vec4.cpp
-            Algorithm/Vector/Vec4.hpp
-            Algorithm/Matrix/Mat3.cpp
-            Algorithm/Matrix/Mat3.hpp
-            Algorithm/Matrix/Mat4.cpp
-            Algorithm/Matrix/Mat4.hpp
             Algorithm/Transform/Transform2D.cpp
             Algorithm/Transform/Transform2D.hpp
             Algorithm/Transform/Transform3D.cpp
             Algorithm/Transform/Transform3D.hpp
-            Algorithm/Interpolation/Easing.hpp
-            Algorithm/Math/Scalar.hpp
-            Algorithm/Geometry/Primitives.hpp
-            Algorithm/Geometry/Rect.hpp
             Algorithm/Camera/Camera2D.cpp
             Algorithm/Camera/Camera2D.hpp
             Algorithm/Camera/Camera3D.cpp
             Algorithm/Camera/Camera3D.hpp
     )
     target_include_directories(Atom_Algorithm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(Atom_Algorithm PUBLIC Atom_Backend_Contracts)
+    target_link_libraries(Atom_Algorithm PUBLIC Atom_Math)
 
 # 2b. Layout
     add_library(Atom_Layout STATIC
@@ -279,6 +312,8 @@ endif()
     add_library(Atom_Backend_SDL3_Core STATIC
         Backend/SDL3/Core/SDLRuntime.cpp
         Backend/SDL3/Core/SDLRuntime.hpp
+        Backend/SDL3/Core/SdlError.cpp
+        Backend/SDL3/Core/SdlError.hpp
         Backend/SDL3/Time/SDL3TimeSource.cpp
         Backend/SDL3/Time/SDL3TimeSource.hpp
     )
@@ -515,7 +550,10 @@ add_library(Atom_UTF8 STATIC
     Utilities/Utf8/Utf8.cpp
 )
 target_include_directories(Atom_UTF8 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Atom_UTF8 PUBLIC Atom_Backend_Contracts Atom_3rd_UtfCpp)
+# A0.2: Utf8 includes no backend contract. The stale edge to
+# Atom_Backend_Contracts used to make Filesystem -> Utf8 -> Contracts a cycle
+# once the contracts declared their real Filesystem dependency below.
+target_link_libraries(Atom_UTF8 PUBLIC Atom_3rd_UtfCpp)
 
 # 7b. Platform-independent virtual filesystem. Native implementation details
 # remain private; consumers use AssetPath and IFileSystem only.
@@ -539,6 +577,11 @@ target_include_directories(Atom_FS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # consumer of the FS public headers needs the error type to be complete.
 target_link_libraries(Atom_FS PUBLIC Atom_Error)
 target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
+
+# A0.2: the audio decoder contract declares IFile, so the contracts own a real
+# (and acyclic) dependency on the filesystem: Contracts -> FS -> Error/Utf8, with
+# no edge coming back. Declared here because Atom_FS is defined in this block.
+target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_FS)
 # Render resources need AssetPath/IFileSystem for VFS-backed texture loads.
 target_link_libraries(Atom_Render_Resources PUBLIC Atom_FS)
 # Audio codecs and the clip loader consume IFile for VFS-backed audio (ARCH-107 C3).

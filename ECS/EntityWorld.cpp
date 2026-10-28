@@ -321,10 +321,16 @@ ATOM_ECS_INSTANTIATE_TAG(::atom::ecs::PendingDestroy)
 // own list. Add a line when a system starts iterating a new combination. Keeping
 // the list short is the point: every set here costs compile time, and a set no
 // system uses is dead weight.
-// Iteration is instantiated per component set, not per component, so it has its own
-// list. Add a line when a system starts iterating a new combination. Keeping the list
-// short is the point: every set here costs compile time, and a set no system uses is
-// dead weight.
+//
+// A0.1 / G0.2 RULE: this block is the ONLY place query sets are instantiated.
+//   - A new With<A,B>()/ForEach<A,B>() call site needs exactly one line here.
+//   - Every set listed must have a real caller; delete dead sets in review.
+//   - Every new set comes with a headless test in Test/ECS/ that asserts it finds
+//     the expected entities. That test is the only thing that catches a missing
+//     instantiation before link time.
+//   - Do NOT introduce dynamic/type-erased iteration here during T1.x.
+// The same duplication below is deliberate documentation, not a copy/paste slip:
+// keep it that way so a reader who greps for a set sees the rule right above it.
 #define ATOM_ECS_INSTANTIATE_ITERATION(...)                                                                            \
     template auto EntityWorld::With<__VA_ARGS__>() const -> std::vector<Entity>;                                       \
     template auto EntityWorld::BackendWith<__VA_ARGS__>(std::vector<Entity>&) const -> void;                           \

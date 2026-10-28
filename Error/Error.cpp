@@ -22,8 +22,6 @@
 #include <cstring>
 #endif
 
-#include <SDL3/SDL_error.h>
-
 namespace atom {
 
 namespace {
@@ -72,14 +70,6 @@ auto Error::Message() const -> std::string {
 
 auto Error::MatchesModule() const noexcept -> bool {
     return ModuleOf(code_) == module_;
-}
-
-auto CaptureSdlError() -> std::string {
-    const std::string message{SDL_GetError()};
-    // SDL keeps the error until something clears it. Clearing here means the
-    // next reader sees only its own failure instead of this one again.
-    SDL_ClearError();
-    return message;
 }
 
 auto CaptureErrnoMessage() -> std::string {
