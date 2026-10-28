@@ -228,12 +228,13 @@ endif()
             ECS/EntityWorld.cpp
     )
     target_include_directories(Atom_ECS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    # A0.1: Components.hpp is a public header that includes Algorithm/Vector/Vec2.hpp,
-    # so the math target must be PUBLIC - previously only Atom_Algorithm was linked
-    # PRIVATE, which meant the dependency was real but undeclared. Atom_Math is the
-    # leaf that now owns Vec2, so ECS no longer reaches the transform/camera module.
+    # A0.1: Components.hpp is a public header that includes Algorithm/Vector/Vec2.hpp
+    # and Algorithm/Color/Color.hpp, so both value targets must be PUBLIC -
+    # previously only Atom_Algorithm was linked PRIVATE, which meant the dependency
+    # was real but undeclared. Atom_Math is the leaf that now owns Vec2, so ECS no
+    # longer reaches the transform/camera module.
     # Admission rules for ATOM_ECS_COMPONENTS: Docs/Plans/ECS-Component-Vocabulary-CN.md
-    target_link_libraries(Atom_ECS PUBLIC Atom_Error Atom_Log Atom_Math)
+    target_link_libraries(Atom_ECS PUBLIC Atom_Error Atom_Log Atom_Math Atom_Color)
     target_link_libraries(Atom_ECS PRIVATE Atom_3rd_EnTT)
 
 # 2. Algorithm — behaviour-bearing math (transforms, cameras).

@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <string>
 
+#include <Algorithm/Color/Color.hpp>
 #include <Algorithm/Vector/Vec2.hpp>
 
 namespace atom::ecs {
@@ -88,6 +89,91 @@ struct Static final {};
 // modifies the world it is iterating.
 struct PendingDestroy final {};
 
+// --- 2D scene vocabulary (T1.1) --------------------------------------------
+//
+// These six types are the frozen first batch of game/scene components. They are
+// deliberately separate from the algo:: value types of the same idea:
+//
+//   - algo::Transform2D carries a pivot because it is a rendering transform;
+//     ecs::Transform2D is simulation state and must not (pivot is sprite data).
+//   - algo::Camera2D is the maths (view-projection matrix, screen<->world); the
+//     component is only the lens, so ECS never stores a matrix.
+//
+// See Docs/Plans/ECS-Component-Vocabulary-CN.md for the admission rules.
+
+// Simulation transform: metres/pixels agnostic, radians, counter-clockwise.
+struct Transform2D final {
+        algo::Vec2 position{};
+        float rotation = 0.0f;
+        algo::Vec2 scale{1.0f, 1.0f};
+};
+
+// The display copy of Transform2D. Written once per frame by the transform
+// snapshot system and only *read* by the 2D render system, which is what keeps
+// rendering from writing simulation coordinates.
+//
+// Interpolation between fixed steps is not modelled here on purpose: it needs a
+// previous-state buffer and an alpha, which belong to the renderer's frame, not
+// to the world. Until that lands, the display state is a plain copy.
+struct RenderTransform2D final {
+        algo::Vec2 position{};
+        float rotation = 0.0f;
+        algo::Vec2 scale{1.0f, 1.0f};
+};
+
+// A textured sprite. Pure data: the texture is named by a stable asset URI and
+// resolved by the 2D scene layer, so ECS never sees a handle (admission rules
+// R2/R4).
+struct SpriteRenderer final {
+        // Asset URI, e.g. "res://textures/player.png". Empty means the sprite has
+        // not been resolved yet and draws nothing.
+        std::string texture_uri{};
+
+        // Source rectangle in texels. A zero size means "the whole texture".
+        algo::Vec2 source_position{};
+        algo::Vec2 source_size{};
+
+        // World size in pixels. Zero means "use source_size", i.e. 1 texel = 1 px.
+        algo::Vec2 size{};
+
+        // Origin inside the sprite, normalized to [0,1]: (0.5,0.5) is the centre,
+        // (0,0) the top-left corner.
+        algo::Vec2 pivot{0.5f, 0.5f};
+
+        color::Color tint = color::Color::White();
+
+        // Draw order: layer first, then ascending sort_key, then entity index.
+        std::int32_t layer = 0;
+        std::int32_t sort_key = 0;
+
+        // Mirroring. A sprite is the only place a flip belongs; the simulation
+        // transform keeps facing independent of how the art is mirrored.
+        bool flip_x = false;
+        bool flip_y = false;
+};
+
+// A 2D camera. The eye position comes from the same entity's Transform2D; this
+// component is only the lens. The active camera is the lowest-index entity that
+// owns one, which keeps "one active camera" deterministic without a second tag.
+struct Camera2D final {
+        // Must be > 0; a non-positive value is rejected by the 2D scene layer.
+        float zoom = 1.0f;
+        // Zero means "the render target size".
+        algo::Vec2 viewport_size{};
+};
+
+// Countdown in seconds. The owning system marks the entity PendingDestroy when
+// this reaches zero; it never destroys the entity mid-iteration.
+struct Lifetime final {
+        float remaining_seconds = 0.0f;
+};
+
+// Stable per-scene entity id, for save data and scene round-trips. It is not an
+// ECS identity: Entity remains the generation-checked handle.
+struct SceneEntityId final {
+        std::uint32_t value = 0;
+};
+
 } // namespace atom::ecs
 
 // The engine's component list. Every type here must be default constructible and
@@ -95,6 +181,8 @@ struct PendingDestroy final {};
 // instantiate its backend templates once.
 #define ATOM_ECS_COMPONENTS                                                                                            \
     ::atom::ecs::Position, ::atom::ecs::Velocity, ::atom::ecs::Rotation, ::atom::ecs::Scale, ::atom::ecs::Name,        \
-        ::atom::ecs::Health, ::atom::ecs::Active, ::atom::ecs::Static, ::atom::ecs::PendingDestroy
+        ::atom::ecs::Health, ::atom::ecs::Active, ::atom::ecs::Static, ::atom::ecs::PendingDestroy,                    \
+        ::atom::ecs::Transform2D, ::atom::ecs::RenderTransform2D, ::atom::ecs::SpriteRenderer,                         \
+        ::atom::ecs::Camera2D, ::atom::ecs::Lifetime, ::atom::ecs::SceneEntityId
 
 #endif // ATOM_ECS_COMPONENTS_HPP

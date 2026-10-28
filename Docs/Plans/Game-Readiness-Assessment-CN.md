@@ -253,14 +253,21 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 
 ### 阶段 1：游戏对象与 2D 显示（A0 完成后）
 
-- [ ] **T1.1 — 冻结首批游戏组件词汇。**
+- [x] **T1.1 — 冻结首批游戏组件词汇。**
   - 前置条件：A0.1、A0.2、A0.3、A0.6 完成；A0.4/A0.5 在涉及的目录新增功能前完成。
   - 新增位置：`ECS/Components.hpp` 只放纯数据；跨域系统实现不放进 ECS。
   - 首批组件：`Transform2D`（位置、旋转、缩放）、`RenderTransform2D`（插值后的只读显示状态）、
     `SpriteRenderer`（预验证的 texture URI/key、source rect 数值、pivot、layer、排序键）、`Camera2D`、
     `Lifetime`、`SceneEntityId`。Physics 的 body/collider 壳放在 `Physics/Integration/`。
   - 不做：Animator、Tilemap、任意脚本对象、游戏特有 Health/Inventory/Quest 组件。
+  - **已落地（2026-10-25）**：六个组件按准入规则加入 `ECS/Components.hpp` 与实例化列表；`SpriteRenderer` 用
+    `texture_uri` 字符串而非句柄，`Transform2D` 不带 pivot、`Camera2D` 不带矩阵（与 `algo::` 同名类型职责分离）。
+    顺带补齐了 `ATOM_ECS_INSTANTIATE` 的四种 `Emplace` 形态（默认构造 / rvalue / 非 const 左值 / const 左值）
+    ——原先只有 rvalue 一种，`Emplace<T>(e)` 与 `Emplace<T>(e, sprite)` 会在链接期失败，这次由测试暴露并修正。
+    新增五个查询组合（`Transform2D`、`Transform2D+RenderTransform2D`、`RenderTransform2D+SpriteRenderer`、
+    `Transform2D+Camera2D`、`Lifetime`、`SceneEntityId`），每个都有真实调用点与测试。
   - 验收：组件能安全注册、查询、在命令缓冲回调中创建；组件不会泄漏 SDL、GPU 或第三方物理类型。
+    （`Atom_ECS.ComponentVocabulary` + `Atom_Runtime.CommandBufferScene`）
   - 预计：约 400–800 行实现与测试。
 
 - [ ] **T1.2 — Render/Scene2D 的 Sprite 和 Camera 系统。**

@@ -187,6 +187,13 @@ atom_add_test(Atom_ECS.EntityWorld
     ECS/EntityWorldTest.cpp
     Atom_ECS)
 
+# T1.1: the frozen first batch of 2D scene components - concepts, defaults, and
+# the four new query sets (a used-but-not-instantiated set fails at link time).
+atom_add_test(Atom_ECS.ComponentVocabulary
+    Atom_ECS_ComponentVocabulary_Tests
+    ECS/ComponentVocabularyTest.cpp
+    Atom_ECS)
+
 # --- Physics (shapes + mass properties) ---
 atom_add_test(Atom_Physics.Shapes
     Atom_Physics_Shapes_Tests
@@ -373,6 +380,13 @@ atom_add_test(Atom_Runtime.ScreenManager
 atom_add_test(Atom_Runtime.GameWorld
     Atom_Runtime_GameWorld_Tests
     Runtime/GameWorldTest.cpp
+    Atom_Runtime)
+
+# T1.1: spawning 2D scene entities through the command buffer - the path T1.3's
+# GameScreen uses - including the "failed setup leaves no ghost entity" rule.
+atom_add_test(Atom_Runtime.CommandBufferScene
+    Atom_Runtime_CommandBufferScene_Tests
+    Runtime/CommandBufferSceneTest.cpp
     Atom_Runtime)
 
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---

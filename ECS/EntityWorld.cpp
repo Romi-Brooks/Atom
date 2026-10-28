@@ -282,6 +282,12 @@ template <ValueComponent... Ts> auto EntityWorld::BackendForEach(const Visit<Ts.
 // header, which is what makes including it cheap.
 
 // Value components carry data: they can be read, written and patched.
+//
+// Emplace is instantiated for all four argument shapes a caller actually uses:
+// default-construct, move from an rvalue, copy from a non-const lvalue, and copy
+// from a const lvalue. Without the first and third, `Emplace<T>(e)` and
+// `Emplace<T>(e, sprite)` fail at link time - which is exactly what the T1.1
+// component tests caught. One line per shape, still one place for all of them.
 #define ATOM_ECS_INSTANTIATE(Component)                                                                                \
     template auto EntityWorld::Has<Component>(Entity) const -> bool;                                                   \
     template auto EntityWorld::TryGet<Component>(Entity) noexcept -> Component*;                                       \
@@ -293,7 +299,10 @@ template <ValueComponent... Ts> auto EntityWorld::BackendForEach(const Visit<Ts.
     template auto EntityWorld::BackendGet<Component>(Entity) noexcept -> Component*;                                   \
     template auto EntityWorld::BackendRemove<Component>(Entity) -> void;                                               \
     template auto EntityWorld::BackendCount<Component>() const -> std::size_t;                                         \
-    template auto EntityWorld::BackendEmplace<Component, Component>(Entity, Component&&) -> void;
+    template auto EntityWorld::BackendEmplace<Component>(Entity) -> void;                                              \
+    template auto EntityWorld::BackendEmplace<Component, Component>(Entity, Component&&) -> void;                       \
+    template auto EntityWorld::BackendEmplace<Component, Component&>(Entity, Component&) -> void;                       \
+    template auto EntityWorld::BackendEmplace<Component, const Component&>(Entity, const Component&) -> void;
 
 // Tag components are empty: presence is the whole datum. There is no value to
 // read, write or patch and no address to hand out, so they get the smaller set.
@@ -316,6 +325,14 @@ ATOM_ECS_INSTANTIATE(::atom::ecs::Health)
 ATOM_ECS_INSTANTIATE_TAG(::atom::ecs::Active)
 ATOM_ECS_INSTANTIATE_TAG(::atom::ecs::Static)
 ATOM_ECS_INSTANTIATE_TAG(::atom::ecs::PendingDestroy)
+
+// T1.1 first batch: the 2D scene vocabulary.
+ATOM_ECS_INSTANTIATE(::atom::ecs::Transform2D)
+ATOM_ECS_INSTANTIATE(::atom::ecs::RenderTransform2D)
+ATOM_ECS_INSTANTIATE(::atom::ecs::SpriteRenderer)
+ATOM_ECS_INSTANTIATE(::atom::ecs::Camera2D)
+ATOM_ECS_INSTANTIATE(::atom::ecs::Lifetime)
+ATOM_ECS_INSTANTIATE(::atom::ecs::SceneEntityId)
 
 // Iteration is instantiated per component set, not per component, so it has its
 // own list. Add a line when a system starts iterating a new combination. Keeping
@@ -346,6 +363,20 @@ ATOM_ECS_INSTANTIATE_TAG(::atom::ecs::PendingDestroy)
 
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Position)
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Position, ::atom::ecs::Velocity)
+
+// T1.1 / T1.2 sets. Every one of these has a real caller:
+//   Transform2D                      transform snapshot (Render/Scene2D)
+//   Transform2D, RenderTransform2D   snapshot: simulation -> display copy
+//   RenderTransform2D, SpriteRenderer  sprite collection for the render system
+//   Transform2D, Camera2D            active-camera lookup
+//   Lifetime                         expiry countdown sweep
+//   SceneEntityId                    stable-id lookup (spawn handles, save data)
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Transform2D)
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Transform2D, ::atom::ecs::RenderTransform2D)
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::RenderTransform2D, ::atom::ecs::SpriteRenderer)
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Transform2D, ::atom::ecs::Camera2D)
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Lifetime)
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::SceneEntityId)
 
 // The deferred-destroy sweep: collect everything marked, then destroy it after the
 // pass, so a system never restructures the world it is walking.
