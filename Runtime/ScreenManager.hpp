@@ -131,6 +131,10 @@ class ScreenManager {
         auto HandleEvent(const atom::window::IEvent& event) const -> void;
         auto Update(float deltaTime) const -> void;
         auto FixedUpdate(float deltaTime) const -> void;
+        // Publishes this frame's fixed-step budget to the current screen before the
+        // host dispatches FixedUpdate (G0.1). Stacked screens are not ticked, so
+        // they are not notified either - same rule as Update/FixedUpdate.
+        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds) const -> void;
 
         [[nodiscard]] auto GetCurrentScreenName() const -> const std::string&;
         [[nodiscard]] auto GetScreenStack() const -> std::vector<ScreenStackEntry>;

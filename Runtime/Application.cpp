@@ -83,14 +83,21 @@ auto Application::Run() -> void {
 
         const auto* game_clock = time_system.FindDomain(time::domain::game);
         const auto* render_clock = time_system.FindDomain(time::domain::render);
+        auto fixed_steps = 0U;
+        auto fixed_step_seconds = 0.0F;
         if (game_clock) {
             const auto& tick = game_clock->LastTick();
-            const auto step_seconds = tick.fixed_step_ns > 0 ? time::ToFloatSeconds(tick.fixed_step_ns) : 0.0f;
-            for (uint32_t step = 0; step < tick.steps; ++step) {
-                screens.FixedUpdate(step_seconds);
-                for (const auto& observer : fixed_update_observers_)
-                    observer.callback(step_seconds);
-            }
+            fixed_steps = tick.steps;
+            fixed_step_seconds = tick.fixed_step_ns > 0 ? time::ToFloatSeconds(tick.fixed_step_ns) : 0.0f;
+        }
+        // Publish the budget before dispatching it. A Screen that owns a fixed-step
+        // world batches the steps into one ordered world frame from Update;
+        // publishing it here is what lets it do that without guessing N (G0.1).
+        screens.BeginFrame(fixed_steps, fixed_step_seconds);
+        for (uint32_t step = 0; step < fixed_steps; ++step) {
+            screens.FixedUpdate(fixed_step_seconds);
+            for (const auto& observer : fixed_update_observers_)
+                observer.callback(fixed_step_seconds);
         }
 
         const auto variable_delta = render_clock ? render_clock->LastTick().delta_ns : frame.host_delta_ns;

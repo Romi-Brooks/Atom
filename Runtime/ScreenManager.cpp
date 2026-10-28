@@ -307,6 +307,12 @@ auto ScreenManager::FixedUpdate(const float deltaTime) const -> void {
     }
 }
 
+auto ScreenManager::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds) const -> void {
+    if (current_screen_) {
+        current_screen_->BeginFrame(fixed_steps, fixed_delta_seconds);
+    }
+}
+
 auto ScreenManager::GetCurrentScreenName() const -> const std::string& {
     return current_screen_name_;
 }

@@ -18,8 +18,10 @@
 | `Physics/` | shape、physics contract、solver 与可替换 physics backend | 窗口、渲染资源 |
 | `Media/Audio/` | 音频资源、播放逻辑与格式 codec | 具体平台播放设备的选择 |
 | `Render/`、`UI/`、`Layout/` | 绘制、文本、UI 和布局 | 主循环、SDL 细节 |
+| `Render/Scene2D/` | ECS 精灵与 2D 相机的收集、排序、提交 | 世界本身、主循环、帧节奏 |
+| `Assets/` | 开发期内容根（`res://` 挂载点）；占位美术由 `generate_textures.py` 生成 | 引擎实现 |
 | `Window/` | 后端无关的窗口/帧宿主门面 | SDL3/SDL_GPU 的具体实现、Renderer2D/UI 绘制策略 |
-| `Runtime/` | Application、Screen、GameWorld、调度与生命周期 | Renderer2D/GPU 后端实现 |
+| `Runtime/` | Application、Screen、GameWorld、GameScreen、调度与生命周期 | Renderer2D/GPU 后端实现 |
 | `Backend/Contracts/` | backend 无关接口与基础传输类型 | 领域实现、SDL/GPU 类型 |
 | `Backend/SDL3/`、`Backend/SDLGPU/` | 具体平台与 GPU 实现 | 游戏规则与 Screen |
 | `Backend/Composition/` | 默认 backend 注册、选择与装配 | 游戏帧循环 |
@@ -39,7 +41,18 @@
 Backend/Composition ──装配──> 具体 backend
 ```
 
-箭头表示可依赖方向。`ECS`、`Runtime`、`Window` 不应反向依赖具体 SDL、GPU 或资源实现；`Backend/Contracts` 不应反向包含 Physics、Filesystem 或 Algorithm 的高层定义。后一个限制仍在 A0.2 中收敛。
+箭头表示可依赖方向。`ECS`、`Runtime`、`Window` 不应反向依赖具体 SDL、GPU 或资源实现；`Backend/Contracts` 不应反向包含 Physics、Filesystem 或 Algorithm 的高层定义（A0.2 已收敛：Contracts 只依赖 `Atom_Math`/`Atom_Color`/`Atom_Input`/`Atom_FS` 四个低层 target）。
+
+```text
+Atom_Math / Atom_Color     纯值类型（叶子）
+Atom_Error / Atom_UTF8     错误与编码（叶子；Atom_Error 不依赖 SDL）
+Atom_FS → Atom_Error
+Atom_Backend_Contracts → Atom_Math Atom_Color Atom_Input Atom_FS
+Atom_Algorithm → Atom_Math                       （变换/相机，不再依赖 Contracts）
+Atom_ECS → Atom_Error Atom_Log Atom_Math Atom_Color
+Atom_Scene2D → Atom_ECS Atom_Renderer2D Atom_Render_Resources   （不依赖 Runtime）
+Atom_Runtime → Atom_Window Atom_Display Atom_Time Atom_Log Atom_ECS
+```
 
 ## CMake 规则
 

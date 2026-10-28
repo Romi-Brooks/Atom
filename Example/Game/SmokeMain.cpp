@@ -1,0 +1,92 @@
+/**
+ * @file SmokeMain.cpp
+ * @brief T1.3 entry point: a window, the repository's Assets/ mounted as res://,
+ *        and one GameScreen driving a hard-coded 2D world.
+ *
+ * The content-root convention (G0.5) is stated here rather than hidden in a
+ * helper: development runs mount ATOM_SOURCE_ROOT/Assets at priority 200, so
+ * `res://textures/player.png` in a component resolves to a real file in the
+ * checkout. A packaged build would mount the same URIs from game.apkg instead and
+ * nothing above this point would change.
+ *
+ * Controls: WASD/arrows move, Space pauses the world (the scene keeps rendering),
+ * window close or Escape quits (the host owns closing; this screen does not).
+ */
+
+#include <memory>
+#include <string>
+
+#include <Filesystem/FileSystem.hpp>
+#include <Filesystem/Vfs.hpp>
+#include <Log/LogSystem.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/ScreenManager.hpp>
+#include <Window/RenderWindow.hpp>
+
+#include "SmokeScreen.hpp"
+
+namespace {
+
+constexpr int kWindowWidth = 1280;
+constexpr int kWindowHeight = 720;
+
+// Mounts the development content root. Returns false when the Assets directory is
+// missing, which is a boot failure worth reporting rather than a silent "no
+// sprites" screen.
+auto MountDevelopmentAssets() -> bool {
+    auto& vfs = atom::fs::Vfs::GetInstance();
+    std::unique_ptr<atom::fs::NativeFileSystem> backend{};
+    const std::string root = std::string{ATOM_SOURCE_ROOT} + "/Assets";
+    if (atom::fs::NativeFileSystem::Create("res", root, backend) != atom::fs::Result::Success || !backend) {
+        LOG_ERROR(atom::log::core::Main, "2D smoke scene: content root unavailable: " + root);
+        return false;
+    }
+    // The VFS takes shared ownership; the unique_ptr has to be released into it.
+    std::shared_ptr<atom::fs::IFileSystem> shared{std::move(backend)};
+    if (vfs.Mount("res", 200, shared) != atom::fs::Result::Success) {
+        LOG_ERROR(atom::log::core::Main, "2D smoke scene: mounting res:// at " + root + " failed");
+        return false;
+    }
+    LOG_INFO(atom::log::core::Main, "2D smoke scene: mounted res:// -> " + root);
+    return true;
+}
+
+} // namespace
+
+auto main() -> int {
+    atom::Log::SetConsoleOutputUtf8();
+    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
+
+    if (!MountDevelopmentAssets())
+        return 1;
+
+    auto& screens = atom::ScreenManager::GetInstance();
+    const auto loaded = screens.LoadScreen("Smoke2D", std::make_unique<atom::game::SmokeScreen>());
+    if (loaded != atom::ScreenOpResult::Success) {
+        LOG_ERROR(atom::log::core::ScreenManager,
+                  "Failed to register the 2D smoke screen: " + std::string{atom::ToString(loaded)});
+        return 1;
+    }
+    if (screens.SwitchScreen("Smoke2D") != atom::ScreenOpResult::Success) {
+        LOG_ERROR(atom::log::core::ScreenManager, "Failed to switch to the 2D smoke screen");
+        return 1;
+    }
+
+    auto& window = atom::RenderWindow::GetInstance();
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom Engine - 2D Smoke Scene (T1.3)",
+                                                    atom::algo::Vec2{static_cast<float>(kWindowWidth),
+                                                                     static_cast<float>(kWindowHeight)},
+                                                    atom::backend::RenderBackendId::SdlGpu);
+    if (!initialized) {
+        LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
+        return 1;
+    }
+    window.SetFPS(60);
+
+    LOG_INFO(atom::log::core::Screen,
+             "2D smoke scene running: WASD/arrows move the player, Space pauses the world, close the window to quit.");
+
+    application.Run();
+    return 0;
+}

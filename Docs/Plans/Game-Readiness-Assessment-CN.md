@@ -103,6 +103,11 @@ T1.1，会把资源、渲染和具体 backend 反向拖入 ECS，后续每增加
 | G0.4 | 物理契约缺触发器、查询与 user-data | `IPhysicsWorld` 只有 Begin/End 接触回调；`BodyDef`（`Physics/Contracts/PhysicsTypes.hpp:31`）无 sensor 标记、无 user-data；无 raycast/形状查询 | T3.1 |
 | G0.5 | 内容根与 CI 缺口 | 仓库无 `Assets/` 内容根，`MusicCardScreen.cpp:781` 在运行时把宿主目录挂成 `res://`；`.github/workflows/build.yml` 只 `cmake --build`，从不执行 ctest | T1.3 / T4.2 |
 
+**落地状态（2026-10-25）**：G0.1（`Screen::BeginFrame` + `GameScreen` 批处理，测试 `Atom_Runtime.GameScreenFrame`）、
+G0.2（规则写入 `ECS-Component-Vocabulary-CN.md` 与 `EntityWorld.cpp` 实例化区块）、G0.3 的翻转/相机映射/提交前排序、
+G0.5 的 `Assets/` 内容根与 `res://` 开发挂载均已落地；G0.3 的最近邻采样器与旋转精灵仍未做（不阻塞 M2），
+G0.4 与 G0.5 的 CI 部分随 T3.1 / T4.2 处理。
+
 #### G0.1 帧节奏：`Screen` 与 `GameWorld` 的阶段所有权不一致
 
 `GameWorld` 把四个阶段原子地跑完，而 `Screen` 只被告知"这一帧该跑几次固定步"的**结果**，拿不到步数。若不先决策，
@@ -270,7 +275,7 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
     （`Atom_ECS.ComponentVocabulary` + `Atom_Runtime.CommandBufferScene`）
   - 预计：约 400–800 行实现与测试。
 
-- [ ] **T1.2 — Render/Scene2D 的 Sprite 和 Camera 系统。**
+- [x] **T1.2 — Render/Scene2D 的 Sprite 和 Camera 系统。**
   - 新增位置：`Render/Scene2D/`；依赖 `ECS`、`Renderer2D`、资源句柄，不反向依赖 Runtime。
   - 工作：从 `Transform2D + SpriteRenderer` 收集 draw item；按 layer/sort/entity 稳定排序；应用 `Camera2D`；
     提交既有 Renderer2D。RenderSystem 只读显示 Transform，不写模拟坐标。
@@ -280,10 +285,19 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
     `BeginFrame(origin, zoom)` 的映射，并注明 P0 不支持 `Camera2D::rotation`；(3) 把 `(layer, sort_key, entity)`
     的稳定排序放在 Scene2D 提交前完成（`Renderer2D` 只按 layer 稳定排序，层内顺序等于提交顺序）。
     最近邻采样器与旋转精灵明确不在 T1.2 内，验收说明不得声称支持。
+  - **已落地（2026-10-25）**：新增 `Atom_Scene2D` target（`Render/Scene2D/`），依赖 `Atom_ECS`、`Atom_Renderer2D`、
+    `Atom_Render_Resources`，**不依赖 Runtime**。分工是 `SnapshotTransforms`（模拟→显示副本）、
+    `FindActiveCamera`（`Transform2D`+`Camera2D`→`CameraView`，取最低实体索引，无相机时可退化）、`Collect`
+    （只读 `RenderTransform2D`+`SpriteRenderer`，解析 URI、算 pivot/size/scale、排序、诊断计数）、`Submit`
+    （唯一触碰 GPU 的一步，不做任何决策）。G0.3 三项前置全部完成：`DrawTexture` 新增 `flip_x`/`flip_y`（交换 UV，
+    不改几何与绕序）；相机映射写成 `origin = center - viewport/(2*zoom)` 并注明 P0 不支持旋转；排序在 Collect 内按
+    `(layer, sort_key, entity)` 完成。`ITextureResolver` 把 GPU 依赖抽象成一处，`TextureCacheResolver` 负责 URI→句柄
+    的备忘与所有权。headless 测试 `Atom_Scene2D.SpriteRenderer` 覆盖排序稳定性、pivot/scale 目标矩形、图集子矩形、
+    失效/缺失纹理诊断、相机取值与退化。
   - 验收：同一实体集合在稳定输入下产生稳定 draw 顺序；相机平移/缩放正确；不可见或失效纹理有明确 fallback/诊断。
   - 预计：约 1,200–2,000 行实现、测试与 headless/recording 验证；含上述渲染器侧改动约 +200–400 行。
 
-- [ ] **T1.3 — GameScreen 接入与无资源硬编码 smoke scene。**
+- [x] **T1.3 — GameScreen 接入与无资源硬编码 smoke scene。**
   - 新增位置：`Example/Game/` 或独立 `Example_2D_Vertical_Slice`；不得污染 `Atom.cpp`。
   - 工作：`GameScreen` 创建/销毁 `GameWorld`，将 Application 的固定步和 variable update 转发给它；先用硬编码
     实体验证 T1.1/T1.2，随后由 T2 Scene 替换。
@@ -293,7 +307,21 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
     “`FixedUpdate` 里跑完整 `RunFrame`”或“`Update` 里吞掉固定步”这类会放大阶段次数的临时接法。
   - 补充（G0.5 内容根）：示例需要一个仓库内的 `Assets/` 内容根与 `res://` 挂载约定（开发期以源码树为根或
     CMake 复制），否则 `SpriteRenderer` 的 texture URI 在示例中没有意义；挂载与卸载必须在帧安全点完成。
+  - **已落地（2026-10-25）**：
+    - G0.1 决策：`Screen` 新增 `BeginFrame(fixed_steps, fixed_delta_seconds)` 钩子（默认空实现，不破坏既有 Screen），
+      `Application` 在派发固定步**之前**发布本帧预算，`ScreenManager` 只转发给当前 Screen。新的
+      `Runtime/GameScreen`（引擎内、可复用）记录该预算，并在 `Update` 里调用一次
+      `GameWorld::RunFrame(delta, N, dt)`；`FixedUpdate` 故意不覆写。理由与两种被拒方案都写在
+      `GameScreen.hpp` 顶部。`Atom_Runtime.GameScreenFrame` 用阶段记录器断言 `input → fixed×N → update → late`
+      的顺序、N=0 时仍跑 Input/Update/LateUpdate、预算不被跨帧重放、暂停不推进世界、setup 失败即构造失败。
+    - G0.5 内容根：新增 `Assets/`（`Textures/*.png`，由 `Assets/generate_textures.py` 可复现生成）与开发期挂载约定：
+      `Example/Game/SmokeMain.cpp` 在启动时把 `ATOM_SOURCE_ROOT/Assets` 以 priority 200 挂到 `res://`；发布期同一批
+      URI 改由 APKG 提供，上层不变。
+    - 示例：`Example/Game/` 的 `SmokeScreen`（`GameScreen` 子类）+ `SeedSmokeScene`，用真实 `res://` 贴图搭出
+      40×25 地砖、两个箱子、一个图集子矩形、一个玩家；`move-player`（FixedUpdate）与 `camera-follow`（LateUpdate）
+      两个系统按阶段注册；目标 `Example_2D_Smoke` 已构建并实机运行。
   - 验收：无 Scene loader 时也能创建一个角色和静态障碍、按键移动、由 SpriteRenderer 绘制。
+    （`Atom_Runtime.GameScreenFrame` + `Example_2D_Smoke` 实机运行，见 `Example/Game/smoke-scene.png`）
   - 依赖：T1.1、T1.2。
   - 预计：约 500–1,000 行示例与集成测试。
 
@@ -421,10 +449,10 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 ## 7. 执行顺序、依赖与里程碑
 
 ```text
-已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3
+已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3
 
-M1 可见实体：T1.1 -> T1.2 -> T1.3
-M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3
+M1 可见实体：T1.1 -> T1.2 -> T1.3                    ✅
+M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            <- 当前
 M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3
 M4 P0 可交付：M3 -> T4.1 / T4.2 / T4.3
 M5 内容与世界：M4 -> T5.1 / T5.2 / T5.3 -> T5.4
@@ -433,14 +461,20 @@ M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3
 
 ### 当前下一项
 
-**A0 硬门已通过（2026-10-25）**：A0.1（组件准入规则 + ECS 依赖边界 + 查询实例化策略）、A0.2（Contracts 依赖
-方向）、A0.3（Error 平台捕获下沉）均已完成并有构建与 CTest 覆盖。A0.4/A0.5/A0.6 的剩余项按各自领域节奏推进，
-不阻塞 M1。
+**M1 可见实体已完成（2026-10-25）**：A0.1/A0.2/A0.3 三个硬门通过；T1.1（六个组件 + 准入规则 +
+`Emplace` 四种形态）、T1.2（`Atom_Scene2D` + `Renderer2D` 翻转 + 相机映射 + 提交前排序）、T1.3
+（`Screen::BeginFrame` 帧节奏桥 + `Runtime/GameScreen` + `Example_2D_Smoke` 实机跑通）全部落地，CTest 69/69。
+A0.4/A0.5/A0.6 的剩余项按各自领域节奏推进，不阻塞 M2。
 
-**下一步进入 M1**：T1.1 冻结首批游戏组件（遵守
-[ECS-Component-Vocabulary-CN.md](ECS-Component-Vocabulary-CN.md)），随后 T1.2 实现 `Render/Scene2D` 并补齐
-G0.3 的三项渲染器前置（翻转、`Camera2D` 桥接、提交前排序），最后 T1.3 以硬编码 smoke scene 验证，先解决 G0.1
-的帧节奏决策与 G0.5 的内容根约定，再进入 Scene schema。
+**未完成的已知项（不阻塞 M2，但需在 M3 前处理）**：
+
+- G0.3 的剩余两项：最近邻采样器（像素风必需）与旋转精灵（`Renderer2D` 无旋转视图/旋转四边形）。
+  T1.2 的文档与验收均未声称支持，接入像素美术前必须补。
+- `RenderTransform2D` 目前是纯拷贝，固定步与显示帧之间没有插值（需要 previous-state 缓冲与 alpha）。
+
+**下一步进入 M2（可加载关卡）**：T2.1 先冻结 Scene schema（`schema_version`、`res://` URI、显式拒绝未知组件/
+字段），T2.2 再做 `SceneData`/`SceneLoader`/原子切换；`Example_2D_Smoke` 的 `SeedSmokeScene` 就是 T2.2 要替换的
+那个函数，替换后 `Example_2D_Smoke` 即可升级为读取真实场景文件的示例。
 
 ## 8. 明确禁止的提前扩张
 

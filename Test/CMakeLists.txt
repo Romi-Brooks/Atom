@@ -128,6 +128,14 @@ atom_add_test(Atom_Renderer2D.Text
     Atom_Renderer2D)
 target_compile_definitions(Atom_Renderer2D_Text_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 
+# T1.2: Scene2D sprite collection and the 2D camera, asserted headlessly - draw
+# order, destination rects, pivots, unresolved-texture handling and the
+# Camera2D -> BeginFrame(origin, zoom) mapping.
+atom_add_test(Atom_Scene2D.SpriteRenderer
+    Atom_Scene2D_SpriteRenderer_Tests
+    Render/Scene2DRendererTest.cpp
+    Atom_Scene2D)
+
 # --- Algorithm / Color / Event (header-heavy pure logic) ---
 atom_add_test(Atom_Algorithm.Scalar
     Atom_Algorithm_Scalar_Tests
@@ -387,6 +395,13 @@ atom_add_test(Atom_Runtime.GameWorld
 atom_add_test(Atom_Runtime.CommandBufferScene
     Atom_Runtime_CommandBufferScene_Tests
     Runtime/CommandBufferSceneTest.cpp
+    Atom_Runtime)
+
+# T1.3 / G0.1: a Screen's frame (FixedUpdate 0..N + one Update) mapped onto one
+# ordered GameWorld frame. Records the phase sequence the world really executes.
+atom_add_test(Atom_Runtime.GameScreenFrame
+    Atom_Runtime_GameScreenFrame_Tests
+    Runtime/GameScreenFrameTest.cpp
     Atom_Runtime)
 
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---

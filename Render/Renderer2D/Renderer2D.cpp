@@ -488,6 +488,19 @@ auto Renderer2D::EndFrame() -> bool {
                 uv1u = (op.source.x + op.source.width) / tw;
                 uv1v = (op.source.y + op.source.height) / th;
             }
+            // Mirroring swaps the texture coordinates, so the quad keeps its
+            // winding and the destination rectangle keeps its origin. Works for
+            // both an atlas sub-rect and the whole-texture 0..1 case.
+            if (op.flip_x) {
+                const float swapped = uv0u;
+                uv0u = uv1u;
+                uv1u = swapped;
+            }
+            if (op.flip_y) {
+                const float swapped = uv0v;
+                uv0v = uv1v;
+                uv1v = swapped;
+            }
 
             ensureRoom(4, 6);
             beginItem();
@@ -781,8 +794,8 @@ auto Renderer2D::GetWhiteTexture() const -> Texture* {
 
 // --- recording ---------------------------------------------------------------
 
-auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint, const algo::Rect* source)
-    -> void {
+auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint, const algo::Rect* source,
+                             const bool flip_x, const bool flip_y) -> void {
     if (!in_frame_ || texture.owner_ != this || texture.handle_ == render::invalid_texture_2d) {
         LOG_WARNING(atom::log::render::Renderer2D,
                     "DrawTexture rejected: in_frame=" + std::to_string(in_frame_) +
@@ -806,6 +819,8 @@ auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, cons
     op.color = tint;
     op.texture = &texture;
     op.dst = ToRenderRect(dst);
+    op.flip_x = flip_x;
+    op.flip_y = flip_y;
     if (source) {
         op.source = ToRenderRect(*source);
         op.has_source = true;

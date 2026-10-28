@@ -198,9 +198,13 @@ class Renderer2D {
          * @param source Optional texel rectangle in the texture. It is also
          *        converted internally; a dedicated TextureRegion type will
          *        replace this algo::Rect parameter in a future API revision.
+         * @param flip_x Mirror horizontally: swaps the left and right texture
+         *        coordinates, so a right-facing sprite can face left without a
+         *        second asset. The destination rectangle is unchanged.
+         * @param flip_y Mirror vertically, same rule for top/bottom.
          */
         auto DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint = Color::White(),
-                         const algo::Rect* source = nullptr) -> void;
+                         const algo::Rect* source = nullptr, bool flip_x = false, bool flip_y = false) -> void;
 
         /**
          * @brief Draws a filled geometry/world rectangle.
@@ -273,6 +277,11 @@ class Renderer2D {
                 Rect dst{};
                 Rect source{};
                 bool has_source = false;
+                // Mirroring is applied to the UVs, not to the geometry: the quad
+                // has one winding either way, so a flip costs nothing at the
+                // vertex level and batches exactly like a normal quad.
+                bool flip_x = false;
+                bool flip_y = false;
                 bool custom_quad = false;
                 std::array<std::array<float, 2>, 4> corners{};
 

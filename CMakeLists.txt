@@ -438,6 +438,19 @@ endif()
     # link stays PRIVATE; consumers only see JobHandle by value in the header.
     target_link_libraries(Atom_Render_Resources PRIVATE Atom_Concurrency)
 
+# 3j. Scene2D — ECS sprites and a 2D camera turned into one Renderer2D pass.
+#     Depends on ECS + Renderer2D + render resources, and never on Runtime: a
+#     scene renderer must be usable by a tool or a test with no frame loop.
+    add_library(Atom_Scene2D STATIC
+        Render/Scene2D/Scene2DTypes.hpp
+        Render/Scene2D/Scene2DRenderer.hpp
+        Render/Scene2D/Scene2DRenderer.cpp
+        Render/Scene2D/TextureCacheResolver.hpp
+        Render/Scene2D/TextureCacheResolver.cpp
+    )
+    target_include_directories(Atom_Scene2D PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Scene2D PUBLIC Atom_ECS Atom_Renderer2D Atom_Render_Resources)
+
 # 4. Backend extension registration and format codecs
     add_library(Atom_Backend_Extension STATIC
         Backend/Extension/AudioDecoderRegistry.hpp
@@ -680,6 +693,8 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
             Runtime/EntityCommandBuffer.cpp
             Runtime/GameEventQueue.hpp
             Runtime/GameEventQueue.cpp
+            Runtime/GameScreen.hpp
+            Runtime/GameScreen.cpp
             Runtime/GameWorld.hpp
             Runtime/GameWorld.cpp
             Runtime/Screen.hpp
@@ -870,6 +885,23 @@ add_dependencies(Example_MusicCard Atom_Shaders)
 if(WIN32)
     target_link_libraries(Example_MusicCard PRIVATE psapi)
 endif()
+
+# T1.3 — the first screen that owns a GameWorld: hard-coded world, real res://
+# sprites through Scene2D, keyboard-driven player, following camera. This is the
+# example that T2.x replaces with a loaded scene, so it links only what it uses.
+add_executable(Example_2D_Smoke
+    Example/Game/SmokeMain.cpp
+    Example/Game/SmokeScreen.cpp
+    Example/Game/SmokeScreen.hpp
+)
+target_link_libraries(Example_2D_Smoke PRIVATE
+    Atom_Runtime Atom_Scene2D Atom_Render_Resources Atom_Renderer2D Atom_FS Atom_InputSystem Atom_Debugger)
+target_compile_definitions(Example_2D_Smoke PRIVATE
+    ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}"
+    # Development content root (G0.5): Assets/ in the checkout is mounted as res://
+    # at boot. A packaged build mounts the same URIs from an APKG instead.
+    ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+add_dependencies(Example_2D_Smoke Atom_Shaders)
 
 # CORE-002 acceptance example — a box moved by the per-frame InputSystem, plus
 # an overlay that prints the raw state. Proves the main loop feeds the input
