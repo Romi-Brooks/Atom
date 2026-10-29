@@ -1,7 +1,7 @@
 # Atom Scene Schema v1（T2.1）
 
 > 状态：**schema 已冻结**；解析器选型已定（§8：A 自研），实现见 T2.2。
-> 更新日期：2026-10-25
+> 更新日期：2026-10-29（新增 §4.6 Prefab 与 overrides、§6.4 Prefab 规则；T2.3）
 > 关联：`Game-Readiness-Assessment-CN.md` 的 T2.1 / T2.2 / T2.3。
 
 本文定义 Atom 的关卡描述格式。T2.1 只做**格式与校验规则**，落地读取是 T2.2，Prefab 是 T2.3。
@@ -39,7 +39,10 @@
 
 ## 4. 实体
 
+实体有两种写法，二选一，不能混：
+
 ```jsonc
+// (a) 内联实体：字段都写在这里
 {
   "id": 2,                        // 必填，uint32，1..4294967295，场景内唯一，跨编辑稳定
   "name": "player",               // 可选，≤ 64，只用于调试与诊断
@@ -49,7 +52,17 @@
   "camera": { },                  // 可选
   "lifetime": 1.5                 // 可选，秒；缺省表示没有 Lifetime 组件
 }
+
+// (b) Prefab 实例：身体在 prefab 文件里，这里只有身份和覆盖
+{
+  "id": 3,                                        // 必填，同 (a)
+  "prefab": "res://prefabs/crate.prefab.json",    // 必填
+  "overrides": { }                                // 可选，见 §4.6
+}
 ```
+
+`overrides` 出现在没有 `prefab` 的实体上是错误（没有东西可覆盖）。反之，`prefab`
+实例上出现 `name` / `sprite` 等身体字段也是错误：那会让同一个字段有两个来源。
 
 ### 4.1 `transform`
 
@@ -93,6 +106,41 @@
 只允许 `"active"`（参与模拟）与 `"static"`（不被物理移动）。`pending_destroy` 是运行时内部标记，**出现在场景
 文件里属于错误**。
 
+### 4.6 Prefab 与 `overrides`
+
+**Prefab 文件**（`*.prefab.json`，独立文件，可被多个场景引用）：
+
+```jsonc
+{
+  "schema_version": 1,              // 必填，必须等于 1
+  "kind": "prefab",                 // 必填，必须是 "prefab"（防止把场景文件当 prefab 用）
+  "id": "crate",                    // 必填，[a-z0-9_-]*，≤ 64，工具与诊断用
+  "entity": {                       // 必填；场景实体身体减去 id
+    "name": "crate",
+    "tags": ["static"],
+    "transform": { "position": [0.0, 0.0] },
+    "sprite": { "texture": "res://textures/crate.png", "size": [48.0, 48.0] }
+  }
+}
+```
+
+`entity` 里**不能**有 `id`（身份由实例给）、也不能有 `prefab`（v1 不支持嵌套，因此也不可能出现循环）。
+
+**`overrides` 白名单**（实例可以改的字段，其余一律报错）：
+
+| 块 | 允许覆盖 | 禁止 |
+|---|---|---|
+| 顶层 | `name`、`tags`（**整体替换**，不是并集）、`lifetime` | `id`、`prefab` |
+| `transform` | `position`、`rotation`、`scale` | — |
+| `sprite` | `tint`、`layer`、`sort_key`、`flip_x`、`flip_y` | `texture`、`source`、`size`、`pivot` |
+| `camera` | `zoom`、`viewport`、`active` | — |
+
+规则背后的意图：实例可以决定实体**在哪、长什么样（颜色/层级/朝向）、活多久**，但不能改变它**是什么**
+（贴图、图集矩形、尺寸、轴心）。这样同一个 prefab 的两个实例不会漂移成两种不同的东西。`sprite` / `camera`
+块只有在 prefab 本身有对应组件时才可覆盖，否则报"这个 prefab 没有 sprite，没有东西可覆盖"。
+
+`tags` 用替换而不是并集：既要有"加上 static"，也要能表达"去掉 static"，并集两者都做不到。
+
 ## 5. 与 ECS 组件的映射（唯一真相）
 
 | 场景字段 | ECS 组件 | 备注 |
@@ -124,7 +172,11 @@
 - `scale` 任一维为 0 → 报错（退化矩阵）；
 - `sprite.size` / `source` 的 `w`/`h` ≤ 0 → 报错；
 - `camera.zoom` ≤ 0 → 报错；
-- `tags` 含未知值或 `pending_destroy` → 报错。
+- `tags` 含未知值或 `pending_destroy` → 报错；
+- `overrides` 出现在没有 `prefab` 的实体上 → 报错（没有东西可覆盖）；
+- `prefab` 实例上出现身体字段（`name`/`sprite`/`transform`/…）→ 报错（同一字段两个来源）；
+- `overrides` 里出现白名单外的字段（含 `sprite.texture`）→ 报错，并给出最接近的合法名；
+- `overrides.sprite` / `overrides.camera` 而 prefab 没有对应组件 → 报错。
 
 ### 6.3 相机唯一性
 
@@ -134,7 +186,14 @@
 - 一个都没有：若场景里只有一个相机，用它；若有多个相机且都未标 `active`，**加载失败**（避免"哪个是相机"靠猜）；
 - 多于一个 `active: true`：加载失败。
 
-### 6.4 全有或全无
+### 6.4 Prefab 规则
+
+- 一个 prefab 是**平**的：`entity` 里不能再写 `prefab`。v1 的"不支持嵌套"就是"不可能有循环"的实现方式；
+- prefab 加载失败（文件缺失、语法错、字段错）→ **整个场景加载失败**，不允许退化成"一个没有精灵的实体"；
+- prefab 按 URI 在一次加载内缓存，因此同一 prefab 的多个实例只读一次文件；缓存不跨加载，改完 prefab 重新加载即生效；
+- 实例可以在没有 `overrides` 的情况下使用 prefab，此时完全使用 prefab 的默认值。
+
+### 6.5 全有或全无
 
 任何错误都使整次加载失败，不做部分加载、不留半个世界。错误信息必须包含文件 URI，便于在编辑器/日志里跳转。
 
@@ -195,10 +254,12 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
 
 | 文件 | 用途 |
 |---|---|
-| `Example/Game/Assets/scenes/smoke_room.scene.json` | 合法样例；T2.2 用它替换 `SeedSmokeScene` |
+| `Example/Game/Assets/scenes/smoke_room.scene.json` | 合法样例；示例启动时加载它（实体 3/4 是 prefab 实例） |
+| `Example/Game/Assets/prefabs/crate.prefab.json` | 合法 prefab；被上面两个木箱实例引用 |
 | `Test/Data/scenes/invalid_unknown_field.scene.json` | 拼写错误拒绝 |
 | `Test/Data/scenes/invalid_duplicate_id.scene.json` | 重复 id 拒绝 |
 | `Test/Data/scenes/invalid_bad_version.scene.json` | 未知 `schema_version` 拒绝 |
+| `Test/Scene/ScenePrefabTest.cpp` | prefab 与覆盖规则（用内存 provider，不碰文件系统） |
 
 地板阵列不在 v1 手写：几十上百块地砖必须由 T5.1 的 Tilemap 生成，样例只给房间里的少量实体。示例里的地板目前由 C++ 生成装饰，不参与场景文档。
 

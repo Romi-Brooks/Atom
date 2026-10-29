@@ -1,0 +1,26 @@
+// Atom prefab, schema_version 1.
+// See Docs/Plans/Scene-Schema-v1-CN.md §4.6 for the fields and §6.5 for the rules.
+//
+// A prefab is a reusable entity body. It carries no identity: every instance supplies
+// its own `id` and may override only the whitelisted fields (position, tint, layer,
+// sort key, flips, camera lens, lifetime, name, tags). What the entity *is* - its
+// texture, source rect, size, pivot - lives here and cannot be overridden, which is
+// what keeps two instances of one crate from drifting into two different crates.
+{
+  "schema_version": 1,
+  "kind": "prefab",
+  "id": "crate",
+
+  "entity": {
+    "name": "crate",
+    "tags": ["static"],
+    "transform": { "position": [0.0, 0.0] },
+    "sprite": {
+      "texture": "res://textures/crate.png",
+      "size": [48.0, 48.0],
+      "pivot": [0.5, 0.5],
+      "layer": 0,
+      "sort_key": 0
+    }
+  }
+}

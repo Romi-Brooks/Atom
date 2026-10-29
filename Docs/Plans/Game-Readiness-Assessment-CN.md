@@ -1,6 +1,6 @@
 # Atom 2D 游戏就绪度：任务清单与实施计划
 
-> 更新日期：2026-10-25（§3.2 五处被低估的工作量；A0.1–A0.3、T1.1–T1.3、T2.1–T2.2 已实施，见各项状态）
+> 更新日期：2026-10-29（§3.2 五处被低估的工作量；A0.1–A0.3、T1.1–T1.3、T2.1–T2.3 已实施，见各项状态）
 > 目标：Windows/Linux 桌面端、键盘鼠标优先的通用 2D 引擎底座。它优先支持正交 Tilemap 与中大型可流送世界，
 > 但不把经营、RPG、横版、弹幕等任何具体玩法写进引擎核心。
 >
@@ -359,10 +359,18 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
   - 依赖：T1.1、T1.2、T2.1。
   - 预计：约 1,500–2,500 行实现与测试。
 
-- [ ] **T2.3 — 平面 Prefab。**
+- [x] **T2.3 — 平面 Prefab。**
   - 工作：一个 Prefab 是受同一 schema 约束的实体模板；Scene 内可实例化并覆盖白名单字段。
   - 首期不做：Prefab 嵌套、循环检测图、instance 热重载 merge、编辑器 round-trip。
+  - **已落地（2026-10-29）**：prefab 是独立文件（`{schema_version, kind:"prefab", id, entity}`），实例写作
+    `{id, prefab, overrides?}`。`ParseScene` 新增 `PrefabProvider` 回调，prefab 在**校验阶段**就解析进来，所以覆盖项
+    是对着 base body 校验的（例：prefab 没有 `sprite` 时 `overrides.sprite` 直接报错）。
+    覆盖白名单：`name`/`tags`（整体替换）/`lifetime`/`transform.*`/`sprite.{tint,layer,sort_key,flip_x,flip_y}`/
+    `camera.{zoom,viewport,active}`；`sprite.texture|source|size|pivot` 一律拒绝——实例可以决定实体在哪、什么颜色、
+    哪一层、活多久，但不能改变它**是什么**。加载器按 URI 在一次加载内缓存 prefab；prefab 加载失败 = 场景加载失败。
+    v1 禁止嵌套，因此不可能出现循环。示例的两个木箱已改成同一 prefab 的两个实例。
   - 验收：同一 Prefab 多实例的 override 互不污染；无法解析的 Prefab 使整个 Scene 加载失败而不破坏旧 world。
+    （`Atom_Scene.ScenePrefab`，以及 `Atom_Scene.SceneLoader` 对**随仓库发布的** prefab 文件的断言）
   - 依赖：T2.2。
   - 预计：约 700–1,200 行实现与测试。
 
@@ -465,10 +473,10 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 ## 7. 执行顺序、依赖与里程碑
 
 ```text
-已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；T2.1 / T2.2
+已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3
 
 M1 可见实体：T1.1 -> T1.2 -> T1.3                    ✅
-M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            T2.1/T2.2 ✅，T2.3 待做
+M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            ✅
 M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3
 M4 P0 可交付：M3 -> T4.1 / T4.2 / T4.3
 M5 内容与世界：M4 -> T5.1 / T5.2 / T5.3 -> T5.4
@@ -481,7 +489,7 @@ M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3
 形态）、T1.2（`Atom_Scene2D` + `Renderer2D` 翻转 + 相机映射 + 提交前排序）、T1.3（`Screen::BeginFrame` 帧节奏桥 +
 `Runtime/GameScreen` + `Example_2D_Smoke` 实机跑通）。
 
-**M2 可加载关卡（2026-10-25 完成 T2.1 + T2.2）**：`Docs/Plans/Scene-Schema-v1-CN.md` 冻结 v1 格式（JSONC、未知
+**M2 可加载关卡（2026-10-29 完成 T2.1 + T2.2 + T2.3）**：`Docs/Plans/Scene-Schema-v1-CN.md` 冻结 v1 格式（JSONC、未知
 字段一律拒绝、错误诊断格式、与 ECS 组件的唯一映射）；`Utilities/Json` 提供通用 JSONC 读取器（`Atom_Json`），`Atom_Scene` 提供
 `Scene/SceneSchema`、`Scene/SceneLoader`，原子切换走 `GameWorld::ReplaceEntities`；
 `Example_2D_Smoke` 的房间现在全部来自 `Example/Game/Assets/scenes/smoke_room.scene.json`。CTest 72/72。
@@ -497,7 +505,7 @@ M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3
   benchmark、Packager GUI、audio metadata）本就该独立，而 windowed demo 迁移成本高、收益被 T3.3 覆盖。T3.3 的
   vertical slice 直接长在 `Example/Game` 里，不另起示例。
 
-**下一步进入 M2 收尾 + M3**：T2.3 平面 Prefab（同批做 `Sprite/` 图集元数据），随后 T3.2 游戏输入动作边界 →
+**下一步进入 M3**：先做 `Sprite/` 图集元数据（美术管线，与场景共用 `Utilities/Json`），随后 T3.2 游戏输入动作边界 →
 T3.1 物理集成（先按 G0.4 扩契约：sensor/user-data/查询）→ T3.3 第一个 vertical slice。
 
 ## 8. 明确禁止的提前扩张

@@ -431,6 +431,14 @@ atom_add_test(Atom_Scene.SceneLoader
     Atom_Scene)
 target_compile_definitions(Atom_Scene_SceneLoader_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 
+# T2.3: flat prefabs and the override whitelist. Prefabs come from a provider
+# callback, so the merge logic is tested without a filesystem; the shipped prefab file
+# is covered by Atom_Scene.SceneLoader through the demo room.
+atom_add_test(Atom_Scene.ScenePrefab
+    Atom_Scene_ScenePrefab_Tests
+    Scene/ScenePrefabTest.cpp
+    Atom_Scene)
+
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---
 atom_add_test(Atom_Lua.LuaHost
     Atom_Lua_LuaHost_Tests

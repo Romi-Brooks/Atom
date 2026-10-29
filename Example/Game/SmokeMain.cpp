@@ -85,7 +85,7 @@ auto main() -> int {
 
     auto& window = atom::RenderWindow::GetInstance();
     auto& application = atom::runtime::Application::GetInstance();
-    const auto initialized = application.Initialize("Atom Engine - 2D Scene Demo (T2.2)",
+    const auto initialized = application.Initialize("Atom Engine - 2D Scene Demo",
                                                     atom::algo::Vec2{static_cast<float>(kWindowWidth),
                                                                      static_cast<float>(kWindowHeight)},
                                                     atom::backend::RenderBackendId::SdlGpu);

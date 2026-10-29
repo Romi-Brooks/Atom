@@ -19,10 +19,12 @@
 #ifndef ATOM_SCENE_SCENESCHEMA_HPP
 #define ATOM_SCENE_SCENESCHEMA_HPP
 
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <vector>
 
+#include <Error/Error.hpp>
 #include <Scene/SceneTypes.hpp>
 
 namespace atom::scene {
@@ -37,9 +39,34 @@ struct ParseOutcome {
         }
 };
 
+struct PrefabOutcome {
+        // Present only when there were zero diagnostics.
+        std::optional<EntityDesc> entity{};
+        std::vector<Diagnostic> diagnostics{};
+
+        [[nodiscard]] auto Ok() const noexcept -> bool {
+            return entity.has_value();
+        }
+};
+
+// Supplies a prefab's base entity when a scene instance names one. The loader backs
+// it with the VFS and a per-load cache; a test backs it with a map. Returning an
+// Error is how "the prefab itself is broken" reaches the scene's diagnostics, with
+// the failed document's own message.
+using PrefabProvider = std::function<Result<EntityDesc>(std::string_view uri)>;
+
 // Parses and validates `text`. `uri` is copied into every diagnostic and is used
 // verbatim in messages (it is the caller's res:// path).
-[[nodiscard]] auto ParseScene(std::string_view text, std::string_view uri) -> ParseOutcome;
+//
+// When an entity names a prefab, `provider` is called for it; without a provider a
+// prefab reference is a diagnostic rather than a silent empty entity (T2.3).
+[[nodiscard]] auto ParseScene(std::string_view text, std::string_view uri, const PrefabProvider& provider = {})
+    -> ParseOutcome;
+
+// Parses a prefab document: `{ schema_version, kind: "prefab", id, entity }`. The
+// entity body is the same shape a scene entity uses, minus `id` - a prefab carries no
+// identity because every instance supplies its own.
+[[nodiscard]] auto ParsePrefab(std::string_view text, std::string_view uri) -> PrefabOutcome;
 
 // Doc size limits the validator enforces as well, so a caller that parses by other
 // means cannot bypass them.

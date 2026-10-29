@@ -141,6 +141,30 @@ auto main() -> int {
             ATOM_CHECK(lifetime != nullptr);
             ATOM_CHECK_NEAR(lifetime->remaining_seconds, 4.0F);
         }
+
+        // Entities 3 and 4 are instances of res://prefabs/crate.prefab.json: the body
+        // (texture, size, pivot, static tag) comes from that file, and only the
+        // overrides (name, position, sort key) differ between them. This is the only
+        // place the *shipped* prefab document is exercised, so a broken prefab file
+        // fails here instead of at the demo's boot.
+        for (const auto entity : world.With<ecs::RenderTransform2D, ecs::SpriteRenderer>()) {
+            const auto* id = world.TryGet<ecs::SceneEntityId>(entity);
+            if (id == nullptr || (id->value != 3 && id->value != 4))
+                continue;
+            const auto* sprite = world.TryGet<ecs::SpriteRenderer>(entity);
+            const auto* name = world.TryGet<ecs::Name>(entity);
+            const auto* transform = world.TryGet<ecs::Transform2D>(entity);
+            ATOM_CHECK(sprite->texture_uri == "res://textures/crate.png");
+            ATOM_CHECK(sprite->size.GetX() == 48.0F && sprite->size.GetY() == 48.0F);
+            ATOM_CHECK(sprite->pivot.GetX() == 0.5F);
+            ATOM_CHECK(world.Has<ecs::Static>(entity));
+            ATOM_CHECK(name != nullptr);
+            ATOM_CHECK(transform != nullptr);
+            const bool left = id->value == 3;
+            ATOM_CHECK(name->value == (left ? "crate_left" : "crate_right"));
+            ATOM_CHECK(sprite->sort_key == (left ? 10 : 20));
+            ATOM_CHECK_NEAR(transform->position.GetX(), left ? 416.0F : 766.0F);
+        }
     }
 
     // --- 2. The committed invalid fixtures are rejected, per rule ---------

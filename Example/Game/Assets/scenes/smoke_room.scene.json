@@ -1,8 +1,8 @@
 // Atom scene, schema_version 1.
 // See Docs/Plans/Scene-Schema-v1-CN.md for every field and its validation rule.
 //
-// This is the scene T2.2 will load; until then Example_2D_Smoke builds the same
-// world in code (SeedSmokeScene), which is why the two are kept in step.
+// Loaded by Example_2D_Smoke at boot. Entities 3 and 4 are prefab instances: their
+// body lives in res://prefabs/crate.prefab.json and only the overrides differ.
 //
 // Coordinates are world pixels with y pointing DOWN. Rotation is radians, CCW.
 {
@@ -37,29 +37,25 @@
     },
 
     {
-      // Two crates with different sort keys: the pair proves the draw order is
-      // (layer, sort_key, entity id) and not creation order.
+      // Two instances of one prefab. The pair proves three things at once: the base
+      // body comes from the prefab file, each instance overrides only the whitelisted
+      // fields (position, sort key, name), and different sort keys make the draw order
+      // (layer, sort_key, entity id) observable rather than creation order.
       "id": 3,
-      "name": "crate_left",
-      "tags": ["static"],
-      "transform": { "position": [416.0, 534.0] },
-      "sprite": {
-        "texture": "res://textures/crate.png",
-        "size": [48.0, 48.0],
-        "layer": 0,
-        "sort_key": 10
+      "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": {
+        "name": "crate_left",
+        "transform": { "position": [416.0, 534.0] },
+        "sprite": { "sort_key": 10 }
       }
     },
     {
       "id": 4,
-      "name": "crate_right",
-      "tags": ["static"],
-      "transform": { "position": [766.0, 684.0] },
-      "sprite": {
-        "texture": "res://textures/crate.png",
-        "size": [48.0, 48.0],
-        "layer": 0,
-        "sort_key": 20
+      "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": {
+        "name": "crate_right",
+        "transform": { "position": [766.0, 684.0] },
+        "sprite": { "sort_key": 20 }
       }
     },
 

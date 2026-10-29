@@ -4,7 +4,10 @@
 #include <Scene/SceneLoader.hpp>
 
 #include <cstddef>
+#include <memory>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -26,6 +29,58 @@ using ecs::RenderTransform2D;
 using ecs::SceneEntityId;
 using ecs::SpriteRenderer;
 using ecs::Transform2D;
+
+// Reads and caches prefab documents for the duration of one scene load.
+//
+// Per-load rather than global on purpose: a prefab edited between two loads must be
+// seen by the second one, and a long-lived cache would make "why is my prefab change
+// ignored" the next mystery.
+class PrefabCache final {
+    public:
+        explicit PrefabCache(const fs::IFileSystem& filesystem) : filesystem_(&filesystem) {}
+
+        [[nodiscard]] auto Get(const std::string_view uri) -> Result<EntityDesc> {
+            const std::string key{uri};
+            if (const auto found = cache_.find(key); found != cache_.end())
+                return found->second;
+
+            fs::AssetPath path{};
+            if (!fs::AssetPath::TryParse(uri, path))
+                return PrefabError(uri, "the prefab URI is not a valid asset path");
+
+            std::unique_ptr<fs::IFile> file{};
+            if (filesystem_->OpenRead(path, file) != fs::Result::Success || !file)
+                return PrefabError(uri, "the prefab file could not be opened");
+
+            std::vector<std::byte> bytes{};
+            if (fs::ReadAll(*file, bytes) != fs::Result::Success)
+                return PrefabError(uri, "the prefab file could not be read");
+
+            const std::string_view text{reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+            auto outcome = ParsePrefab(text, path.String());
+            if (!outcome.Ok()) {
+                for (const auto& diagnostic : outcome.diagnostics)
+                    LOG_WARNING(atom::log::core::Main, "prefab load: " + diagnostic.Format());
+                std::string detail = outcome.diagnostics.front().Format();
+                if (outcome.diagnostics.size() > 1)
+                    detail += " (+" + std::to_string(outcome.diagnostics.size() - 1) + " more)";
+                return PrefabError(uri, std::move(detail));
+            }
+
+            auto stored = cache_.emplace(key, std::move(*outcome.entity));
+            return stored.first->second;
+        }
+
+    private:
+        [[nodiscard]] static auto PrefabError(const std::string_view uri, const std::string& detail) -> Result<EntityDesc> {
+            return std::unexpected<Error>{MakeError(ErrorCode::SceneInvalidField, Module::Scene, "SceneLoader::Prefab")
+                                              .WithResource(std::string{uri})
+                                              .WithDetail(detail)};
+        }
+
+        const fs::IFileSystem* filesystem_ = nullptr;
+        std::unordered_map<std::string, EntityDesc> cache_{};
+};
 
 auto BuildFailure(const SceneDesc& scene, const EntityDesc& entity, const std::string& what) -> Error {
     std::string detail = "entity " + std::to_string(entity.id);
@@ -160,7 +215,13 @@ auto SceneLoader::Load(const fs::IFileSystem& filesystem, const fs::AssetPath& p
 
     const std::string_view text{reinterpret_cast<const char*>(bytes.data()), bytes.size()};
 
-    auto outcome = ParseScene(text, path.String());
+    // Prefabs are resolved during validation, not after it: an instance's base body
+    // has to exist before its overrides can be checked against it, and a prefab that
+    // fails to load must fail the scene load rather than produce a hole.
+    PrefabCache prefabs{filesystem};
+    const PrefabProvider provider = [&prefabs](const std::string_view uri) { return prefabs.Get(uri); };
+
+    auto outcome = ParseScene(text, path.String(), provider);
     if (!outcome.scene.has_value()) {
         // Every diagnostic is logged, so a five-error file does not hide four of them;
         // the returned Error carries the first, which is the one a UI shows.

@@ -302,6 +302,18 @@ constexpr std::string_view kSpriteKeys[] = {"texture", "source",  "size",    "pi
                                             "layer",   "sort_key", "flip_x", "flip_y"};
 constexpr std::string_view kCameraKeys[] = {"zoom", "viewport", "active"};
 constexpr std::string_view kEntityKeys[] = {"id", "name", "tags", "transform", "sprite", "camera", "lifetime"};
+// A prefab instance is `{ id, prefab, overrides? }` and nothing else.
+constexpr std::string_view kPrefabInstanceKeys[] = {"id", "prefab", "overrides"};
+// Overridable per block. What is *absent* is the point: a prefab instance may move,
+// tint, layer and re-time an entity, but not change what it is.
+constexpr std::string_view kOverrideKeys[] = {"name", "tags", "transform", "sprite", "camera", "lifetime"};
+constexpr std::string_view kOverrideTransformKeys[] = {"position", "rotation", "scale"};
+constexpr std::string_view kOverrideSpriteKeys[] = {"tint", "layer", "sort_key", "flip_x", "flip_y"};
+constexpr std::string_view kOverrideCameraKeys[] = {"zoom", "viewport", "active"};
+constexpr std::string_view kPrefabDocumentKeys[] = {"schema_version", "kind", "id", "entity"};
+// A prefab body is a scene entity body minus identity: every instance supplies its own
+// id, so an id here would be read by nobody and silently ignored.
+constexpr std::string_view kPrefabEntityKeys[] = {"name", "tags", "transform", "sprite", "camera", "lifetime"};
 constexpr std::string_view kSceneKeys[] = {"schema_version", "id", "name", "entities"};
 constexpr std::string_view kTagActive = "active";
 constexpr std::string_view kTagStatic = "static";
@@ -478,41 +490,17 @@ auto EntityLabel(const std::uint32_t id, const std::string& name) -> std::string
     return label;
 }
 
-// Reads `id` and `name` first: everything else in an entity is reported against the
-// label built from them, which is what makes "entity 7 (\"crate\"): sprite.pivot"
-// possible. Unknown keys are therefore checked after the label exists.
-auto ReadEntity(Ctx& ctx, const Value& value, const std::size_t index, EntityDesc& out) -> bool {
-    const auto index_label = "entities[" + std::to_string(index) + "]";
-    if (!value.IsObject()) {
-        Report(ctx, value, {}, index_label, "expected an object, got " + std::string{KindName(value.kind)});
-        return false;
-    }
-
+// The entity body: everything except the identity (`id`), the prefab reference and
+// the override block. Split out because a prefab document carries exactly this and
+// nothing else.
+auto ReadEntityBody(Ctx& ctx, const Value& value, const std::string& label, EntityDesc& out) -> bool {
     bool ok = true;
-    const auto* id_member = value.Find("id");
-    if (id_member == nullptr) {
-        Report(ctx, value, {}, index_label + ".id", "entity requires an \"id\"");
-        return false;
-    }
-    out.line = value.line;
-    out.column = value.column;
-    if (!ReadUint32(ctx, *id_member, {}, index_label + ".id", out.id))
-        return false;
-    if (out.id == 0) {
-        Report(ctx, *id_member, {}, index_label + ".id", "entity id must be at least 1 (0 means \"no entity\")");
-        return false;
-    }
-
-    if (const auto* name_member = value.Find("name"); name_member != nullptr) {
-        if (ReadString(ctx, *name_member, {}, index_label + ".name", out.name, 64))
+    if (const auto* member = value.Find("name"); member != nullptr) {
+        if (ReadString(ctx, *member, label, "name", out.name, 64))
             out.has_name = !out.name.empty();
         else
             ok = false;
     }
-
-    const auto label = EntityLabel(out.id, out.name);
-
-    CheckKeys(ctx, value, label, "", kEntityKeys);
     if (const auto* member = value.Find("tags"); member != nullptr)
         ok = ReadTags(ctx, *member, label, out) && ok;
     if (const auto* member = value.Find("transform"); member != nullptr)
@@ -547,6 +535,241 @@ auto ReadEntity(Ctx& ctx, const Value& value, const std::size_t index, EntityDes
     return ok;
 }
 
+// Applies an `overrides` block onto a prefab's base body.
+//
+// The whitelist is per block on purpose: a prefab instance may move, tint, layer and
+// re-time an entity, but it may not change what the entity *is* (its texture, its
+// source rect, its size, its pivot, its collision shape later). Identity fields are
+// rejected with the same "unknown field" machinery, so the error names the field and
+// suggests a legal neighbour instead of silently ignoring the attempt.
+auto ApplyOverrides(Ctx& ctx, const Value& overrides, const std::string& label, EntityDesc& target) -> bool {
+    if (!overrides.IsObject()) {
+        Report(ctx, overrides, label, "overrides",
+               "expected an object, got " + std::string{KindName(overrides.kind)});
+        return false;
+    }
+    CheckKeys(ctx, overrides, label, "overrides", kOverrideKeys);
+
+    bool ok = true;
+
+    if (const auto* member = overrides.Find("name"); member != nullptr) {
+        if (ReadString(ctx, *member, label, "overrides.name", target.name, 64))
+            target.has_name = !target.name.empty();
+        else
+            ok = false;
+    }
+
+    if (const auto* member = overrides.Find("tags"); member != nullptr) {
+        // Replace, not union: "the instance is static" and "the instance is not
+        // static" must both be expressible, and a union could express neither.
+        target.active = false;
+        target.is_static = false;
+        ok = ReadTags(ctx, *member, label + " (overrides)", target) && ok;
+    }
+
+    if (const auto* member = overrides.Find("transform"); member != nullptr) {
+        if (!member->IsObject()) {
+            Report(ctx, *member, label, "overrides.transform",
+                   "expected an object, got " + std::string{KindName(member->kind)});
+            ok = false;
+        } else {
+            CheckKeys(ctx, *member, label, "overrides.transform", kOverrideTransformKeys);
+            if (const auto* value = member->Find("position"); value != nullptr)
+                (void)ReadVec2(ctx, *value, label, "overrides.transform.position", target.transform.position);
+            if (const auto* value = member->Find("rotation"); value != nullptr)
+                (void)ReadFloat(ctx, *value, label, "overrides.transform.rotation", target.transform.rotation);
+            if (const auto* value = member->Find("scale"); value != nullptr) {
+                algo::Vec2 scale{1.0F, 1.0F};
+                if (ReadVec2(ctx, *value, label, "overrides.transform.scale", scale)) {
+                    if (scale.GetX() == 0.0F || scale.GetY() == 0.0F)
+                        Report(ctx, *value, label, "overrides.transform.scale",
+                               "scale must be non-zero on both axes");
+                    else
+                        target.transform.scale = scale;
+                }
+            }
+        }
+    }
+
+    if (const auto* member = overrides.Find("sprite"); member != nullptr) {
+        if (!target.sprite.has_value()) {
+            Report(ctx, *member, label, "overrides.sprite",
+                   "this prefab has no sprite, so there is nothing to override");
+            ok = false;
+        } else if (!member->IsObject()) {
+            Report(ctx, *member, label, "overrides.sprite",
+                   "expected an object, got " + std::string{KindName(member->kind)});
+            ok = false;
+        } else {
+            CheckKeys(ctx, *member, label, "overrides.sprite", kOverrideSpriteKeys);
+            auto& sprite = *target.sprite;
+            if (const auto* value = member->Find("tint"); value != nullptr)
+                ok = ReadColor(ctx, *value, label, "overrides.sprite.tint", sprite.tint) && ok;
+            if (const auto* value = member->Find("layer"); value != nullptr) {
+                std::int64_t layer = 0;
+                if (ReadInteger(ctx, *value, label, "overrides.sprite.layer", layer))
+                    sprite.layer = static_cast<std::int32_t>(layer);
+                else
+                    ok = false;
+            }
+            if (const auto* value = member->Find("sort_key"); value != nullptr) {
+                std::int64_t sort_key = 0;
+                if (ReadInteger(ctx, *value, label, "overrides.sprite.sort_key", sort_key))
+                    sprite.sort_key = static_cast<std::int32_t>(sort_key);
+                else
+                    ok = false;
+            }
+            if (const auto* value = member->Find("flip_x"); value != nullptr)
+                ok = ReadBool(ctx, *value, label, "overrides.sprite.flip_x", sprite.flip_x) && ok;
+            if (const auto* value = member->Find("flip_y"); value != nullptr)
+                ok = ReadBool(ctx, *value, label, "overrides.sprite.flip_y", sprite.flip_y) && ok;
+        }
+    }
+
+    if (const auto* member = overrides.Find("camera"); member != nullptr) {
+        if (!target.camera.has_value()) {
+            Report(ctx, *member, label, "overrides.camera",
+                   "this prefab has no camera, so there is nothing to override");
+            ok = false;
+        } else if (!member->IsObject()) {
+            Report(ctx, *member, label, "overrides.camera",
+                   "expected an object, got " + std::string{KindName(member->kind)});
+            ok = false;
+        } else {
+            CheckKeys(ctx, *member, label, "overrides.camera", kOverrideCameraKeys);
+            auto& camera = *target.camera;
+            if (const auto* value = member->Find("zoom"); value != nullptr) {
+                float zoom = 1.0F;
+                if (ReadFloat(ctx, *value, label, "overrides.camera.zoom", zoom)) {
+                    if (zoom <= 0.0F) {
+                        Report(ctx, *value, label, "overrides.camera.zoom", "zoom must be greater than zero");
+                        ok = false;
+                    } else {
+                        camera.zoom = zoom;
+                    }
+                } else {
+                    ok = false;
+                }
+            }
+            if (const auto* value = member->Find("viewport"); value != nullptr) {
+                algo::Vec2 viewport{};
+                if (ReadVec2(ctx, *value, label, "overrides.camera.viewport", viewport)) {
+                    if (viewport.GetX() < 0.0F || viewport.GetY() < 0.0F) {
+                        Report(ctx, *value, label, "overrides.camera.viewport", "viewport must not be negative");
+                        ok = false;
+                    } else {
+                        camera.viewport = viewport;
+                    }
+                } else {
+                    ok = false;
+                }
+            }
+            if (const auto* value = member->Find("active"); value != nullptr)
+                ok = ReadBool(ctx, *value, label, "overrides.camera.active", camera.active) && ok;
+        }
+    }
+
+    if (const auto* member = overrides.Find("lifetime"); member != nullptr) {
+        float lifetime = 0.0F;
+        if (ReadFloat(ctx, *member, label, "overrides.lifetime", lifetime)) {
+            if (lifetime < 0.0F) {
+                Report(ctx, *member, label, "overrides.lifetime", "lifetime must not be negative");
+                ok = false;
+            } else {
+                target.lifetime = lifetime;
+            }
+        } else {
+            ok = false;
+        }
+    }
+
+    return ok;
+}
+
+// Reads `id` first, because every other diagnostic is labelled with it.
+//
+// A prefab instance is a different shape on purpose: `{ id, prefab, overrides? }`.
+// The body lives in the prefab file, so an instance that also carried `sprite` would
+// have two sources for the same field - it is rejected as an unknown field instead.
+auto ReadEntity(Ctx& ctx, const Value& value, const std::size_t index, const PrefabProvider& provider, EntityDesc& out)
+    -> bool {
+    const auto index_label = "entities[" + std::to_string(index) + "]";
+    if (!value.IsObject()) {
+        Report(ctx, value, {}, index_label, "expected an object, got " + std::string{KindName(value.kind)});
+        return false;
+    }
+
+    const auto* id_member = value.Find("id");
+    if (id_member == nullptr) {
+        Report(ctx, value, {}, index_label + ".id", "entity requires an \"id\"");
+        return false;
+    }
+    out.line = value.line;
+    out.column = value.column;
+    if (!ReadUint32(ctx, *id_member, {}, index_label + ".id", out.id))
+        return false;
+    if (out.id == 0) {
+        Report(ctx, *id_member, {}, index_label + ".id", "entity id must be at least 1 (0 means \"no entity\")");
+        return false;
+    }
+
+    const auto* prefab_member = value.Find("prefab");
+    if (prefab_member == nullptr) {
+        if (value.Find("overrides") != nullptr) {
+            Report(ctx, value, EntityLabel(out.id, {}), "overrides",
+                   "\"overrides\" requires a \"prefab\": a plain entity has nothing to override");
+            return false;
+        }
+        CheckKeys(ctx, value, EntityLabel(out.id, {}), "", kEntityKeys);
+        EntityDesc body{};
+        body.id = out.id;
+        body.line = out.line;
+        body.column = out.column;
+        if (!ReadEntityBody(ctx, value, EntityLabel(out.id, {}), body))
+            return false;
+        // Re-label diagnostics that came from the body with the name we just learned.
+        out = std::move(body);
+        return true;
+    }
+
+    CheckKeys(ctx, value, EntityLabel(out.id, {}), "", kPrefabInstanceKeys);
+
+    std::string prefab_uri{};
+    if (!ReadString(ctx, *prefab_member, EntityLabel(out.id, {}), "prefab", prefab_uri, 512))
+        return false;
+    if (!IsResUri(prefab_uri)) {
+        Report(ctx, *prefab_member, EntityLabel(out.id, {}), "prefab",
+               "prefab must be a res:// asset URI without a root or traversal, got \"" + prefab_uri + "\"");
+        return false;
+    }
+    if (!provider) {
+        Report(ctx, *prefab_member, EntityLabel(out.id, {}), "prefab",
+               "this scene names a prefab, but no prefab provider was supplied to the loader");
+        return false;
+    }
+
+    auto base = provider(prefab_uri);
+    if (!base.has_value()) {
+        Report(ctx, *prefab_member, EntityLabel(out.id, {}), "prefab",
+               "prefab \"" + prefab_uri + "\" could not be loaded: " + base.error().Message());
+        return false;
+    }
+
+    EntityDesc merged = std::move(*base);
+    // A prefab never carries identity; the instance does.
+    merged.id = out.id;
+    merged.line = out.line;
+    merged.column = out.column;
+
+    const auto label = EntityLabel(merged.id, merged.name);
+    if (const auto* overrides = value.Find("overrides"); overrides != nullptr) {
+        if (!ApplyOverrides(ctx, *overrides, label, merged))
+            return false;
+    }
+
+    out = std::move(merged);
+    return true;
+}
 } // namespace
 
 auto Diagnostic::Format() const -> std::string {
@@ -572,7 +795,7 @@ auto Diagnostic::Format() const -> std::string {
     return out;
 }
 
-auto ParseScene(const std::string_view text, const std::string_view uri) -> ParseOutcome {
+auto ParseScene(const std::string_view text, const std::string_view uri, const PrefabProvider& provider) -> ParseOutcome {
     ParseOutcome outcome{};
 
     json::SyntaxError syntax{};
@@ -677,7 +900,7 @@ auto ParseScene(const std::string_view text, const std::string_view uri) -> Pars
         for (std::size_t index = 0; index < entities->items.size(); ++index) {
             ctx.per_entity = 0; // the cap is per entity, not per document
             EntityDesc entity{};
-            if (ReadEntity(ctx, *entities->items[index], index, entity))
+            if (ReadEntity(ctx, *entities->items[index], index, provider, entity))
                 scene.entities.push_back(std::move(entity));
         }
 
@@ -726,6 +949,102 @@ auto ParseScene(const std::string_view text, const std::string_view uri) -> Pars
 
     if (outcome.diagnostics.empty())
         outcome.scene = std::move(scene);
+    return outcome;
+}
+
+auto ParsePrefab(const std::string_view text, const std::string_view uri) -> PrefabOutcome {
+    PrefabOutcome outcome{};
+
+    json::SyntaxError syntax{};
+    auto document = json::TryParse(text, syntax);
+    if (!document.has_value()) {
+        Diagnostic diagnostic{};
+        diagnostic.uri = std::string{uri};
+        diagnostic.line = syntax.line;
+        diagnostic.column = syntax.column;
+        diagnostic.message = syntax.message;
+        outcome.diagnostics.push_back(std::move(diagnostic));
+        return outcome;
+    }
+
+    const Value& root = *document;
+    Ctx ctx{};
+    ctx.uri = uri;
+    ctx.diagnostics = &outcome.diagnostics;
+
+    if (!root.IsObject()) {
+        Report(ctx, root, {}, {}, "the prefab root must be an object, got " + std::string{KindName(root.kind)});
+        return outcome;
+    }
+
+    // Version first, for the same reason a scene checks it first: nothing else may be
+    // interpreted under an unknown version.
+    if (const auto* version = root.Find("schema_version"); version == nullptr) {
+        Report(ctx, root, {}, "schema_version",
+               "prefab requires \"schema_version\" (this build reads " + std::to_string(kSchemaVersion) + ")");
+        return outcome;
+    } else {
+        std::int64_t version_value = 0;
+        if (!ReadInteger(ctx, *version, {}, "schema_version", version_value))
+            return outcome;
+        if (version_value != static_cast<std::int64_t>(kSchemaVersion)) {
+            Report(ctx, *version, {}, "schema_version",
+                   "unsupported schema_version " + std::to_string(version_value) + " (this build reads " +
+                       std::to_string(kSchemaVersion) + "); refusing to guess");
+            return outcome;
+        }
+    }
+
+    // `kind` catches "a scene file was passed where a prefab was expected" with a
+    // message that says so, instead of a wall of unknown-field errors.
+    const auto* kind = root.Find("kind");
+    if (kind == nullptr) {
+        Report(ctx, root, {}, "kind", "prefab requires \"kind\": \"prefab\"");
+        return outcome;
+    }
+    std::string kind_text{};
+    if (ReadString(ctx, *kind, {}, "kind", kind_text, 16)) {
+        if (kind_text != "prefab") {
+            Report(ctx, *kind, {}, "kind", "expected \"prefab\", got \"" + kind_text + "\"");
+            return outcome;
+        }
+    } else {
+        return outcome;
+    }
+
+    std::string prefab_id{};
+    if (const auto* id = root.Find("id"); id == nullptr) {
+        Report(ctx, root, {}, "id", "prefab requires an \"id\"");
+        return outcome;
+    } else if (ReadString(ctx, *id, {}, "id", prefab_id, 64)) {
+        for (const char c : prefab_id) {
+            const bool legal = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-';
+            if (!legal) {
+                Report(ctx, *id, {}, "id",
+                       std::string{"prefab id may only contain a-z, 0-9, '_' and '-' (found '"} + c + "')");
+                return outcome;
+            }
+        }
+    }
+
+    CheckKeys(ctx, root, "prefab \"" + prefab_id + "\"", "", kPrefabDocumentKeys);
+
+    const auto label = "prefab \"" + prefab_id + "\"";
+    const auto* entity = root.Find("entity");
+    if (entity == nullptr) {
+        Report(ctx, root, label, "entity", "prefab requires an \"entity\" body");
+    } else if (!entity->IsObject()) {
+        Report(ctx, *entity, label, "entity",
+               "expected an object, got " + std::string{KindName(entity->kind)});
+    } else {
+        CheckKeys(ctx, *entity, label, "entity", kPrefabEntityKeys);
+        EntityDesc body{};
+        if (ReadEntityBody(ctx, *entity, label, body))
+            outcome.entity = std::move(body);
+    }
+
+    if (!outcome.diagnostics.empty())
+        outcome.entity.reset();
     return outcome;
 }
 

@@ -23,7 +23,8 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 
 | 内容 | 来源 |
 |---|---|
-| 相机、玩家、木箱、图集格、过期标记 | `Assets/scenes/smoke_room.scene.json`（本示例自己的内容根，6 个实体） |
+| 相机、玩家、图集格、过期标记 | `Assets/scenes/smoke_room.scene.json`（本示例自己的内容根） |
+| 两个木箱 | `Assets/prefabs/crate.prefab.json` 的**两个实例**，只覆盖位置/排序键/名字 |
 | 地板 | C++ 生成（`AddBackdrop`）：**装饰**，T5.1 的 Tilemap 会用地砖集生成这一层 |
 | 移动与跟随相机 | C++ 系统（`RegisterSmokeSystems`） |
 
@@ -44,11 +45,13 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 1. **不要缓存 `Entity`**。换世界后索引会重用，旧句柄可能"碰巧还活着"——新世界的第一个实体与旧世界的第一个
    实体有相同的 index/generation。要么每帧按 `SceneEntityId` 查，要么把
    `GameWorld::GetWorldGeneration()` 一起缓存、变了就重查。
+2. **Prefab 只描述"它是什么"**。实例能改位置、颜色、层级、朝向、寿命，但改不了贴图/图集矩形/尺寸/轴心；
+   想改这些就改 prefab 本身，或复制一个新的 prefab。
 2. **地板是代码加的**。它在换世界之后创建，否则会被整体替换掉。T5.1 之后这一层交给 Tilemap。
 
 ## 刻意不做
 
 - 没有物理与碰撞（T3.1），移动是直接写 `Transform2D`；
 - 没有 HUD 与重开流程（T3.3）；
-- 没有 Prefab（T2.3）与 Tilemap（T5.1）；
+- 没有图集元数据（下一步 `Sprite/`）与 Tilemap（T5.1）；
 - 不写 `Atom.cpp`：示例是独立可执行文件，引擎入口保持干净。
