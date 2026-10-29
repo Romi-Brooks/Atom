@@ -451,13 +451,21 @@ endif()
     target_include_directories(Atom_Scene2D PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Scene2D PUBLIC Atom_ECS Atom_Renderer2D Atom_Render_Resources)
 
-# 3k. Scene — the level document format (T2.1) and its loader (T2.2).
-#     Depends on ECS + FS + Error + Log and NOT on Runtime: a loader is usable by a
-#     tool or a test with no frame loop, and the switch is a single
+# 3k. Json — a strict JSONC reader, owned by Utilities because every document format
+#     needs one (scenes today; sprite metadata, prefabs and save data next). A leaf:
+#     standard library + Error only, so any layer may use it.
+    add_library(Atom_Json STATIC
+        Utilities/Json/JsonReader.hpp
+        Utilities/Json/JsonReader.cpp
+    )
+    target_include_directories(Atom_Json PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Json PUBLIC Atom_Error)
+
+# 3l. Scene — the level document format (T2.1) and its loader (T2.2).
+#     Depends on ECS + FS + Json and NOT on Runtime: a loader is usable by a tool or
+#     a test with no frame loop, and the switch is a single
 #     GameWorld::ReplaceEntities call made by the game code.
     add_library(Atom_Scene STATIC
-        Scene/Json/JsonReader.hpp
-        Scene/Json/JsonReader.cpp
         Scene/SceneTypes.hpp
         Scene/SceneSchema.hpp
         Scene/SceneSchema.cpp
@@ -465,9 +473,9 @@ endif()
         Scene/SceneLoader.cpp
     )
     target_include_directories(Atom_Scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    # The parser and the schema are part of the public headers, but the JSON DOM is
-    # reachable only through Scene/Json: nothing in ECS, Render or Runtime may name it.
-    target_link_libraries(Atom_Scene PUBLIC Atom_ECS Atom_FS Atom_Log Atom_Math Atom_Color)
+    # The schema and the loader are public; the JSON DOM stays behind SceneSchema, and
+    # nothing in ECS, Render or Runtime may name it.
+    target_link_libraries(Atom_Scene PUBLIC Atom_ECS Atom_FS Atom_Json Atom_Log Atom_Math Atom_Color)
 
 # 4. Backend extension registration and format codecs
     add_library(Atom_Backend_Extension STATIC

@@ -7,9 +7,12 @@
  *   ParseScene   pure text -> SceneDesc, with every rule from the v1 schema document
  *   BuildWorld   SceneDesc -> EntityWorld, with the component mapping
  *
- * The committed files under Assets/scenes are read through the real filesystem so
- * the samples cannot rot, and the invalid ones must be *rejected* - a fixture that
- * silently starts passing is a test that stopped working.
+ * Two sets of on-disk files are read here on purpose:
+ *  - the demo room under Example/Game/Assets, because it ships with the engine and
+ *    must not rot into an unloadable state;
+ *  - the loader's own invalid fixtures under Test/Data/scenes, which exist only to
+ *    prove that each rule rejects - a fixture that silently starts passing is a
+ *    test that stopped working.
  */
 
 #include <Scene/SceneLoader.hpp>
@@ -63,8 +66,8 @@ auto main() -> int {
         ATOM_CHECK(fs::AssetPath::TryParse("res://scenes/smoke_room.scene.json", path));
 
         std::unique_ptr<fs::NativeFileSystem> backend{};
-        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Assets", backend) ==
-                   fs::Result::Success);
+        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Example/Game/Assets",
+                                                backend) == fs::Result::Success);
 
         const auto loaded = scene::SceneLoader::Load(*backend, path);
         ATOM_CHECK_MSG(loaded.has_value(), loaded.has_value() ? "" : loaded.error().Message().c_str());
@@ -143,7 +146,7 @@ auto main() -> int {
     // --- 2. The committed invalid fixtures are rejected, per rule ---------
     {
         std::unique_ptr<fs::NativeFileSystem> backend{};
-        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Assets", backend) ==
+        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Test/Data/scenes", backend) ==
                    fs::Result::Success);
 
         struct Case {
@@ -151,9 +154,9 @@ auto main() -> int {
                 const char* expected;
         };
         const Case cases[] = {
-            {"res://scenes/Invalid/unknown_field.scene.json", "did you mean \"sprite\"?"},
-            {"res://scenes/Invalid/duplicate_id.scene.json", "duplicate entity id 7"},
-            {"res://scenes/Invalid/bad_version.scene.json", "unsupported schema_version 2"},
+            {"res://invalid_unknown_field.scene.json", "did you mean \"sprite\"?"},
+            {"res://invalid_duplicate_id.scene.json", "duplicate entity id 7"},
+            {"res://invalid_bad_version.scene.json", "unsupported schema_version 2"},
         };
         for (const auto& test_case : cases) {
             fs::AssetPath path{};
@@ -164,13 +167,13 @@ auto main() -> int {
             // The message must locate the problem: uri, line:column, then the reason.
             const auto message = loaded.error().Detail();
             ATOM_CHECK_MSG(message.find(test_case.expected) != std::string::npos, message.data());
-            ATOM_CHECK(message.find("res://scenes/Invalid/") != std::string_view::npos);
+            ATOM_CHECK(message.find("res://invalid_") != std::string_view::npos);
             ATOM_CHECK(message.find(".json:") != std::string_view::npos);
         }
 
         // A missing file is a load failure, not a schema failure.
         fs::AssetPath missing{};
-        ATOM_CHECK(fs::AssetPath::TryParse("res://scenes/nope.scene.json", missing));
+        ATOM_CHECK(fs::AssetPath::TryParse("res://nope.scene.json", missing));
         const auto absent = scene::SceneLoader::Load(*backend, missing);
         ATOM_CHECK(!absent.has_value());
         ATOM_CHECK(absent.error().Code() == ErrorCode::SceneLoadFailed);

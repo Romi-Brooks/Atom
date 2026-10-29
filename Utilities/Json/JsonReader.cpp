@@ -1,14 +1,14 @@
 // Copyright (c) 2026 Romi Brooks
 // SPDX-License-Identifier: MIT
 
-#include <Scene/Json/JsonReader.hpp>
+#include <Utilities/Json/JsonReader.hpp>
 
 #include <cmath>
 #include <cstdlib>
 #include <string>
 #include <utility>
 
-namespace atom::scene::json {
+namespace atom::json {
 
 namespace {
 
@@ -463,10 +463,10 @@ auto Parse(const std::string_view text) -> Result<Value> {
     SyntaxError error{};
     auto root = TryParse(text, error);
     if (!root.has_value()) {
-        return std::unexpected<Error>{MakeError(ErrorCode::SceneInvalidDocument, Module::Scene, "JsonReader::Parse")
+        return std::unexpected<Error>{MakeError(ErrorCode::InvalidDocument, Module::Core, "Json::Parse")
                                           .WithDetail(FormatPosition(error.line, error.column, error.message))};
     }
     return std::move(*root);
 }
 
-} // namespace atom::scene::json
+} // namespace atom::json

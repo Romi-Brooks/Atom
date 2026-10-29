@@ -8,7 +8,7 @@
  * number is what makes hand-editing miserable.
  */
 
-#include <Scene/Json/JsonReader.hpp>
+#include <Utilities/Json/JsonReader.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 
@@ -17,9 +17,9 @@
 
 namespace {
 
-using atom::scene::json::Kind;
-using atom::scene::json::Parse;
-using atom::scene::json::TryParse;
+using atom::json::Kind;
+using atom::json::Parse;
+using atom::json::TryParse;
 
 // Parses and expects failure, returning the syntax error position and message.
 struct Failure {
@@ -30,7 +30,7 @@ struct Failure {
 };
 
 auto ExpectFailure(const std::string_view text) -> Failure {
-    atom::scene::json::SyntaxError error{};
+    atom::json::SyntaxError error{};
     const auto value = TryParse(text, error);
     Failure failure{};
     failure.failed = !value.has_value();
@@ -172,10 +172,10 @@ auto main() -> int {
     {
         const auto parsed = Parse(R"({ "a": 1, })");
         ATOM_CHECK(!parsed.has_value());
-        ATOM_CHECK(parsed.error().Code() == atom::ErrorCode::SceneInvalidDocument);
+        ATOM_CHECK(parsed.error().Code() == atom::ErrorCode::InvalidDocument);
         // ModuleOf() derives the owning module from the code block, which is the
         // invariant that keeps a code from being filed under the wrong module.
-        ATOM_CHECK(atom::ModuleOf(parsed.error().Code()) == atom::Module::Scene);
+        ATOM_CHECK(atom::ModuleOf(parsed.error().Code()) == atom::Module::Core);
         ATOM_CHECK(parsed.error().MatchesModule());
         ATOM_CHECK(Contains(std::string{parsed.error().Detail()}, "1:11:"));
     }

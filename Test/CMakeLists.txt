@@ -412,17 +412,19 @@ atom_add_test(Atom_Runtime.WorldReplace
     Runtime/WorldReplaceTest.cpp
     Atom_Runtime)
 
-# --- Scene (T2.1 format, T2.2 loader) ---
+# --- Json (Utilities) ---
 # The JSONC reader: acceptance, plus every rejection the schema document promises,
-# each pinned to a line:column.
-atom_add_test(Atom_Scene.JsonReader
-    Atom_Scene_JsonReader_Tests
-    Scene/JsonReaderTest.cpp
-    Atom_Scene)
+# each pinned to a line:column. It is a general utility, so its test does not depend
+# on the Scene module at all.
+atom_add_test(Atom_Json.Reader
+    Atom_Json_Reader_Tests
+    Utilities/JsonReaderTest.cpp
+    Atom_Json)
 
-# Schema + loader: the committed samples are read through a real filesystem so they
-# cannot rot, the invalid fixtures must be rejected, and the component mapping is
-# asserted field by field.
+# --- Scene (T2.1 format, T2.2 loader) ---
+# Schema + loader: the shipped demo room is read through a real filesystem so it
+# cannot rot, the invalid fixtures under Test/Data must be rejected, and the
+# component mapping is asserted field by field.
 atom_add_test(Atom_Scene.SceneLoader
     Atom_Scene_SceneLoader_Tests
     Scene/SceneLoaderTest.cpp

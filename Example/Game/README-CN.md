@@ -1,6 +1,6 @@
 # Example/Game — 2D scene demo (T2.2)
 
-引擎里第一个**世界来自场景文件**的示例：`Assets/scenes/smoke_room.scene.json` 定义房间内容，C++ 只负责
+引擎里第一个**世界来自场景文件**的示例：`Example/Game/Assets/scenes/smoke_room.scene.json` 定义房间内容，C++ 只负责
 系统、渲染和一段装饰用的地板。
 
 ## 运行
@@ -23,7 +23,7 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 
 | 内容 | 来源 |
 |---|---|
-| 相机、玩家、木箱、图集格、过期标记 | `Assets/scenes/smoke_room.scene.json`（6 个实体） |
+| 相机、玩家、木箱、图集格、过期标记 | `Assets/scenes/smoke_room.scene.json`（本示例自己的内容根，6 个实体） |
 | 地板 | C++ 生成（`AddBackdrop`）：**装饰**，T5.1 的 Tilemap 会用地砖集生成这一层 |
 | 移动与跟随相机 | C++ 系统（`RegisterSmokeSystems`） |
 
@@ -33,7 +33,7 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 
 | 环节 | 落点 |
 |---|---|
-| JSONC 解析、行号列号报错 | `Scene/Json/JsonReader`（`Atom_Scene.JsonReader`） |
+| JSONC 解析、行号列号报错 | `Utilities/Json`（`Atom_Json.Reader`） |
 | 字段/取值/相机唯一性校验、错误一次收集 | `Scene/SceneSchema`（`Atom_Scene.SceneLoader`） |
 | 加载到**临时**世界，成功后一次替换 | `Scene/SceneLoader` + `GameWorld::ReplaceEntities` |
 | 替换后系统仍在跑、帧计数不重置 | `Atom_Runtime.WorldReplace` |

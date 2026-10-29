@@ -171,7 +171,7 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
 两个候选：
 
 **A. 自研 JSONC tokenizer（推荐）**
-- 位置 `Scene/Json/JsonReader.{hpp,cpp}`，约 500–700 行 + 测试；
+- 位置 `Utilities/Json/JsonReader.{hpp,cpp}`（`Atom_Json` target），约 500–700 行 + 测试；
 - 天然给出 `line:column`，天然支持 `//` 注释，错误文案与 §7 完全一致；
 - 无新依赖、编译开销小、可完全离线审计；
 - 代价：我们自己维护；需要写清数字/转义/嵌套深度的边界测试（深度上限 64，字符串长度上限）。
@@ -186,7 +186,7 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
 代码量比"引入后包装一层"更小，也不给 `ThirdParty/` 增加维护面。
 
 实现落点：
-- `Scene/Json/JsonReader.{hpp,cpp}`：tokenizer + 递归下降，`TryParse()` 返回 `SyntaxError{line, column, message}`，
+- `Utilities/Json/JsonReader.{hpp,cpp}`：tokenizer + 递归下降，`TryParse()` 返回 `SyntaxError{line, column, message}`（错误码是 Core 的 `InvalidDocument`，与场景无关），
   `Parse()` 是其 `Result` 包装；
 - `Scene/SceneSchema.cpp`：把 DOM 变成 `SceneDesc`，收集至多 32 条诊断；
 - 若以后需要**写** JSON（存档 T5.5、工具），再补一个约 150 行的 writer，而不是现在预先引入库。
@@ -195,12 +195,12 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
 
 | 文件 | 用途 |
 |---|---|
-| `Assets/scenes/smoke_room.scene.json` | 合法样例；T2.2 用它替换 `SeedSmokeScene` |
-| `Assets/scenes/Invalid/unknown_field.scene.json` | 拼写错误拒绝 |
-| `Assets/scenes/Invalid/duplicate_id.scene.json` | 重复 id 拒绝 |
-| `Assets/scenes/Invalid/bad_version.scene.json` | 未知 `schema_version` 拒绝 |
+| `Example/Game/Assets/scenes/smoke_room.scene.json` | 合法样例；T2.2 用它替换 `SeedSmokeScene` |
+| `Test/Data/scenes/invalid_unknown_field.scene.json` | 拼写错误拒绝 |
+| `Test/Data/scenes/invalid_duplicate_id.scene.json` | 重复 id 拒绝 |
+| `Test/Data/scenes/invalid_bad_version.scene.json` | 未知 `schema_version` 拒绝 |
 
-地板阵列不在 v1 手写：几十上百块地砖必须由 T5.1 的 Tilemap 生成，样例只给房间里的少量实体。
+地板阵列不在 v1 手写：几十上百块地砖必须由 T5.1 的 Tilemap 生成，样例只给房间里的少量实体。示例里的地板目前由 C++ 生成装饰，不参与场景文档。
 
 ## 10. v2 预留（不得在 v1 悄悄加字段）
 

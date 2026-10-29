@@ -73,6 +73,10 @@ enum class ErrorCode : std::uint32_t {
     Unsupported,
     OutOfMemory,
     Internal,
+    // A document / payload that does not parse. Owned by Core rather than by a
+    // consumer, because the reader (Utilities/Json) is a general primitive: the
+    // consumer re-tags it with its own code when it knows what the document meant.
+    InvalidDocument,
 
     // --- Filesystem (0x0100) ------------------------------------------------
     FsInvalidPath = 0x0100,
@@ -257,6 +261,8 @@ enum class ErrorCode : std::uint32_t {
             return "OutOfMemory";
         case ErrorCode::Internal:
             return "Internal";
+        case ErrorCode::InvalidDocument:
+            return "InvalidDocument";
 
         case ErrorCode::FsInvalidPath:
             return "FsInvalidPath";

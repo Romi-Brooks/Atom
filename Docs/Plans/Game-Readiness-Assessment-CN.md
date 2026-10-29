@@ -314,8 +314,8 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
       `GameWorld::RunFrame(delta, N, dt)`；`FixedUpdate` 故意不覆写。理由与两种被拒方案都写在
       `GameScreen.hpp` 顶部。`Atom_Runtime.GameScreenFrame` 用阶段记录器断言 `input → fixed×N → update → late`
       的顺序、N=0 时仍跑 Input/Update/LateUpdate、预算不被跨帧重放、暂停不推进世界、setup 失败即构造失败。
-    - G0.5 内容根：新增 `Assets/`（`Textures/*.png`，由 `Assets/generate_textures.py` 可复现生成）与开发期挂载约定：
-      `Example/Game/SmokeMain.cpp` 在启动时把 `ATOM_SOURCE_ROOT/Assets` 以 priority 200 挂到 `res://`；发布期同一批
+    - G0.5 内容根：内容根归属**示例自己**（`Example/Game/Assets/`，`textures/*.png` 由同目录 `generate_textures.py` 可复现生成），不做仓库根共享根；开发期挂载约定：
+      `Example/Game/SmokeMain.cpp` 在启动时把 `ATOM_SOURCE_ROOT/Example/Game/Assets` 以 priority 200 挂到 `res://`；发布期同一批
       URI 改由 APKG 提供，上层不变。
     - 示例：`Example/Game/` 的 `SmokeScreen`（`GameScreen` 子类）+ `SeedSmokeScene`，用真实 `res://` 贴图搭出
       40×25 地砖、两个箱子、一个图集子矩形、一个玩家；`move-player`（FixedUpdate）与 `camera-follow`（LateUpdate）
@@ -334,15 +334,15 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
   - 明确拒绝：未知组件、未知字段、循环 Prefab、跨 Scene entity 引用、任意 C++/Lua 对象序列化。
   - **已落地（2026-10-25）**：格式与校验规则冻结在 [Scene-Schema-v1-CN.md](Scene-Schema-v1-CN.md)（JSONC 语法、单位与
     坐标约定、字段表与默认值、未知字段一律拒绝、错误诊断格式、与 ECS 组件的唯一映射、v2 预留清单）。样例与反例在
-    `Assets/scenes/`：`smoke_room.scene.json`（6 个实体，覆盖全部 v1 字段）+ `Invalid/{unknown_field,duplicate_id,
-    bad_version}.scene.json`，已用脚本验证语法可解析。
-  - **剩余（一项决策）**：解析器选型。文档 §8 给出 A（自研 `Scene/Json` tokenizer，推荐）与 B（引入
+    `Example/Game/Assets/scenes/`：`smoke_room.scene.json`（6 个实体，覆盖全部 v1 字段）+ `Test/Data/scenes/` 的三个反例（`invalid_unknown_field,
+    invalid_duplicate_id,invalid_bad_version`），已用脚本验证语法可解析。
+  - **剩余（一项决策）**：解析器选型。文档 §8 给出 A（自研 `Utilities/Json` tokenizer，推荐）与 B（引入
     `nlohmann/json`）的对比与理由；确认后 T2.2 按所选方案实现。该决策只影响实现方式，不影响已冻结的格式。
   - 验收：schema 有样例、版本号和错误诊断规范；选择/引入的解析器不泄漏进 ECS/Render 公共 API。
   - 依赖：T1.1。
 
 - [x] **T2.2 — SceneData、SceneLoader 与原子切换。**
-  - 新增位置：`Scene/`（`Json/JsonReader`、`SceneTypes`、`SceneSchema`、`SceneLoader`）。
+  - 新增位置：`Scene/`（`SceneTypes`、`SceneSchema`、`SceneLoader`）+ `Utilities/Json/JsonReader`。
   - 工作：VFS 读取；解析/语义校验；在临时世界里建实体；所有步骤成功后才替换 active world。
     加载失败保留旧 world 并返回携带 URI、实体 id 和字段名的 `Error`。
   - **已落地（2026-10-25）**：新增 `Atom_Scene` target（依赖 ECS/FS/Log/Math/Color，**不依赖 Runtime**）。
@@ -482,9 +482,9 @@ M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3
 `Runtime/GameScreen` + `Example_2D_Smoke` 实机跑通）。
 
 **M2 可加载关卡（2026-10-25 完成 T2.1 + T2.2）**：`Docs/Plans/Scene-Schema-v1-CN.md` 冻结 v1 格式（JSONC、未知
-字段一律拒绝、错误诊断格式、与 ECS 组件的唯一映射）；`Atom_Scene` 提供 `Scene/Json/JsonReader`、
+字段一律拒绝、错误诊断格式、与 ECS 组件的唯一映射）；`Utilities/Json` 提供通用 JSONC 读取器（`Atom_Json`），`Atom_Scene` 提供
 `Scene/SceneSchema`、`Scene/SceneLoader`，原子切换走 `GameWorld::ReplaceEntities`；
-`Example_2D_Smoke` 的房间现在全部来自 `Assets/scenes/smoke_room.scene.json`。CTest 72/72。
+`Example_2D_Smoke` 的房间现在全部来自 `Example/Game/Assets/scenes/smoke_room.scene.json`。CTest 72/72。
 
 **未完成的已知项（不阻塞 M3，但需在 T3.1/T3.3 前处理）**：
 

@@ -4,7 +4,7 @@
  *        one GameScreen whose world is loaded from a scene document.
  *
  * The content-root convention (G0.5) is stated here rather than hidden in a helper:
- * development runs mount ATOM_SOURCE_ROOT/Assets at priority 200, so
+ * development runs mount ATOM_SOURCE_ROOT/Example/Game/Assets at priority 200, so
  * `res://scenes/smoke_room.scene.json` and the sprite URIs inside it resolve to real
  * files in the checkout. A packaged build would mount the same URIs from game.apkg
  * and nothing above this point would change.
@@ -40,7 +40,7 @@ constexpr int kWindowHeight = 720;
 auto MountDevelopmentAssets() -> bool {
     auto& vfs = atom::fs::Vfs::GetInstance();
     std::unique_ptr<atom::fs::NativeFileSystem> backend{};
-    const std::string root = std::string{ATOM_SOURCE_ROOT} + "/Assets";
+    const std::string root = std::string{ATOM_SOURCE_ROOT} + "/Example/Game/Assets";
     if (atom::fs::NativeFileSystem::Create("res", root, backend) != atom::fs::Result::Success || !backend) {
         LOG_ERROR(atom::log::core::Main, "2D smoke scene: content root unavailable: " + root);
         return false;
@@ -93,7 +93,7 @@ auto main() -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-    window.SetFPS(60);
+    window.SetFPS(165);
 
     LOG_INFO(atom::log::core::Screen,
              "2D smoke scene running: WASD/arrows move the player, Space pauses the world, close the window to quit.");

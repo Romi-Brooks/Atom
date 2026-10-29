@@ -25,8 +25,8 @@
  * schema validator can point at the offending field rather than at the object.
  */
 
-#ifndef ATOM_SCENE_JSON_JSONREADER_HPP
-#define ATOM_SCENE_JSON_JSONREADER_HPP
+#ifndef ATOM_UTILITIES_JSON_JSONREADER_HPP
+#define ATOM_UTILITIES_JSON_JSONREADER_HPP
 
 #include <cstdint>
 #include <memory>
@@ -37,7 +37,7 @@
 
 #include <Error/Error.hpp>
 
-namespace atom::scene::json {
+namespace atom::json {
 
 enum class Kind : std::uint8_t { Null, Bool, Number, String, Array, Object };
 
@@ -105,6 +105,6 @@ struct SyntaxError {
 [[nodiscard]] auto FormatPosition(std::uint32_t line, std::uint32_t column, std::string_view message)
     -> std::string;
 
-} // namespace atom::scene::json
+} // namespace atom::json
 
-#endif // ATOM_SCENE_JSON_JSONREADER_HPP
+#endif // ATOM_UTILITIES_JSON_JSONREADER_HPP
