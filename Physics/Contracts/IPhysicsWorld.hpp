@@ -20,13 +20,19 @@ namespace atom::physics {
 class IPhysicsBody;
 class IPhysicsJoint;
 
-// 碰撞生命周期回调。默认空实现，游戏按需覆写。回调发生在 Step 期间，
-// 世界处于一致的模拟状态，但不保证刚体顺序。回调内请求 DestroyBody
-// 会在当前 Step 完成后实际释放，保证本步求解器引用仍有效。
+// 每步的接触生命周期，顺序固定：先 Begin（本步新接触），再 Persist（上一步就已接触），
+// 最后 End（上一步接触、本步分离）。同一对刚体在一步内最多出现一次。
+//
+// 回调发生在 Step 期间，世界处于一致的模拟状态，但不保证刚体顺序。回调内请求
+// DestroyBody 会在当前 Step 完成后实际释放，保证本步求解器引用仍有效。
+//
+// Persist 存在的原因：地面接触"持续"才是常态，只靠 Begin/End 无法表达"一直站在地上"；
+// 调用方只能自己维护一份接触集合，等于把这里已经算过的状态再算一遍。
 class IContactListener {
     public:
         virtual ~IContactListener() = default;
         virtual auto BeginContact(IPhysicsBody* a, IPhysicsBody* b) -> void {}
+        virtual auto PersistContact(IPhysicsBody* a, IPhysicsBody* b) -> void {}
         virtual auto EndContact(IPhysicsBody* a, IPhysicsBody* b) -> void {}
 };
 

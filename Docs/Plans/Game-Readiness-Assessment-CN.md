@@ -403,19 +403,25 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 
 ### 阶段 3：物理、输入与可玩验证
 
-- [ ] **T3.1 — Physics/ECS 集成层。**
+- [~] **T3.1 — Physics/ECS 集成层。**（拆成 T3.1a 契约 + T3.1b 集成两轮）
   - 新增位置：`Physics/Integration/`，绝不放入 `ECS/` 或 `Render/`。
   - 前置（G0.4 契约扩展，必须先做）：现有 `Physics/Contracts` 不足以支撑本任务。需先补
     `BodyDef::is_sensor`（触发器不产生速度/位置响应）、body 的稳定 user-data 或 id（否则 `IContactListener`
     拿到的 `IPhysicsBody*` 无法可靠映射回 entity，只能靠旁路表）、至少点/射线查询，以及接触 persist 语义
     （目前只有 `BeginContact`/`EndContact`）。这些是契约与 Internal 后端的改动，不是集成层可以兜住的。
-  - 工作：`PhysicsBodyComponent`/`ColliderComponent` 只保存 engine 侧 id 与配置；创建/销毁在命令边界同步；
+  - **T3.1a 已落地（2026-10-29）**：`BodyDef::is_sensor` + `BodyDef::user_data`（uint64，创建后不可变——契约里
+    不放 `void*`，否则等于邀请"拥有者已销毁仍被读"）；`IPhysicsBody::IsSensor()/GetUserData()`；
+    `IContactListener::PersistContact()`（顺序固定 Begin → Persist → End）。Internal 后端里传感器**只**把接触对
+    放进当前集合（因此事件照常上报），**不**喂求解器、**不**唤醒任何人——一个分支就是"触发器 vs 碰撞体"的全部差别。
+    射线/点查询**按先前决定留到有真实需求时再做**，不进这一轮。
+  - 工作（T3.1b）：`PhysicsBodyComponent`/`ColliderComponent` 只保存 engine 侧 id 与配置；创建/销毁在命令边界同步；
     FixedUpdate 执行物理；模拟结果写 `Transform2D`；Render 读取插值结果。
   - 单位：物理固定使用 MKS、y-up、弧度；game/render 边界集中做 pixels-per-meter 与 y 轴转换，禁止散落换算。
   - 事件：将碰撞开始/持续/结束和 trigger 事件转为 `GameEvent`，顺序稳定、无回调重入。注意
     `GameEventQueue::GameEvent` 目前只有 `{type, source, target}`，无 payload；需要 collider 细节时须先决策
     是扩事件结构还是让消费方回查组件。
   - 验收：销毁实体不会遗留 body；触发器不产生物理解算响应；固定帧率变化下结果一致；debug draw 可核对 collider。
+    （T3.1a：`Atom_Physics.SensorAndUserData` 断言穿行不留响应、persist 计数、真实碰撞体仍会挡住、user_data 可反查）
   - 依赖：T0.2、T1.1、T2.2。
   - 预计：约 1,200–2,000 行实现、测试与可视化示例；含契约扩展约 +400–800 行。
 

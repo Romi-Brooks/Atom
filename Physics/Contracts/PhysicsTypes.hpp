@@ -26,14 +26,23 @@ enum class BodyType : std::uint8_t {
         Dynamic,   // 完全参与动力学（受力、积分、碰撞响应）
 };
 
-// 创建刚体时的描述。M1 只含单形状；复合形状（多 fixture）、阻尼、重力缩放、
-// 固定旋转、用户数据等作为后续里程碑的扩展点，追加字段不改既有语义。
+// 创建刚体时的描述。复合形状（多 fixture）、阻尼、重力缩放、固定旋转仍是后续扩展点；
+// sensor 与 user_data 已在 T3.1 落地（见下）。
 struct BodyDef final {
         Shape shape{};
         Material material{};
         BodyType type = BodyType::Static;
         algo::Vec2 position{}; // 世界坐标（米）
         float angle = 0.0f;    // 弧度
+
+        // 触发器：参与碰撞检测并上报接触，但不接受任何求解响应。这是"玩家在触发区里"
+        // 与"触发区把玩家推开"的区别，也是终点 / 伤害区 / 检测区能实现的前提。
+        bool is_sensor = false;
+
+        // 拥有者身份（ECS 的 backend handle、场景 id 或任何宿主编号）。用数字而不是
+        // void*：契约里放裸指针等于邀请"拥有者已销毁后仍被读"，而集成层只需要反查。
+        // 创建后不可变——需要换身份就重建刚体，避免生命周期中途换主。
+        std::uint64_t user_data = 0;
 };
 
 // revolute 关节定义：把两个刚体在各自局部空间的锚点钉到同一个世界点。

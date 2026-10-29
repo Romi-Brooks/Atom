@@ -40,6 +40,13 @@ class IPhysicsBody {
         // 休眠查询/强制唤醒或入睡。休眠体不参与积分与求解，直到被唤醒。
         [[nodiscard]] virtual auto IsAwake() const -> bool = 0;
         virtual auto SetAwake(bool awake) -> void = 0;
+
+        // 是否为触发器（见 BodyDef::is_sensor）。世界本身已按语义处理接触：触发器只上报，
+        // 不产生解算响应。这个查询是给集成层与调试用的。
+        [[nodiscard]] virtual auto IsSensor() const -> bool = 0;
+
+        // 创建时给定的拥有者身份；0 表示未指定。用它把刚体反查回实体，而不是靠旁路表。
+        [[nodiscard]] virtual auto GetUserData() const -> std::uint64_t = 0;
 };
 
 } // namespace atom::physics

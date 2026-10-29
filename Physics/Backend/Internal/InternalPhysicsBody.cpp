@@ -8,7 +8,8 @@
 
 namespace atom::physics {
 
-InternalPhysicsBody::InternalPhysicsBody(RigidBody body) : body_(std::move(body)) {}
+InternalPhysicsBody::InternalPhysicsBody(RigidBody body, const bool is_sensor, const std::uint64_t user_data)
+    : body_(std::move(body)), is_sensor_(is_sensor), user_data_(user_data) {}
 
 auto InternalPhysicsBody::GetType() const -> BodyType {
     return body_.type;
@@ -81,6 +82,14 @@ auto InternalPhysicsBody::ApplyTorque(const float torque) -> void {
     }
     body_.torque += torque;
     Wake();
+}
+
+auto InternalPhysicsBody::IsSensor() const -> bool {
+    return is_sensor_;
+}
+
+auto InternalPhysicsBody::GetUserData() const -> std::uint64_t {
+    return user_data_;
 }
 
 auto InternalPhysicsBody::IsAwake() const -> bool {

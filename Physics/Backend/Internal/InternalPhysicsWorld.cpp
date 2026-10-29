@@ -122,7 +122,7 @@ auto InternalPhysicsWorld::CreateBody(const BodyDef& def) -> IPhysicsBody* {
 
     UpdateWorldAabb(body);
 
-    auto owned = std::make_unique<InternalPhysicsBody>(std::move(body));
+    auto owned = std::make_unique<InternalPhysicsBody>(std::move(body), def.is_sensor, def.user_data);
     InternalPhysicsBody* raw = owned.get();
     bodies_.push_back(std::move(owned));
     LOG_DEBUG(atom::log::physics::Body, "Created body (" + std::string{BodyTypeName(raw->Body().type)} + ")");
@@ -342,8 +342,13 @@ auto InternalPhysicsWorld::Step(const float delta_time, const int velocity_itera
             current_contacts.insert(key);
         } else if (result.hit) {
             current_contacts.insert(key);
-            contacts.push_back(ContactSolverInput{&body_a, &body_b, result.manifold});
-            WakeOnContact(body_a, body_b, key);
+            // 触发器只上报接触，不给求解器、也不唤醒任何人（否则每个触发区每帧都在
+            // 把附近睡着的刚体捅醒）。这一个分支就是"触发器"与"碰撞体"的全部差别。
+            const bool sensor = bodies_[i]->IsSensor() || bodies_[j]->IsSensor();
+            if (!sensor) {
+                contacts.push_back(ContactSolverInput{&body_a, &body_b, result.manifold});
+                WakeOnContact(body_a, body_b, key);
+            }
         }
     }
 
@@ -355,6 +360,10 @@ auto InternalPhysicsWorld::Step(const float delta_time, const int velocity_itera
         for (const ContactPair& key : current_contacts) {
             if (prev_contacts_.find(key) == prev_contacts_.end()) {
                 listener->BeginContact(key.first, key.second);
+            } else {
+                // 仍在接触：这就是"一直站在地上"能表达出来的原因，调用方不必自己维护
+                // 一份接触对集合。
+                listener->PersistContact(key.first, key.second);
             }
         }
         for (const ContactPair& key : prev_contacts_) {

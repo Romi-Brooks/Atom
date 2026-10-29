@@ -260,6 +260,13 @@ atom_add_test(Atom_Physics.Parallel
     Physics/PhysicsParallelTest.cpp
     Atom_Physics)
 
+# T3.1a: the three contract additions the ECS integration needs - sensors (report but
+# never resolve), a stable owner id, and persist contacts.
+atom_add_test(Atom_Physics.SensorAndUserData
+    Atom_Physics_SensorAndUserData_Tests
+    Physics/SensorAndUserDataTest.cpp
+    Atom_Physics)
+
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry
     Atom_Backend_Extension_AudioDecoderRegistry_Tests
