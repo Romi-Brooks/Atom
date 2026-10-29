@@ -15,6 +15,7 @@
 #include <Filesystem/FileSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Scene/SceneSchema.hpp>
+#include <Sprite/SpriteAtlasLoader.hpp>
 
 namespace atom::scene {
 
@@ -37,7 +38,8 @@ using ecs::Transform2D;
 // ignored" the next mystery.
 class PrefabCache final {
     public:
-        explicit PrefabCache(const fs::IFileSystem& filesystem) : filesystem_(&filesystem) {}
+        PrefabCache(const fs::IFileSystem& filesystem, const AtlasProvider& atlas_provider)
+            : filesystem_(&filesystem), atlas_provider_(&atlas_provider) {}
 
         [[nodiscard]] auto Get(const std::string_view uri) -> Result<EntityDesc> {
             const std::string key{uri};
@@ -57,7 +59,7 @@ class PrefabCache final {
                 return PrefabError(uri, "the prefab file could not be read");
 
             const std::string_view text{reinterpret_cast<const char*>(bytes.data()), bytes.size()};
-            auto outcome = ParsePrefab(text, path.String());
+            auto outcome = ParsePrefab(text, path.String(), *atlas_provider_);
             if (!outcome.Ok()) {
                 for (const auto& diagnostic : outcome.diagnostics)
                     LOG_WARNING(atom::log::core::Main, "prefab load: " + diagnostic.Format());
@@ -79,6 +81,7 @@ class PrefabCache final {
         }
 
         const fs::IFileSystem* filesystem_ = nullptr;
+        const AtlasProvider* atlas_provider_ = nullptr;
         std::unordered_map<std::string, EntityDesc> cache_{};
 };
 
@@ -140,6 +143,7 @@ auto BuildEntity(EntityWorld& world, const EntityDesc& entity) -> Result<void> {
             sprite.size = desc.size;
         sprite.pivot = desc.pivot;
         sprite.tint = desc.tint;
+        sprite.filter = desc.filter;
         sprite.layer = desc.layer;
         sprite.sort_key = desc.sort_key;
         sprite.flip_x = desc.flip_x;
@@ -218,10 +222,15 @@ auto SceneLoader::Load(const fs::IFileSystem& filesystem, const fs::AssetPath& p
     // Prefabs are resolved during validation, not after it: an instance's base body
     // has to exist before its overrides can be checked against it, and a prefab that
     // fails to load must fail the scene load rather than produce a hole.
-    PrefabCache prefabs{filesystem};
+    // Atlas documents are read through the same filesystem and cached for this load;
+    // the provider hands out a reference that lives as long as this function's locals.
+    sprite::SpriteAtlasLoader atlases{filesystem};
+    const AtlasProvider atlas_provider = [&atlases](const std::string_view uri) { return atlases.Load(uri); };
+
+    PrefabCache prefabs{filesystem, atlas_provider};
     const PrefabProvider provider = [&prefabs](const std::string_view uri) { return prefabs.Get(uri); };
 
-    auto outcome = ParseScene(text, path.String(), provider);
+    auto outcome = ParseScene(text, path.String(), provider, atlas_provider);
     if (!outcome.scene.has_value()) {
         // Every diagnostic is logged, so a five-error file does not hide four of them;
         // the returned Error carries the first, which is the one a UI shows.

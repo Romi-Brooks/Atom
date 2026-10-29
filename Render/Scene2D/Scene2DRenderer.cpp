@@ -111,6 +111,7 @@ auto CollectOne(void* context, const Entity entity, std::span<RenderTransform2D>
     draw.tint = data.tint;
     draw.flip_x = data.flip_x;
     draw.flip_y = data.flip_y;
+    draw.filter = data.filter == ecs::SpriteFilter::Nearest ? render::Filter2D::Nearest : render::Filter2D::Linear;
     draw.layer = data.layer;
     draw.sort_key = data.sort_key;
     draw.entity = entity;
@@ -217,9 +218,11 @@ auto Scene2DRenderer::Submit(Renderer2D& renderer, const CameraView& view) -> bo
         if (draw.texture == nullptr)
             continue;
         if (draw.has_source) {
-            renderer.DrawTexture(*draw.texture, draw.destination, draw.tint, &draw.source, draw.flip_x, draw.flip_y);
+            renderer.DrawTexture(*draw.texture, draw.destination, draw.tint, &draw.source, draw.flip_x, draw.flip_y,
+                                 draw.filter);
         } else {
-            renderer.DrawTexture(*draw.texture, draw.destination, draw.tint, nullptr, draw.flip_x, draw.flip_y);
+            renderer.DrawTexture(*draw.texture, draw.destination, draw.tint, nullptr, draw.flip_x, draw.flip_y,
+                                 draw.filter);
         }
     }
 

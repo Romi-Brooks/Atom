@@ -1,0 +1,23 @@
+// Atom sprite atlas, schema_version 1.
+// See Docs/Plans/Sprite-Atlas-v1-CN.md for every field and its validation rule.
+//
+// `filter: "nearest"` is the point of this file as much as the frame names are: a 16x16
+// sheet made of 8x8 cells must never be sampled with linear filtering, or scaling a
+// cell up to 64x64 turns crisp pixel edges into mush. Declaring it here means every
+// frame of this sheet is drawn the same way, without any entity having to remember.
+{
+  "schema_version": 1,
+  "kind": "atlas",
+  "id": "terrain",
+  "texture": "res://textures/atlas.png",
+  "filter": "nearest",
+
+  // Frame names are object keys, so the JSONC reader's duplicate-key rejection is
+  // what guarantees uniqueness - there is no separate check to forget.
+  "frames": {
+    "red": { "rect": [0, 0, 8, 8] },
+    "green": { "rect": [8, 0, 8, 8], "size": [64.0, 64.0] },
+    "blue": { "rect": [0, 8, 8, 8] },
+    "yellow": { "rect": [8, 8, 8, 8], "size": [64.0, 64.0], "pivot": [0.5, 1.0] }
+  }
+}

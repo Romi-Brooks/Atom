@@ -274,6 +274,16 @@ auto Renderer2D::Initialize(IRenderDevice& device, const std::filesystem::path& 
         Shutdown();
         return false;
     }
+    // Same descriptor as the glyph atlas sampler, but a separate object: one exists for
+    // text quality, the other is a caller choice, and sharing them would make a future
+    // glyph-sampler change silently change how pixel-art sprites look.
+    nearest_sampler_ = context_->CreateSampler2D(
+        {Filter2D::Nearest, Filter2D::Nearest, AddressMode2D::ClampToEdge, AddressMode2D::ClampToEdge});
+    if (nearest_sampler_ == render::invalid_sampler_2d) {
+        LOG_ERROR(atom::log::render::Renderer2D, "Renderer2D failed to create its nearest-neighbour sampler");
+        Shutdown();
+        return false;
+    }
     glyph_sampler_ = context_->CreateSampler2D(
         {Filter2D::Nearest, Filter2D::Nearest, AddressMode2D::ClampToEdge, AddressMode2D::ClampToEdge});
     if (glyph_sampler_ == render::invalid_sampler_2d) {
@@ -322,6 +332,8 @@ auto Renderer2D::Shutdown() -> void {
             context_->DestroySampler2D(sampler_);
         if (glyph_sampler_ != render::invalid_sampler_2d)
             context_->DestroySampler2D(glyph_sampler_);
+        if (nearest_sampler_ != render::invalid_sampler_2d)
+            context_->DestroySampler2D(nearest_sampler_);
     }
     textures_.clear();
     ops_.clear();
@@ -330,6 +342,7 @@ auto Renderer2D::Shutdown() -> void {
     white_texture_ = nullptr;
     sampler_ = render::invalid_sampler_2d;
     glyph_sampler_ = render::invalid_sampler_2d;
+    nearest_sampler_ = render::invalid_sampler_2d;
     postprocess_params_ = {};
     context_ = nullptr;
     device_ = nullptr;
@@ -795,7 +808,7 @@ auto Renderer2D::GetWhiteTexture() const -> Texture* {
 // --- recording ---------------------------------------------------------------
 
 auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint, const algo::Rect* source,
-                             const bool flip_x, const bool flip_y) -> void {
+                             const bool flip_x, const bool flip_y, const render::Filter2D filter) -> void {
     if (!in_frame_ || texture.owner_ != this || texture.handle_ == render::invalid_texture_2d) {
         LOG_WARNING(atom::log::render::Renderer2D,
                     "DrawTexture rejected: in_frame=" + std::to_string(in_frame_) +
@@ -821,6 +834,10 @@ auto Renderer2D::DrawTexture(const Texture& texture, const algo::Rect& dst, cons
     op.dst = ToRenderRect(dst);
     op.flip_x = flip_x;
     op.flip_y = flip_y;
+    // An invalid op sampler means "use the default sampler", which is what the linear
+    // path has always done; only Nearest needs an explicit one.
+    if (filter == render::Filter2D::Nearest)
+        op.sampler = nearest_sampler_;
     if (source) {
         op.source = ToRenderRect(*source);
         op.has_source = true;

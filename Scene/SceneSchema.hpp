@@ -20,11 +20,13 @@
 #define ATOM_SCENE_SCENESCHEMA_HPP
 
 #include <functional>
+#include <string>
 #include <optional>
 #include <string_view>
 #include <vector>
 
 #include <Error/Error.hpp>
+#include <Sprite/SpriteAtlas.hpp>
 #include <Scene/SceneTypes.hpp>
 
 namespace atom::scene {
@@ -55,18 +57,24 @@ struct PrefabOutcome {
 // the failed document's own message.
 using PrefabProvider = std::function<Result<EntityDesc>(std::string_view uri)>;
 
+// Supplies a sprite atlas when a sprite names a frame. Same reasoning as the prefab
+// provider: the schema has no filesystem, and a test should be able to answer from
+// memory. The returned reference must stay valid for the duration of the parse.
+using AtlasProvider = std::function<Result<const sprite::SpriteAtlas*>(std::string_view uri)>;
+
 // Parses and validates `text`. `uri` is copied into every diagnostic and is used
 // verbatim in messages (it is the caller's res:// path).
 //
 // When an entity names a prefab, `provider` is called for it; without a provider a
 // prefab reference is a diagnostic rather than a silent empty entity (T2.3).
-[[nodiscard]] auto ParseScene(std::string_view text, std::string_view uri, const PrefabProvider& provider = {})
-    -> ParseOutcome;
+[[nodiscard]] auto ParseScene(std::string_view text, std::string_view uri, const PrefabProvider& provider = {},
+                              const AtlasProvider& atlas_provider = {}) -> ParseOutcome;
 
 // Parses a prefab document: `{ schema_version, kind: "prefab", id, entity }`. The
 // entity body is the same shape a scene entity uses, minus `id` - a prefab carries no
 // identity because every instance supplies its own.
-[[nodiscard]] auto ParsePrefab(std::string_view text, std::string_view uri) -> PrefabOutcome;
+[[nodiscard]] auto ParsePrefab(std::string_view text, std::string_view uri, const AtlasProvider& atlas_provider = {})
+    -> PrefabOutcome;
 
 // Doc size limits the validator enforces as well, so a caller that parses by other
 // means cannot bypass them.

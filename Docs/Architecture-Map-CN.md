@@ -19,6 +19,7 @@
 | `Media/Audio/` | 音频资源、播放逻辑与格式 codec | 具体平台播放设备的选择 |
 | `Render/`、`UI/`、`Layout/` | 绘制、文本、UI 和布局 | 主循环、SDL 细节 |
 | `Render/Scene2D/` | ECS 精灵与 2D 相机的收集、排序、提交 | 世界本身、主循环、帧节奏 |
+| `Sprite/` | 图集元数据：一张纹理 + 命名帧 + 整表 filter | ECS、渲染、动画 |
 | `Utilities/Json/` | 严格 JSONC 读取器（行号列号诊断） | 场景语义、组件映射 |
 | `Scene/` | 场景文档的 schema、校验与加载器 | Runtime 帧循环、渲染、具体格式语法 |
 | `Example/Game/Assets/` | 示例（将来是小游戏）自己的内容根，开发期挂到 `res://`；占位美术由同目录 `generate_textures.py` 生成 | 引擎实现、仓库共享资源根 |

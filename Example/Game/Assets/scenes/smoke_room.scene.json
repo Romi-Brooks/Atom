@@ -60,16 +60,16 @@
     },
 
     {
-      // One atlas cell: `source` is a texel rect inside a 16x16 atlas, scaled up
-      // to 64x64 on screen. This is the "atlas works" case in the sample.
+      // A named atlas frame. The texel rect, the 64x64 display size and the pivot all
+      // come from res://atlases/terrain.atlas.json, and so does `filter: nearest` - so
+      // this cell is sampled crisply instead of being smeared by linear filtering.
+      // It is also the "source rect without hand-written numbers" case.
       "id": 5,
       "name": "atlas_cell",
       "transform": { "position": [276.0, 754.0] },
       "sprite": {
-        "texture": "res://textures/atlas.png",
-        "source": [8, 0, 8, 8],
-        "size": [64.0, 64.0],
-        "pivot": [0.5, 0.5],
+        "atlas": "res://atlases/terrain.atlas.json",
+        "frame": "green",
         "tint": [255, 255, 255, 255],
         "layer": 0,
         "sort_key": 5

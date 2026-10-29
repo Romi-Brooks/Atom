@@ -202,9 +202,14 @@ class Renderer2D {
          *        coordinates, so a right-facing sprite can face left without a
          *        second asset. The destination rectangle is unchanged.
          * @param flip_y Mirror vertically, same rule for top/bottom.
+         * @param filter Nearest for pixel art, Linear for everything else. This is a
+         *        per-draw sampler choice, and draw items only coalesce when the
+         *        sampler matches, so alternating filters costs extra batches - which is
+         *        why a whole sheet picks one filter rather than each sprite deciding.
          */
         auto DrawTexture(const Texture& texture, const algo::Rect& dst, const Color& tint = Color::White(),
-                         const algo::Rect* source = nullptr, bool flip_x = false, bool flip_y = false) -> void;
+                         const algo::Rect* source = nullptr, bool flip_x = false, bool flip_y = false,
+                         render::Filter2D filter = render::Filter2D::Linear) -> void;
 
         /**
          * @brief Draws a filled geometry/world rectangle.
@@ -358,6 +363,11 @@ class Renderer2D {
         // Sampling them at exact texel centres avoids a glyph's transparent
         // gutter bleeding into narrow strokes.
         render::Sampler2D glyph_sampler_ = render::invalid_sampler_2d;
+        // Nearest/Clamp, for pixel art. Separate from the glyph sampler even though the
+        // descriptor is identical: one exists for text quality, the other is a caller
+        // choice, and sharing them would make a future glyph-sampler change silently
+        // change how sprites look.
+        render::Sampler2D nearest_sampler_ = render::invalid_sampler_2d;
         bool initialized_ = false;
         bool in_frame_ = false;
         float origin_x_ = 0.0f;

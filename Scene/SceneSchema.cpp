@@ -298,8 +298,11 @@ auto IsResUri(const std::string& text) -> bool {
 // --- component blocks -------------------------------------------------------
 
 constexpr std::string_view kTransformKeys[] = {"position", "rotation", "scale"};
-constexpr std::string_view kSpriteKeys[] = {"texture", "source",  "size",    "pivot", "tint",
-                                            "layer",   "sort_key", "flip_x", "flip_y"};
+// `texture` and `atlas` are alternatives: one names a texture and (optionally) a texel
+// rectangle, the other names a frame whose rectangle, size and pivot live in the atlas.
+constexpr std::string_view kSpriteKeys[] = {"texture", "source", "size",     "pivot",   "tint",
+                                            "layer",   "sort_key", "flip_x", "flip_y", "atlas",
+                                            "frame"};
 constexpr std::string_view kCameraKeys[] = {"zoom", "viewport", "active"};
 constexpr std::string_view kEntityKeys[] = {"id", "name", "tags", "transform", "sprite", "camera", "lifetime"};
 // A prefab instance is `{ id, prefab, overrides? }` and nothing else.
@@ -340,7 +343,66 @@ auto ReadTransform(Ctx& ctx, const Value& value, const std::string& entity, Tran
     }
 }
 
-auto ReadSprite(Ctx& ctx, const Value& value, const std::string& entity, SpriteDesc& out) -> bool {
+// Resolves `atlas` + `frame` into concrete texel/size/pivot values.
+//
+// The frame is looked up here rather than by the provider so a missing frame can list
+// the frames the atlas does have: "no frame \"gren\"" plus the available names is a
+// one-glance fix, while "atlas resolution failed" is a trip back to the atlas file.
+auto ResolveAtlasFrame(Ctx& ctx, const Value& atlas_value, const Value& frame_value, const std::string& entity,
+                       SpriteDesc& out, const AtlasProvider& atlas_provider) -> bool {
+    std::string atlas_uri{};
+    if (!ReadString(ctx, atlas_value, entity, "sprite.atlas", atlas_uri, 512))
+        return false;
+    if (!IsResUri(atlas_uri)) {
+        Report(ctx, atlas_value, entity, "sprite.atlas",
+               "atlas must be a res:// asset URI without a root or traversal, got \"" + atlas_uri + "\"");
+        return false;
+    }
+
+    std::string frame_name{};
+    if (!ReadString(ctx, frame_value, entity, "sprite.frame", frame_name, 64))
+        return false;
+
+    if (!atlas_provider) {
+        Report(ctx, atlas_value, entity, "sprite.atlas",
+               "this scene names an atlas frame, but no atlas provider was supplied to the loader");
+        return false;
+    }
+
+    auto resolved = atlas_provider(atlas_uri);
+    if (!resolved.has_value()) {
+        Report(ctx, atlas_value, entity, "sprite.atlas",
+               "atlas \"" + atlas_uri + "\" could not be loaded: " + resolved.error().Message());
+        return false;
+    }
+    const auto* atlas = *resolved;
+    if (atlas == nullptr) {
+        Report(ctx, atlas_value, entity, "sprite.atlas", "atlas \"" + atlas_uri + "\" resolved to nothing");
+        return false;
+    }
+
+    const auto* frame = atlas->Find(frame_name);
+    if (frame == nullptr) {
+        Report(ctx, frame_value, entity, "sprite.frame",
+               "atlas \"" + atlas_uri + "\" has no frame \"" + frame_name + "\" (available: " + atlas->FrameNames() +
+                   ")");
+        return false;
+    }
+
+    out.texture_uri = atlas->texture_uri;
+    out.source = frame->source;
+    out.has_source = true;
+    // The frame owns the display size and the pivot: that is the whole point of moving
+    // them out of every entity and into one art file.
+    out.size = frame->size;
+    out.has_size = true;
+    out.pivot = frame->pivot;
+    out.filter = atlas->filter == sprite::AtlasFilter::Nearest ? ecs::SpriteFilter::Nearest : ecs::SpriteFilter::Linear;
+    return true;
+}
+
+auto ReadSprite(Ctx& ctx, const Value& value, const std::string& entity, SpriteDesc& out,
+                const AtlasProvider& atlas_provider) -> bool {
     if (!value.IsObject()) {
         Report(ctx, value, entity, "sprite", "expected an object, got " + std::string{KindName(value.kind)});
         return false;
@@ -348,20 +410,54 @@ auto ReadSprite(Ctx& ctx, const Value& value, const std::string& entity, SpriteD
     CheckKeys(ctx, value, entity, "sprite", kSpriteKeys);
 
     bool ok = true;
-    if (const auto* member = value.Find("texture"); member == nullptr) {
-        Report(ctx, value, entity, "sprite.texture", "sprite requires a \"texture\" URI");
-        ok = false;
-    } else if (ReadString(ctx, *member, entity, "sprite.texture", out.texture_uri, 512)) {
-        if (!IsResUri(out.texture_uri)) {
-            Report(ctx, *member, entity, "sprite.texture",
-                   "texture must be a res:// asset URI without a root or traversal, got \"" + out.texture_uri + "\"");
+
+    const auto* texture_member = value.Find("texture");
+    const auto* atlas_member = value.Find("atlas");
+    const auto* frame_member = value.Find("frame");
+    const bool atlas_form = atlas_member != nullptr || frame_member != nullptr;
+
+    if (atlas_form) {
+        // Atlas form: the frame owns the rectangle, the display size and the pivot, so
+        // repeating any of them here would create two sources for the same datum - the
+        // same rule prefab overrides follow, for the same reason.
+        for (const char* forbidden : {"texture", "source", "size", "pivot"}) {
+            if (value.Find(forbidden) != nullptr) {
+                Report(ctx, value, entity, std::string{"sprite."} + forbidden,
+                       std::string{"\"sprite."} + forbidden +
+                           "\" is defined by the atlas frame; remove it or drop \"atlas\"/\"frame\"");
+                ok = false;
+            }
+        }
+        if (atlas_member == nullptr) {
+            Report(ctx, value, entity, "sprite.atlas", "\"frame\" requires an \"atlas\"");
             ok = false;
         }
-    } else {
+        if (frame_member == nullptr) {
+            Report(ctx, value, entity, "sprite.frame", "\"atlas\" requires a \"frame\"");
+            ok = false;
+        }
+        if (atlas_member != nullptr && frame_member != nullptr)
+            ok = ResolveAtlasFrame(ctx, *atlas_member, *frame_member, entity, out, atlas_provider) && ok;
+    } else if (texture_member == nullptr) {
+        Report(ctx, value, entity, "sprite.texture",
+               "sprite requires a \"texture\" URI, or an \"atlas\" plus a \"frame\"");
         ok = false;
+    } else {
+        if (ReadString(ctx, *texture_member, entity, "sprite.texture", out.texture_uri, 512)) {
+            if (!IsResUri(out.texture_uri)) {
+                Report(ctx, *texture_member, entity, "sprite.texture",
+                       "texture must be a res:// asset URI without a root or traversal, got \"" + out.texture_uri +
+                           "\"");
+                ok = false;
+            }
+        } else {
+            ok = false;
+        }
     }
 
-    if (const auto* member = value.Find("source"); member != nullptr) {
+    // The remaining fields are shared by both forms: they are per-instance art choices
+    // (colour, layer, ordering, facing) rather than "what the entity is".
+    if (const auto* member = value.Find("source"); member != nullptr && !atlas_form) {
         algo::Rect source{};
         if (ReadRect(ctx, *member, entity, "sprite.source", source)) {
             if (source.width <= 0.0F || source.height <= 0.0F) {
@@ -376,7 +472,7 @@ auto ReadSprite(Ctx& ctx, const Value& value, const std::string& entity, SpriteD
         }
     }
 
-    if (const auto* member = value.Find("size"); member != nullptr) {
+    if (const auto* member = value.Find("size"); member != nullptr && !atlas_form) {
         algo::Vec2 size{};
         if (ReadVec2(ctx, *member, entity, "sprite.size", size)) {
             if (size.GetX() <= 0.0F || size.GetY() <= 0.0F) {
@@ -391,7 +487,7 @@ auto ReadSprite(Ctx& ctx, const Value& value, const std::string& entity, SpriteD
         }
     }
 
-    if (const auto* member = value.Find("pivot"); member != nullptr)
+    if (const auto* member = value.Find("pivot"); member != nullptr && !atlas_form)
         ok = ReadVec2(ctx, *member, entity, "sprite.pivot", out.pivot) && ok;
     if (const auto* member = value.Find("tint"); member != nullptr)
         ok = ReadColor(ctx, *member, entity, "sprite.tint", out.tint) && ok;
@@ -493,7 +589,8 @@ auto EntityLabel(const std::uint32_t id, const std::string& name) -> std::string
 // The entity body: everything except the identity (`id`), the prefab reference and
 // the override block. Split out because a prefab document carries exactly this and
 // nothing else.
-auto ReadEntityBody(Ctx& ctx, const Value& value, const std::string& label, EntityDesc& out) -> bool {
+auto ReadEntityBody(Ctx& ctx, const Value& value, const std::string& label, EntityDesc& out,
+                    const AtlasProvider& atlas_provider) -> bool {
     bool ok = true;
     if (const auto* member = value.Find("name"); member != nullptr) {
         if (ReadString(ctx, *member, label, "name", out.name, 64))
@@ -507,7 +604,7 @@ auto ReadEntityBody(Ctx& ctx, const Value& value, const std::string& label, Enti
         ReadTransform(ctx, *member, label, out.transform);
     if (const auto* member = value.Find("sprite"); member != nullptr) {
         SpriteDesc sprite{};
-        if (ReadSprite(ctx, *member, label, sprite))
+        if (ReadSprite(ctx, *member, label, sprite, atlas_provider))
             out.sprite = std::move(sprite);
         else
             ok = false;
@@ -691,8 +788,8 @@ auto ApplyOverrides(Ctx& ctx, const Value& overrides, const std::string& label, 
 // A prefab instance is a different shape on purpose: `{ id, prefab, overrides? }`.
 // The body lives in the prefab file, so an instance that also carried `sprite` would
 // have two sources for the same field - it is rejected as an unknown field instead.
-auto ReadEntity(Ctx& ctx, const Value& value, const std::size_t index, const PrefabProvider& provider, EntityDesc& out)
-    -> bool {
+auto ReadEntity(Ctx& ctx, const Value& value, const std::size_t index, const PrefabProvider& provider,
+                const AtlasProvider& atlas_provider, EntityDesc& out) -> bool {
     const auto index_label = "entities[" + std::to_string(index) + "]";
     if (!value.IsObject()) {
         Report(ctx, value, {}, index_label, "expected an object, got " + std::string{KindName(value.kind)});
@@ -725,7 +822,7 @@ auto ReadEntity(Ctx& ctx, const Value& value, const std::size_t index, const Pre
         body.id = out.id;
         body.line = out.line;
         body.column = out.column;
-        if (!ReadEntityBody(ctx, value, EntityLabel(out.id, {}), body))
+        if (!ReadEntityBody(ctx, value, EntityLabel(out.id, {}), body, atlas_provider))
             return false;
         // Re-label diagnostics that came from the body with the name we just learned.
         out = std::move(body);
@@ -772,30 +869,9 @@ auto ReadEntity(Ctx& ctx, const Value& value, const std::size_t index, const Pre
 }
 } // namespace
 
-auto Diagnostic::Format() const -> std::string {
-    std::string out = uri;
-    if (line > 0) {
-        out += ":";
-        out += std::to_string(line);
-        out += ":";
-        out += std::to_string(column);
-    }
-    if (!entity.empty()) {
-        out += ": ";
-        out += entity;
-    }
-    if (!field.empty()) {
-        out += ": ";
-        out += field;
-    }
-    if (!message.empty()) {
-        out += ": ";
-        out += message;
-    }
-    return out;
-}
 
-auto ParseScene(const std::string_view text, const std::string_view uri, const PrefabProvider& provider) -> ParseOutcome {
+auto ParseScene(const std::string_view text, const std::string_view uri, const PrefabProvider& provider,
+                const AtlasProvider& atlas_provider) -> ParseOutcome {
     ParseOutcome outcome{};
 
     json::SyntaxError syntax{};
@@ -900,7 +976,7 @@ auto ParseScene(const std::string_view text, const std::string_view uri, const P
         for (std::size_t index = 0; index < entities->items.size(); ++index) {
             ctx.per_entity = 0; // the cap is per entity, not per document
             EntityDesc entity{};
-            if (ReadEntity(ctx, *entities->items[index], index, provider, entity))
+            if (ReadEntity(ctx, *entities->items[index], index, provider, atlas_provider, entity))
                 scene.entities.push_back(std::move(entity));
         }
 
@@ -952,7 +1028,8 @@ auto ParseScene(const std::string_view text, const std::string_view uri, const P
     return outcome;
 }
 
-auto ParsePrefab(const std::string_view text, const std::string_view uri) -> PrefabOutcome {
+auto ParsePrefab(const std::string_view text, const std::string_view uri, const AtlasProvider& atlas_provider)
+    -> PrefabOutcome {
     PrefabOutcome outcome{};
 
     json::SyntaxError syntax{};
@@ -1039,7 +1116,7 @@ auto ParsePrefab(const std::string_view text, const std::string_view uri) -> Pre
     } else {
         CheckKeys(ctx, *entity, label, "entity", kPrefabEntityKeys);
         EntityDesc body{};
-        if (ReadEntityBody(ctx, *entity, label, body))
+        if (ReadEntityBody(ctx, *entity, label, body, atlas_provider))
             outcome.entity = std::move(body);
     }
 

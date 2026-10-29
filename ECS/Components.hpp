@@ -121,6 +121,11 @@ struct RenderTransform2D final {
         algo::Vec2 scale{1.0f, 1.0f};
 };
 
+// How this sprite's texture is sampled. A plain value, so it belongs in ECS; the
+// renderer maps it onto its own filter enum, because ECS may not include render
+// contracts (admission rule R4).
+enum class SpriteFilter : std::uint8_t { Linear, Nearest };
+
 // A textured sprite. Pure data: the texture is named by a stable asset URI and
 // resolved by the 2D scene layer, so ECS never sees a handle (admission rules
 // R2/R4).
@@ -141,6 +146,11 @@ struct SpriteRenderer final {
         algo::Vec2 pivot{0.5f, 0.5f};
 
         color::Color tint = color::Color::White();
+
+        // Pixel art must be sampled with Nearest; scaling an 8x8 tile up with Linear
+        // turns crisp edges into mush. Defaults to Linear because that is the right
+        // choice for anything that is not sprite art.
+        SpriteFilter filter = SpriteFilter::Linear;
 
         // Draw order: layer first, then ascending sort_key, then entity index.
         std::int32_t layer = 0;

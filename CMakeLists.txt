@@ -461,6 +461,18 @@ endif()
     target_include_directories(Atom_Json PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Json PUBLIC Atom_Error)
 
+# 3k-bis. Sprite — the art pipeline's metadata layer: one texture, named frames,
+#     one filter. Depends on Json + FS + Math/Color, NOT on ECS: an atlas is asset
+#     data, and a component must not need to know what an atlas is.
+    add_library(Atom_Sprite STATIC
+        Sprite/SpriteAtlas.hpp
+        Sprite/SpriteAtlas.cpp
+        Sprite/SpriteAtlasLoader.hpp
+        Sprite/SpriteAtlasLoader.cpp
+    )
+    target_include_directories(Atom_Sprite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_Sprite PUBLIC Atom_Json Atom_FS Atom_Log Atom_Math Atom_Color)
+
 # 3l. Scene — the level document format (T2.1) and its loader (T2.2).
 #     Depends on ECS + FS + Json and NOT on Runtime: a loader is usable by a tool or
 #     a test with no frame loop, and the switch is a single
@@ -475,7 +487,8 @@ endif()
     target_include_directories(Atom_Scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     # The schema and the loader are public; the JSON DOM stays behind SceneSchema, and
     # nothing in ECS, Render or Runtime may name it.
-    target_link_libraries(Atom_Scene PUBLIC Atom_ECS Atom_FS Atom_Json Atom_Log Atom_Math Atom_Color)
+    target_link_libraries(Atom_Scene PUBLIC Atom_ECS Atom_FS Atom_Json Atom_Log Atom_Math Atom_Color
+        Atom_Sprite)
 
 # 4. Backend extension registration and format codecs
     add_library(Atom_Backend_Extension STATIC

@@ -99,6 +99,10 @@ struct SpriteDraw {
         color::Color tint{};
         bool flip_x = false;
         bool flip_y = false;
+        // Carried per draw because the renderer's batching groups by sampler: mixing
+        // Nearest and Linear sprites costs extra batches, which is why the choice comes
+        // from the atlas rather than being made per entity.
+        render::Filter2D filter = render::Filter2D::Linear;
         std::int32_t layer = 0;
         std::int32_t sort_key = 0;
         ecs::Entity entity{};

@@ -374,6 +374,20 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
   - 依赖：T2.2。
   - 预计：约 700–1,200 行实现与测试。
 
+- [x] **T2.4 — 图集元数据（美术管线第一层，本轮新增）。**
+  - 动机：没有这一层，每个精灵的矩形/尺寸/轴心都要写进每个实体；美术给一张 8×8 图集就得手动数像素。它也是
+    "像素风必须最近邻采样"唯一能落地的地方。
+  - 新增位置：`Sprite/`（`Atom_Sprite`：`SpriteAtlas` + `SpriteAtlasLoader`）；格式文档
+    [Sprite-Atlas-v1-CN.md](Sprite-Atlas-v1-CN.md)。
+  - 工作：一张纹理 + 命名帧（`rect` 必填，`size`/`pivot` 可选并有默认值）+ 整表一个 `filter`；场景 `sprite` 块新增
+    **互斥**的 `atlas`+`frame` 写法，把帧解析成 `SpriteDesc`（ECS 组件不变，只多一个 `SpriteFilter` 值字段，映射点
+    只有两处：Scene loader 与 Scene2D）。
+  - 顺带补完 G0.3 的一半：`Renderer2D::DrawTexture` 新增 `render::Filter2D` 参数并真正创建 Nearest sampler，因此
+    `filter: "nearest"` 不是元数据摆设——它改变屏幕像素。旋转精灵仍缺。
+  - 不做：帧序列/状态机（T5.3）、九宫格（UI 未来需求）、图集打包工具、纹理合并。
+  - 验收：帧矩形/尺寸/轴心/过滤正确落到组件；两种 sprite 写法互斥；缺帧列出可用帧名；随仓库发布的图集有测试。
+    （`Atom_Sprite.Atlas`、`Atom_Scene.SceneAtlas`、`Atom_Scene2D.SpriteRenderer`）
+
 ### 阶段 3：物理、输入与可玩验证
 
 - [ ] **T3.1 — Physics/ECS 集成层。**
@@ -473,10 +487,10 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 ## 7. 执行顺序、依赖与里程碑
 
 ```text
-已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3
+已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3；T2.4
 
 M1 可见实体：T1.1 -> T1.2 -> T1.3                    ✅
-M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            ✅
+M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            ✅（另加 T2.4 图集元数据）
 M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3
 M4 P0 可交付：M3 -> T4.1 / T4.2 / T4.3
 M5 内容与世界：M4 -> T5.1 / T5.2 / T5.3 -> T5.4
@@ -496,11 +510,10 @@ M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3
 
 **未完成的已知项（不阻塞 M3，但需在 T3.1/T3.3 前处理）**：
 
-- G0.3 的剩余两项：最近邻采样器（像素风必需）与旋转精灵（`Renderer2D` 无旋转视图/旋转四边形）。
-  T1.2 的文档与验收均未声称支持，接入像素美术前必须补。
+- G0.3 的剩余一项：**旋转精灵**（`Renderer2D` 没有旋转视图，也没有旋转四边形）。最近邻采样器已随 T2.4 落地，
+  图集里写 `filter: "nearest"` 就会让整张表用 Nearest sampler 绘制。
 - `RenderTransform2D` 目前是纯拷贝，固定步与显示帧之间没有插值（需要 previous-state 缓冲；`alpha` 时钟里已有）。
-- **美术管线**（独立模块 `Sprite/`，约 800–1500 行）：图集元数据 + 每精灵 pivot/矩形 + 过滤模式。它和 Scene loader
-  共用同一个读取器，所以最省的做法是在 T2.3（Prefab）同一批里做；动画仍留 M5。
+- **动画**（T5.3）：帧序列、状态机、帧事件。图集元数据（T2.4）已经把"帧"这一层做好了，动画只剩"按时间选帧"。
 - **Example 合并不做（已决定）**：17 个 example 保持独立可执行。理由是无窗口工具（ECS/Job tour、Physics
   benchmark、Packager GUI、audio metadata）本就该独立，而 windowed demo 迁移成本高、收益被 T3.3 覆盖。T3.3 的
   vertical slice 直接长在 `Example/Game` 里，不另起示例。

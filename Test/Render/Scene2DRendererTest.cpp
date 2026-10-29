@@ -340,6 +340,33 @@ auto main() -> int {
         ATOM_CHECK_NEAR(repaired.viewport.GetY(), 240.0f);
     }
 
+    // --- 6b. The sprite filter reaches the draw item ----------------------
+    //
+    // This is the only place a pixel-art sheet's sampling choice can be lost: the
+    // component carries it, the draw item must, and Submit hands it to DrawTexture.
+    {
+        const auto crisp = world.CreateEntity();
+        ATOM_CHECK(world.Emplace<ecs::Transform2D>(crisp).has_value());
+        ATOM_CHECK(world.Emplace<ecs::RenderTransform2D>(crisp).has_value());
+        auto sprite = MakeSprite("res://textures/player.png", 4.0F, 4.0F);
+        sprite.filter = ecs::SpriteFilter::Nearest;
+        ATOM_CHECK(world.Emplace<ecs::SpriteRenderer>(crisp, sprite).has_value());
+        ATOM_CHECK(Scene2DRenderer::SnapshotTransforms(world) >= 1);
+
+        Scene2DRenderer renderer{resolver};
+        const auto& draws = renderer.Collect(world);
+        bool saw_nearest = false;
+        bool saw_linear = false;
+        for (const auto& draw : draws) {
+            if (draw.entity != crisp)
+                saw_linear = true;
+            else if (draw.filter == render::Filter2D::Nearest)
+                saw_nearest = true;
+        }
+        ATOM_CHECK(saw_nearest);
+        ATOM_CHECK(saw_linear); // every other sprite still defaults to linear
+    }
+
     // --- 7. Flip flags are carried through to the draw item ---------------
     {
         const auto flipped = world.CreateEntity();

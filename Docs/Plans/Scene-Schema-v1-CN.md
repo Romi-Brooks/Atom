@@ -74,16 +74,30 @@
 
 ### 4.2 `sprite`
 
+两种互斥写法：直接给纹理，或引用图集帧（`Docs/Plans/Sprite-Atlas-v1-CN.md`）。
+
+```jsonc
+// (a) 直接纹理
+{ "texture": "res://textures/player.png", "size": [32, 32], "pivot": [0.5, 1.0] }
+// (b) 图集帧：rect / size / pivot / filter 都来自图集
+{ "atlas": "res://atlases/terrain.atlas.json", "frame": "green" }
+```
+
 | 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `texture` | `string` | **必填** | `res://` URI |
-| `source` | `[number, number, number, number]` | 缺省 = 整张图 | 纹理内的 texel 矩形 `[x, y, w, h]`，`w`/`h` 必须 > 0 |
-| `size` | `[number, number]` | 缺省 = `source`，再缺省 = 纹理尺寸 | 世界像素尺寸，必须 > 0 |
-| `pivot` | `[number, number]` | `[0.5, 0.5]` | 归一化原点；`[0,0]` 左上，`[1,1]` 右下 |
+| `texture` | `string` | (a) **必填** | `res://` URI；与 `atlas`/`frame` 互斥 |
+| `atlas` | `string` | (b) **必填** | 图集文档的 `res://` URI；必须与 `frame` 同时出现 |
+| `frame` | `string` | (b) **必填** | 图集里的帧名 |
+| `source` | `[number ×4]` | 缺省 = 整张图 | 仅 (a)；texel 矩形 `[x, y, w, h]`，`w`/`h` > 0 |
+| `size` | `[number, number]` | 缺省 = `source`，再缺省 = 纹理尺寸 | 仅 (a)；世界像素，> 0 |
+| `pivot` | `[number, number]` | `[0.5, 0.5]` | 仅 (a)；归一化原点 |
 | `tint` | `[integer ×4]` | `[255,255,255,255]` | 每个通道 0..255 |
 | `layer` | `integer` | `0` | 先按 layer 排序，越大越靠前 |
 | `sort_key` | `integer` | `0` | 同 layer 内次级键 |
 | `flip_x` / `flip_y` | `bool` | `false` | UV 镜像，不改变几何 |
+
+在 (b) 里写 `texture`/`source`/`size`/`pivot` 是错误：这些数字由帧拥有，重复即"两个来源"。
+`tint`/`layer`/`sort_key`/`flip_*` 两种形式都能写，因为它们是每次实例的艺术选择，而不是"它是什么"。
 
 `layer` / `sort_key` / 实体 `id` 共同决定绘制顺序（见 `Render/Scene2D/README-CN.md`）。
 
@@ -149,7 +163,7 @@
 | `name` | `Name::value`（可选） | 只用于诊断 |
 | `tags` | `Active` / `Static` tag | 空组件，presence 即数据 |
 | `transform` | `Transform2D` + `RenderTransform2D` | 两者都创建；显示副本初始等于模拟值 |
-| `sprite` | `SpriteRenderer` | `texture` → `texture_uri`，其余字段一一对应 |
+| `sprite` | `SpriteRenderer` | `texture` → `texture_uri`；图集帧把 `rect`/`size`/`pivot`/`filter` 填进来 |
 | `camera` | `Camera2D` | `active` 不落组件，只影响创建顺序（§6.3） |
 | `lifetime` | `Lifetime` | |
 
@@ -256,6 +270,7 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
 |---|---|
 | `Example/Game/Assets/scenes/smoke_room.scene.json` | 合法样例；示例启动时加载它（实体 3/4 是 prefab 实例） |
 | `Example/Game/Assets/prefabs/crate.prefab.json` | 合法 prefab；被上面两个木箱实例引用 |
+| `Example/Game/Assets/atlases/terrain.atlas.json` | 合法图集；示例的绿格子用它（`filter: nearest`） |
 | `Test/Data/scenes/invalid_unknown_field.scene.json` | 拼写错误拒绝 |
 | `Test/Data/scenes/invalid_duplicate_id.scene.json` | 重复 id 拒绝 |
 | `Test/Data/scenes/invalid_bad_version.scene.json` | 未知 `schema_version` 拒绝 |

@@ -24,7 +24,10 @@
 #include <string>
 #include <vector>
 
+#include <Utilities/Json/Diagnostic.hpp>
+
 #include <Algorithm/Color/Color.hpp>
+#include <ECS/Components.hpp>
 #include <Algorithm/Geometry/Rect.hpp>
 #include <Algorithm/Vector/Vec2.hpp>
 
@@ -50,6 +53,9 @@ struct SpriteDesc {
         algo::Vec2 size{};
         algo::Vec2 pivot{0.5F, 0.5F};
         color::Color tint = color::Color::White();
+        // Filled from the atlas when the sprite names a frame; Linear for a bare
+        // texture. Sprite rendering maps it onto the renderer's filter.
+        ecs::SpriteFilter filter = ecs::SpriteFilter::Linear;
         std::int32_t layer = 0;
         std::int32_t sort_key = 0;
         bool flip_x = false;
@@ -88,18 +94,10 @@ struct SceneDesc {
         std::size_t active_camera = kNoActiveCamera;
 };
 
-// One validation problem. Format() renders the line the log and the tests use:
+// One validation problem, shared with every other document format so that a scene, a
+// prefab and a sprite atlas all complain in the same shape:
 //   res://scenes/x.scene.json: entity 7 ("crate"): sprite.pivot: expected 2 numbers
-struct Diagnostic {
-        std::string uri{};
-        std::uint32_t line = 0;
-        std::uint32_t column = 0;
-        std::string entity{}; // pre-formatted, e.g. `entity 7 ("crate")`; empty when not entity-scoped
-        std::string field{};  // dot path, e.g. "sprite.pivot"; empty when not field-scoped
-        std::string message{};
-
-        [[nodiscard]] auto Format() const -> std::string;
-};
+using Diagnostic = json::Diagnostic;
 
 } // namespace atom::scene
 

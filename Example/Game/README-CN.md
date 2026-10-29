@@ -25,6 +25,7 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 |---|---|
 | 相机、玩家、图集格、过期标记 | `Assets/scenes/smoke_room.scene.json`（本示例自己的内容根） |
 | 两个木箱 | `Assets/prefabs/crate.prefab.json` 的**两个实例**，只覆盖位置/排序键/名字 |
+| 绿格子 | `Assets/atlases/terrain.atlas.json` 的 `green` 帧（含 `filter: nearest`） |
 | 地板 | C++ 生成（`AddBackdrop`）：**装饰**，T5.1 的 Tilemap 会用地砖集生成这一层 |
 | 移动与跟随相机 | C++ 系统（`RegisterSmokeSystems`） |
 

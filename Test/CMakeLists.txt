@@ -421,6 +421,15 @@ atom_add_test(Atom_Json.Reader
     Utilities/JsonReaderTest.cpp
     Atom_Json)
 
+# --- Sprite (art pipeline: atlas metadata) ---
+# Parsing rules, defaults and rejections, plus the shipped atlas document read through
+# a real filesystem so the demo's sheet cannot rot.
+atom_add_test(Atom_Sprite.Atlas
+    Atom_Sprite_Atlas_Tests
+    Sprite/SpriteAtlasTest.cpp
+    Atom_Sprite)
+target_compile_definitions(Atom_Sprite_Atlas_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+
 # --- Scene (T2.1 format, T2.2 loader) ---
 # Schema + loader: the shipped demo room is read through a real filesystem so it
 # cannot rot, the invalid fixtures under Test/Data must be rejected, and the
@@ -430,6 +439,13 @@ atom_add_test(Atom_Scene.SceneLoader
     Scene/SceneLoaderTest.cpp
     Atom_Scene)
 target_compile_definitions(Atom_Scene_SceneLoader_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+
+# Scene sprites that name an atlas frame instead of a texel rectangle: resolution, and
+# the rule that the two sprite forms cannot be mixed.
+atom_add_test(Atom_Scene.SceneAtlas
+    Atom_Scene_SceneAtlas_Tests
+    Scene/SceneAtlasTest.cpp
+    Atom_Scene)
 
 # T2.3: flat prefabs and the override whitelist. Prefabs come from a provider
 # callback, so the merge logic is tested without a filesystem; the shipped prefab file
