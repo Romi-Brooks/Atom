@@ -209,7 +209,7 @@ auto main() -> int {
 
     // --- 5. The world is real: entities created in Input survive the frame -
     //
-    // This is the smoke-scene shape T1.3 needs - spawn in the Input phase, read in
+    // This is the TestGame shape T1.3 needs - spawn in the Input phase, read in
     // Update - so it is asserted here rather than only in the example.
     {
         struct Spawner final {

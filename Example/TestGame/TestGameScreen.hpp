@@ -1,5 +1,5 @@
 /**
- * @file SmokeScreen.hpp
+ * @file TestGameScreen.hpp
  * @brief The first vertical slice (T3.3): a playable room built from a scene document.
  *
  * What it assembles, all of which already existed as tested pieces:
@@ -15,8 +15,8 @@
  * something that starts, is played, pauses, restarts and exits?
  */
 
-#ifndef ATOM_EXAMPLE_GAME_SMOKESCREEN_HPP
-#define ATOM_EXAMPLE_GAME_SMOKESCREEN_HPP
+#ifndef ATOM_EXAMPLE_GAME_TESTGAMESCREEN_HPP
+#define ATOM_EXAMPLE_GAME_TESTGAMESCREEN_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -36,20 +36,20 @@
 
 namespace atom::game {
 
-// Stable ids from Assets/scenes/smoke_room.scene.json: the contract between the document and
+// Stable ids from Assets/scenes/test_room.scene.json: the contract between the document and
 // the systems, named once instead of repeated as magic numbers.
 inline constexpr std::uint32_t kCameraSceneId = 1;
 inline constexpr std::uint32_t kPlayerSceneId = 2;
 inline constexpr std::uint32_t kExitSceneId = 20;
 
-class SmokeScreen final : public runtime::GameScreen {
+class TestGameScreen final : public runtime::GameScreen {
     public:
-        SmokeScreen();
+        TestGameScreen();
 
-        ~SmokeScreen() override;
+        ~TestGameScreen() override;
 
-        SmokeScreen(const SmokeScreen&) = delete;
-        auto operator=(const SmokeScreen&) -> SmokeScreen& = delete;
+        TestGameScreen(const TestGameScreen&) = delete;
+        auto operator=(const TestGameScreen&) -> TestGameScreen& = delete;
 
         // Loads the room and rebuilds the physics world for it. Called at boot and on restart;
         // a failure leaves the current world untouched and reports why.
@@ -94,7 +94,7 @@ class SmokeScreen final : public runtime::GameScreen {
 
 // Registers the slice's systems. Called from the GameScreen setup callback, so they exist
 // before the first frame and survive the scene swap.
-[[nodiscard]] auto RegisterSmokeSystems(runtime::GameWorld& world) -> Result<void>;
+[[nodiscard]] auto RegisterTestGameSystems(runtime::GameWorld& world) -> Result<void>;
 
 // The slice's small piece of game state, shared by the systems and read by the HUD.
 struct SliceState {
@@ -121,4 +121,4 @@ struct SliceState {
 
 } // namespace atom::game
 
-#endif // ATOM_EXAMPLE_GAME_SMOKESCREEN_HPP
+#endif // ATOM_EXAMPLE_GAME_TESTGAMESCREEN_HPP

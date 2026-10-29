@@ -1,11 +1,11 @@
 /**
- * @file SmokeMain.cpp
+ * @file TestGameMain.cpp
  * @brief T2.2 entry point: a window, the repository's Assets/ mounted as res://, and
  *        one GameScreen whose world is loaded from a scene document.
  *
  * The content-root convention (G0.5) is stated here rather than hidden in a helper:
- * development runs mount ATOM_SOURCE_ROOT/Example/Game/Assets at priority 200, so
- * `res://scenes/smoke_room.scene.json` and the sprite URIs inside it resolve to real
+ * development runs mount ATOM_SOURCE_ROOT/Example/TestGame/Assets at priority 200, so
+ * `res://scenes/test_room.scene.json` and the sprite URIs inside it resolve to real
  * files in the checkout. A packaged build would mount the same URIs from game.apkg
  * and nothing above this point would change.
  *
@@ -27,7 +27,7 @@
 #include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 
-#include "SmokeScreen.hpp"
+#include "TestGameScreen.hpp"
 
 namespace {
 
@@ -40,18 +40,18 @@ constexpr int kWindowHeight = 720;
 auto MountDevelopmentAssets() -> bool {
     auto& vfs = atom::fs::Vfs::GetInstance();
     std::unique_ptr<atom::fs::NativeFileSystem> backend{};
-    const std::string root = std::string{ATOM_SOURCE_ROOT} + "/Example/Game/Assets";
+    const std::string root = std::string{ATOM_SOURCE_ROOT} + "/Example/TestGame/Assets";
     if (atom::fs::NativeFileSystem::Create("res", root, backend) != atom::fs::Result::Success || !backend) {
-        LOG_ERROR(atom::log::core::Main, "2D smoke scene: content root unavailable: " + root);
+        LOG_ERROR(atom::log::core::Main, "TestGame: content root unavailable: " + root);
         return false;
     }
     // The VFS takes shared ownership; the unique_ptr has to be released into it.
     std::shared_ptr<atom::fs::IFileSystem> shared{std::move(backend)};
     if (vfs.Mount("res", 200, shared) != atom::fs::Result::Success) {
-        LOG_ERROR(atom::log::core::Main, "2D smoke scene: mounting res:// at " + root + " failed");
+        LOG_ERROR(atom::log::core::Main, "TestGame: mounting res:// at " + root + " failed");
         return false;
     }
-    LOG_INFO(atom::log::core::Main, "2D smoke scene: mounted res:// -> " + root);
+    LOG_INFO(atom::log::core::Main, "TestGame: mounted res:// -> " + root);
     return true;
 }
 
@@ -67,26 +67,26 @@ auto main() -> int {
 
     auto& screens = atom::ScreenManager::GetInstance();
 
-    auto screen = std::make_unique<atom::game::SmokeScreen>();
+    auto screen = std::make_unique<atom::game::TestGameScreen>();
     if (auto room = screen->LoadRoom(); !room.has_value()) {
         LOG_ERROR(atom::log::core::Main, "The scene failed to load: " + room.error().Message());
         return 1;
     }
 
-    const auto loaded = screens.LoadScreen("Smoke2D", std::move(screen));
+    const auto loaded = screens.LoadScreen("TestGame", std::move(screen));
     if (loaded != atom::ScreenOpResult::Success) {
         LOG_ERROR(atom::log::core::ScreenManager,
-                  "Failed to register the 2D smoke screen: " + std::string{atom::ToString(loaded)});
+                  "Failed to register the TestGame: " + std::string{atom::ToString(loaded)});
         return 1;
     }
-    if (screens.SwitchScreen("Smoke2D") != atom::ScreenOpResult::Success) {
-        LOG_ERROR(atom::log::core::ScreenManager, "Failed to switch to the 2D smoke screen");
+    if (screens.SwitchScreen("TestGame") != atom::ScreenOpResult::Success) {
+        LOG_ERROR(atom::log::core::ScreenManager, "Failed to switch to the TestGame");
         return 1;
     }
 
     auto& window = atom::RenderWindow::GetInstance();
     auto& application = atom::runtime::Application::GetInstance();
-    const auto initialized = application.Initialize("Atom Engine - 2D Scene Demo",
+    const auto initialized = application.Initialize("Atom Engine - TestGame",
                                                     atom::algo::Vec2{static_cast<float>(kWindowWidth),
                                                                      static_cast<float>(kWindowHeight)},
                                                     atom::backend::RenderBackendId::SdlGpu);
@@ -97,7 +97,7 @@ auto main() -> int {
     window.SetFPS(165);
 
     LOG_INFO(atom::log::core::Screen,
-             "2D smoke scene running: WASD/arrows move the player, Space pauses the world, close the window to quit.");
+             "TestGame running: WASD/arrows move the player, Space pauses the world, close the window to quit.");
 
     application.Run();
     return 0;

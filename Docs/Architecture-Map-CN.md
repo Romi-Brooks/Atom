@@ -23,7 +23,8 @@
 | `Sprite/` | 图集元数据：一张纹理 + 命名帧 + 整表 filter | ECS、渲染、动画 |
 | `Utilities/Json/` | 严格 JSONC 读取器（行号列号诊断） | 场景语义、组件映射 |
 | `Scene/` | 场景文档的 schema、校验与加载器 | Runtime 帧循环、渲染、具体格式语法 |
-| `Example/Game/Assets/` | 示例（将来是小游戏）自己的内容根，开发期挂到 `res://`；占位美术由同目录 `generate_textures.py` 生成 | 引擎实现、仓库共享资源根 |
+| `Example/TestGame/Assets/` | `TestGame` 的内容根（场景/prefab/图集/占位贴图），开发期挂到 `res://`；贴图由同目录 `generate_textures.py` 生成 | 引擎实现、仓库共享资源根 |
+| `Test/Data/` | **故意非法**的夹具（坏版本、重复 id、未知字段），只被对应测试读取 | 游戏内容根；它们必须永远加载失败 |
 | `Window/` | 后端无关的窗口/帧宿主门面 | SDL3/SDL_GPU 的具体实现、Renderer2D/UI 绘制策略 |
 | `Runtime/` | Application、Screen、GameWorld、GameScreen、调度与生命周期 | Renderer2D/GPU 后端实现 |
 | `Backend/Contracts/` | backend 无关接口与基础传输类型 | 领域实现、SDL/GPU 类型 |

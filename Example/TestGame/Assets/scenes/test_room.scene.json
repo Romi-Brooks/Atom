@@ -6,8 +6,8 @@
 // is what turns them into the metres the solver works in.
 {
   "schema_version": 2,
-  "id": "smoke_room",
-  "name": "Smoke Room",
+  "id": "test_room",
+  "name": "Test Room",
 
   "physics": {
     // Top-down: nothing falls. Gravity would turn the two crates into a pile on the bottom wall

@@ -180,7 +180,7 @@ auto main() -> int {
     // broken sheet fails here instead of at the demo's boot.
     {
         std::unique_ptr<fs::NativeFileSystem> backend{};
-        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Example/Game/Assets",
+        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Example/TestGame/Assets",
                                                 backend) == fs::Result::Success);
 
         sprite::SpriteAtlasLoader loader{*backend};

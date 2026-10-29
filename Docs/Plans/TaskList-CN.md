@@ -30,12 +30,12 @@
 ```powershell
 & 'D:\Program\JetBrains\CLion\bin\cmake\win\x64\bin\cmake.exe' --build cmake-build-debug --parallel
 cd cmake-build-debug; & 'D:\Program\JetBrains\CLion\bin\cmake\win\x64\bin\ctest.exe' --timeout 90
-.\cmake-build-debug\Example_2D_Smoke.exe      # 可玩的小房间：WASD/E/Space/R
+.\cmake-build-debug\Example_TestGame.exe      # 可玩的小房间：WASD/E/Space/R
 ```
 
 | 能力 | 状态 | 验收依据 |
 |---|---|---|
-| 帧节奏（固定步 + 可变步 + 插值 alpha） | ✅ | `Atom_Runtime.GameScreenFrame`、`Example_2D_Smoke` 实机 |
+| 帧节奏（固定步 + 可变步 + 插值 alpha） | ✅ | `Atom_Runtime.GameScreenFrame`、`Example_TestGame` 实机 |
 | ECS 组件词汇与查询实例化 | ✅ | `Specs/ECS-Component-Vocabulary-CN.md`、`Atom_ECS.*` |
 | 2D 渲染（批处理、排序、翻转、最近邻） | ✅ | `Atom_Scene2D.SpriteRenderer` |
 | 场景文档 v2（JSONC、原子切换、prefab、图集、物理） | ✅ | `Specs/Scene-Schema-CN.md`、`Atom_Scene.*` |
@@ -65,14 +65,14 @@ cd cmake-build-debug; & 'D:\Program\JetBrains\CLion\bin\cmake\win\x64\bin\ctest.
 
 - 工作：反复 load/restart/unload scene（`R` 键按 100 次），断言 body 数、texture handle、事件队列长度不增长。
 - 验收：ASan/UBSan 可用平台纳入 CI；无悬垂句柄、无残留 body、无用的已销毁 GPU 资源。
-- 依据：`SmokeScreen::LoadRoom` 每次重建 `Physics2DWorld` 与 1000 个背景实体，目前只靠人工观察。
+- 依据：`TestGameScreen::LoadRoom` 每次重建 `Physics2DWorld` 与 1000 个背景实体，目前只靠人工观察。
   见 [RI-005](../Remaining-Issues.md)（`bodies_` 每步重建）与 [RI-006](../Remaining-Issues.md)（测试未覆盖速度 API）。
 
 ### T4.1 — 无窗口 / Recording 渲染后端
 
 - 工作：把 RenderSystem 的排序、相机变换、frame/pass 顺序、资源生命周期做成可断言对象，不靠截图。
 - 依赖：T1.2（已具备）。
-- 备注：截图只能证明"某次跑起来是这个样子"，无法防回归；本任务完成后 `Example/Game/smoke-scene.png` 才只需
+- 备注：截图只能证明"某次跑起来是这个样子"，无法防回归；本任务完成后 `Example/TestGame/TestGame.png` 才只需
   人工看一眼。
 
 ### P0 收尾判据

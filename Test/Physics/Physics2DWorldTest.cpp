@@ -217,7 +217,7 @@ auto main() -> int {
 
     // --- 4b. Velocity control: the API the demo actually moves with ------
     //
-    // This is the path SmokeScreen uses every fixed step, and the earlier version of this test
+    // This is the path TestGameScreen uses every fixed step, and the earlier version of this test
     // never called it - it drove a kinematic body by teleporting its transform instead, which is
     // a different code path (RI-006). A bridge that is only "tested" through paths the game does
     // not use is not tested.

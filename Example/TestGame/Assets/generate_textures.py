@@ -1,10 +1,10 @@
-"""Generates the placeholder art for Example/Game (T1.3 smoke scene).
+"""Generates the placeholder art for Example/TestGame.
 
 These are deliberately tiny, deterministic PNGs: the point is to have a real
 res:// content root with real decodable files, not to ship art. The script lives
 next to the assets it writes, so the art stays reproducible:
 
-    python Example/Game/Assets/generate_textures.py
+    python Example/TestGame/Assets/generate_textures.py
 """
 
 from pathlib import Path

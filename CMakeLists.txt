@@ -7,7 +7,7 @@ project(Atom LANGUAGES C CXX)
 # Target naming convention:
 #   Atom_*       - engine libraries, backends, applications, and tools
 #   Atom_3rd_*   - Atom-owned wrappers around third-party dependencies
-#   Example_*    - runnable examples and smoke programs
+#   Example_*    - runnable examples and manual test programs
 # Upstream dependency targets remain confined to ThirdParty/CMakeLists.txt.
 
 set(CMAKE_CXX_STANDARD 23)
@@ -945,22 +945,22 @@ endif()
 # T1.3 — the first screen that owns a GameWorld: hard-coded world, real res://
 # sprites through Scene2D, keyboard-driven player, following camera. This is the
 # example that T2.x replaces with a loaded scene, so it links only what it uses.
-add_executable(Example_2D_Smoke
-    Example/Game/SmokeMain.cpp
-    Example/Game/SmokeScreen.cpp
-    Example/Game/SmokeScreen.hpp
-    Example/Game/GameInput.cpp
-    Example/Game/GameInput.hpp
+add_executable(Example_TestGame
+    Example/TestGame/TestGameMain.cpp
+    Example/TestGame/TestGameScreen.cpp
+    Example/TestGame/TestGameScreen.hpp
+    Example/TestGame/GameInput.cpp
+    Example/TestGame/GameInput.hpp
 )
-target_link_libraries(Example_2D_Smoke PRIVATE
+target_link_libraries(Example_TestGame PRIVATE
     Atom_Runtime Atom_Scene Atom_Scene2D Atom_Render_Resources Atom_Renderer2D Atom_FS Atom_InputSystem Atom_Debugger
     Atom_PhysicsIntegration Atom_Physics)
-target_compile_definitions(Example_2D_Smoke PRIVATE
+target_compile_definitions(Example_TestGame PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}"
     # Development content root (G0.5): Assets/ in the checkout is mounted as res://
     # at boot. A packaged build mounts the same URIs from an APKG instead.
     ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
-add_dependencies(Example_2D_Smoke Atom_Shaders)
+add_dependencies(Example_TestGame Atom_Shaders)
 
 # CORE-002 acceptance example — a box moved by the per-frame InputSystem, plus
 # an overlay that prints the raw state. Proves the main loop feeds the input

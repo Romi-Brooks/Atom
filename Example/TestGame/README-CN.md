@@ -1,13 +1,15 @@
-# Example/Game — 2D scene demo (T2.2)
+# Example/TestGame — 可玩的 2D 小房间
 
-引擎里第一个**世界来自场景文件**的示例：`Example/Game/Assets/scenes/smoke_room.scene.json` 定义房间内容，C++ 只负责
-系统、渲染和一段装饰用的地板。
+`TestGame` 是引擎的**端到端验证工程**，不是产品示例：它把已经验证过的零件（场景文档、物理桥、输入动作、
+插值、HUD）组装成一个能启动、能玩、能暂停、能重开的房间，用来看"这些零件拼起来到底对不对"。
+
+房间内容来自 `Example/TestGame/Assets/scenes/test_room.scene.json`；C++ 只负责系统、渲染和一段装饰用的地板。
 
 ## 运行
 
 ```powershell
-cmake --build cmake-build-debug --target Example_2D_Smoke
-.\cmake-build-debug\Example_2D_Smoke.exe
+cmake --build cmake-build-debug --target Example_TestGame
+.\cmake-build-debug\Example_TestGame.exe
 ```
 
 - WASD / 方向键：移动（两个都绑定到同一个 action）
@@ -15,7 +17,7 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 - Space / Esc：暂停世界（画面继续渲染，所以"暂停"是可见的；暂停期间移动与 E 都无效）
 - 关闭窗口：退出
 
-![scene demo](smoke-scene.png)
+![scene demo](TestGame.png)
 
 截图里的东西全部来自场景文件：两块木箱、玩家、图集子矩形（绿块），以及被 `flip_x` 镜像的粉色小旗
 （`pivot` 设为底部居中，所以它插在地上）。
@@ -24,11 +26,11 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 
 | 内容 | 来源 |
 |---|---|
-| 相机、玩家、图集格、过期标记 | `Assets/scenes/smoke_room.scene.json`（本示例自己的内容根） |
+| 相机、玩家、图集格、过期标记 | `Assets/scenes/test_room.scene.json`（本示例自己的内容根） |
 | 两个木箱 | `Assets/prefabs/crate.prefab.json` 的**两个实例**，只覆盖位置/排序键/名字 |
 | 绿格子 | `Assets/atlases/terrain.atlas.json` 的 `green` 帧（含 `filter: nearest`） |
 | 地板 | C++ 生成（`AddBackdrop`）：**装饰**，T5.1 的 Tilemap 会用地砖集生成这一层 |
-| 移动与跟随相机 | C++ 系统（`RegisterSmokeSystems`） |
+| 移动与跟随相机 | C++ 系统（`RegisterTestGameSystems`） |
 
 改关卡不需要重编译：编辑 JSON，重开程序即可。格式见 `Docs/Plans/Specs/Scene-Schema-CN.md`。
 
@@ -61,7 +63,7 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 
 ## 现在的样子（T3.3 之后）
 
-![smoke-scene.png](smoke-scene.png)
+![TestGame.png](TestGame.png)
 
 一个**能玩的小房间**，就是把前面所有已验证零件组装起来：
 

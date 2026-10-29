@@ -857,7 +857,7 @@ rg -L "SPDX-License-Identifier: MIT" -g "*.h" -g "*.hpp" -g "*.c" -g "*.cpp" -g 
 #### RI-005：`Physics2DWorld::bodies_` 每步重建，只为 `BodyCount()`（**已修，2026-10-29**）
 
 - **证据**：`Step()` 末尾 `bodies_.clear(); reserve(); push_back(...)`，唯一消费者是示例 HUD 的
-  `BodyCount()`（`SmokeScreen.cpp:322`）。
+  `BodyCount()`（`TestGameScreen.cpp:322`）。
 - **影响**：每固定步一次 vector 重建 + 一次整表遍历；与 `body_by_entity` 重复保存同一信息。
 - **建议**：`BodyCount()` 直接返回 `impl_->body_by_entity.size()`，删除 `bodies_`。
 
@@ -934,8 +934,8 @@ rg -L "SPDX-License-Identifier: MIT" -g "*.h" -g "*.hpp" -g "*.c" -g "*.cpp" -g 
 |---|---|---|---|---|
 | RI-014a | `Render/Scene2D/Scene2DRenderer.cpp` `CollectOne` | 在 `ForEach<RenderTransform2D, SpriteRenderer>` 内部又做一次 `TryGet<Transform2D>`（插值需要） | 每个精灵每帧多一次 ECS 探针；1000 精灵约 5–15 µs，且多一组 cache line | 增加 `ForEach<Transform2D, RenderTransform2D, SpriteRenderer>` 实例化，三组件一次取到 |
 | RI-014b | `Physics/Integration/Physics2DWorld.cpp` `Step` 返回值、`Runtime/GameEventQueue.cpp` `Drain` | 每步/每帧把 vector 或队列 **move 出去**，容量随之丢失 | 固定步 60Hz 下每秒数百次分配 | 返回 `std::span` 指向持久缓冲，或用 swap 保留容量 |
-| RI-014c | `Example/Game/SmokeScreen.cpp` `DrawHud` | 每帧 4 个 `to_string` + 3 次拼接，`DrawText` 内部再复制文本 | 约 10–12 次分配/帧 | 字符串缓存 + 脏标记；长期应走 UI 层（T5.6/HUD 复用） |
-| RI-014d | `Example/Game/SmokeScreen.cpp` `AddBackdrop` | 每次加载 1000 个实体当地板 | 1009 个精灵全部参与收集/排序/提交，且 `Collect` 无裁剪 | T5.1 Tilemap；临时可换成一个拉伸四边形 |
+| RI-014c | `Example/TestGame/TestGameScreen.cpp` `DrawHud` | 每帧 4 个 `to_string` + 3 次拼接，`DrawText` 内部再复制文本 | 约 10–12 次分配/帧 | 字符串缓存 + 脏标记；长期应走 UI 层（T5.6/HUD 复用） |
+| RI-014d | `Example/TestGame/TestGameScreen.cpp` `AddBackdrop` | 每次加载 1000 个实体当地板 | 1009 个精灵全部参与收集/排序/提交，且 `Collect` 无裁剪 | T5.1 Tilemap；临时可换成一个拉伸四边形 |
 | RI-014e | `Physics/Integration/Physics2DWorld.cpp` 写回阶段 | kinematic 的 `Transform2D -> body` 推送在步进**之后**执行，即晚一帧生效 | 移动平台会慢一帧；当前无 kinematic 使用者 | 把 kinematic 推送挪到 `Step` 之前（与创建 body 同阶段） |
 | RI-014f | `Test/CMakeLists.txt` | 端到端 slice 检查随 `--selftest` 一起被删除，目前没有替代 | "单元绿、组装死"重新变成无防护状态 | T4.2：把 slice 抽成静态库 + 独立 test target，走同一条窗口事件路径 |
 

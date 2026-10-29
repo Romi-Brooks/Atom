@@ -1,4 +1,4 @@
-#include "SmokeScreen.hpp"
+#include "TestGameScreen.hpp"
 
 #include <cmath>
 #include <iterator>
@@ -38,7 +38,7 @@ constexpr float kTileSize = 48.0F;
 constexpr int kFloorColumns = 40;
 constexpr int kFloorRows = 25;
 
-constexpr std::string_view kRoomSceneUri = "res://scenes/smoke_room.scene.json";
+constexpr std::string_view kRoomSceneUri = "res://scenes/test_room.scene.json";
 
 // Two event types are all this slice needs: the physics system publishes them, the goal system
 // drains them. This is the shape the plan asks for - contacts become world events, so a system
@@ -112,7 +112,7 @@ auto FindBySceneId(ecs::EntityWorld& entities, const std::uint32_t scene_id) -> 
     return {};
 }
 
-auto RegisterSmokeSystems(GameWorld& world) -> Result<void> {
+auto RegisterTestGameSystems(GameWorld& world) -> Result<void> {
     auto& scheduler = world.GetScheduler();
 
     // 1. Capture the display state first, every fixed step, so RenderTransform2D means "where
@@ -281,19 +281,19 @@ auto RegisterSmokeSystems(GameWorld& world) -> Result<void> {
     return Ok();
 }
 
-SmokeScreen::SmokeScreen()
-    : GameScreen([](GameWorld& world) -> Result<void> { return RegisterSmokeSystems(world); }) {}
+TestGameScreen::TestGameScreen()
+    : GameScreen([](GameWorld& world) -> Result<void> { return RegisterTestGameSystems(world); }) {}
 
-SmokeScreen::~SmokeScreen() {
+TestGameScreen::~TestGameScreen() {
     // The GPU device outlives the screen, so renderer-owned resources must be released first.
     renderer_.Shutdown();
     PhysicsWorld().reset();
 }
 
-auto SmokeScreen::LoadRoom() -> Result<void> {
+auto TestGameScreen::LoadRoom() -> Result<void> {
     fs::AssetPath path{};
     if (!fs::AssetPath::TryParse(kRoomSceneUri, path)) {
-        return Fail(MakeError(ErrorCode::SceneLoadFailed, Module::Scene, "SmokeScreen::LoadRoom")
+        return Fail(MakeError(ErrorCode::SceneLoadFailed, Module::Scene, "TestGameScreen::LoadRoom")
                         .WithDetail("the room URI is not a valid asset path: " + std::string{kRoomSceneUri}));
     }
 
@@ -306,7 +306,7 @@ auto SmokeScreen::LoadRoom() -> Result<void> {
     auto physics = physics::integration::Physics2DWorld::Create(PhysicsBackend(),
                                                                loaded->description.pixels_per_meter);
     if (physics == nullptr) {
-        return Fail(MakeError(ErrorCode::PhysicsBackendCreationFailed, Module::Physics, "SmokeScreen::LoadRoom")
+        return Fail(MakeError(ErrorCode::PhysicsBackendCreationFailed, Module::Physics, "TestGameScreen::LoadRoom")
                         .WithDetail("the physics backend refused to create a world"));
     }
     physics->SetGravity(loaded->description.gravity);
@@ -317,7 +317,7 @@ auto SmokeScreen::LoadRoom() -> Result<void> {
     ReplaceWorldEntities(std::move(loaded->entities));
 
     if (!AddBackdrop(World().GetEntities())) {
-        return Fail(MakeError(ErrorCode::SceneLoadFailed, Module::Scene, "SmokeScreen::LoadRoom")
+        return Fail(MakeError(ErrorCode::SceneLoadFailed, Module::Scene, "TestGameScreen::LoadRoom")
                         .WithDetail("the backdrop floor could not be created"));
     }
 
@@ -329,16 +329,16 @@ auto SmokeScreen::LoadRoom() -> Result<void> {
     return Ok();
 }
 
-auto SmokeScreen::EntityCount() const -> std::size_t {
+auto TestGameScreen::EntityCount() const -> std::size_t {
     return World().GetEntities().AliveCount();
 }
 
-auto SmokeScreen::BodyCount() const -> std::size_t {
+auto TestGameScreen::BodyCount() const -> std::size_t {
     const auto& world = PhysicsWorld();
     return world != nullptr ? world->BodyCount() : 0;
 }
 
-auto SmokeScreen::EnsureHudFont() -> render::Font* {
+auto TestGameScreen::EnsureHudFont() -> render::Font* {
     if (hud_font_ != nullptr)
         return hud_font_;
     if (!hud_font_error_.empty())
@@ -367,7 +367,7 @@ auto SmokeScreen::EnsureHudFont() -> render::Font* {
     return hud_font_;
 }
 
-auto SmokeScreen::DrawHud() -> void {
+auto TestGameScreen::DrawHud() -> void {
     auto* font = EnsureHudFont();
     if (font == nullptr)
         return;
@@ -401,10 +401,10 @@ auto SmokeScreen::DrawHud() -> void {
     }
 }
 
-auto SmokeScreen::Render(render::IRenderDevice& device) -> void {
+auto TestGameScreen::Render(render::IRenderDevice& device) -> void {
     if (!renderer_.IsInitialized() && !renderer_.Initialize(device, ATOM_SHADER_OUTPUT_DIR)) {
         if (!render_failed_) {
-            LOG_ERROR(atom::log::core::Screen, "2D smoke scene: Renderer2D initialization failed");
+            LOG_ERROR(atom::log::core::Screen, "TestGame: Renderer2D initialization failed");
             render_failed_ = true;
         }
         return;
@@ -434,7 +434,7 @@ auto SmokeScreen::Render(render::IRenderDevice& device) -> void {
     }
 }
 
-auto SmokeScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds,
+auto TestGameScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds,
                              const float interpolation_alpha) -> void {
     GameScreen::BeginFrame(fixed_steps, fixed_delta_seconds, interpolation_alpha);
 
@@ -442,7 +442,7 @@ auto SmokeScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_
     GameInput::GetInstance().Actions().SetGameplayEnabled(!IsPaused());
 }
 
-auto SmokeScreen::HandleEvent(const window::IEvent& event) -> bool {
+auto TestGameScreen::HandleEvent(const window::IEvent& event) -> bool {
 
     if (event.type != window::EventType::KeyPressed)
         return false;

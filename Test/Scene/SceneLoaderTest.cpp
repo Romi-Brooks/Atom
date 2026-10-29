@@ -8,7 +8,7 @@
  *   BuildWorld   SceneDesc -> EntityWorld, with the component mapping
  *
  * Two sets of on-disk files are read here on purpose:
- *  - the demo room under Example/Game/Assets, because it ships with the engine and
+ *  - the demo room under Example/TestGame/Assets, because it ships with the engine and
  *    must not rot into an unloadable state;
  *  - the loader's own invalid fixtures under Test/Data/scenes, which exist only to
  *    prove that each rule rejects - a fixture that silently starts passing is a
@@ -63,10 +63,10 @@ auto main() -> int {
     // --- 1. The committed sample is valid and covers every v1 field --------
     {
         fs::AssetPath path{};
-        ATOM_CHECK(fs::AssetPath::TryParse("res://scenes/smoke_room.scene.json", path));
+        ATOM_CHECK(fs::AssetPath::TryParse("res://scenes/test_room.scene.json", path));
 
         std::unique_ptr<fs::NativeFileSystem> backend{};
-        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Example/Game/Assets",
+        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Example/TestGame/Assets",
                                                 backend) == fs::Result::Success);
 
         const auto loaded = scene::SceneLoader::Load(*backend, path);
@@ -78,7 +78,7 @@ auto main() -> int {
         // is the test-level version of a consumer bending the engine (RI-011).
         ATOM_CHECK(description.schema_version >= 1);
         ATOM_CHECK(!description.entities.empty());
-        ATOM_CHECK(description.id == "smoke_room");
+        ATOM_CHECK(description.id == "test_room");
         ATOM_CHECK(description.has_name);
         ATOM_CHECK(description.active_camera != kNoActiveCamera);
         ATOM_CHECK(description.entities[description.active_camera].id == 1);

@@ -31,8 +31,8 @@
 ```jsonc
 {
   "schema_version": 1,            // 必填，整数，必须等于 1
-  "id": "smoke_room",             // 必填，[a-z][a-z0-9_]*，≤ 64，项目内唯一
-  "name": "Smoke Room",           // 可选，显示名，≤ 64
+  "id": "test_room",             // 必填，[a-z][a-z0-9_]*，≤ 64，项目内唯一
+  "name": "Test Room",           // 可选，显示名，≤ 64
   "entities": [ /* ... */ ]       // 必填，数组，可为空
 }
 ```
@@ -218,15 +218,15 @@
 **解析错误（第一个即返回）**
 
 ```text
-res://scenes/smoke_room.scene.json:12:18: expected ',' or '}' after object member
+res://scenes/test_room.scene.json:12:18: expected ',' or '}' after object member
 ```
 
 **校验错误（收集，最多 32 条，一次返回）**
 
 ```text
-res://scenes/smoke_room.scene.json: entity 7 ("crate"): sprite.pivot: expected 2 numbers, got 1
-res://scenes/smoke_room.scene.json: entity 9: unknown field "spirte" (did you mean "sprite"?)
-res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen at line 24)
+res://scenes/test_room.scene.json: entity 7 ("crate"): sprite.pivot: expected 2 numbers, got 1
+res://scenes/test_room.scene.json: entity 9: unknown field "spirte" (did you mean "sprite"?)
+res://scenes/test_room.scene.json: entity 12: duplicate entity id 7 (first seen at line 24)
 ```
 
 规则：
@@ -266,15 +266,24 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
 
 ## 9. 示例与测试资源
 
+合法内容在游戏的内容根，非法夹具在测试自己的目录——这条分界是刻意的，不是历史遗留：
+
 | 文件 | 用途 |
 |---|---|
-| `Example/Game/Assets/scenes/smoke_room.scene.json` | 合法样例；示例启动时加载它（实体 3/4 是 prefab 实例） |
-| `Example/Game/Assets/prefabs/crate.prefab.json` | 合法 prefab；被上面两个木箱实例引用 |
-| `Example/Game/Assets/atlases/terrain.atlas.json` | 合法图集；示例的绿格子用它（`filter: nearest`） |
+| `Example/TestGame/Assets/scenes/test_room.scene.json` | 合法样例；示例启动时加载它（实体 3/4 是 prefab 实例） |
+| `Example/TestGame/Assets/prefabs/crate.prefab.json` | 合法 prefab；被上面两个木箱实例引用 |
+| `Example/TestGame/Assets/atlases/terrain.atlas.json` | 合法图集；示例的绿格子用它（`filter: nearest`） |
 | `Test/Data/scenes/invalid_unknown_field.scene.json` | 拼写错误拒绝 |
 | `Test/Data/scenes/invalid_duplicate_id.scene.json` | 重复 id 拒绝 |
 | `Test/Data/scenes/invalid_bad_version.scene.json` | 未知 `schema_version` 拒绝 |
 | `Test/Scene/ScenePrefabTest.cpp` | prefab 与覆盖规则（用内存 provider，不碰文件系统） |
+
+**为什么非法夹具不放 `Example/TestGame/Assets`**：
+
+1. 那是**游戏内容根**，打包时整个目录会被拷进 APKG（G0.5）。放进去等于让发布包里躺着三个必然加载失败的关卡。
+2. 它们的归属是 **loader 契约**，不是游戏内容：只有 `Test/Scene/SceneLoaderTest.cpp` 读它们，用来断言"真实磁盘文件"
+   也能被正确拒绝，且诊断里的行号/列号正确（用内联字符串测不出这两点）。
+3. 现有约定：**合法内容跟着游戏走，非法夹具跟着断言它的测试走**。
 
 地板阵列不在 v1 手写：几十上百块地砖必须由 T5.1 的 Tilemap 生成，样例只给房间里的少量实体。示例里的地板目前由 C++ 生成装饰，不参与场景文档。
 
