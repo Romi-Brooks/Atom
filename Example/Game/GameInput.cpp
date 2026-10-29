@@ -5,7 +5,17 @@
 namespace atom::game {
 
 auto GameInput::GetInstance() -> GameInput& {
-    static GameInput instance{};
+    // Built with its defaults installed, not empty-then-configured-by-the-caller.
+    //
+    // This is not tidiness: the first version returned an empty map and expected boot to call
+    // ApplyDefaultBindings(). Boot never did, so every action query was false and every key was
+    // dead - while the engine tests, which install bindings themselves, stayed green. A
+    // singleton whose usable state depends on a call someone must remember is a trap.
+    static GameInput instance = [] {
+        GameInput input{};
+        input.ApplyDefaultBindings();
+        return input;
+    }();
     return instance;
 }
 

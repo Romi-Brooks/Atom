@@ -134,6 +134,15 @@ auto RenderWindow::SetFPS(const unsigned int fps) -> void {
         backend_->Window().SetFPS(fps);
 }
 
+auto RenderWindow::SetTextInputEnabled(const bool enabled) -> void {
+    if (backend_)
+        backend_->Window().SetTextInputEnabled(enabled);
+}
+
+auto RenderWindow::IsTextInputEnabled() const -> bool {
+    return backend_ ? backend_->Window().IsTextInputEnabled() : false;
+}
+
 auto RenderWindow::GetIWindow() -> atom::window::IWindow* {
     return backend_ ? &backend_->Window() : nullptr;
 }

@@ -264,9 +264,12 @@ auto SDL3Window::Initialize(const std::string& title, const algo::Vec2 resolutio
     }
     windowed_width_ = static_cast<int>(resolution.GetX());
     windowed_height_ = static_cast<int>(resolution.GetY());
-    // SDL3 starts with text input disabled; enable it so SDL_EVENT_TEXT_INPUT
-    // flows (the debugger overlay forwards it to ImGui AddInputCharactersUTF8).
-    SDL_StartTextInput(window_);
+    // Text input stays OFF until something actually needs it (see SetTextInputEnabled).
+    // Enabling it here attached the OS input method at startup: on Windows the IME then composed
+    // the typed letters and no SDL_EVENT_KEY_DOWN was ever produced, so every gameplay key
+    // silently did nothing while mouse input and rendering kept working.
+    SDL_StopTextInput(window_);
+    text_input_enabled_ = false;
     video_runtime_ = std::move(video);
     events_runtime_ = std::move(events);
     open_ = true;
@@ -300,6 +303,22 @@ auto SDL3Window::PollEvent() -> std::optional<window::IEvent> {
         open_ = false;
     return TranslateEvent(event);
 }
+auto SDL3Window::SetTextInputEnabled(const bool enabled) -> void {
+    if (!window_ || enabled == text_input_enabled_)
+        return;
+    // SDL only forwards SDL_EVENT_TEXT_INPUT while this is on, and only while it is on does the
+    // OS attach an input method. Turning it off is what guarantees keys reach the game.
+    if (enabled)
+        SDL_StartTextInput(window_);
+    else
+        SDL_StopTextInput(window_);
+    text_input_enabled_ = enabled;
+}
+
+auto SDL3Window::IsTextInputEnabled() const -> bool {
+    return text_input_enabled_;
+}
+
 auto SDL3Window::SetFPS(const uint32_t fps) -> void {
     fps_limit_ = fps;
     next_frame_ns_ = 0;

@@ -428,6 +428,7 @@ auto SmokeScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_
 }
 
 auto SmokeScreen::HandleEvent(const window::IEvent& event) -> bool {
+
     if (event.type != window::EventType::KeyPressed)
         return false;
 

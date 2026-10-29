@@ -460,6 +460,22 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
   - 新增位置：`Example/2DVerticalSlice/`，使用真实 Scene、至少一个 Prefab、Sprite、物理障碍和 UI。
   - 内容：角色、静态障碍、一个 trigger/终点、HUD、暂停、重开；美术可以是占位资源。
   - 验收：本节“P0 完成定义”全部满足；Windows/Linux CI 均构建该 example，并运行无窗口逻辑测试。
+  - **已落地（2026-10-29）**：场景升到 **v2**（`physics` 块：场景级 gravity / pixels_per_meter + 实体级
+    kind/shape/材质/sensor，尺寸仍是像素、换算只在 loader 一处）。房间 = 动态玩家 + 4 面静态墙 + 2 个 Prefab
+    木箱 + 1 个 sensor 出口 + 1 个图集帧。玩家**动态**：玩法只设速度（`Physics2DWorld::SetLinearVelocity`），
+    位置由求解器写回，所以墙真的挡人、木箱真的被推。接触 → `GameEvent`（`physics-step` 发布、`goal` 在 Update
+    消费），反应逻辑不在求解器回调里。HUD 用 `Renderer2D::DrawText`；R 重开走**与启动相同的加载路径**。
+  - **首轮试玩发现的两个真 bug（已修，都是"测试绿但游戏死"）**：
+    1. `GameInput::ApplyDefaultBindings()` 从未被调用 → 动作表为空 → WASD/E/Space/R 全部无效。修法不是补一行
+       调用，而是让单例在**构造时**就装好默认绑定："能玩"不能依赖某个调用方记得调一次。当时那条自检是绿的，
+       因为它在测试里自己装了绑定——测的是测试的假设，不是游戏的行为。
+    2. 窗口创建时无条件 `SDL_StartTextInput` → 输入法被挂上 → 字母键被 IME 吃掉，SDL 不产生 `KEY_DOWN`。
+       改为**默认关闭**，只有持有焦点的文本框才打开（`IWindow::SetTextInputEnabled`）。
+  - 验证方式：注入键事件后**逐项人工确认**（移动、走到出口变绿、暂停遮罩、E 切镜头、R 重开）。原先的
+    `--selftest` 命令行开关已按要求移除；T4.2 做 CI 时正确做法是把 slice 抽成静态库，让独立 test target 走
+    **同一条窗口事件路径**，而不是给游戏加开关。
+  - 已知缺口（不影响"能否组装"）：没有菜单/存档/音频；墙用拉伸的地板贴图代替真正的墙贴图（缺美术资源）；
+    相机跟随在 LateUpdate，快速移动时略有滞后（P0 可接受）。
   - 依赖：T1.3、T2.3、T3.1、T3.2。
 
 ### 阶段 4：P0 质量门禁

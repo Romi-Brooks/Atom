@@ -33,6 +33,8 @@ class SDL3Window final : public window::IWindow {
         [[nodiscard]] auto GetTimeSeconds() const -> double override;
         auto WaitForNextFrame() -> void override;
         [[nodiscard]] auto GetSize() const -> algo::Vec2 override;
+        auto SetTextInputEnabled(bool enabled) -> void override;
+        [[nodiscard]] auto IsTextInputEnabled() const -> bool override;
         auto SetWindowMode(window::WindowMode mode) -> bool override;
         [[nodiscard]] auto GetWindowMode() const -> window::WindowMode override;
         [[nodiscard]] auto GetNativeWindow() const -> SDL_Window*;
@@ -55,6 +57,8 @@ class SDL3Window final : public window::IWindow {
         // of fullscreen on its own (alt-tab to a display change, Win+D), so this
         // is "what we last asked for", reconciled on the next SetWindowMode.
         window::WindowMode window_mode_ = window::WindowMode::Windowed;
+        // Whether the OS input method is currently attached (see SetTextInputEnabled).
+        bool text_input_enabled_ = false;
         bool open_ = false;
         SDLSubsystemLease video_runtime_;
         SDLSubsystemLease events_runtime_;

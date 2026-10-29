@@ -80,6 +80,21 @@ class IWindow {
         virtual auto WaitForNextFrame() -> void = 0;
         [[nodiscard]] virtual auto GetSize() const -> algo::Vec2 = 0;
 
+        // Text input is a *state*, not a window property: while it is enabled the platform
+        // layer attaches the OS input method, which on Windows means an IME composes what you
+        // type and the letters never arrive as key events. Leaving it on from startup therefore
+        // breaks every gameplay key, which is why the default is off and only the owner of a
+        // focused text field should turn it on.
+        //
+        // Backends that cannot control this may ignore it; the callers must not depend on it for
+        // correctness, only for text entry actually working.
+        virtual auto SetTextInputEnabled(bool enabled) -> void {
+            (void)enabled;
+        }
+        [[nodiscard]] virtual auto IsTextInputEnabled() const -> bool {
+            return false;
+        }
+
         // Window placement. SetWindowMode() may change the display mode and
         // therefore the size reported by GetSize(), so callers must treat it as
         // a resize: never call it between BeginFrame() and EndFrame() of the

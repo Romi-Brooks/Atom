@@ -102,3 +102,22 @@ Physics 需要承载自研 solver 和未来 Box2D/Jolt 等可替换实现，因�
 
 这条规则也适用于未来模块：先确认“替换的是谁、由谁选择、contract 属于谁”，再决定目录，而不是先创建一个叫
 `Backend` 的文件夹。
+
+## 已知的坑（都踩过一次，别再踩）
+
+### 1. 窗口启动时不要开文本输入
+
+`SDL_StartTextInput` 会在 Windows 上挂上输入法：字母键被 IME 吃掉，SDL 根本不产生
+`SDL_EVENT_KEY_DOWN`。表现是"鼠标能用、画面正常、键盘完全无效"，而所有单元测试都是绿的——
+因为它们直接给 `InputSystem` 喂事件，从不经过窗口。
+
+现在的规则：**文本输入默认关闭**（`IWindow::SetTextInputEnabled(false)`），只有持有焦点的文本框才把它打开。
+需要输入文字时调用 `RenderWindow::SetTextInputEnabled(true)`，失焦/关闭时立刻设回 false。
+
+### 2. 单例必须有可用的初始状态
+
+`GameInput` 曾经要求启动时调用 `ApplyDefaultBindings()`，但没人调用，于是动作表是空的：
+每个动作查询恒为 false、`FindAction` 恒失败，所有按键似乎都"失灵"。
+
+现在的规则：**单例在构造时就进入可用状态**。需要在运行期改配置（比如换绑定）是另一回事，但"能玩"
+不能依赖某个调用方记得调一次。

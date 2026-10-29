@@ -948,8 +948,6 @@ add_executable(Example_2D_Smoke
     Example/Game/SmokeScreen.hpp
     Example/Game/GameInput.cpp
     Example/Game/GameInput.hpp
-    Example/Game/SliceSelfTest.cpp
-    Example/Game/SliceSelfTest.hpp
 )
 target_link_libraries(Example_2D_Smoke PRIVATE
     Atom_Runtime Atom_Scene Atom_Scene2D Atom_Render_Resources Atom_Renderer2D Atom_FS Atom_InputSystem Atom_Debugger

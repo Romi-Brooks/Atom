@@ -79,6 +79,12 @@ class RenderWindow {
         // settings page, a config file and a debug panel all need to request it.
         // Keeping that state in this facade would give it two owners.
         auto SetFPS(unsigned int fps) -> void;
+
+        // Forwards to the platform window. Only the owner of a focused text field should enable
+        // this: while it is on, the OS input method composes keystrokes and gameplay keys stop
+        // arriving as key events.
+        auto SetTextInputEnabled(bool enabled) -> void;
+        [[nodiscard]] auto IsTextInputEnabled() const -> bool;
         [[nodiscard]] auto GetFPS() const -> unsigned;
 
         [[nodiscard]] auto IsOpen() const -> bool;

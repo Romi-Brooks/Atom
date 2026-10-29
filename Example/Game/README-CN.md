@@ -79,15 +79,10 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 
 HUD 一行显示实体数、刚体数、接触数与镜头倍率——这几个数字就是"世界里真的发生了什么"的刻度。
 
-## 无窗口自检
+## 关于按键
 
-```powershell
-.\cmake-build-debug\Example_2D_Smoke.exe --selftest
-```
-
-不创建窗口、不需要 GPU，走的是和游戏**完全相同**的装配路径（场景文档 → 物理桥 → 系统 → 输入动作），
-断言：10 实体 / 8 刚体、出生无重叠、按住 D 半秒位移 60–160px、右行进入出口会触发、重开后状态干净、暂停时不动。
-它已注册成 ctest 用例（`Atom_Example.SliceSelfTest`），所以 CI 也会跑。
+如果按键完全没反应，先看 `Docs/Architecture-Map-CN.md` 的"已知的坑"：文本输入（输入法）和动作表初始化
+这两处都真出过问题，而且都表现为"画面正常、键盘全死"。
 
 ## 已知缺口（不影响"能不能玩"）
 
