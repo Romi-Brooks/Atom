@@ -10,8 +10,9 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 .\cmake-build-debug\Example_2D_Smoke.exe
 ```
 
-- WASD / 方向键：移动
-- Space：暂停世界（画面继续渲染，所以"暂停"是可见的）
+- WASD / 方向键：移动（两个都绑定到同一个 action）
+- E：切换相机 1x / 2x（一次性 action，演示 "按下这一帧" 与"按住"的区别）
+- Space / Esc：暂停世界（画面继续渲染，所以"暂停"是可见的；暂停期间移动与 E 都无效）
 - 关闭窗口：退出
 
 ![scene demo](smoke-scene.png)

@@ -154,6 +154,9 @@ endif()
     add_library(Atom_InputSystem STATIC
         Input/InputSystem.hpp
         Input/InputSystem.cpp
+        # Gameplay-facing action queries (axes, edges, pause gate). Header-only: a thin
+        # typed view over InputSystem, templated on the caller's own action enum.
+        Input/ActionState.hpp
     )
     target_include_directories(Atom_InputSystem PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     # Atom_Log is PUBLIC because a consumer that logs its own InputSystem reads
@@ -932,6 +935,8 @@ add_executable(Example_2D_Smoke
     Example/Game/SmokeMain.cpp
     Example/Game/SmokeScreen.cpp
     Example/Game/SmokeScreen.hpp
+    Example/Game/GameInput.cpp
+    Example/Game/GameInput.hpp
 )
 target_link_libraries(Example_2D_Smoke PRIVATE
     Atom_Runtime Atom_Scene Atom_Scene2D Atom_Render_Resources Atom_Renderer2D Atom_FS Atom_InputSystem Atom_Debugger)

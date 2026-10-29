@@ -177,6 +177,13 @@ atom_add_test(Atom_Input.InputSystem
     Input/InputSystemTest.cpp
     Atom_InputSystem)
 
+# T3.2: gameplay asks for actions (axes, edges) instead of keys, and one gate suspends
+# every gameplay query at once while menu input keeps working.
+atom_add_test(Atom_Input.ActionState
+    Atom_Input_ActionState_Tests
+    Input/ActionStateTest.cpp
+    Atom_InputSystem)
+
 # --- Retained game UI -------------------------------------------------------
 atom_add_test(Atom_UI.UiTree
     Atom_UI_UiTree_Tests

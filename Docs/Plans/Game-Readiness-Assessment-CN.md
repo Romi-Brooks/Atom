@@ -406,11 +406,22 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
   - 依赖：T0.2、T1.1、T2.2。
   - 预计：约 1,200–2,000 行实现、测试与可视化示例；含契约扩展约 +400–800 行。
 
-- [ ] **T3.2 — 游戏输入动作边界。**
+- [x] **T3.2 — 游戏输入动作边界。**
   - 工作：示例玩法只消费 `MoveLeft`/`MoveRight`/`MoveUp`/`MoveDown`/`Interact`/`Pause` 等游戏 action，
     不直接散落读取具体 Key。现有 `ActionMap` 保持键盘优先，但 API 需预留多个 binding source。
   - 不做：手柄映射、键位设置 UI、云同步。
-  - 验收：同一玩法系统可通过替换 action binding 工作；Pause 阻断 gameplay input 但不阻断 UI input。
+  - **已落地（2026-10-29）**：
+    - 引擎侧新增 `Input/ActionState.hpp`（`Atom_InputSystem` 内，header-only）：把 action 变成
+      `Axis()` / `Movement()`（已归一化，对角线不会更快）/ `IsPressed|IsHeld|IsReleased`，并提供**唯一一道玩法闸门**
+      `SetGameplayEnabled()`。闸门关掉时所有玩法查询读中性值，且**不动绑定**——恢复时不需要重绑。
+    - 动作枚举属于游戏：`Example/Game/GameInput`（`GameAction` + 默认绑定 + `SetBindings` 整体换 profile）。
+      演示玩法系统不再出现任何 `Key` 比较；暂停键走**事件路径**（`ActionMap::FindAction(event)`），因此不受玩法闸门
+      影响——否则暂停会变成单向门。`Application::DispatchEvent` 先喂 `InputSystem` 再给 Screen，所以 Screen 消费
+      事件不会吞掉输入，这条顺序已核对。
+    - "预留多个 binding source"的落点：所有查询都经过同三个函数，第二个来源（手柄）＝多一个 map、在这三个函数里
+      多做一次查找，调用点不变；profile 可整体替换（`SetBindings`）就是键位重映射要用的接缝。
+  - 验收的验证：`Atom_Input.ActionState` 断言"换绑定不改调用点"（同一查询在重绑后返回相反结果）、闸门关闭时
+    `Movement` 为 0 而 `FindAction` 仍能取到 Pause、对角线归一化、pressed 只存活一帧。
   - 依赖：T1.3。
 
 - [ ] **T3.3 — 第一个 vertical slice。**
@@ -487,11 +498,11 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 ## 7. 执行顺序、依赖与里程碑
 
 ```text
-已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3；T2.4
+已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3；T2.4；T3.2
 
 M1 可见实体：T1.1 -> T1.2 -> T1.3                    ✅
 M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            ✅（另加 T2.4 图集元数据）
-M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3
+M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3            T3.2 ✅，T3.1/T3.3 待做
 M4 P0 可交付：M3 -> T4.1 / T4.2 / T4.3
 M5 内容与世界：M4 -> T5.1 / T5.2 / T5.3 -> T5.4
 M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3

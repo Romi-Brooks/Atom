@@ -6,6 +6,7 @@
 #include <utility>
 
 #include <ECS/Components.hpp>
+#include "GameInput.hpp"
 #include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Runtime/System.hpp>
@@ -87,39 +88,31 @@ auto RegisterSmokeSystems(GameWorld& world) -> Result<void> {
                     if (!player.IsValid())
                         return Ok();
 
-                    const auto& input = input::InputSystem::GetInstance();
-                    if (input.IsTextInputCapturedByUi())
+                    // Gameplay reads actions, never keys: the bindings (WASD plus the
+                    // arrow keys, remappable) live in GameInput. Movement() is already
+                    // normalized, and it reads {0,0} while the pause gate is closed, so
+                    // there is no `if (paused)` here to forget.
+                    const auto& actions = GameInput::GetInstance().Actions();
+                    if (actions.IsTextInputCapturedByUi())
                         return Ok();
 
-                    float direction_x = 0.0F;
-                    float direction_y = 0.0F;
-                    if (input.IsKeyHeld(input::Key::A) || input.IsKeyHeld(input::Key::Left))
-                        direction_x -= 1.0F;
-                    if (input.IsKeyHeld(input::Key::D) || input.IsKeyHeld(input::Key::Right))
-                        direction_x += 1.0F;
-                    if (input.IsKeyHeld(input::Key::W) || input.IsKeyHeld(input::Key::Up))
-                        direction_y -= 1.0F;
-                    if (input.IsKeyHeld(input::Key::S) || input.IsKeyHeld(input::Key::Down))
-                        direction_y += 1.0F;
-                    if (direction_x == 0.0F && direction_y == 0.0F)
+                    const auto direction = actions.Movement(GameAction::MoveLeft, GameAction::MoveRight,
+                                                            GameAction::MoveUp, GameAction::MoveDown);
+                    if (direction.GetX() == 0.0F && direction.GetY() == 0.0F)
                         return Ok();
-
-                    const float length = std::sqrt(direction_x * direction_x + direction_y * direction_y);
-                    direction_x /= length;
-                    direction_y /= length;
 
                     auto* transform = entities.TryGet<Transform2D>(player);
                     if (transform == nullptr)
                         return Ok();
                     const float step = kPlayerSpeed * context.delta_seconds;
-                    transform->position = {transform->position.GetX() + direction_x * step,
-                                           transform->position.GetY() + direction_y * step};
+                    transform->position = {transform->position.GetX() + direction.GetX() * step,
+                                           transform->position.GetY() + direction.GetY() * step};
 
                     // Facing is a sprite property, not a simulation one, so the flip
                     // lives next to the movement that causes it.
                     if (auto* sprite = entities.TryGet<SpriteRenderer>(player);
-                        sprite != nullptr && direction_x != 0.0F) {
-                        sprite->flip_x = direction_x < 0.0F;
+                        sprite != nullptr && direction.GetX() != 0.0F) {
+                        sprite->flip_x = direction.GetX() < 0.0F;
                     }
                     return Ok();
                 }});
@@ -146,6 +139,30 @@ auto RegisterSmokeSystems(GameWorld& world) -> Result<void> {
                     // delta the phase was given.
                     const float blend = 1.0F - std::exp(-8.0F * context.delta_seconds);
                     eye->position = algo::Vec2::Lerp(eye->position, target->position, blend);
+                    return Ok();
+                }});
+        !added.has_value())
+        return added;
+
+    // A one-shot gameplay action, so the demo covers "pressed this frame" and not only
+    // "held": E toggles the camera lens between 1x and 2x. It goes through the same gate,
+    // so pressing E while paused does nothing.
+    if (auto added = scheduler.Add(
+            SystemPhase::Update,
+            runtime::SystemDescriptor{
+                "interact-zoom", [](GameWorld& world_ref, const FrameContext& /*context*/) -> Result<void> {
+                    const auto& actions = GameInput::GetInstance().Actions();
+                    if (!actions.IsPressed(GameAction::Interact))
+                        return Ok();
+
+                    auto& entities = world_ref.GetEntities();
+                    const auto camera = FindBySceneId(entities, kCameraSceneId);
+                    if (!camera.IsValid())
+                        return Ok();
+                    auto* lens = entities.TryGet<ecs::Camera2D>(camera);
+                    if (lens == nullptr)
+                        return Ok();
+                    lens->zoom = lens->zoom > 1.5F ? 1.0F : 2.0F;
                     return Ok();
                 }});
         !added.has_value())
@@ -227,15 +244,28 @@ auto SmokeScreen::Render(render::IRenderDevice& device) -> void {
     scene_renderer_.Submit(renderer_, view);
 }
 
+auto SmokeScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds) -> void {
+    GameScreen::BeginFrame(fixed_steps, fixed_delta_seconds);
+
+    // One place decides whether gameplay input is live. Every gameplay query reads
+    // neutral while this is false, so pausing cannot be half-applied.
+    GameInput::GetInstance().Actions().SetGameplayEnabled(!IsPaused());
+}
+
 auto SmokeScreen::HandleEvent(const window::IEvent& event) -> bool {
     if (event.type != window::EventType::KeyPressed)
         return false;
+
+    // The event path asks the *bindings* which action this key means, so the pause key
+    // is a binding (Space and Escape today) rather than a comparison in this function.
+    // It is deliberately not gated: if pause were gated, pausing would be a one-way trip.
     const auto& key = std::get<window::KeyEvent>(event.data);
-    if (key.key != input::Key::Space)
+    const auto action = GameInput::GetInstance().Actions().FindAction(key);
+    if (action != GameAction::Pause)
         return false;
 
-    // Space toggles the world without stopping the host: the screen keeps rendering,
-    // so a paused scene is visibly paused.
+    // Toggles the world without stopping the host: the screen keeps rendering, so a
+    // paused scene is visibly paused.
     SetPaused(!IsPaused());
     return true;
 }
