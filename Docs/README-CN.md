@@ -87,8 +87,17 @@ submodule。如果没有使用 `--recurse-submodules` 克隆，请在配置 CMak
 相关文档：
 
 - [API 使用指南](API-Guide-CN.md)
-- [源码架构地图](Architecture-Map-CN.md)
-- [未完成工作统一清单](Remaining-Issues.md)
+- [源码架构地图](Architecture-Map-CN.md)（目录职责、依赖方向、已知的坑）
+- [任务清单（唯一排期来源）](Plans/TaskList-CN.md)
+- [未完成工作统一清单](Remaining-Issues.md)（缺陷与技术债，含 RI-xxx 审计条目）
+- [子系统设计与实施记录](Plans/Subsystem-Plans-CN.md)（资源/并发/物理/时间/Shader/Lua/2D 范围）
+- 格式与契约（冻结）：
+  - [场景格式 v2](Plans/Specs/Scene-Schema-CN.md)
+  - [精灵图集 v1](Plans/Specs/Sprite-Atlas-CN.md)
+  - [ECS 组件准入规则](Plans/Specs/ECS-Component-Vocabulary-CN.md)
+
+文档分工只有一句话：**要做什么去 TaskList，出了什么问题去 Remaining-Issues，某个子系统为什么这样设计去
+Subsystem-Plans，格式长什么样去 Specs。** 不新建平级的计划文档——新增内容并入这四类之一。
 
 ***
 

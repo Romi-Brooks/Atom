@@ -16,7 +16,7 @@
  * one .cpp, and a translation unit that merely includes EntityWorld.hpp compiles
  * no backend templates at all.
  *
- * ADMISSION RULES (A0.1, frozen - Docs/Plans/ECS-Component-Vocabulary-CN.md):
+ * ADMISSION RULES (A0.1, frozen - Docs/Plans/Specs/ECS-Component-Vocabulary-CN.md):
  * a type listed below must be
  *   1. pure data - no virtuals, no behaviour, no pointer back to the world;
  *   2. handle-free - no TextureHandle, Texture*, GPU or physics backend types;
@@ -99,7 +99,7 @@ struct PendingDestroy final {};
 //   - algo::Camera2D is the maths (view-projection matrix, screen<->world); the
 //     component is only the lens, so ECS never stores a matrix.
 //
-// See Docs/Plans/ECS-Component-Vocabulary-CN.md for the admission rules.
+// See Docs/Plans/Specs/ECS-Component-Vocabulary-CN.md for the admission rules.
 
 // Simulation transform: metres/pixels agnostic, radians, counter-clockwise.
 struct Transform2D final {
@@ -218,9 +218,9 @@ struct PhysicsBody2D final {
         // Reports contacts, never resolves them (see BodyDef::is_sensor).
         bool is_sensor = false;
 
-        // Written by the integration layer: the engine-side body handle, 1-based so 0 can
-        // mean "not created yet". A number, not a pointer, for the same reason user_data is.
-        std::uint32_t handle = 0;
+        // Configuration only: no handle, no pointer, no "already created" flag. The mapping from
+        // entity to body lives in Physics/Integration, which is the only layer allowed to know
+        // both worlds (admission rule A0.1/R2, and see RI-003 for what a stub field costs).
 };
 
 } // namespace atom::ecs

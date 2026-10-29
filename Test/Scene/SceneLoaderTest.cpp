@@ -73,39 +73,29 @@ auto main() -> int {
         ATOM_CHECK_MSG(loaded.has_value(), loaded.has_value() ? "" : loaded.error().Message().c_str());
 
         const auto& description = loaded->description;
-        // The shipped room moved to v2 when physics landed; a v1-only assertion here would
-        // fail the moment the example is authored with the newer format.
-        ATOM_CHECK(description.schema_version == 2);
-        // The room is top-down: gravity must come from the document, not from the default.
-        ATOM_CHECK_NEAR(description.gravity.GetY(), 0.0F);
+        // The shipped room is *example content*, so this test asserts invariants, not counts.
+        // Pinning "10 entities / 9 sprites" here made every scene edit an engine-test edit, which
+        // is the test-level version of a consumer bending the engine (RI-011).
+        ATOM_CHECK(description.schema_version >= 1);
+        ATOM_CHECK(!description.entities.empty());
         ATOM_CHECK(description.id == "smoke_room");
         ATOM_CHECK(description.has_name);
-        // ten entities since the slice added the four walls and the exit sensor
-        ATOM_CHECK(description.entities.size() == 10);
-        // The camera is entity 1 and marks itself active.
         ATOM_CHECK(description.active_camera != kNoActiveCamera);
         ATOM_CHECK(description.entities[description.active_camera].id == 1);
 
         ATOM_CHECK(loaded->entities != nullptr);
         auto& world = *loaded->entities;
 
-        // Every entity gets an id plus a simulation and a display transform: the
-        // renderer must be able to draw before the first snapshot.
-        //
-        // Ten entities since the slice: camera, player, four walls, two crates, exit, atlas cell.
-        // The walls and the exit carry no sprite - they are collision, drawn by the backdrop - so
-        // the sprite count is lower than the entity count on purpose.
-        ATOM_CHECK(world.CountOf<ecs::SceneEntityId>() == 10);
-        ATOM_CHECK(world.CountOf<ecs::Transform2D>() == 10);
-        ATOM_CHECK(world.CountOf<ecs::RenderTransform2D>() == 10);
-        // Nine sprites: player, both crates, exit, atlas cell, and the four walls (a stretched
-        // floor tile, because a room you cannot see the edges of is a bug report waiting).
-        ATOM_CHECK(world.CountOf<ecs::SpriteRenderer>() == 9);
+        // Structural invariants every scene must satisfy, whatever the content is.
+        ATOM_CHECK(world.CountOf<ecs::SceneEntityId>() == description.entities.size());
+        ATOM_CHECK(world.CountOf<ecs::Transform2D>() == description.entities.size());
+        ATOM_CHECK(world.CountOf<ecs::RenderTransform2D>() == description.entities.size());
         ATOM_CHECK(world.CountOf<ecs::Camera2D>() == 1);
-        ATOM_CHECK(world.CountOf<ecs::Lifetime>() == 0);
-        ATOM_CHECK(world.CountOf<ecs::Active>() == 1);  // the player
-        ATOM_CHECK(world.CountOf<ecs::Name>() == 10);
-
+        ATOM_CHECK(world.CountOf<ecs::Active>() >= 1);
+        // The room is top-down: gravity comes from the document, not from the default.
+        ATOM_CHECK_NEAR(description.gravity.GetY(), 0.0F);
+        // A physics document without bodies would mean the v2 block never reached the world.
+        ATOM_CHECK(world.CountOf<ecs::PhysicsBody2D>() >= 1);
         // The active camera got the lowest entity index, which is what Scene2D's
         // "lowest index wins" rule needs.
         const auto cameras = world.With<ecs::Transform2D, ecs::Camera2D>();
@@ -174,7 +164,9 @@ auto main() -> int {
             const bool left = id->value == 3;
             ATOM_CHECK(name->value == (left ? "crate_left" : "crate_right"));
             ATOM_CHECK(sprite->sort_key == (left ? 10 : 20));
-                    // Positions from the room document; two crates at different sort keys is what makes\n        // the draw order observable instead of accidental.\n        ATOM_CHECK_NEAR(transform->position.GetX(), left ? 480.0F : 640.0F);
+                    // Positions from the room document; two crates at different sort keys is what makes the
+        // draw order observable instead of accidental.
+        ATOM_CHECK_NEAR(transform->position.GetX(), left ? 480.0F : 640.0F);
         }
     }
 

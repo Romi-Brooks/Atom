@@ -166,7 +166,7 @@
 
 ### ARCH-107：统一资源系统与 VFS
 
-- [x] `Atom_FS` 第一阶段完成：`AssetPath`、只读 `IFile`（含 `Tell`/`Seek`/`ReadNext` 顺序游标）、`IFileSystem`、`NativeFileSystem`、`MemoryFileSystem`、`OverlayFileSystem`、`Vfs` 挂载表、`PackageFileSystem`（APKG v1 只读，`List` 由前缀合成目录）。完整设计见 `Docs/Plans/Resource-System-Plan-CN.md`；CTest：`Atom_FS.AssetPath` / `NativeFileSystem` / `MemoryFileSystem` / `OverlayVfs` / `PackageFileSystem`。
+- [x] `Atom_FS` 第一阶段完成：`AssetPath`、只读 `IFile`（含 `Tell`/`Seek`/`ReadNext` 顺序游标）、`IFileSystem`、`NativeFileSystem`、`MemoryFileSystem`、`OverlayFileSystem`、`Vfs` 挂载表、`PackageFileSystem`（APKG v1 只读，`List` 由前缀合成目录）。完整设计见 `Docs/Plans/Subsystem-Plans-CN.md`；CTest：`Atom_FS.AssetPath` / `NativeFileSystem` / `MemoryFileSystem` / `OverlayVfs` / `PackageFileSystem`。
 - [x] `Atom_Assets` 资源层（阶段 B）：`AssetKind`、`ResourceId`（path+kind+variant）、`ResourceHandle<T>`、`IResourceLoader`/`TypedResourceLoader`、`ResourceManager` 去重缓存与 `SetRecycleCallback`（最后句柄释放时回调，供 C1 帧边界回收）。CTest：`Atom_Assets.ResourceManager`。
 - [x] 阶段 C2 Script：`LuaLoader::LoadScript/ReloadScript(IFileSystem, AssetPath)` 走 `IFile` + `luaL_loadbuffer`；`LoadScriptSource` 支持执行已缓存源码；`ScriptSourceLoader` 产出可共享的 `std::string` 资源。旧裸磁盘路径 API 已移除。
 - [x] 阶段 C1 Texture：`DecodedImageLoader` + `LoadTextureFileSystem` + `TextureCache`/`TextureHandle`；GPU 销毁走 `Renderer2D::EnqueueDeferredTextureDestroy` + `FlushDeferredTextureDestroys`（帧外）。
@@ -187,7 +187,7 @@
       kind 着色分类），右侧选源目录（内置 std::filesystem 导航器）+ 输出路径 + 前缀打包，打包后自动打开。
 - [ ] 后续增加异步加载、热重载、依赖图和内存预算（依赖 Job System）。
 - 验收：Texture、AudioClip、Script 可通过统一 URI 加载并共享资源（已通过 `Atom_Assets.StageDAcceptance` 验证）。
-- 实施阶段划分（A/B/C/D）、待决问题与当前进度见 `Docs/Plans/Resource-System-Plan-CN.md`。
+- 实施阶段划分（A/B/C/D）、待决问题与当前进度见 `Docs/Plans/Subsystem-Plans-CN.md`。
 
 ### ARCH-108：Entity 职责拆分（ECS 前置）
 
@@ -283,10 +283,10 @@ decoder、打开的文件句柄和流式 source 的缓冲就常驻到 `Reset()` 
 
 > 状态说明：Time 模块已接入主循环，本节前两项已完成；剩余为音频/渲染对齐等后续调度。
 
-- [x] 将逻辑更新与渲染帧率解耦，支持 accumulator、最大追帧次数和插值。（`Time/` 分域时钟 + 固定步 accumulator + max catch-up + alpha；见 `Docs/Plans/Time-System-Plan-CN.md`）
+- [x] 将逻辑更新与渲染帧率解耦，支持 accumulator、最大追帧次数和插值。（`Time/` 分域时钟 + 固定步 accumulator + max catch-up + alpha；见 `Docs/Plans/Subsystem-Plans-CN.md`）
 - [x] 明确 Event → Fixed Update → Variable Update → Render → Present 顺序。（`Runtime::Application::Run` 已落地）
 - [ ] 接入细节：physics domain（120Hz）已创建但未被 `Application::Run()` 消费；alpha 插值系数尚无消费方（依赖精灵/变换状态，归 ECS/渲染范畴）。
-- [ ] P3 音频设备钟 `SyncTo`、卡点与 A/V 对齐（设计见 `Docs/Plans/Time-System-Plan-CN.md`）。
+- [ ] P3 音频设备钟 `SyncTo`、卡点与 A/V 对齐（设计见 `Docs/Plans/Subsystem-Plans-CN.md`）。
 - [ ] P4 渲染插值与统一 shader time（同上）。
 
 ### CORE-002：InputSystem
@@ -718,7 +718,7 @@ shutdown 时被标记 complete 而未通知下游，该任务自身 `complete` �
 - [ ] 用户新增 shader 不得修改 Atom 内部 `Render/Shader/AtomShaders.cmake`；引擎只维护内置 shader 默认包。
 - [ ] 工具负责 GLSL → SPIR-V，并按目标平台生成可选 DXIL/MSL 变体及 reflection metadata。
 - [!] 本轮暂不实现编译器和外部项目 CMake 集成，先冻结资源包格式与公共 pipeline 描述。
-- 关联：圆角 SDF 蒙版「可插拔」拆分与 shader 通用/专属分层的完整设计见 `Docs/Plans/Shader-Extension-Plan-CN.md`（职责边界：游戏侧不得反向修改引擎侧 `AtomShaders.cmake`）。
+- 关联：圆角 SDF 蒙版「可插拔」拆分与 shader 通用/专属分层的完整设计见 `Docs/Plans/Subsystem-Plans-CN.md`（职责边界：游戏侧不得反向修改引擎侧 `AtomShaders.cmake`）。
 
 ### CORE-009：Utilities 目录职责与命名
 
@@ -801,3 +801,146 @@ rg -L "SPDX-License-Identifier: MIT" -g "*.h" -g "*.hpp" -g "*.c" -g "*.cpp" -g 
 - 具体模块 API 和使用方式仍放在模块 README（例如 `Render/Text/README-CN.md`、`Layout/README.md`）。
 - 已完成任务的详细排查过程不再单独维护历史报告；如其中存在可复用的根因或验收命令，应提炼后写入本文件。
 - **Example 边界**：`Example/` 下的应用（如 MusicCard）问题不进入本文件；引擎侧被示例暴露出的通用缺陷才在此记录。
+
+---
+
+## 8. 2026-10-29 端到端审计新增（RI-001 … RI-012）
+
+编号说明：本轮新增条目用 `RI-xxx`，**不并入**上面的 `ARCH-*` / `CORE-*` / `CONCURRENCY-*`，避免历史引用失效。
+每条都带可复现证据；没有证据的只写"疑似"。
+
+### P0：阻塞 CI 门禁
+
+#### RI-001：`Atom_Media.MusicCrossfade` 偶发卡死
+
+- **现象**：ctest 报超时（45s/90s），进程仍活着、**CPU 占用 0**、没有任何输出。
+- **复现率**：本轮约 20 次全量运行中出现 **2 次**（另有 12 次专项复现中出现 1 次）。同一测试此前 7 次连跑均通过。
+- **证据**：`Test/Media/MusicCrossfadeTest.cpp` 全文 47 行，**没有任何循环、sleep 或等待**，全是
+  `ATOM_CHECK(crossfade.xxx())`。所以卡死不在测试体，而在构造/析构或静态初始化路径。
+- **影响**：这是"随机红灯"的典型来源。在 T4.2 把 ctest 接入 CI 之前必须先定案，否则门禁会被训练成
+  "重跑一次就好"。
+- **定位方向（未验证，按可能性排序）**：
+  1. `NullAudioBackend` 之上的 `MusicPlayer` / `AudioMixer` 析构路径是否 join 了一个没人置位的等待；
+  2. `Atom_Media` 静态链接的 SDL 音频子系统初始化在无设备时的阻塞（同类现象：`SDL_InitSubSystem(AUDIO)` 在
+     某些 Windows 配置下会等设备枚举）；
+  3. 测试进程退出时的静态析构顺序（`AudioMixer` 全局 vs `MusicPlayer` 局部）。
+- **建议**：先用 `ctest --repeat until-fail:200 -R MusicCrossfade` 把复现率拉高，再对卡住进程 dump 调用栈
+  （Windows 下 `procdump -ma` 或 VS 附加），不要靠猜。
+- **验收**：该用例 200 次连跑零卡死；CI 加 `--timeout 90` 作为兜底。
+
+#### RI-002：`Atom_Assets.ResourceManager` 偶发超时
+
+- **现象**：与 RI-001 同一批运行中出现 1 次（90s 超时）。
+- **证据**：该测试涉及 `AcquireAsync` / `PumpAsync`，本地 `Future` + `condition_variable`
+  （`Concurrency/Future.hpp:55`）。异步等待与超时是同类风险。
+- **建议**：与 RI-001 一起排查；若确认为等待实现问题，则属于 `Concurrency` 的架构条目，需单列。
+
+### P1：结构与契约（本轮审计发现）
+
+#### RI-003：`ecs::PhysicsBody2D::handle` 是假字段，组件在撒谎（**已修，2026-10-29**）
+
+- **证据**：`ECS/Components.hpp:221-223` 声明 `handle`，注释写"engine-side body handle，1-based"；
+  `Physics/Integration/Physics2DWorld.cpp:204` 一律写死 `shell->handle = 1;`；**全仓没有任何读取点**。
+- **问题**：该组件自己的文件头规则要求"组件不持有资源句柄"（R2）。真实映射在
+  `Impl::body_by_entity`（cpp:104）里。留着一个永远等于 1 的字段，比没有它更糟：下一个人会以为它能用。
+- **建议**：删除字段；若将来真的需要"从实体反查 body"，暴露 `Physics2DWorld::HandleOf(entity)`。
+- **验收**：字段删除后，`PhysicsBody2D` 只剩配置数据；编译期无引用错误。
+
+#### RI-004：`Physics2DWorld::SetLinearVelocity` 对 kinematic 静默失效（**已修，2026-10-29**）
+
+- **证据**：`.cpp` 的写回阶段对 kinematic 每步执行 `SetTransform` + `SetLinearVelocity({0,0})`，
+  与 `SetLinearVelocity()` 的语义冲突：调用方设了速度，下一步被清零，且**没有任何返回值或日志**。
+- **影响**：侧视角游戏（kinematic 角色）会得到"按键没反应"的谜题，正是本轮 demo 踩过的同一类问题。
+- **建议**：非 Dynamic 返回 `false` 并在头文件写明；kinematic 的唯一驱动方式是写 `Transform2D`。
+- **验收**：新增测试断言 kinematic 调用返回 false，dynamic 调用生效。
+
+#### RI-005：`Physics2DWorld::bodies_` 每步重建，只为 `BodyCount()`（**已修，2026-10-29**）
+
+- **证据**：`Step()` 末尾 `bodies_.clear(); reserve(); push_back(...)`，唯一消费者是示例 HUD 的
+  `BodyCount()`（`SmokeScreen.cpp:322`）。
+- **影响**：每固定步一次 vector 重建 + 一次整表遍历；与 `body_by_entity` 重复保存同一信息。
+- **建议**：`BodyCount()` 直接返回 `impl_->body_by_entity.size()`，删除 `bodies_`。
+
+#### RI-006：桥接层测试没有覆盖 demo 真正使用的路径（**已修，2026-10-29**）
+
+- **证据**：`Test/Physics/Physics2DWorldTest.cpp` **从未调用 `SetLinearVelocity`**（demo 唯一的移动方式），
+  而是用"每步传送 transform"驱动 kinematic body。
+- **影响**：这正是本轮两个 bug 的共同模式——测试覆盖了自己造的那条路。桥接层被"打过勾"，但没被验证。
+- **建议**：补 velocity 测试（dynamic 设速度后位移方向正确、被墙挡住）；并为 `handle` 补或删（见 RI-003）。
+
+#### RI-007：`Atom_Debugger` 过度公开 `Atom_Runtime`（**已修，2026-10-29**）
+
+- **证据**：`CMakeLists.txt:810` 为 `PUBLIC Atom_Runtime`，但**没有任何 Debugger 公开头文件 include `Runtime/`**
+  （grep 为空），只有 `.cpp` 用到。
+- **影响**：每个 overlay 消费者都被迫继承 Runtime/Window/Time/ECS 的链接依赖与包含路径。
+- **建议**：改 `PRIVATE` 并全量构建验证。
+
+#### RI-008：`Atom_Text` 公开依赖 `Atom_Assets`（不是简单改 PRIVATE）
+
+- **证据**：`CMakeLists.txt:682` 为 `PUBLIC Atom_Assets`；原因是**公开头** `Render/Text/FontFileLoader.hpp:19`
+  include 了 `<Asset/...>`。所以这条边是契约要求的，不能直接改 PRIVATE（架构审计初稿的修法有误，此处更正）。
+- **影响**：所有 `Atom_Text` / `Renderer2D` / UI 消费者都传递依赖 `Atom_Assets` + `Atom_FS`。
+- **建议**：把 `FontFileLoader` 的实现挪进 `.cpp`（只保留前向声明），或把它移出公开头文件集合。
+- **验收**：`Atom_Text` 的公开头不再出现 `Asset/`；构建通过。
+
+#### RI-009：`ActionState::Movement()` 把渲染器约定写进了输入层
+
+- **证据**：`Input/ActionState.hpp:106-119` 注释与实现都写死"y 向下（对齐 Renderer2D）"和四个数字方向。
+- **影响**：不渲染的宿主（服务器、headless 回放）会继承渲染器坐标约定；摇杆/模拟输入无处接入。
+- **建议**：保留 `Axis()`；把 `Movement()` 注释改成"屏幕空间便捷函数，仅适用于四向数字输入"，
+  或将来的 `Axis2D` 返回中性向量并显式声明所在空间。
+
+#### RI-010：`IWindow::SetTextInputEnabled` 零调用方
+
+- **证据**：`Backend/Contracts/Window/IWindow.hpp:91`，`SDL3Window` 实现了它，但树内没有调用者。
+- **影响**：契约没有消费者就没有测试，回归了也没人知道（本轮修 IME 问题的成果靠人工验证）。
+- **建议**：要么给 UI 文本框接上（T6.3 的键位/文本输入），要么加一个 `SDL3Window` 级测试
+  （`Initialize` 后 `IsTextInputEnabled() == false`，`SetTextInputEnabled(true)` 后为 true）。
+
+### P2：测试与细节
+
+#### RI-011：`SceneLoaderTest` 把示例房间内容写进引擎测试（**已修，2026-10-29**）
+
+- **证据**：`Test/Scene/SceneLoaderTest.cpp` 断言 shipped room 的实体数 10、精灵数 9、flip 数 1、gravity y==0、
+  箱子坐标。本轮为此改了 4 次测试（每次改关卡内容都要改引擎测试）。
+- **影响**：这正是"示例反向影响引擎"的测试版——不是代码依赖，是**测试耦合**。
+- **建议**：引擎测试用内联文档断言结构与不变量（"每个实体都有 Transform2D/SceneEntityId"、
+  "atlas 帧解析成 SpriteDesc"）；"shipped room 能加载"只断言加载成功与实体数 > 0。
+
+#### RI-012：引擎不变量用 `assert()`，Release 下会消失（已在 `Shape.hpp` 显式标注，**未改实现**）
+
+- **证据**：全仓仅 5 处真 `assert`：`Concurrency/WorkStealingDeque.hpp:45`、
+  `Physics/Shapes/Shape.cpp:109/114/119`（形状访问器）。`ATOM_CHECK`（测试）不是 assert，是 `if + return`，
+  所以测试在所有构建模式下都生效——这点没问题。
+- **影响**：Release 下用错形状访问器会静默返回垃圾值，而不是当场炸。
+- **建议**：要么改成带 `std::abort` 的 `ATOM_VERIFY`（不随 NDEBUG 消失），要么在头文件注释里明确
+  "这些是 debug-only 契约检查，调用方必须先确认 `GetKind()`"。二选一，不要含混。
+### RI-013：屏幕事件路径曾无视按键自动重复（**已修，2026-10-29**）
+
+- **证据**：`ScreenManager::HandleEvent` 只转发事件、不检查 `KeyEvent::is_repeat`；`InputSystem` 自己对
+  边缘查询过滤 repeats，但那条路径只覆盖 `IsActionPressed/Pressed`，不覆盖 Screen 的 `HandleEvent`。
+- **现象（当时）**：按住 Space 暂停以 ~30Hz 反复切换，看起来像"暂停键坏了"；按住 R 会连续重载关卡
+  （每帧 JSON 解析 + 新建物理世界 + 1000 个背景实体创建）。
+- **修法**：过滤放在 `ScreenManager`（唯一入口），不是每个 Screen；`InputSystem` 的 repeats 保持不变。
+- **回归**：`Atom_Runtime.ScreenManager` 新增小节——`is_repeat=true` 的 KeyPressed 不送达 Screen，
+  KeyReleased 照常送达。
+- **教训**：这条如果只靠"手工按键试一下"是发现不了的，因为按住不放时画面看起来只是顿了一下。
+
+### RI-014：其余未修的性能与契约细节（2026-10-29 代码审计）
+
+按影响排序，都是"记得住、暂时不用修"的量级：
+
+| 编号 | 位置 | 问题 | 影响 | 建议 |
+|---|---|---|---|---|
+| RI-014a | `Render/Scene2D/Scene2DRenderer.cpp` `CollectOne` | 在 `ForEach<RenderTransform2D, SpriteRenderer>` 内部又做一次 `TryGet<Transform2D>`（插值需要） | 每个精灵每帧多一次 ECS 探针；1000 精灵约 5–15 µs，且多一组 cache line | 增加 `ForEach<Transform2D, RenderTransform2D, SpriteRenderer>` 实例化，三组件一次取到 |
+| RI-014b | `Physics/Integration/Physics2DWorld.cpp` `Step` 返回值、`Runtime/GameEventQueue.cpp` `Drain` | 每步/每帧把 vector 或队列 **move 出去**，容量随之丢失 | 固定步 60Hz 下每秒数百次分配 | 返回 `std::span` 指向持久缓冲，或用 swap 保留容量 |
+| RI-014c | `Example/Game/SmokeScreen.cpp` `DrawHud` | 每帧 4 个 `to_string` + 3 次拼接，`DrawText` 内部再复制文本 | 约 10–12 次分配/帧 | 字符串缓存 + 脏标记；长期应走 UI 层（T5.6/HUD 复用） |
+| RI-014d | `Example/Game/SmokeScreen.cpp` `AddBackdrop` | 每次加载 1000 个实体当地板 | 1009 个精灵全部参与收集/排序/提交，且 `Collect` 无裁剪 | T5.1 Tilemap；临时可换成一个拉伸四边形 |
+| RI-014e | `Physics/Integration/Physics2DWorld.cpp` 写回阶段 | kinematic 的 `Transform2D -> body` 推送在步进**之后**执行，即晚一帧生效 | 移动平台会慢一帧；当前无 kinematic 使用者 | 把 kinematic 推送挪到 `Step` 之前（与创建 body 同阶段） |
+| RI-014f | `Test/CMakeLists.txt` | 端到端 slice 检查随 `--selftest` 一起被删除，目前没有替代 | "单元绿、组装死"重新变成无防护状态 | T4.2：把 slice 抽成静态库 + 独立 test target，走同一条窗口事件路径 |
+
+### RI-015：第三个偶发超时的测试（`Atom_Assets.ScriptSourceLoader`）
+
+- **现象**：2026-10-29 一次全量运行中 `Atom_Assets.ScriptSourceLoader` 90s 超时；同批另外两例见 RI-001/RI-002。
+- **判断**：与 RI-001/RI-002 表现一致（进程无输出、无 CPU）。三者是否同源未知。
+- **建议**：与 RI-001 一并排查；若确认为等待实现问题，统归于 `Concurrency/Future` 的等待语义。

@@ -2,7 +2,7 @@
 
 > 状态：**已冻结**；实现见 `Sprite/`（`Atom_Sprite`）与场景 schema 的 `atlas` 形态。
 > 更新日期：2026-10-29
-> 关联：`Scene-Schema-v1-CN.md` §4.2、`Game-Readiness-Assessment-CN.md` 的 T2.4 / G0.3。
+> 关联：`Scene-Schema-CN.md` §4.2、`../TaskList-CN.md` 的 T2.4 / G0.3。
 
 ## 1. 这是什么，为什么单独一层
 

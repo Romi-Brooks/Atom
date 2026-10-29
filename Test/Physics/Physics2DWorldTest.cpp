@@ -215,6 +215,49 @@ auto main() -> int {
         ATOM_CHECK(persist_count > 30);
     }
 
+    // --- 4b. Velocity control: the API the demo actually moves with ------
+    //
+    // This is the path SmokeScreen uses every fixed step, and the earlier version of this test
+    // never called it - it drove a kinematic body by teleporting its transform instead, which is
+    // a different code path (RI-006). A bridge that is only "tested" through paths the game does
+    // not use is not tested.
+    {
+        auto created = ecs::EntityWorld::Create();
+        ATOM_CHECK(created.has_value());
+        auto& entities = **created;
+
+        const auto world = Physics2DWorld::Create(backend, kPixelsPerMeter);
+        ATOM_CHECK(world != nullptr);
+        world->SetGravity({0.0F, 0.0F}); // top-down, like the room
+
+        const auto floor = AddBody(entities, PhysicsBodyKind::Static, {600.0F, 0.0F}, {0.5F, 5.0F});
+        const auto mover = AddBody(entities, PhysicsBodyKind::Dynamic, {0.0F, 0.0F}, {0.5F, 0.5F});
+        const auto ghost = AddBody(entities, PhysicsBodyKind::Kinematic, {0.0F, 200.0F}, {0.5F, 0.5F});
+        ATOM_CHECK(floor.IsValid());
+        ATOM_CHECK(mover.IsValid());
+        ATOM_CHECK(ghost.IsValid());
+
+        auto events = world->Step(entities, 1.0F / 60.0F);
+        ATOM_CHECK(events.has_value()); // one step so the bodies exist before velocity is set
+
+        // 300 px/s to the right, for half a second: ~150 px, unless the wall stops it first.
+        ATOM_CHECK(world->SetLinearVelocity(mover, {300.0F, 0.0F}));
+        for (int step = 0; step < 30; ++step) {
+            world->SetLinearVelocity(mover, {300.0F, 0.0F});
+            auto stepped = world->Step(entities, 1.0F / 60.0F);
+            ATOM_CHECK(stepped.has_value());
+        }
+        const float moved_x = entities.TryGet<Transform2D>(mover)->position.GetX();
+        ATOM_CHECK(moved_x > 60.0F);
+        // The X velocity round-trips in pixels per second (the API converts, not the caller).
+        ATOM_CHECK(world->GetLinearVelocity(mover).GetX() > 0.0F);
+
+        // A kinematic body is driven by its transform; a velocity would be silently zeroed, so
+        // the call must say no rather than pretend (RI-004). Same for a static body.
+        ATOM_CHECK(!world->SetLinearVelocity(ghost, {300.0F, 0.0F}));
+        ATOM_CHECK(!world->SetLinearVelocity(floor, {300.0F, 0.0F}));
+    }
+
     // --- 5. Unit conversion is one way round -----------------------------
     {
         const auto world = Physics2DWorld::Create(backend, kPixelsPerMeter);

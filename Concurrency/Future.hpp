@@ -20,7 +20,7 @@
  *
  * The asset layer builds ResourceManager::AcquireAsync on top of this; a worker
  * loads the raw resource and the render thread finalizes it into a handle (see
- * Docs/ARCH-107-Async-Loading-Design-CN.md).
+ * Docs/Subsystem-Plans-CN.md).
 **/
 
 #ifndef ATOM_CONCURRENCY_FUTURE_HPP

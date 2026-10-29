@@ -30,7 +30,7 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 | 地板 | C++ 生成（`AddBackdrop`）：**装饰**，T5.1 的 Tilemap 会用地砖集生成这一层 |
 | 移动与跟随相机 | C++ 系统（`RegisterSmokeSystems`） |
 
-改关卡不需要重编译：编辑 JSON，重开程序即可。格式见 `Docs/Plans/Scene-Schema-v1-CN.md`。
+改关卡不需要重编译：编辑 JSON，重开程序即可。格式见 `Docs/Plans/Specs/Scene-Schema-CN.md`。
 
 ## 它验证了什么
 

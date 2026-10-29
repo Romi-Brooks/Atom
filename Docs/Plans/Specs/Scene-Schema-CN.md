@@ -2,7 +2,7 @@
 
 > 状态：**schema 已冻结**；解析器选型已定（§8：A 自研），实现见 T2.2。
 > 更新日期：2026-10-29（新增 §4.6 Prefab 与 overrides、§6.4 Prefab 规则；T2.3）
-> 关联：`Game-Readiness-Assessment-CN.md` 的 T2.1 / T2.2 / T2.3。
+> 关联：`../TaskList-CN.md` 的 T2.1 / T2.2 / T2.3。
 
 本文定义 Atom 的关卡描述格式。T2.1 只做**格式与校验规则**，落地读取是 T2.2，Prefab 是 T2.3。
 
@@ -74,7 +74,7 @@
 
 ### 4.2 `sprite`
 
-两种互斥写法：直接给纹理，或引用图集帧（`Docs/Plans/Sprite-Atlas-v1-CN.md`）。
+两种互斥写法：直接给纹理，或引用图集帧（`Sprite-Atlas-CN.md`）。
 
 ```jsonc
 // (a) 直接纹理

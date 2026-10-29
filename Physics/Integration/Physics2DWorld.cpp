@@ -25,7 +25,6 @@ using ecs::PhysicsBody2D;
 using ecs::PhysicsBodyKind;
 using ecs::Transform2D;
 
-constexpr std::uint32_t kInvalidHandle = 0;
 
 // (generation << 32) | index. Deliberately hand-rolled rather than reusing the backend's
 // integral encoding: the physics contract must not depend on which ECS backend is in use.
@@ -101,7 +100,13 @@ struct Physics2DWorld::Impl final {
         std::unique_ptr<IPhysicsWorld> world{};
         // entity -> body, so the per-frame write-back does not scan every entity that has a
         // shell just to find the tracked ones.
-        std::unordered_map<std::uint64_t, IPhysicsBody*> body_by_entity{};
+        // The kind is cached next to the body: SetLinearVelocity must answer "may I drive this
+        // body?" without being handed an EntityWorld it otherwise does not need.
+        struct Tracked final {
+                IPhysicsBody* body = nullptr;
+                ecs::PhysicsBodyKind kind = ecs::PhysicsBodyKind::Static;
+        };
+        std::unordered_map<std::uint64_t, Tracked> body_by_entity{};
         std::vector<ContactEvent2D> contacts{};
         StepContactRecorder recorder{contacts};
 };
@@ -144,11 +149,19 @@ auto Physics2DWorld::ToPixels(const algo::Vec2 meters) const -> algo::Vec2 {
     return {meters.GetX() * pixels_per_meter_, -meters.GetY() * pixels_per_meter_};
 }
 
+auto Physics2DWorld::BodyCount() const noexcept -> std::size_t {
+    return impl_->body_by_entity.size();
+}
+
 auto Physics2DWorld::SetLinearVelocity(const ecs::Entity entity, const algo::Vec2 pixels_per_second) -> bool {
     const auto found = impl_->body_by_entity.find(EncodeEntity(entity));
     if (found == impl_->body_by_entity.end())
         return false;
-    found->second->SetLinearVelocity(ToMeters(pixels_per_second));
+    // Only a dynamic body keeps a velocity: the write-back step zeroes a kinematic body's
+    // velocity every frame, because that body is driven by its transform instead.
+    if (found->second.kind != ecs::PhysicsBodyKind::Dynamic)
+        return false;
+    found->second.body->SetLinearVelocity(ToMeters(pixels_per_second));
     return true;
 }
 
@@ -156,7 +169,7 @@ auto Physics2DWorld::GetLinearVelocity(const ecs::Entity entity) const -> algo::
     const auto found = impl_->body_by_entity.find(EncodeEntity(entity));
     if (found == impl_->body_by_entity.end())
         return algo::Vec2::Zero();
-    return ToPixels(found->second->GetLinearVelocity());
+    return ToPixels(found->second.body->GetLinearVelocity());
 }
 
 auto Physics2DWorld::Step(ecs::EntityWorld& entities, const float fixed_delta_seconds)
@@ -171,8 +184,10 @@ auto Physics2DWorld::Step(ecs::EntityWorld& entities, const float fixed_delta_se
     for (const auto entity : entities.With<Transform2D, PhysicsBody2D>()) {
         auto* shell = entities.TryGet<PhysicsBody2D>(entity);
         const auto* transform = entities.TryGet<Transform2D>(entity);
-        if (shell == nullptr || transform == nullptr || shell->handle != kInvalidHandle)
+        if (shell == nullptr || transform == nullptr)
             continue;
+        // The map is the single source of truth for "already created": the component carries
+        // configuration only, never integration state (see RI-003).
         if (impl_->body_by_entity.contains(EncodeEntity(entity)))
             continue;
 
@@ -201,8 +216,7 @@ auto Physics2DWorld::Step(ecs::EntityWorld& entities, const float fixed_delta_se
                                                    "Physics2DWorld::Step")
                                               .WithDetail("the physics backend rejected the body definition")};
         }
-        shell->handle = 1;
-        impl_->body_by_entity.emplace(EncodeEntity(entity), body);
+        impl_->body_by_entity.emplace(EncodeEntity(entity), Impl::Tracked{body, shell->kind});
     }
 
     // --- 2. drop bodies whose entity died --------------------------------
@@ -211,15 +225,20 @@ auto Physics2DWorld::Step(ecs::EntityWorld& entities, const float fixed_delta_se
     // (one entry per body) and it is the only way to guarantee that a destroyed entity does
     // not leave an invisible collider behind.
     for (auto it = impl_->body_by_entity.begin(); it != impl_->body_by_entity.end();) {
-        if (entities.IsAlive(DecodeEntity(it->first))) {
+        const auto entity = DecodeEntity(it->first);
+        // Two ways a body becomes garbage: the entity died, or it no longer carries a shell (a
+        // Remove<PhysicsBody2D> is a documented way to stop being a body). Checking only IsAlive
+        // leaves a body that still blocks, still reports contacts, is skipped by the write-back
+        // and can never be destroyed - silent and permanent. Re-adding a shell afterwards creates
+        // a fresh body, so the component's config is applied again.
+        if (entities.IsAlive(entity) && entities.Has<PhysicsBody2D>(entity)) {
             ++it;
             continue;
         }
-        impl_->world->DestroyBody(it->second);
+        impl_->world->DestroyBody(it->second.body);
         it = impl_->body_by_entity.erase(it);
     }
-    bodies_.clear();
-    bodies_.reserve(impl_->body_by_entity.size());
+
 
     // --- 3. step ---------------------------------------------------------
     impl_->contacts.clear();
@@ -230,8 +249,9 @@ auto Physics2DWorld::Step(ecs::EntityWorld& entities, const float fixed_delta_se
     // The physics world is authoritative for a dynamic body: if the ECS transform were also
     // written by gameplay, the two would fight and the body would jitter. Kinematic bodies
     // are the reverse (code moves them, physics reports where they ended up).
-    for (auto& [encoded, body] : impl_->body_by_entity) {
+    for (auto& [encoded, tracked] : impl_->body_by_entity) {
         const auto entity = DecodeEntity(encoded);
+        IPhysicsBody* const body = tracked.body;
         auto* transform = entities.TryGet<Transform2D>(entity);
         auto* shell = entities.TryGet<PhysicsBody2D>(entity);
         if (transform == nullptr || shell == nullptr)
@@ -246,7 +266,6 @@ auto Physics2DWorld::Step(ecs::EntityWorld& entities, const float fixed_delta_se
             body->SetTransform(ToMeters(transform->position), -transform->rotation);
             body->SetLinearVelocity({0.0F, 0.0F});
         }
-        bodies_.push_back(entity);
     }
 
     // --- 5. hand the contacts over ---------------------------------------

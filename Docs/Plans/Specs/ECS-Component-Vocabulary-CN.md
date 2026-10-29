@@ -2,7 +2,7 @@
 
 > 状态：**冻结**。A0.1 的交付物；T1.1 起所有新增 ECS 组件必须遵循本文。
 > 更新日期：2026-10-25
-> 关联：`Docs/Plans/Game-Readiness-Assessment-CN.md` 的 A0.1 与 G0.2。
+> 关联：`Docs/Plans/TaskList-CN.md` 的 A0.1 与 G0.2。
 
 ## 1. 为什么需要一份准入规则
 
@@ -69,7 +69,7 @@ Get-ChildItem ECS -File | Select-String -Pattern '^#include <(Render|Asset|Physi
 | `Health` | **测试夹具** | 仅被 `Test/ECS/EntityWorldTest.cpp` 用作"任意值组件"样例。它不是引擎的游戏规则，玩法不得建立其上；T1.1 之后若要留一个样例组件，优先用它而不是再引入一个 |
 | `Active` / `Static` / `PendingDestroy` | 标签 | 空类型，presence 即数据；禁止 `Patch()` |
 
-**不得**为了某个玩法把 `Health`/`Inventory`/`Quest` 之类扩成引擎规则（见 `2D-Core-Scope-v1-CN.md`
+**不得**为了某个玩法把 `Health`/`Inventory`/`Quest` 之类扩成引擎规则（见 `../Subsystem-Plans-CN.md`
 "游戏项目决定规则"）。玩法组件属于游戏项目自己的组件层，等组件注册机制扩展后再谈。
 
 ## 5. 查询实例化策略（G0.2）

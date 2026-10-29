@@ -4,7 +4,7 @@
 `Algorithm/Math` and `Algorithm/Geometry`; those lower modules must never
 depend on `Physics`.
 
-Design and roadmap: [`../Docs/Plans/Physics-Plan-CN.md`](../Docs/Plans/Physics-Plan-CN.md).
+Design and roadmap: [`../Docs/Plans/Subsystem-Plans-CN.md`](../Docs/Plans/Subsystem-Plans-CN.md).
 
 ## Boundary
 

@@ -236,7 +236,7 @@ endif()
     # previously only Atom_Algorithm was linked PRIVATE, which meant the dependency
     # was real but undeclared. Atom_Math is the leaf that now owns Vec2, so ECS no
     # longer reaches the transform/camera module.
-    # Admission rules for ATOM_ECS_COMPONENTS: Docs/Plans/ECS-Component-Vocabulary-CN.md
+    # Admission rules for ATOM_ECS_COMPONENTS: Docs/Plans/Specs/ECS-Component-Vocabulary-CN.md
     target_link_libraries(Atom_ECS PUBLIC Atom_Error Atom_Log Atom_Math Atom_Color)
     target_link_libraries(Atom_ECS PRIVATE Atom_3rd_EnTT)
 
@@ -272,7 +272,7 @@ endif()
 
 # 2c. Physics — collision shapes, mass properties, and the replaceable-backend
 #     contract. M1 ships pure shape/mass math + the IPhysics* contract; the
-#     Internal solver and world land in later phases (see Docs/Physics-Plan-CN.md).
+#     Internal solver and world land in later phases (see Docs/Subsystem-Plans-CN.md).
     add_library(Atom_Physics STATIC
         Physics/Shapes/Material.hpp
         Physics/Shapes/MassProperties.hpp
@@ -807,7 +807,10 @@ target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency)
     target_include_directories(Atom_Debugger PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_definitions(Atom_Debugger PUBLIC ATOM_ENABLE_DEBUGGER=$<BOOL:${_atom_debugger_enabled}>)
     target_compile_definitions(Atom_Window PUBLIC ATOM_ENABLE_DEBUGGER=$<BOOL:${_atom_debugger_enabled}>)
-    target_link_libraries(Atom_Debugger PUBLIC Atom_Runtime Atom_3rd_ImGui_SDL3 Atom_Concurrency)
+    target_link_libraries(Atom_Debugger PUBLIC Atom_3rd_ImGui_SDL3 Atom_Concurrency)
+# Runtime is a .cpp-only dependency here: no public Debugger header includes Runtime/, so
+# keeping it PRIVATE stops every overlay consumer from inheriting Window/Time/ECS as well.
+target_link_libraries(Atom_Debugger PRIVATE Atom_Runtime)
     target_link_libraries(Atom_Debugger PRIVATE Atom_Backend_SDLGPU_Debug)
     if(WIN32)
         target_link_libraries(Atom_Debugger PUBLIC opengl32 gdi32)

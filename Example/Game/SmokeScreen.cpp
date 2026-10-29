@@ -68,7 +68,10 @@ auto SpawnBackdropTile(ecs::EntityWorld& entities, const float x, const float y,
     const auto entity = entities.CreateEntity();
     if (!entities.Emplace<Transform2D>(entity, Transform2D{.position = {x, y}}).has_value())
         return false;
-    if (!entities.Emplace<RenderTransform2D>(entity).has_value())
+    // The display copy is created *with* the position: a default-constructed one is (0,0) until
+    // the next fixed-step snapshot, and a frame can run zero steps, which would draw a whole
+    // restart's worth of tiles at the world origin for that frame.
+    if (!entities.Emplace<RenderTransform2D>(entity, RenderTransform2D{.position = {x, y}}).has_value())
         return false;
     SpriteRenderer sprite{};
     sprite.texture_uri = "res://textures/floor.png";
@@ -184,7 +187,18 @@ auto RegisterSmokeSystems(GameWorld& world) -> Result<void> {
                                           const auto player = FindBySceneId(entities, kPlayerSceneId);
 
                                           for (const auto& contact : *stepped) {
-                                              ++state.contact_count;
+                                              // Persist is reported every step for a resting pair, so
+                                              // it maintains a live count instead of becoming an
+                                              // event: enqueuing it would flood the queue (60/s per
+                                              // pair) and make the HUD number meaningless.
+                                              if (contact.phase == physics::integration::ContactPhase::Begin)
+                                                  ++state.touching;
+                                              else if (contact.phase == physics::integration::ContactPhase::End)
+                                                  state.touching = state.touching > 0 ? state.touching - 1 : 0;
+                                              else
+                                                  continue;
+
+                                              ++state.contact_events;
                                               events.Enqueue(
                                                   runtime::GameEvent{kContactObserved, contact.a, contact.b});
 
@@ -368,8 +382,9 @@ auto SmokeScreen::DrawHud() -> void {
     renderer_.DrawText(*font, line, 16.0F, 12.0F, state.reached_exit ? accent : white, 20.0F);
 
     const std::string stats = "entities " + std::to_string(EntityCount()) + "   bodies " +
-                              std::to_string(BodyCount()) + "   contacts " + std::to_string(state.contact_count) +
-                              "   zoom " + (camera_zoom_ > 1.5F ? "2x" : "1x");
+                              std::to_string(BodyCount()) + "   touching " + std::to_string(state.touching) +
+                              "   contact events " + std::to_string(state.contact_events) + "   zoom " +
+                              (camera_zoom_ > 1.5F ? "2x" : "1x");
     renderer_.DrawText(*font, stats, 16.0F, 38.0F, dim, 16.0F);
 
     if (IsPaused()) {

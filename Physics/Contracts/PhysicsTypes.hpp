@@ -5,7 +5,7 @@
  * @file PhysicsTypes.hpp
  * @brief 物理后端的公共值类型：刚体类型与刚体定义。
  *
- * 单位约定（见 Docs/Physics-Plan-CN.md）：物理世界内部用米制 + y 向上。
+ * 单位约定（见 Docs/Subsystem-Plans-CN.md）：物理世界内部用米制 + y 向上。
  * 渲染层（像素 + y 向下）与物理层之间由游戏侧通过 PPM（每米像素数）换算。
  */
 

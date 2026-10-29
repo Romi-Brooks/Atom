@@ -224,7 +224,10 @@ auto Scene2DRenderer::Collect(ecs::EntityWorld& world, const float interpolation
         return draws_;
     }
 
-    std::stable_sort(draws_.begin(), draws_.end(), DrawOrderIsLess);
+    // std::sort rather than std::stable_sort: DrawOrderIsLess ends in the entity index, which is
+    // unique, so the order is total and stability cannot add anything - it would only allocate a
+    // temporary buffer on every frame.
+    std::sort(draws_.begin(), draws_.end(), DrawOrderIsLess);
     return draws_;
 }
 

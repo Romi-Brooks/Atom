@@ -121,3 +121,20 @@ Physics 需要承载自研 solver 和未来 Box2D/Jolt 等可替换实现，因�
 
 现在的规则：**单例在构造时就进入可用状态**。需要在运行期改配置（比如换绑定）是另一回事，但"能玩"
 不能依赖某个调用方记得调一次。
+
+### 3. 按键自动重复必须由引擎过滤，不能交给每个 Screen
+
+按住一个键时，操作系统大约每秒重复 30 次，每次都是 `EventType::KeyPressed`（`KeyEvent::is_repeat = true`）。
+一个"按下就切换"的 Screen 会**每秒切换 30 次**：按住 Space 暂停会自己抖回来、按住 R 会连续重载关卡，
+而画面看起来只是"卡了一下"。
+
+现在的规则：`ScreenManager::HandleEvent` 在把事件交给 Screen **之前**丢弃 `KeyPressed && is_repeat`。
+`InputSystem` 仍然保留 repeats（`Held` 必须为真，边缘查询自己会过滤），所以"按住"和"按下这一帧"都正常。
+新增的 Screen 不需要、也不应该自己再判断一次。回归测试：`Atom_Runtime.ScreenManager` 的 repeat 小节。
+
+### 4. 组件只放配置，不放"集成状态"
+
+`ecs::PhysicsBody2D` 曾经有一个 `handle` 字段，注释说是"engine-side body handle"，实际被写死成 `1`、全仓无人读。
+它让"这个组件能告诉我 body"看起来成立，而真值在 `Physics/Integration` 的映射表里。
+
+现在的规则：**组件只有配置**；实体↔资源的映射属于集成层。否则下一个人会信那个字段（见 RI-003）。

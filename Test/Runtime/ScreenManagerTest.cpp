@@ -356,5 +356,42 @@ auto main() -> int {
         ATOM_CHECK(manager.UnloadScreen("reent-a") == atom::ScreenOpResult::Success);
     }
 
+    // --- Key auto-repeat never reaches a screen --------------------------
+    //
+    // A held key arrives roughly 30 times a second. A screen that toggles on KeyPressed would
+    // toggle that often: holding Space flips pause on and off, holding R reloads the level
+    // continuously. InputSystem keeps repeats (Held must stay true), so the filter lives in
+    // ScreenManager, once, instead of in every screen.
+    {
+        auto& manager = atom::ScreenManager::GetInstance();
+        auto repeat_screen = std::make_unique<CountingScreen>("repeat");
+        auto* repeat_ptr = repeat_screen.get();
+        ATOM_CHECK(manager.LoadScreen("repeat", std::move(repeat_screen)) == atom::ScreenOpResult::Success);
+        ATOM_CHECK(manager.SwitchScreen("repeat") == atom::ScreenOpResult::Success);
+
+        atom::window::IEvent pressed{};
+        pressed.type = atom::window::EventType::KeyPressed;
+        pressed.data = atom::window::KeyEvent{atom::input::Key::Space, atom::input::KeyModifiers::None, false};
+        manager.HandleEvent(pressed);
+        ATOM_CHECK(repeat_ptr->events == 1);
+
+        // Same key, flagged as auto-repeat: the screen must not see it at all.
+        atom::window::IEvent repeated = pressed;
+        repeated.data = atom::window::KeyEvent{atom::input::Key::Space, atom::input::KeyModifiers::None, true};
+        manager.HandleEvent(repeated);
+        manager.HandleEvent(repeated);
+        ATOM_CHECK(repeat_ptr->events == 1);
+
+        // Release is not a repeat case; it must still be delivered.
+        atom::window::IEvent released{};
+        released.type = atom::window::EventType::KeyReleased;
+        released.data = atom::window::KeyEvent{atom::input::Key::Space, atom::input::KeyModifiers::None, true};
+        manager.HandleEvent(released);
+        ATOM_CHECK(repeat_ptr->events == 2);
+
+        // No unload: the manager refuses to unload the *current* screen, which is a guarantee an
+        // earlier section asserts, and this block runs last. The process exits next.
+    }
+
     return 0;
 }

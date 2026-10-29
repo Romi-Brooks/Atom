@@ -99,12 +99,17 @@ class SmokeScreen final : public runtime::GameScreen {
 // The slice's small piece of game state, shared by the systems and read by the HUD.
 struct SliceState {
         bool reached_exit = false;
-        std::uint32_t contact_count = 0;
+        // Pairs currently touching (Begin - End). A live state, not a running total: a resting
+        // pair reports Persist every step, so a total would grow forever and mean nothing.
+        std::uint32_t touching = 0;
+        // Total begin/end events seen, for the HUD's diagnostics line.
+        std::uint32_t contact_events = 0;
 
         // Called on restart so a new run does not inherit the previous one's success.
         auto Reset() -> void {
             reached_exit = false;
-            contact_count = 0;
+            touching = 0;
+            contact_events = 0;
         }
 };
 

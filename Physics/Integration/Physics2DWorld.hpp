@@ -87,10 +87,9 @@ class Physics2DWorld final {
         [[nodiscard]] auto PixelsPerMeter() const noexcept -> float {
             return pixels_per_meter_;
         }
-        // Live bodies. Diagnostics and tests use it to prove nothing leaked.
-        [[nodiscard]] auto BodyCount() const noexcept -> std::size_t {
-            return bodies_.size();
-        }
+        // Live bodies. Diagnostics and tests use it to prove nothing leaked. Backed by the
+        // entity->body map itself, so there is no second copy to drift out of sync.
+        [[nodiscard]] auto BodyCount() const noexcept -> std::size_t;
         [[nodiscard]] auto Gravity() const -> algo::Vec2;
         auto SetGravity(algo::Vec2 meters_per_second_squared) -> void;
 
@@ -99,10 +98,15 @@ class Physics2DWorld final {
         [[nodiscard]] auto ToMeters(algo::Vec2 pixels) const -> algo::Vec2;
         [[nodiscard]] auto ToPixels(algo::Vec2 meters) const -> algo::Vec2;
 
-        // Velocity control for a dynamic body, in world pixels per second (converted here so
-        // gameplay never sees metres). A top-down character sets this every fixed step
-        // instead of writing the transform: physics then owns the position, so collisions
-        // actually stop it - and it still pushes the crates it walks into.
+        // Velocity control, in world pixels per second (converted here so gameplay never sees
+        // metres). A top-down character sets this every fixed step instead of writing the
+        // transform: physics then owns the position, so collisions actually stop it.
+        //
+        // Dynamic bodies only. A kinematic body is driven by writing Transform2D - the step
+        // pushes that transform into physics and zeroes the velocity - so accepting a velocity
+        // for one would be a promise this class does not keep. Returns false instead of
+        // silently ignoring the call, because "my input does nothing" is the hardest kind of
+        // bug to find (see RI-004).
         auto SetLinearVelocity(ecs::Entity entity, algo::Vec2 pixels_per_second) -> bool;
         [[nodiscard]] auto GetLinearVelocity(ecs::Entity entity) const -> algo::Vec2;
 
@@ -111,8 +115,6 @@ class Physics2DWorld final {
         explicit Physics2DWorld(std::unique_ptr<Impl> impl);
         std::unique_ptr<Impl> impl_;
         float pixels_per_meter_ = 100.0F;
-        // entity -> handle, and handle -> entity, both kept by the integration layer.
-        std::vector<ecs::Entity> bodies_{};
 };
 
 } // namespace atom::physics::integration

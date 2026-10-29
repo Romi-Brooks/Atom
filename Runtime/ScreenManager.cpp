@@ -277,6 +277,19 @@ auto ScreenManager::Render(atom::render::IRenderDevice& device) const -> void {
 }
 
 auto ScreenManager::HandleEvent(const atom::window::IEvent& event) const -> void {
+    // Screens receive edges, not auto-repeat.
+    //
+    // The OS repeats a held key roughly 30 times a second. A screen that toggles on KeyPressed
+    // therefore toggles 30 times a second: holding Space flips pause on and off (the world looks
+    // like it un-pauses itself) and holding R reloads the level continuously. InputSystem keeps
+    // repeats on purpose - Held must stay true, and its edge queries filter repeats themselves -
+    // so the filter belongs here, once, instead of in every screen that handles a key.
+    if (event.type == atom::window::EventType::KeyPressed) {
+        const auto& key_event = std::get<atom::window::KeyEvent>(event.data);
+        if (key_event.is_repeat)
+            return;
+    }
+
     if (current_screen_) {
         if (current_screen_->HandleEvent(event)) {
             return;
