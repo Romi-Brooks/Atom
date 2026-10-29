@@ -267,6 +267,13 @@ atom_add_test(Atom_Physics.SensorAndUserData
     Physics/SensorAndUserDataTest.cpp
     Atom_Physics)
 
+# T3.1b: the ECS <-> physics bridge. Units converted in one place, physics authoritative for
+# dynamic bodies, no body left behind when its entity dies, sensors report only.
+atom_add_test(Atom_Physics.Physics2DWorld
+    Atom_Physics_Physics2DWorld_Tests
+    Physics/Physics2DWorldTest.cpp
+    Atom_PhysicsIntegration)
+
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry
     Atom_Backend_Extension_AudioDecoderRegistry_Tests

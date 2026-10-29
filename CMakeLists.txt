@@ -312,6 +312,17 @@ endif()
     target_link_libraries(Atom_Physics PUBLIC Atom_Algorithm Atom_Error Atom_Log)
     target_link_libraries(Atom_Physics PRIVATE Atom_Concurrency)
 
+# 2d-bis. Physics integration — the only code that knows both an ECS world and a physics
+#     world, and therefore the only place that converts units or translates handles.
+#     Depends on Atom_Physics + Atom_ECS and deliberately NOT on Atom_Runtime: contacts are
+#     returned as values, so the caller decides whether they become GameEvents.
+    add_library(Atom_PhysicsIntegration STATIC
+        Physics/Integration/Physics2DWorld.hpp
+        Physics/Integration/Physics2DWorld.cpp
+    )
+    target_include_directories(Atom_PhysicsIntegration PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(Atom_PhysicsIntegration PUBLIC Atom_Physics Atom_ECS Atom_Log)
+
 # 3. SDL3 Core
     add_library(Atom_Backend_SDL3_Core STATIC
         Backend/SDL3/Core/SDLRuntime.cpp

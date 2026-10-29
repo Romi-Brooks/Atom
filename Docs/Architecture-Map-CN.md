@@ -15,6 +15,7 @@
 |---|---|---|
 | `Algorithm/`、`Time/`、`Concurrency/`、`Error/`、`Log/` | 最低层值类型、服务与诊断 | SDL/GPU、游戏对象生命周期 |
 | `ECS/` | entity、纯组件数据与查询 | 资源 handle、Renderer、具体物理 backend |
+| `Physics/Integration/` | ECS 与物理世界的唯一桥梁（单位换算、句柄映射、接触转值） | ECS 存储、渲染、Runtime 事件类型 |
 | `Physics/` | shape、physics contract、solver 与可替换 physics backend | 窗口、渲染资源 |
 | `Media/Audio/` | 音频资源、播放逻辑与格式 codec | 具体平台播放设备的选择 |
 | `Render/`、`UI/`、`Layout/` | 绘制、文本、UI 和布局 | 主循环、SDL 细节 |

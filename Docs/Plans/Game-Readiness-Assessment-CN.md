@@ -403,7 +403,7 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 
 ### 阶段 3：物理、输入与可玩验证
 
-- [~] **T3.1 — Physics/ECS 集成层。**（拆成 T3.1a 契约 + T3.1b 集成两轮）
+- [x] **T3.1 — Physics/ECS 集成层。**（拆成 T3.1a 契约 + T3.1b 集成两轮，均已完成）
   - 新增位置：`Physics/Integration/`，绝不放入 `ECS/` 或 `Render/`。
   - 前置（G0.4 契约扩展，必须先做）：现有 `Physics/Contracts` 不足以支撑本任务。需先补
     `BodyDef::is_sensor`（触发器不产生速度/位置响应）、body 的稳定 user-data 或 id（否则 `IContactListener`
@@ -416,12 +416,25 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
     射线/点查询**按先前决定留到有真实需求时再做**，不进这一轮。
   - 工作（T3.1b）：`PhysicsBodyComponent`/`ColliderComponent` 只保存 engine 侧 id 与配置；创建/销毁在命令边界同步；
     FixedUpdate 执行物理；模拟结果写 `Transform2D`；Render 读取插值结果。
+  - **T3.1b 已落地（2026-10-29）**：组件壳是 `ecs::PhysicsBody2D`（`PhysicsBodyKind` + 米制尺寸 + 材质 + `handle`），
+    声明在 `ECS/Components.hpp` 而不是 `Physics/Integration/`——**因为组件类型必须出现在 `ATOM_ECS_COMPONENTS` 里**，
+    而把该列表移出 ECS 是比本任务更大的边界变更；壳里只有数字，没有 `IPhysicsBody*`，A0.1 的规则未被破坏。
+    行为在 `Physics/Integration/Physics2DWorld`（新 target `Atom_PhysicsIntegration`，依赖 `Atom_Physics`+`Atom_ECS`，
+    **不依赖 `Atom_Runtime`**）。`Step()` 的五步顺序是契约：建新 body（本帧就参与碰撞，不留一帧空窗）→ 删死实体的
+    body（ECS 没有销毁回调，所以扫描跟踪集合，否则留下看不见的碰撞体）→ `Step` → 把结果写回 `Transform2D`
+    （dynamic 以物理为准、kinematic 反向推送，避免两边互写抖动）→ 把接触生命周期转成返回值。
+    单位换算只有一处（`ToMeters`/`ToPixels`，y 轴翻转）；`user_data` 用 `(generation<<32)|index` 编码，解码后**必须**
+    再过 `IsAlive`。接触以 `ContactEvent2D` 值返回（含 `sensor` 标记），所以 Physics 不必认识 `GameEvent`——把它转成
+    `GameEvent` 是 T3.3 的事。
   - 单位：物理固定使用 MKS、y-up、弧度；game/render 边界集中做 pixels-per-meter 与 y 轴转换，禁止散落换算。
   - 事件：将碰撞开始/持续/结束和 trigger 事件转为 `GameEvent`，顺序稳定、无回调重入。注意
     `GameEventQueue::GameEvent` 目前只有 `{type, source, target}`，无 payload；需要 collider 细节时须先决策
     是扩事件结构还是让消费方回查组件。
   - 验收：销毁实体不会遗留 body；触发器不产生物理解算响应；固定帧率变化下结果一致；debug draw 可核对 collider。
-    （T3.1a：`Atom_Physics.SensorAndUserData` 断言穿行不留响应、persist 计数、真实碰撞体仍会挡住、user_data 可反查）
+    （`Atom_Physics.SensorAndUserData` 覆盖 a；`Atom_Physics.Physics2DWorld` 覆盖 b：落地停住、销毁不留 body、
+    传感器只报不推、persist 计数、单位往返、非法 dt 被拒）
+  - 尚未接入示例：demo 仍是直接写 `Transform2D` 的移动，物理接入放在 T3.3（vertical slice），否则等于提前做一次
+    vertical slice。
   - 依赖：T0.2、T1.1、T2.2。
   - 预计：约 1,200–2,000 行实现、测试与可视化示例；含契约扩展约 +400–800 行。
 
@@ -517,11 +530,11 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 ## 7. 执行顺序、依赖与里程碑
 
 ```text
-已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3；T2.4；T1.4；T3.2
+已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3；T2.4；T1.4；T3.1；T3.2
 
 M1 可见实体：T1.1 -> T1.2 -> T1.3                    ✅（另加 T1.4 插值）
 M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            ✅（另加 T2.4 图集元数据）
-M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3            T3.2 ✅，T3.1/T3.3 待做
+M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3            T3.1/T3.2 ✅，T3.3 待做
 M4 P0 可交付：M3 -> T4.1 / T4.2 / T4.3
 M5 内容与世界：M4 -> T5.1 / T5.2 / T5.3 -> T5.4
 M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3

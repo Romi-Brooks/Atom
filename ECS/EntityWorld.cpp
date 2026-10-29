@@ -334,6 +334,10 @@ ATOM_ECS_INSTANTIATE(::atom::ecs::Camera2D)
 ATOM_ECS_INSTANTIATE(::atom::ecs::Lifetime)
 ATOM_ECS_INSTANTIATE(::atom::ecs::SceneEntityId)
 
+// T3.1b: the physics shell. Enumerating these is how the integration layer notices a new
+// body without a creation hook on the ECS side.
+ATOM_ECS_INSTANTIATE(::atom::ecs::PhysicsBody2D)
+
 // Iteration is instantiated per component set, not per component, so it has its
 // own list. Add a line when a system starts iterating a new combination. Keeping
 // the list short is the point: every set here costs compile time, and a set no
@@ -377,6 +381,8 @@ ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::RenderTransform2D, ::atom::ecs::Spri
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Transform2D, ::atom::ecs::Camera2D)
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Lifetime)
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::SceneEntityId)
+//   Transform2D, PhysicsBody2D         physics integration: spawn bodies, sync transforms
+ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Transform2D, ::atom::ecs::PhysicsBody2D)
 
 // The deferred-destroy sweep: collect everything marked, then destroy it after the
 // pass, so a system never restructures the world it is walking.

@@ -184,6 +184,45 @@ struct SceneEntityId final {
         std::uint32_t value = 0;
 };
 
+// --- physics shell (T3.1b) -------------------------------------------------
+//
+// The *shell* lives here as pure data; the world, the bodies and the stepping live in
+// `Physics/Integration/`. Physics/Integration declares no component of its own because a
+// component type has to appear in ATOM_ECS_COMPONENTS, and moving the list out of ECS
+// would be a bigger boundary change than this task justifies - so the shell is declared
+// where every other component is, and it holds only numbers (never an IPhysicsBody*).
+
+enum class PhysicsBodyKind : std::uint8_t {
+    Static,    // terrain, walls: collides, never moves on its own
+    Kinematic, // moved by code, pushes others, ignores forces
+    Dynamic,   // full simulation
+};
+
+// One body with one shape. A separate collider component would be the natural home for
+// multi-fixture bodies; until that exists, one body == one shape keeps the mapping honest.
+//
+// All sizes are in METRES, because that is what the physics world speaks. The conversion
+// to and from pixels happens in exactly one place (Physics2DWorld), never here and never
+// in a system.
+struct PhysicsBody2D final {
+        PhysicsBodyKind kind = PhysicsBodyKind::Static;
+
+        // radius > 0 selects a circle; otherwise half_extent describes a box.
+        float radius = 0.0F;
+        algo::Vec2 half_extent{0.5F, 0.5F};
+
+        float density = 1.0F;
+        float friction = 0.5F;
+        float restitution = 0.0F;
+
+        // Reports contacts, never resolves them (see BodyDef::is_sensor).
+        bool is_sensor = false;
+
+        // Written by the integration layer: the engine-side body handle, 1-based so 0 can
+        // mean "not created yet". A number, not a pointer, for the same reason user_data is.
+        std::uint32_t handle = 0;
+};
+
 } // namespace atom::ecs
 
 // The engine's component list. Every type here must be default constructible and
@@ -193,6 +232,6 @@ struct SceneEntityId final {
     ::atom::ecs::Position, ::atom::ecs::Velocity, ::atom::ecs::Rotation, ::atom::ecs::Scale, ::atom::ecs::Name,        \
         ::atom::ecs::Health, ::atom::ecs::Active, ::atom::ecs::Static, ::atom::ecs::PendingDestroy,                    \
         ::atom::ecs::Transform2D, ::atom::ecs::RenderTransform2D, ::atom::ecs::SpriteRenderer,                         \
-        ::atom::ecs::Camera2D, ::atom::ecs::Lifetime, ::atom::ecs::SceneEntityId
+        ::atom::ecs::Camera2D, ::atom::ecs::Lifetime, ::atom::ecs::SceneEntityId, ::atom::ecs::PhysicsBody2D
 
 #endif // ATOM_ECS_COMPONENTS_HPP
