@@ -1,0 +1,17 @@
+// MUST FAIL TO LOAD. Kept as a validation fixture for T2.2's tests.
+// Entity ids are scene-local identity: two entities with id 7 cannot be
+// distinguished by save data, prefab overrides or future cross-references.
+{
+  "schema_version": 1,
+  "id": "invalid_duplicate_id",
+  "entities": [
+    {
+      "id": 7,
+      "transform": { "position": [10.0, 10.0] }
+    },
+    {
+      "id": 7,
+      "transform": { "position": [20.0, 20.0] }
+    }
+  ]
+}

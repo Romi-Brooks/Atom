@@ -1,0 +1,8 @@
+// MUST FAIL TO LOAD. Kept as a validation fixture for T2.2's tests.
+// A reader that "tries its best" on a newer schema silently drops whatever the
+// newer version added. v1 rejects the whole file instead.
+{
+  "schema_version": 2,
+  "id": "invalid_bad_version",
+  "entities": []
+}

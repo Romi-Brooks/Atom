@@ -327,11 +327,17 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 
 ### 阶段 2：Scene 与 Prefab（先可加载，再通用）
 
-- [ ] **T2.1 — Scene schema 与资源格式决策。**
+- [~] **T2.1 — Scene schema 与资源格式决策。**
   - 新增位置：`Scene/` 或 `Runtime/Scene/`；格式文档放 `Docs/Plans/`。
   - 首期建议：人可读 JSON/JSONC 源文件，显式 `schema_version`，所有资产使用 `res://` URI；发布期可再 cook 为二进制。
   - 最小字段：Scene id/version、实体局部 id、名称、Transform、Sprite、Camera、后续 Physics 壳、资源 URI。
   - 明确拒绝：未知组件、未知字段、循环 Prefab、跨 Scene entity 引用、任意 C++/Lua 对象序列化。
+  - **已落地（2026-10-25）**：格式与校验规则冻结在 [Scene-Schema-v1-CN.md](Scene-Schema-v1-CN.md)（JSONC 语法、单位与
+    坐标约定、字段表与默认值、未知字段一律拒绝、错误诊断格式、与 ECS 组件的唯一映射、v2 预留清单）。样例与反例在
+    `Assets/Scenes/`：`smoke_room.scene.json`（6 个实体，覆盖全部 v1 字段）+ `Invalid/{unknown_field,duplicate_id,
+    bad_version}.scene.json`，已用脚本验证语法可解析。
+  - **剩余（一项决策）**：解析器选型。文档 §8 给出 A（自研 `Scene/Json` tokenizer，推荐）与 B（引入
+    `nlohmann/json`）的对比与理由；确认后 T2.2 按所选方案实现。该决策只影响实现方式，不影响已冻结的格式。
   - 验收：schema 有样例、版本号和错误诊断规范；选择/引入的解析器不泄漏进 ECS/Render 公共 API。
   - 依赖：T1.1。
 
