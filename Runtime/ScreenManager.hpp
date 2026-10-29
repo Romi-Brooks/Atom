@@ -134,7 +134,7 @@ class ScreenManager {
         // Publishes this frame's fixed-step budget to the current screen before the
         // host dispatches FixedUpdate (G0.1). Stacked screens are not ticked, so
         // they are not notified either - same rule as Update/FixedUpdate.
-        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds) const -> void;
+        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds, float interpolation_alpha) const -> void;
 
         [[nodiscard]] auto GetCurrentScreenName() const -> const std::string&;
         [[nodiscard]] auto GetScreenStack() const -> std::vector<ScreenStackEntry>;

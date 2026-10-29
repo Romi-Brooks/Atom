@@ -57,7 +57,7 @@ class GameScreen : public Screen {
         //
         // FixedUpdate is deliberately not overridden: the world's fixed steps run
         // inside Update's RunFrame batch. Overriding it would run the phases twice.
-        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds) -> void override;
+        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds, float interpolation_alpha) -> void override;
         auto Update(float deltaTime) -> void override;
 
         // Frames completed since construction (the world's frame index).
@@ -76,6 +76,13 @@ class GameScreen : public Screen {
 
         // A paused screen still receives BeginFrame and Update from the host but
         // does not advance the world, so the frame index stops moving.
+        // How far the current display frame sits between the last two fixed steps, in
+        // [0,1). Pass it to Render/Scene2D so sprites are drawn between steps rather than
+        // snapping to the newest one.
+        [[nodiscard]] auto InterpolationAlpha() const noexcept -> float {
+            return interpolation_alpha_;
+        }
+
         [[nodiscard]] auto IsPaused() const noexcept -> bool {
             return paused_;
         }
@@ -95,17 +102,12 @@ class GameScreen : public Screen {
         // game clock (a headless test or a tool driving the screen directly).
         explicit GameScreen(WorldSetup setup, float fixed_delta_seconds = 1.0F / 60.0F);
 
-        // Called after a successful RunFrame, before control returns to the host,
-        // with the variable delta the frame used. Subclasses use it to mirror world
-        // state into render-side resources (e.g. Scene2DRenderer::SnapshotTransforms).
-        virtual auto OnWorldFrameAdvanced(float delta_seconds) -> void {
-            (void)delta_seconds;
-        }
 
     private:
         std::unique_ptr<GameWorld> world_{};
         std::uint32_t pending_fixed_steps_ = 0;
         float fixed_delta_seconds_ = 1.0F / 60.0F;
+        float interpolation_alpha_ = 0.0F;
         bool paused_ = false;
 };
 

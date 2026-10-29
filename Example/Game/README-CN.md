@@ -41,6 +41,7 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 | 加载到**临时**世界，成功后一次替换 | `Scene/SceneLoader` + `GameWorld::ReplaceEntities` |
 | 替换后系统仍在跑、帧计数不重置 | `Atom_Runtime.WorldReplace` |
 | 系统按 `SceneEntityId` 查实体，而不是缓存句柄 | `FindBySceneId` |
+| 逻辑 60Hz、画面按 `alpha` 插值 | `capture-display`（FixedUpdate 第一个系统）+ `Collect(world, alpha)` |
 
 ## 两个必须知道的坑
 

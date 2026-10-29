@@ -36,9 +36,19 @@ class Screen {
         // into a single GameWorld::RunFrame without re-deriving them, and without
         // running Input/Update/LateUpdate N times by accident. A Screen that
         // implements FixedUpdate itself can ignore this hook entirely.
-        virtual auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds) -> void {
+        // `interpolation_alpha` is how far the leftover accumulator reaches into the
+        // *next* fixed step, in [0,1). A screen that owns a fixed-step world uses it to
+        // draw between the last two committed steps (see Render/Scene2D): without it a
+        // 60 Hz simulation shown on a 144 Hz display stutters even though the simulation
+        // itself is perfectly regular.
+        //
+        // Three scalars rather than a struct for now: one call site (Application) and two
+        // implementations. If a fourth value appears, bundle them.
+        virtual auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds, float interpolation_alpha)
+            -> void {
             (void)fixed_steps;
             (void)fixed_delta_seconds;
+            (void)interpolation_alpha;
         }
 
         // Variable-rate update (animations, presentation). See FixedUpdate for

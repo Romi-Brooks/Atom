@@ -325,6 +325,19 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
   - 依赖：T1.1、T1.2。
   - 预计：约 500–1,000 行示例与集成测试。
 
+- [x] **T1.4 — 固定步插值与显示缓冲（本轮新增）。**
+  - 动机：逻辑固定 60 步/秒，显示可能是 144Hz 或忽快忽慢。直接画最新状态会"一顿一顿"，这与渲染性能无关，
+    是采样率不匹配。
+  - 落点：`Screen::BeginFrame` 增发 `interpolation_alpha`（来自 `DomainClock::Alpha()`）；`GameScreen` 保存并钳制到
+    [0, 0.999]；`Render/Scene2D` 的 `Collect(world, alpha)` 与 `FindActiveCamera(..., alpha)` 把
+    `RenderTransform2D`（上一步）与 `Transform2D`（这一步）混合。
+  - 关键决定：`SnapshotTransforms` 从"每帧一次"改为"每个固定步一次、且是 FixedUpdate 的第一个系统"，否则
+    `RenderTransform2D` 就只是最新状态的拷贝，插值无从谈起；混合结果只进 draw item，**不写回组件**（写回会毁掉
+    上一步状态，表现为逐渐滞后）；相机用同一个 alpha，避免"精灵平滑、相机跳步"的整屏抖动。
+  - 顺带清理：`GameScreen::OnWorldFrameAdvanced`（T1.3 的临时钩子）删除——快照现在是系统，注册顺序就是它的语义。
+  - 验收：alpha=0 画上一步、0.5 画中点、1 被钳制到 0.999 不外推；`Collect` 不修改任一组件；
+    `Atom_Scene2D.SpriteRenderer`（第 8、9 节）+ `Atom_Runtime.GameScreenFrame`（alpha 钳制与暂停时仍发布）。
+
 ### 阶段 2：Scene 与 Prefab（先可加载，再通用）
 
 - [x] **T2.1 — Scene schema 与资源格式决策。**
@@ -498,9 +511,9 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 ## 7. 执行顺序、依赖与里程碑
 
 ```text
-已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3；T2.4；T3.2
+已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；M2 = T2.1 / T2.2 / T2.3；T2.4；T1.4；T3.2
 
-M1 可见实体：T1.1 -> T1.2 -> T1.3                    ✅
+M1 可见实体：T1.1 -> T1.2 -> T1.3                    ✅（另加 T1.4 插值）
 M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            ✅（另加 T2.4 图集元数据）
 M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3            T3.2 ✅，T3.1/T3.3 待做
 M4 P0 可交付：M3 -> T4.1 / T4.2 / T4.3

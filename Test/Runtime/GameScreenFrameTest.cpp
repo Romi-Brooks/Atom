@@ -97,17 +97,6 @@ class RecordingScreen final : public GameScreen {
             return false;
         }
 
-        auto Advanced() const -> std::size_t {
-            return advanced_;
-        }
-
-    protected:
-        auto OnWorldFrameAdvanced(float /*delta_seconds*/) -> void override {
-            ++advanced_;
-        }
-
-    private:
-        std::size_t advanced_ = 0;
 };
 
 auto ExpectSequence(const std::vector<std::string>& actual, const std::vector<std::string>& expected,
@@ -130,7 +119,7 @@ auto main() -> int {
         RecordingScreen screen{log};
 
         ATOM_CHECK(screen.FrameCount() == 0);
-        screen.BeginFrame(3, 0.01F);
+        screen.BeginFrame(3, 0.01F, 0.5F);
         screen.Update(0.033F);
 
         ATOM_CHECK(ExpectSequence(log.phases, {"input", "fixed", "fixed", "fixed", "update", "late"}, "3 steps") == 0);
@@ -139,7 +128,7 @@ auto main() -> int {
         ATOM_CHECK(log.fixed_indices[1] == 1);
         ATOM_CHECK(log.fixed_indices[2] == 2);
         ATOM_CHECK(screen.FrameCount() == 1);
-        ATOM_CHECK(screen.Advanced() == 1);
+        ATOM_CHECK_NEAR(screen.InterpolationAlpha(), 0.5F);
         // FixedUpdate must never be driven by the host on this screen: the batch in
         // Update is the only dispatcher, so the host calling FixedUpdate directly
         // would run the phases twice. The screen inherits the default no-op, and the
@@ -151,7 +140,7 @@ auto main() -> int {
         PhaseLog log{};
         RecordingScreen screen{log};
 
-        screen.BeginFrame(0, 0.0F);
+        screen.BeginFrame(0, 0.0F, 0.0F);
         screen.Update(0.016F);
 
         ATOM_CHECK(ExpectSequence(log.phases, {"input", "update", "late"}, "0 steps") == 0);
@@ -167,7 +156,7 @@ auto main() -> int {
         PhaseLog log{};
         RecordingScreen screen{log};
 
-        screen.BeginFrame(2, 0.01F);
+        screen.BeginFrame(2, 0.01F, 0.25F);
         screen.Update(0.02F);
         log.phases.clear();
         log.fixed_indices.clear();
@@ -186,18 +175,36 @@ auto main() -> int {
 
         screen.SetPaused(true);
         ATOM_CHECK(screen.IsPaused());
-        screen.BeginFrame(2, 0.01F);
+        screen.BeginFrame(2, 0.01F, 0.25F);
         screen.Update(0.02F);
 
         ATOM_CHECK(log.phases.empty());
         ATOM_CHECK(screen.FrameCount() == 0);
-        ATOM_CHECK(screen.Advanced() == 0);
+        // Alpha is still published while paused: the host keeps rendering, and the last
+        // two steps it interpolates between are frozen, so the picture stays put rather
+        // than dropping to the newest step.
+        ATOM_CHECK_NEAR(screen.InterpolationAlpha(), 0.25F);
 
         screen.SetPaused(false);
-        screen.BeginFrame(1, 0.01F);
+        screen.BeginFrame(1, 0.01F, 0.1F);
         screen.Update(0.02F);
         ATOM_CHECK(ExpectSequence(log.phases, {"input", "fixed", "update", "late"}, "resumed") == 0);
         ATOM_CHECK(screen.FrameCount() == 1);
+    }
+
+    // --- 4b. Alpha is clamped into [0, 1) --------------------------------
+    //
+    // A clock that has not advanced yet can report 0, and a rounding wobble can report
+    // something just above 1. Interpolating with either would extrapolate past the
+    // committed state, so the screen clamps.
+    {
+        PhaseLog log{};
+        RecordingScreen screen{log};
+
+        screen.BeginFrame(1, 0.01F, -0.5F);
+        ATOM_CHECK_NEAR(screen.InterpolationAlpha(), 0.0F);
+        screen.BeginFrame(1, 0.01F, 1.5F);
+        ATOM_CHECK_NEAR(screen.InterpolationAlpha(), 0.999F);
     }
 
     // --- 5. The world is real: entities created in Input survive the frame -
@@ -233,7 +240,7 @@ auto main() -> int {
         };
 
         SpawnScreen screen{};
-        screen.BeginFrame(1, 0.01F);
+        screen.BeginFrame(1, 0.01F, 0.1F);
         screen.Update(0.016F);
 
         ATOM_CHECK(screen.FrameCount() == 1);

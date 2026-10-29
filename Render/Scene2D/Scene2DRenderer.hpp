@@ -37,28 +37,40 @@ class Scene2DRenderer final {
 
         // --- display state ---------------------------------------------------
 
-        // Copies Transform2D into RenderTransform2D for every entity that owns
-        // both, and returns how many it touched. Called once per frame, before
-        // Collect. Interpolation between fixed steps is not done here: it needs a
-        // previous-state buffer, which is a later concern (see the component doc).
+        // Copies Transform2D into RenderTransform2D for every entity that owns both, and
+        // returns how many it touched.
         //
-        // Entities with a sprite but no RenderTransform2D are left alone: the
-        // collector skips them, so a missing display copy shows as "sprite not
-        // drawn" rather than as a phantom drawn from simulated state.
+        // Run this once per *fixed step*, as the first FixedUpdate system - not once per
+        // frame. Done that way, RenderTransform2D is by construction "the state at the
+        // previous step", and Collect(alpha) can blend it with Transform2D ("the state at
+        // this step"). Done once per frame it would just be a copy of the newest state,
+        // and rendering would snap between steps.
         static auto SnapshotTransforms(ecs::EntityWorld& world) -> std::size_t;
 
         // The active camera: the lowest-index entity owning both Transform2D and
-        // Camera2D. A world with no camera yields a view centred on the origin
-        // with the given fallback viewport and zoom 1, so a scene without a camera
-        // still renders instead of failing.
-        [[nodiscard]] static auto FindActiveCamera(ecs::EntityWorld& world, algo::Vec2 fallback_viewport) -> CameraView;
+        // Camera2D. A world with no camera yields a view centred on the origin with the
+        // given fallback viewport and zoom 1, so a scene without a camera still renders
+        // instead of failing.
+        //
+        // `interpolation_alpha` blends the camera's display state with its simulated one,
+        // for the same reason sprites do: a camera that snaps while sprites interpolate
+        // makes the whole world jitter.
+        [[nodiscard]] static auto FindActiveCamera(ecs::EntityWorld& world, algo::Vec2 fallback_viewport,
+                                                   float interpolation_alpha = 0.0F) -> CameraView;
 
         // --- collection ------------------------------------------------------
 
-        // Rebuilds the draw list from the world. Returns the list; `stats()`
-        // explains what was skipped. Order: layer asc, sort_key asc, entity index
-        // asc - stable across runs for the same world state.
-        auto Collect(ecs::EntityWorld& world) -> const std::vector<SpriteDraw>&;
+        // Rebuilds the draw list from the world, blending each sprite's display state
+        // (RenderTransform2D) with its simulated state (Transform2D) by `alpha`. Returns
+        // the list; `stats()` explains what was skipped. Order: layer asc, sort_key asc,
+        // entity index asc - stable across runs for the same world state.
+        //
+        // Reading Transform2D here does not break the "render never writes simulation"
+        // rule: the blend is computed into the draw item, so neither component is
+        // modified. The alternative - writing the blended value back into
+        // RenderTransform2D - would corrupt the previous-step state and make the next
+        // frame interpolate from an already-interpolated value.
+        auto Collect(ecs::EntityWorld& world, float interpolation_alpha = 0.0F) -> const std::vector<SpriteDraw>&;
 
         [[nodiscard]] auto Draws() const noexcept -> const std::vector<SpriteDraw>& {
             return draws_;

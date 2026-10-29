@@ -48,6 +48,11 @@ struct CollectContext final {
         std::vector<SpriteDraw>* draws = nullptr;
         CollectStats* stats = nullptr;
         std::string* last_unresolved = nullptr;
+        // The simulated state, read only for the interpolation blend. May be absent for
+        // an entity that has a display copy but no Transform2D, in which case the display
+        // copy is used as-is.
+        ecs::EntityWorld* world = nullptr;
+        float alpha = 0.0F;
 };
 
 auto CollectOne(void* context, const Entity entity, std::span<RenderTransform2D> display,
@@ -56,7 +61,16 @@ auto CollectOne(void* context, const Entity entity, std::span<RenderTransform2D>
     auto& stats = *ctx.stats;
     stats.considered += 1;
 
-    const auto& render = display[0];
+    // Blend previous-step (display) towards this-step (simulated). alpha == 0 draws the
+    // previous step exactly, which is what a paused or zero-step frame must look like.
+    RenderTransform2D render = display[0];
+    if (ctx.world != nullptr) {
+        if (const auto* simulated = ctx.world->TryGet<Transform2D>(entity); simulated != nullptr) {
+            render.position = algo::Vec2::Lerp(render.position, simulated->position, ctx.alpha);
+            render.rotation = render.rotation + (simulated->rotation - render.rotation) * ctx.alpha;
+            render.scale = algo::Vec2::Lerp(render.scale, simulated->scale, ctx.alpha);
+        }
+    }
     const auto& data = sprite[0];
 
     if (data.texture_uri.empty()) {
@@ -145,7 +159,8 @@ auto Scene2DRenderer::SnapshotTransforms(ecs::EntityWorld& world) -> std::size_t
     return context.touched;
 }
 
-auto Scene2DRenderer::FindActiveCamera(ecs::EntityWorld& world, const algo::Vec2 fallback_viewport) -> CameraView {
+auto Scene2DRenderer::FindActiveCamera(ecs::EntityWorld& world, const algo::Vec2 fallback_viewport,
+                                       const float interpolation_alpha) -> CameraView {
     CameraView view{};
     view.center = algo::Vec2::Zero();
     view.viewport = fallback_viewport;
@@ -160,6 +175,13 @@ auto Scene2DRenderer::FindActiveCamera(ecs::EntityWorld& world, const algo::Vec2
             continue;
 
         view.center = transform->position;
+        // Blend the eye the same way sprites are blended; otherwise a smoothly moving
+        // sprite would jitter against a camera that snaps to the newest step.
+        if (const auto* display = world.TryGet<RenderTransform2D>(entity); display != nullptr) {
+            const float alpha = interpolation_alpha < 0.0F ? 0.0F : (interpolation_alpha > 0.999F ? 0.999F
+                                                                                                   : interpolation_alpha);
+            view.center = algo::Vec2::Lerp(display->position, transform->position, alpha);
+        }
         // A non-positive zoom is a scene bug; fall back to 1 so the pass still
         // renders, and leave IsUsable() true. Rejecting the whole camera would
         // hide the scene behind a blank screen.
@@ -173,7 +195,7 @@ auto Scene2DRenderer::FindActiveCamera(ecs::EntityWorld& world, const algo::Vec2
     return view;
 }
 
-auto Scene2DRenderer::Collect(ecs::EntityWorld& world) -> const std::vector<SpriteDraw>& {
+auto Scene2DRenderer::Collect(ecs::EntityWorld& world, const float interpolation_alpha) -> const std::vector<SpriteDraw>& {
     // Reserve nothing extra: the vector keeps its capacity across frames, and a
     // scene that shrinks should not pin memory.
     draws_.clear();
@@ -185,6 +207,8 @@ auto Scene2DRenderer::Collect(ecs::EntityWorld& world) -> const std::vector<Spri
     context.draws = &draws_;
     context.stats = &stats_;
     context.last_unresolved = &last_unresolved_uri_;
+    context.world = &world;
+    context.alpha = interpolation_alpha < 0.0F ? 0.0F : (interpolation_alpha > 0.999F ? 0.999F : interpolation_alpha);
 
     if (resolver_ == nullptr) {
         // Without a resolver nothing can be drawn; report it as "everything

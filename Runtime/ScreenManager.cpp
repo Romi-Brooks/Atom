@@ -307,9 +307,10 @@ auto ScreenManager::FixedUpdate(const float deltaTime) const -> void {
     }
 }
 
-auto ScreenManager::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds) const -> void {
+auto ScreenManager::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds,
+                               const float interpolation_alpha) const -> void {
     if (current_screen_) {
-        current_screen_->BeginFrame(fixed_steps, fixed_delta_seconds);
+        current_screen_->BeginFrame(fixed_steps, fixed_delta_seconds, interpolation_alpha);
     }
 }
 

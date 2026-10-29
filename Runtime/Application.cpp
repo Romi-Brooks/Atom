@@ -85,15 +85,20 @@ auto Application::Run() -> void {
         const auto* render_clock = time_system.FindDomain(time::domain::render);
         auto fixed_steps = 0U;
         auto fixed_step_seconds = 0.0F;
+        auto interpolation_alpha = 0.0F;
         if (game_clock) {
             const auto& tick = game_clock->LastTick();
             fixed_steps = tick.steps;
             fixed_step_seconds = tick.fixed_step_ns > 0 ? time::ToFloatSeconds(tick.fixed_step_ns) : 0.0f;
+            // How far the leftover accumulator reaches into the next step. Published so a
+            // fixed-step screen can draw between the last two committed steps instead of
+            // snapping to the newest one.
+            interpolation_alpha = game_clock->Alpha();
         }
         // Publish the budget before dispatching it. A Screen that owns a fixed-step
         // world batches the steps into one ordered world frame from Update;
         // publishing it here is what lets it do that without guessing N (G0.1).
-        screens.BeginFrame(fixed_steps, fixed_step_seconds);
+        screens.BeginFrame(fixed_steps, fixed_step_seconds, interpolation_alpha);
         for (uint32_t step = 0; step < fixed_steps; ++step) {
             screens.FixedUpdate(fixed_step_seconds);
             for (const auto& observer : fixed_update_observers_)

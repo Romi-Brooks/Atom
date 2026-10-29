@@ -77,6 +77,20 @@ auto FindBySceneId(ecs::EntityWorld& entities, const std::uint32_t scene_id) -> 
 auto RegisterSmokeSystems(GameWorld& world) -> Result<void> {
     auto& scheduler = world.GetScheduler();
 
+    // First, so it sees the previous step's state before anything moves this step:
+    // RenderTransform2D then means "where things were one step ago", which is what
+    // interpolation needs. Registered as a system rather than done from a screen hook
+    // because ordering against the other systems is the whole point.
+    if (auto added = scheduler.Add(
+            SystemPhase::FixedUpdate,
+            runtime::SystemDescriptor{"capture-display", [](GameWorld& world_ref, const FrameContext& /*context*/)
+                                                              -> Result<void> {
+                                          render::scene2d::Scene2DRenderer::SnapshotTransforms(world_ref.GetEntities());
+                                          return Ok();
+                                      }});
+        !added.has_value())
+        return added;
+
     // Movement. The player is resolved by scene id on every fixed step: a cached
     // handle would dangle the moment the room is reloaded.
     if (auto added = scheduler.Add(
@@ -212,11 +226,6 @@ auto SmokeScreen::EntityCount() const -> std::size_t {
     return World().GetEntities().AliveCount();
 }
 
-auto SmokeScreen::OnWorldFrameAdvanced(const float /*delta_seconds*/) -> void {
-    // Simulation -> display copy. Render only ever reads RenderTransform2D, which is
-    // why a dropped frame shows stale positions instead of tearing the world.
-    render::scene2d::Scene2DRenderer::SnapshotTransforms(World().GetEntities());
-}
 
 auto SmokeScreen::Render(render::IRenderDevice& device) -> void {
     if (!renderer_.IsInitialized() && !renderer_.Initialize(device, ATOM_SHADER_OUTPUT_DIR)) {
@@ -236,16 +245,20 @@ auto SmokeScreen::Render(render::IRenderDevice& device) -> void {
     texture_cache_.FlushDeferredDestroys();
 
     auto& entities = World().GetEntities();
+    // The clock's leftover accumulator decides where between the last two fixed steps this
+    // frame is drawn. Sprites and the camera both use it, so they move together.
+    const float alpha = InterpolationAlpha();
     const auto view = render::scene2d::Scene2DRenderer::FindActiveCamera(
-        entities, {static_cast<float>(window_width_), static_cast<float>(window_height_)});
+        entities, {static_cast<float>(window_width_), static_cast<float>(window_height_)}, alpha);
     camera_zoom_ = view.zoom;
 
-    scene_renderer_.Collect(entities);
+    scene_renderer_.Collect(entities, alpha);
     scene_renderer_.Submit(renderer_, view);
 }
 
-auto SmokeScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds) -> void {
-    GameScreen::BeginFrame(fixed_steps, fixed_delta_seconds);
+auto SmokeScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds,
+                             const float interpolation_alpha) -> void {
+    GameScreen::BeginFrame(fixed_steps, fixed_delta_seconds, interpolation_alpha);
 
     // One place decides whether gameplay input is live. Every gameplay query reads
     // neutral while this is false, so pausing cannot be half-applied.

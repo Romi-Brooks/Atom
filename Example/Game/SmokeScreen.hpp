@@ -65,7 +65,7 @@ class SmokeScreen final : public runtime::GameScreen {
         // The gameplay gate follows the pause state here rather than in each system: one
         // forgotten `if (paused) return;` is exactly the bug T3.2 exists to remove, and
         // this hook runs every frame even while the world is paused.
-        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds) -> void override;
+        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds, float interpolation_alpha) -> void override;
 
         // Diagnostics for the debugger panel (and for a human running the demo).
         [[nodiscard]] auto SpriteCount() const -> std::size_t {
@@ -81,9 +81,6 @@ class SmokeScreen final : public runtime::GameScreen {
             return camera_zoom_;
         }
         [[nodiscard]] auto EntityCount() const -> std::size_t;
-
-    protected:
-        auto OnWorldFrameAdvanced(float delta_seconds) -> void override;
 
     private:
         // Declared in dependency order: the cache views the renderer, the resolver

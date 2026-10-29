@@ -56,6 +56,16 @@ class StubResolver final : public ITextureResolver {
         std::unordered_map<std::string, Renderer2D::Texture> textures_{};
 };
 
+// Draws from earlier sections stay in the world, so a section that cares about one
+// entity looks it up instead of assuming the whole list.
+auto FindDraw(const std::vector<SpriteDraw>& draws, const ecs::Entity entity) -> const SpriteDraw* {
+    for (const auto& draw : draws) {
+        if (draw.entity == entity)
+            return &draw;
+    }
+    return nullptr;
+}
+
 auto MakeSprite(const std::string& uri, const float size_x, const float size_y) -> ecs::SpriteRenderer {
     ecs::SpriteRenderer sprite{};
     sprite.texture_uri = uri;
@@ -386,6 +396,89 @@ auto main() -> int {
             saw_flip = draw.flip_x && !draw.flip_y;
         }
         ATOM_CHECK(saw_flip);
+    }
+
+    // --- 8. Interpolation: display state blends towards simulated ----------
+    //
+    // RenderTransform2D is "one fixed step ago" (a FixedUpdate system copies it before
+    // anything moves) and Transform2D is "now". Drawing at alpha 0 must therefore show
+    // exactly the previous step, at 1 the newest, and in between a blend - which is what
+    // turns a 60 Hz simulation into smooth motion on a 144 Hz display.
+    {
+        const auto entity = world.CreateEntity();
+        ATOM_CHECK(world.Emplace<ecs::Transform2D>(entity, ecs::Transform2D{.position = {100.0F, 200.0F}})
+                        .has_value());
+        ATOM_CHECK(world.Emplace<ecs::RenderTransform2D>(entity).has_value());
+        ATOM_CHECK(world.Emplace<ecs::SpriteRenderer>(entity, MakeSprite("res://textures/player.png", 8.0F, 8.0F))
+                        .has_value());
+
+        // One step happened: display captured (0,0), simulation advanced to (100,200).
+        // The sprite's top-left is position - pivot*size = position - 4.
+        Scene2DRenderer renderer{resolver};
+
+        const auto* at_previous = FindDraw(renderer.Collect(world, 0.0F), entity);
+        ATOM_CHECK(at_previous != nullptr);
+        ATOM_CHECK_NEAR(at_previous->destination.x, -4.0F);
+        ATOM_CHECK_NEAR(at_previous->destination.y, -4.0F);
+
+        const auto* halfway = FindDraw(renderer.Collect(world, 0.5F), entity);
+        ATOM_CHECK(halfway != nullptr);
+        ATOM_CHECK_NEAR(halfway->destination.x, 50.0F - 4.0F);
+        ATOM_CHECK_NEAR(halfway->destination.y, 100.0F - 4.0F);
+
+        // Just short of "now": the renderer clamps alpha below 1 so it never extrapolates
+        // past the committed state.
+        const auto* almost = FindDraw(renderer.Collect(world, 1.0F), entity);
+        ATOM_CHECK(almost != nullptr);
+        ATOM_CHECK_NEAR(almost->destination.x, 99.9F - 4.0F);
+
+        // Collect must not write either component: a blended value written back into the
+        // display copy would make the next frame interpolate from an interpolated value.
+        const auto* display = world.TryGet<ecs::RenderTransform2D>(entity);
+        ATOM_CHECK(display != nullptr);
+        ATOM_CHECK_NEAR(display->position.GetX(), 0.0F);
+        ATOM_CHECK_NEAR(display->position.GetY(), 0.0F);
+        const auto* simulated = world.TryGet<ecs::Transform2D>(entity);
+        ATOM_CHECK(simulated != nullptr);
+        ATOM_CHECK_NEAR(simulated->position.GetX(), 100.0F);
+
+        ATOM_CHECK(world.Destroy(entity).has_value());
+    }
+
+    // --- 9. The camera blends with the same alpha --------------------------
+    //
+    // A camera that snapped while sprites interpolated would make the whole world
+    // judder, so the view centre is blended the same way.
+    {
+        // Reuse the camera an earlier section created: the lowest entity index wins, so a
+        // second camera here would simply be ignored and the assertion would test nothing.
+        const auto cameras = world.With<ecs::Transform2D, ecs::Camera2D>();
+        ATOM_CHECK(!cameras.empty());
+        const auto camera = cameras.front();
+
+        auto* simulated = world.TryGet<ecs::Transform2D>(camera);
+        ATOM_CHECK(simulated != nullptr);
+        simulated->position = {200.0F, 100.0F};
+
+        // Display state = where the camera was one step ago.
+        auto* display = world.TryGet<ecs::RenderTransform2D>(camera);
+        if (display == nullptr) {
+            ATOM_CHECK(world.Emplace<ecs::RenderTransform2D>(camera).has_value());
+            display = world.TryGet<ecs::RenderTransform2D>(camera);
+            ATOM_CHECK(display != nullptr);
+        }
+        display->position = {0.0F, 0.0F};
+
+        const auto previous = Scene2DRenderer::FindActiveCamera(world, {800.0F, 600.0F}, 0.0F);
+        ATOM_CHECK_NEAR(previous.center.GetX(), 0.0F);
+        ATOM_CHECK_NEAR(previous.center.GetY(), 0.0F);
+
+        const auto blended = Scene2DRenderer::FindActiveCamera(world, {800.0F, 600.0F}, 0.5F);
+        ATOM_CHECK_NEAR(blended.center.GetX(), 100.0F);
+        ATOM_CHECK_NEAR(blended.center.GetY(), 50.0F);
+
+        const auto newest = Scene2DRenderer::FindActiveCamera(world, {800.0F, 600.0F}, 1.0F);
+        ATOM_CHECK(newest.center.GetX() > 199.0F);
     }
 
     return 0;

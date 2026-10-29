@@ -21,13 +21,17 @@ GameScreen::GameScreen(WorldSetup setup, const float fixed_delta_seconds)
     }
 }
 
-auto GameScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds) -> void {
+auto GameScreen::BeginFrame(const std::uint32_t fixed_steps, const float fixed_delta_seconds,
+                            const float interpolation_alpha) -> void {
     // The host's budget for this frame. Stored rather than acted on: the world must
     // run between Update and Render, not here, so that a screen's setup and its
     // frame order stay in one place.
     pending_fixed_steps_ = fixed_steps;
     if (fixed_delta_seconds > 0.0F)
         fixed_delta_seconds_ = fixed_delta_seconds;
+    // Clamped rather than trusted: a clock that is paused or not yet advanced can report
+    // something outside [0,1), and interpolating with that would extrapolate.
+    interpolation_alpha_ = interpolation_alpha < 0.0F ? 0.0F : (interpolation_alpha > 0.999F ? 0.999F : interpolation_alpha);
 }
 
 auto GameScreen::Update(const float deltaTime) -> void {
@@ -41,12 +45,11 @@ auto GameScreen::Update(const float deltaTime) -> void {
 
     const auto delta = deltaTime > 0.0F ? deltaTime : 0.0F;
     if (auto advanced = world_->RunFrame(delta, steps, fixed_delta_seconds_); !advanced.has_value()) {
-        // A world frame cannot be "half applied": RunFrame either commits its
-        // phases or rejects the timing. Dropping the frame is the only safe choice,
-        // and a screen that wants to react logs through its own channel.
+        // A world frame cannot be "half applied": RunFrame either commits its phases or
+        // rejects the timing. Dropping the frame is the only safe choice, and a screen
+        // that wants to react logs through its own channel.
         return;
     }
-    OnWorldFrameAdvanced(delta);
 }
 
 auto GameScreen::ReplaceWorldEntities(std::unique_ptr<ecs::EntityWorld> entities) -> void {
