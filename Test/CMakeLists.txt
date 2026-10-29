@@ -274,6 +274,12 @@ atom_add_test(Atom_Physics.Physics2DWorld
     Physics/Physics2DWorldTest.cpp
     Atom_PhysicsIntegration)
 
+# T3.3: the vertical slice, verified through the same assembled pieces the game runs - scene
+# document, physics bridge, systems, input actions - with no window and no GPU.
+if(TARGET Example_2D_Smoke)
+    add_test(NAME Atom_Example.SliceSelfTest COMMAND Example_2D_Smoke --selftest)
+endif()
+
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry
     Atom_Backend_Extension_AudioDecoderRegistry_Tests

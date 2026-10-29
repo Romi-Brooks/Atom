@@ -21,6 +21,9 @@
       "pivot": [0.5, 0.5],
       "layer": 0,
       "sort_key": 0
-    }
+    },
+    // Dynamic: a crate is something the player pushes. Zero friction because the room is
+    // top-down (no gravity) - friction without weight would just stop it dead.
+    "physics": { "kind": "dynamic", "shape": { "box": [24.0, 24.0] }, "density": 0.5, "friction": 0.0 }
   }
 }

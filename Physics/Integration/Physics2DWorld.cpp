@@ -144,6 +144,21 @@ auto Physics2DWorld::ToPixels(const algo::Vec2 meters) const -> algo::Vec2 {
     return {meters.GetX() * pixels_per_meter_, -meters.GetY() * pixels_per_meter_};
 }
 
+auto Physics2DWorld::SetLinearVelocity(const ecs::Entity entity, const algo::Vec2 pixels_per_second) -> bool {
+    const auto found = impl_->body_by_entity.find(EncodeEntity(entity));
+    if (found == impl_->body_by_entity.end())
+        return false;
+    found->second->SetLinearVelocity(ToMeters(pixels_per_second));
+    return true;
+}
+
+auto Physics2DWorld::GetLinearVelocity(const ecs::Entity entity) const -> algo::Vec2 {
+    const auto found = impl_->body_by_entity.find(EncodeEntity(entity));
+    if (found == impl_->body_by_entity.end())
+        return algo::Vec2::Zero();
+    return ToPixels(found->second->GetLinearVelocity());
+}
+
 auto Physics2DWorld::Step(ecs::EntityWorld& entities, const float fixed_delta_seconds)
     -> Result<std::vector<ContactEvent2D>> {
     if (!(fixed_delta_seconds > 0.0F)) {

@@ -73,10 +73,15 @@ auto main() -> int {
         ATOM_CHECK_MSG(loaded.has_value(), loaded.has_value() ? "" : loaded.error().Message().c_str());
 
         const auto& description = loaded->description;
-        ATOM_CHECK(description.schema_version == 1);
+        // The shipped room moved to v2 when physics landed; a v1-only assertion here would
+        // fail the moment the example is authored with the newer format.
+        ATOM_CHECK(description.schema_version == 2);
+        // The room is top-down: gravity must come from the document, not from the default.
+        ATOM_CHECK_NEAR(description.gravity.GetY(), 0.0F);
         ATOM_CHECK(description.id == "smoke_room");
         ATOM_CHECK(description.has_name);
-        ATOM_CHECK(description.entities.size() == 6);
+        // ten entities since the slice added the four walls and the exit sensor
+        ATOM_CHECK(description.entities.size() == 10);
         // The camera is entity 1 and marks itself active.
         ATOM_CHECK(description.active_camera != kNoActiveCamera);
         ATOM_CHECK(description.entities[description.active_camera].id == 1);
@@ -86,14 +91,20 @@ auto main() -> int {
 
         // Every entity gets an id plus a simulation and a display transform: the
         // renderer must be able to draw before the first snapshot.
-        ATOM_CHECK(world.CountOf<ecs::SceneEntityId>() == 6);
-        ATOM_CHECK(world.CountOf<ecs::Transform2D>() == 6);
-        ATOM_CHECK(world.CountOf<ecs::RenderTransform2D>() == 6);
-        ATOM_CHECK(world.CountOf<ecs::SpriteRenderer>() == 5);
+        //
+        // Ten entities since the slice: camera, player, four walls, two crates, exit, atlas cell.
+        // The walls and the exit carry no sprite - they are collision, drawn by the backdrop - so
+        // the sprite count is lower than the entity count on purpose.
+        ATOM_CHECK(world.CountOf<ecs::SceneEntityId>() == 10);
+        ATOM_CHECK(world.CountOf<ecs::Transform2D>() == 10);
+        ATOM_CHECK(world.CountOf<ecs::RenderTransform2D>() == 10);
+        // Nine sprites: player, both crates, exit, atlas cell, and the four walls (a stretched
+        // floor tile, because a room you cannot see the edges of is a bug report waiting).
+        ATOM_CHECK(world.CountOf<ecs::SpriteRenderer>() == 9);
         ATOM_CHECK(world.CountOf<ecs::Camera2D>() == 1);
-        ATOM_CHECK(world.CountOf<ecs::Lifetime>() == 1);
+        ATOM_CHECK(world.CountOf<ecs::Lifetime>() == 0);
         ATOM_CHECK(world.CountOf<ecs::Active>() == 1);  // the player
-        ATOM_CHECK(world.CountOf<ecs::Name>() == 6);
+        ATOM_CHECK(world.CountOf<ecs::Name>() == 10);
 
         // The active camera got the lowest entity index, which is what Scene2D's
         // "lowest index wins" rule needs.
@@ -163,7 +174,7 @@ auto main() -> int {
             const bool left = id->value == 3;
             ATOM_CHECK(name->value == (left ? "crate_left" : "crate_right"));
             ATOM_CHECK(sprite->sort_key == (left ? 10 : 20));
-            ATOM_CHECK_NEAR(transform->position.GetX(), left ? 416.0F : 766.0F);
+                    // Positions from the room document; two crates at different sort keys is what makes\n        // the draw order observable instead of accidental.\n        ATOM_CHECK_NEAR(transform->position.GetX(), left ? 480.0F : 640.0F);
         }
     }
 
@@ -180,7 +191,7 @@ auto main() -> int {
         const Case cases[] = {
             {"res://invalid_unknown_field.scene.json", "did you mean \"sprite\"?"},
             {"res://invalid_duplicate_id.scene.json", "duplicate entity id 7"},
-            {"res://invalid_bad_version.scene.json", "unsupported schema_version 2"},
+            {"res://invalid_bad_version.scene.json", "unsupported schema_version 99"},
         };
         for (const auto& test_case : cases) {
             fs::AssetPath path{};
@@ -316,6 +327,90 @@ auto main() -> int {
         const auto built = scene::SceneLoader::BuildWorld(*empty.scene);
         ATOM_CHECK(built.has_value());
         ATOM_CHECK((*built)->AliveCount() == 0);
+    }
+
+    // --- 8. v2 physics: pixels in the document, metres in the component ---
+    //
+    // The scene file stays in one unit system (pixels, like every other size), and the loader
+    // divides by the scene's own pixels-per-metre. A test that only checked "a component
+    // exists" would miss the exact bug this catches: a 100 px crate becoming a 100 m crate.
+    {
+        const auto outcome = ParseScene(R"({
+            "schema_version": 2,
+            "id": "physics_scene",
+            "physics": { "pixels_per_meter": 50.0, "gravity": [0.0, -4.0] },
+            "entities": [
+                { "id": 1, "transform": { "position": [100.0, 200.0] },
+                  "physics": { "kind": "dynamic", "shape": { "box": [50.0, 25.0] }, "density": 2.0 } },
+                { "id": 2, "transform": { "position": [0.0, 400.0] },
+                  "physics": { "kind": "static", "shape": { "circle": 25.0 }, "sensor": true } }
+            ]
+        })",
+                                         "res://scenes/physics.scene.json");
+        ATOM_CHECK_MSG(outcome.Ok(), outcome.Ok() ? "" : outcome.diagnostics.front().Format().c_str());
+        ATOM_CHECK(outcome.scene->schema_version == 2);
+        ATOM_CHECK_NEAR(outcome.scene->pixels_per_meter, 50.0F);
+        ATOM_CHECK_NEAR(outcome.scene->gravity.GetY(), -4.0F);
+
+        const auto built = scene::SceneLoader::BuildWorld(*outcome.scene);
+        ATOM_CHECK(built.has_value());
+        auto& world = **built;
+        ATOM_CHECK(world.CountOf<ecs::PhysicsBody2D>() == 2);
+
+        for (const auto entity : world.With<ecs::Transform2D, ecs::PhysicsBody2D>()) {
+            const auto* shell = world.TryGet<ecs::PhysicsBody2D>(entity);
+            const auto* id = world.TryGet<ecs::SceneEntityId>(entity);
+            ATOM_CHECK(shell != nullptr);
+            ATOM_CHECK(id != nullptr);
+            if (id->value == 1) {
+                ATOM_CHECK(shell->kind == ecs::PhysicsBodyKind::Dynamic);
+                // 50 px half-extent at 50 px/m == 1 m; the y halved one is 0.5 m.
+                ATOM_CHECK_NEAR(shell->half_extent.GetX(), 1.0F);
+                ATOM_CHECK_NEAR(shell->half_extent.GetY(), 0.5F);
+                ATOM_CHECK_NEAR(shell->density, 2.0F);
+                ATOM_CHECK(!shell->is_sensor);
+            } else {
+                ATOM_CHECK(shell->kind == ecs::PhysicsBodyKind::Static);
+                // 25 px radius at 50 px/m == 0.5 m.
+                ATOM_CHECK_NEAR(shell->radius, 0.5F);
+                ATOM_CHECK(shell->is_sensor);
+            }
+        }
+    }
+
+    // --- 9. v1 documents are still accepted (additive version bump) -------
+    {
+        const auto outcome = ParseScene(R"({
+            "schema_version": 1,
+            "id": "v1_scene",
+            "entities": [ { "id": 1 } ]
+        })",
+                                         "res://scenes/v1.scene.json");
+        ATOM_CHECK_MSG(outcome.Ok(), outcome.Ok() ? "" : outcome.diagnostics.front().Format().c_str());
+        ATOM_CHECK(outcome.scene->schema_version == 1);
+        // A v1 document has no physics block: the defaults must still be usable, otherwise
+        // every old file would need editing just to keep loading.
+        ATOM_CHECK_NEAR(outcome.scene->pixels_per_meter, 100.0F);
+        ATOM_CHECK(outcome.scene->entities.front().physics.has_value() == false);
+    }
+
+    // --- 10. Malformed physics is rejected, not defaulted -----------------
+    {
+        auto bad = [](const std::string_view physics_block, const std::string_view expected) -> bool {
+            const auto outcome = ParseScene(
+                "{\n  \"schema_version\": 2,\n  \"id\": \"t\",\n  \"entities\": [\n"
+                "    { \"id\": 1, \"physics\": " +
+                    std::string{physics_block} + " }\n  ]\n}",
+                "res://scenes/t.scene.json");
+            if (outcome.Ok())
+                return false;
+            return HasDiagnostic(outcome, expected);
+        };
+        ATOM_CHECK(bad(R"({ "kind": "dynamic" })", "requires a \"shape\""));
+        ATOM_CHECK(bad(R"({ "kind": "dynamic", "shape": {} })", "either \"box\" or \"circle\""));
+        ATOM_CHECK(bad(R"({ "kind": "dynamic", "shape": { "box": [0, 10] } })", "greater than zero"));
+        ATOM_CHECK(bad(R"({ "kind": "dynamic", "shape": { "box": [10, 10], "circle": 5 } })", "not both"));
+        ATOM_CHECK(bad(R"({ "kind": "floaty", "shape": { "circle": 5 } })", "allowed: \"static\", \"kinematic\", \"dynamic\""));
     }
 
     return 0;

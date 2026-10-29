@@ -31,6 +31,9 @@ auto GameInput::ApplyDefaultBindings() -> void {
     map.Bind({input::Key::Space}, GameAction::Pause);
     map.Bind({input::Key::Escape}, GameAction::Pause);
 
+    // Restart is also a menu action: reloading the level while paused has to work.
+    map.Bind({input::Key::R}, GameAction::Restart);
+
     actions_.SetBindings(std::move(map));
 }
 

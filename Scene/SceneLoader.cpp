@@ -98,7 +98,7 @@ auto BuildFailure(const SceneDesc& scene, const EntityDesc& entity, const std::s
 
 // Adds one entity's components. Returns false on the first ECS-level refusal, which
 // can only mean the description was built by something other than ParseScene.
-auto BuildEntity(EntityWorld& world, const EntityDesc& entity) -> Result<void> {
+auto BuildEntity(EntityWorld& world, const EntityDesc& entity, const float pixels_per_meter) -> Result<void> {
     const auto handle = world.CreateEntity();
 
     if (auto placed = world.Emplace<SceneEntityId>(handle, SceneEntityId{.value = entity.id}); !placed.has_value())
@@ -160,6 +160,34 @@ auto BuildEntity(EntityWorld& world, const EntityDesc& entity) -> Result<void> {
             return placed;
     }
 
+    if (entity.physics.has_value()) {
+        // The document speaks pixels like everything else; the component speaks metres like the
+        // physics world. This is the single conversion, and it uses the scene's own scale so a
+        // screenshot and a body cannot disagree about how big a metre is.
+        const auto& source = *entity.physics;
+        const float scale = pixels_per_meter > 0.0F ? pixels_per_meter : 100.0F;
+        ecs::PhysicsBody2D shell{};
+        switch (source.kind) {
+            case PhysicsDesc::Kind::Static:
+                shell.kind = ecs::PhysicsBodyKind::Static;
+                break;
+            case PhysicsDesc::Kind::Kinematic:
+                shell.kind = ecs::PhysicsBodyKind::Kinematic;
+                break;
+            case PhysicsDesc::Kind::Dynamic:
+                shell.kind = ecs::PhysicsBodyKind::Dynamic;
+                break;
+        }
+        shell.radius = source.radius / scale;
+        shell.half_extent = {source.half_extent.GetX() / scale, source.half_extent.GetY() / scale};
+        shell.density = source.density;
+        shell.friction = source.friction;
+        shell.restitution = source.restitution;
+        shell.is_sensor = source.is_sensor;
+        if (auto placed = world.Emplace<ecs::PhysicsBody2D>(handle, shell); !placed.has_value())
+            return placed;
+    }
+
     if (entity.lifetime.has_value()) {
         if (auto placed = world.Emplace<Lifetime>(handle, Lifetime{.remaining_seconds = *entity.lifetime});
             !placed.has_value())
@@ -186,7 +214,7 @@ auto SceneLoader::BuildWorld(const SceneDesc& description) -> Result<std::unique
     // flag of its own.
     if (description.active_camera < description.entities.size()) {
         const auto& camera_entity = description.entities[description.active_camera];
-        if (auto built = BuildEntity(*world, camera_entity); !built.has_value()) {
+        if (auto built = BuildEntity(*world, camera_entity, description.pixels_per_meter); !built.has_value()) {
             return std::unexpected<Error>{BuildFailure(description, camera_entity, built.error().Message())};
         }
     }
@@ -195,7 +223,7 @@ auto SceneLoader::BuildWorld(const SceneDesc& description) -> Result<std::unique
         if (index == description.active_camera)
             continue;
         const auto& entity = description.entities[index];
-        if (auto built = BuildEntity(*world, entity); !built.has_value())
+        if (auto built = BuildEntity(*world, entity, description.pixels_per_meter); !built.has_value())
             return std::unexpected<Error>{BuildFailure(description, entity, built.error().Message())};
     }
 

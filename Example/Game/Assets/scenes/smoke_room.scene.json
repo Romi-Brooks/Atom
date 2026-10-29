@@ -1,19 +1,25 @@
-// Atom scene, schema_version 1.
-// See Docs/Plans/Scene-Schema-v1-CN.md for every field and its validation rule.
+// Atom scene, schema_version 2 (v2 added the physics block).
+// See Docs/Plans/Scene-Schema-v1-CN.md for the v1 fields and its §10 for what v2 added.
 //
-// Loaded by Example_2D_Smoke at boot. Entities 3 and 4 are prefab instances: their
-// body lives in res://prefabs/crate.prefab.json and only the overrides differ.
-//
-// Coordinates are world pixels with y pointing DOWN. Rotation is radians, CCW.
+// The room is a top-down box: no gravity, so the player stops because the movement system
+// drives its velocity rather than by friction. Units are world pixels; `physics.pixels_per_meter`
+// is what turns them into the metres the solver works in.
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "smoke_room",
   "name": "Smoke Room",
 
+  "physics": {
+    // Top-down: nothing falls. Gravity would turn the two crates into a pile on the bottom wall
+    // and make the room about falling rather than about moving.
+    "gravity": [0.0, 0.0],
+    "pixels_per_meter": 100.0
+  },
+
   "entities": [
     {
-      // The eye. Position comes from this entity's transform, never from a
-      // separate camera coordinate, so there is exactly one source of truth.
+      // The eye. Position comes from this entity's transform, never from a separate camera
+      // coordinate, so there is exactly one source of truth.
       "id": 1,
       "name": "camera",
       "transform": { "position": [576.0, 624.0] },
@@ -21,31 +27,86 @@
     },
 
     {
-      // The player is drawn last within its layer (highest sort_key) and moved by
-      // the FixedUpdate system, so only its authored start position lives here.
+      // Dynamic and velocity-driven: the movement system sets velocity, the solver owns position.
+      // That is what makes walls stop the player and crates get pushed instead of overlapped.
       "id": 2,
       "name": "player",
       "tags": ["active"],
-      "transform": { "position": [576.0, 624.0] },
+      "transform": { "position": [440.0, 424.0] },
       "sprite": {
         "texture": "res://textures/player.png",
         "size": [32.0, 32.0],
         "pivot": [0.5, 0.5],
         "layer": 10,
         "sort_key": 100
+      },
+      "physics": {
+        "kind": "dynamic",
+        "shape": { "box": [16.0, 16.0] },
+        "density": 1.0,
+        "friction": 0.0
       }
     },
 
     {
-      // Two instances of one prefab. The pair proves three things at once: the base
-      // body comes from the prefab file, each instance overrides only the whitelisted
-      // fields (position, sort key, name), and different sort keys make the draw order
-      // (layer, sort_key, entity id) observable rather than creation order.
+      // The room's walls, as four static bodies. They are drawn by the floor backdrop rather
+      // than with sprites: the visible room is decoration, the physics shell is what must match.
+      "id": 10,
+      "name": "wall_top",
+      "transform": { "position": [576.0, 264.0] },
+      "sprite": {
+        "texture": "res://textures/floor.png",
+        "size": [400.0, 24.0],
+        "tint": [150, 170, 190, 255],
+        "layer": -5
+      },
+      "physics": { "kind": "static", "shape": { "box": [200.0, 12.0] } }
+    },
+    {
+      "id": 11,
+      "name": "wall_bottom",
+      "transform": { "position": [576.0, 984.0] },
+      "sprite": {
+        "texture": "res://textures/floor.png",
+        "size": [400.0, 24.0],
+        "tint": [150, 170, 190, 255],
+        "layer": -5
+      },
+      "physics": { "kind": "static", "shape": { "box": [200.0, 12.0] } }
+    },
+    {
+      "id": 12,
+      "name": "wall_left",
+      "transform": { "position": [376.0, 624.0] },
+      "sprite": {
+        "texture": "res://textures/floor.png",
+        "size": [24.0, 400.0],
+        "tint": [150, 170, 190, 255],
+        "layer": -5
+      },
+      "physics": { "kind": "static", "shape": { "box": [12.0, 200.0] } }
+    },
+    {
+      "id": 13,
+      "name": "wall_right",
+      "transform": { "position": [776.0, 624.0] },
+      "sprite": {
+        "texture": "res://textures/floor.png",
+        "size": [24.0, 400.0],
+        "tint": [150, 170, 190, 255],
+        "layer": -5
+      },
+      "physics": { "kind": "static", "shape": { "box": [12.0, 200.0] } }
+    },
+
+    {
+      // Two instances of one prefab: the base body (sprite, static tag, a dynamic physics shell)
+      // comes from the prefab file, and each instance overrides only the whitelisted fields.
       "id": 3,
       "prefab": "res://prefabs/crate.prefab.json",
       "overrides": {
         "name": "crate_left",
-        "transform": { "position": [416.0, 534.0] },
+        "transform": { "position": [480.0, 534.0] },
         "sprite": { "sort_key": 10 }
       }
     },
@@ -54,43 +115,43 @@
       "prefab": "res://prefabs/crate.prefab.json",
       "overrides": {
         "name": "crate_right",
-        "transform": { "position": [766.0, 684.0] },
+        "transform": { "position": [640.0, 684.0] },
         "sprite": { "sort_key": 20 }
       }
     },
 
     {
-      // A named atlas frame. The texel rect, the 64x64 display size and the pivot all
-      // come from res://atlases/terrain.atlas.json, and so does `filter: nearest` - so
-      // this cell is sampled crisply instead of being smeared by linear filtering.
-      // It is also the "source rect without hand-written numbers" case.
+      // The exit: a sensor. It reports being touched and never pushes the player, which is the
+      // smallest demonstration that sensors earn their place in the contract.
+      "id": 20,
+      "name": "exit",
+      "transform": { "position": [736.0, 424.0] },
+      "sprite": {
+        "texture": "res://textures/marker.png",
+        "size": [32.0, 32.0],
+        // Pivot at the bottom centre so the flag stands on the floor of the room, and flipped
+        // so it points back at the player's side - the one sprite in the room that exercises
+        // both, which the loader test checks.
+        "pivot": [0.5, 1.0],
+        "flip_x": true,
+        "layer": 5,
+        "sort_key": 0
+      },
+      "physics": { "kind": "static", "shape": { "box": [20.0, 20.0] }, "sensor": true }
+    },
+
+    {
+      // A named atlas frame: texel rect, 64x64 display size and pivot all come from
+      // res://atlases/terrain.atlas.json, and so does `filter: nearest`.
       "id": 5,
       "name": "atlas_cell",
-      "transform": { "position": [276.0, 754.0] },
+      "transform": { "position": [436.0, 824.0] },
       "sprite": {
         "atlas": "res://atlases/terrain.atlas.json",
         "frame": "green",
         "tint": [255, 255, 255, 255],
         "layer": 0,
         "sort_key": 5
-      }
-    },
-
-    {
-      // A sprite that expires on its own: T2.2 loads it, the Lifetime sweep
-      // removes it. It exists so the sample covers every v1 field at least once.
-      "id": 6,
-      "name": "fading_marker",
-      "transform": { "position": [876.0, 414.0] },
-      "lifetime": 4.0,
-      "sprite": {
-        "texture": "res://textures/marker.png",
-        "size": [32.0, 32.0],
-        "pivot": [0.5, 1.0],
-        "tint": [255, 200, 200, 255],
-        "layer": 5,
-        "sort_key": 0,
-        "flip_x": true
       }
     }
   ]

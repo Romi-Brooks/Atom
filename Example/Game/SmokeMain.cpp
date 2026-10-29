@@ -18,6 +18,7 @@
  */
 
 #include <memory>
+#include <string_view>
 #include <string>
 
 #include <Filesystem/FileSystem.hpp>
@@ -27,6 +28,7 @@
 #include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 
+#include "SliceSelfTest.hpp"
 #include "SmokeScreen.hpp"
 
 namespace {
@@ -57,12 +59,18 @@ auto MountDevelopmentAssets() -> bool {
 
 } // namespace
 
-auto main() -> int {
+auto main(int argc, char** argv) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
 
     if (!MountDevelopmentAssets())
         return 1;
+
+    // Headless mode: drive the slice through the same systems the game uses and report. The
+    // window is never created, so this runs on a build machine with no display.
+    const char* const self_test_flag = "--selftest";
+    if (argc > 1 && std::string_view{argv[1]} == self_test_flag)
+        return atom::game::RunSliceSelfTest();
 
     auto& screens = atom::ScreenManager::GetInstance();
 

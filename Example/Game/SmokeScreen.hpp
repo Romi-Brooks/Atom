@@ -1,23 +1,18 @@
 /**
  * @file SmokeScreen.hpp
- * @brief T2.2 - a GameScreen whose world comes from a scene document.
+ * @brief The first vertical slice (T3.3): a playable room built from a scene document.
  *
- * What changed from T1.3: the room's entities (camera, player, crates, atlas cell,
- * expiring marker) are no longer built in C++. They come from
- * `res://scenes/smoke_room.scene.json` through SceneLoader, and the switch into the
- * running world is a single `GameWorld::ReplaceEntities`.
+ * What it assembles, all of which already existed as tested pieces:
  *
- * Two consequences the code shows explicitly:
+ *   scene document   the room's entities, prefab instances, atlas frames and physics shells
+ *   physics bridge   dynamic player + crates, static walls, one sensor exit
+ *   input actions    movement, pause, restart - no system reads a Key
+ *   interpolation    drawn between fixed steps, so movement is smooth at any refresh rate
+ *   HUD              text drawn by Renderer2D, showing state and controls
  *
- *  - systems cannot cache an Entity handle. A swap replaces the slot table, so a
- *    cached handle can even be "alive" again by accident (the new world's first
- *    entity has the same index+generation); every system looks its entity up by
- *    SceneEntityId instead (`FindBySceneId`).
- *  - the backdrop (the floor grid) is still generated in code. It is decoration, not
- *    scene content: T5.1's Tilemap will generate layers like this from a tileset.
- *
- * Content root (G0.5): main() mounts the repository's Assets/ directory as res://,
- * so the URIs in the scene document are real VFS lookups, not paths.
+ * Deliberate non-goals: no menu screen, no save, no second level, no audio. None of those is
+ * needed to answer the only question this slice asks - can the pieces be assembled into
+ * something that starts, is played, pauses, restarts and exits?
  */
 
 #ifndef ATOM_EXAMPLE_GAME_SMOKESCREEN_HPP
@@ -25,11 +20,13 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string_view>
+#include <memory>
+#include <string>
 
 #include <ECS/Entity.hpp>
 #include <ECS/EntityWorld.hpp>
 #include <Filesystem/Vfs.hpp>
+#include <Physics/Integration/Physics2DWorld.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <Render/Resources/TextureCache.hpp>
 #include <Render/Scene2D/Scene2DRenderer.hpp>
@@ -39,10 +36,11 @@
 
 namespace atom::game {
 
-// Stable ids from Assets/scenes/smoke_room.scene.json: the contract between the
-// document and the systems, named once instead of repeated as magic numbers.
+// Stable ids from Assets/scenes/smoke_room.scene.json: the contract between the document and
+// the systems, named once instead of repeated as magic numbers.
 inline constexpr std::uint32_t kCameraSceneId = 1;
 inline constexpr std::uint32_t kPlayerSceneId = 2;
+inline constexpr std::uint32_t kExitSceneId = 20;
 
 class SmokeScreen final : public runtime::GameScreen {
     public:
@@ -53,42 +51,36 @@ class SmokeScreen final : public runtime::GameScreen {
         SmokeScreen(const SmokeScreen&) = delete;
         auto operator=(const SmokeScreen&) -> SmokeScreen& = delete;
 
-        // Loads res://scenes/smoke_room.scene.json and makes it the running world.
-        // Called by main before the loop starts. A failure leaves the current world
-        // untouched and reports why - the whole point of loading into a temporary
-        // world first.
+        // Loads the room and rebuilds the physics world for it. Called at boot and on restart;
+        // a failure leaves the current world untouched and reports why.
         [[nodiscard]] auto LoadRoom() -> Result<void>;
 
         auto Render(render::IRenderDevice& device) -> void override;
         auto HandleEvent(const window::IEvent& event) -> bool override;
-
-        // The gameplay gate follows the pause state here rather than in each system: one
-        // forgotten `if (paused) return;` is exactly the bug T3.2 exists to remove, and
-        // this hook runs every frame even while the world is paused.
-        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds, float interpolation_alpha) -> void override;
+        auto BeginFrame(std::uint32_t fixed_steps, float fixed_delta_seconds, float interpolation_alpha)
+            -> void override;
 
         // Diagnostics for the debugger panel (and for a human running the demo).
         [[nodiscard]] auto SpriteCount() const -> std::size_t {
             return scene_renderer_.Stats().drawn;
         }
-        [[nodiscard]] auto SkippedCount() const -> std::size_t {
-            return scene_renderer_.Stats().unresolved + scene_renderer_.Stats().degenerate;
-        }
-        [[nodiscard]] auto LastUnresolvedUri() const -> std::string_view {
-            return scene_renderer_.LastUnresolvedUri();
-        }
-        [[nodiscard]] auto CameraZoom() const noexcept -> float {
-            return camera_zoom_;
-        }
         [[nodiscard]] auto EntityCount() const -> std::size_t;
+        [[nodiscard]] auto BodyCount() const -> std::size_t;
 
     private:
-        // Declared in dependency order: the cache views the renderer, the resolver
-        // holds cache handles, and the scene renderer needs the resolver.
+        auto DrawHud() -> void;
+        auto EnsureHudFont() -> render::Font*;
+
+        // Declared in dependency order: the cache views the renderer, the resolver holds cache
+        // handles, and the scene renderer needs the resolver.
         render::Renderer2D renderer_{};
         render::resources::TextureCache texture_cache_{renderer_};
         render::scene2d::TextureCacheResolver resolver_{texture_cache_, fs::Vfs::GetInstance()};
         render::scene2d::Scene2DRenderer scene_renderer_{resolver_};
+
+
+        render::Font* hud_font_ = nullptr;
+        std::string hud_font_error_{};
 
         std::uint32_t window_width_ = 0;
         std::uint32_t window_height_ = 0;
@@ -96,13 +88,31 @@ class SmokeScreen final : public runtime::GameScreen {
         bool render_failed_ = false;
 };
 
-// Looks an entity up by its stable scene id. Systems use this instead of caching a
-// handle, because a scene swap invalidates every handle it did not create.
+// Looks an entity up by its stable scene id. Systems use this instead of caching a handle,
+// because a scene swap invalidates every handle it did not create.
 [[nodiscard]] auto FindBySceneId(ecs::EntityWorld& entities, std::uint32_t scene_id) -> ecs::Entity;
 
-// Registers the demo's systems. Called from the GameScreen setup callback, so the
-// systems exist before the first frame and survive the scene swap.
+// Registers the slice's systems. Called from the GameScreen setup callback, so they exist
+// before the first frame and survive the scene swap.
 [[nodiscard]] auto RegisterSmokeSystems(runtime::GameWorld& world) -> Result<void>;
+
+// The slice's small piece of game state, shared by the systems and read by the HUD.
+struct SliceState {
+        bool reached_exit = false;
+        std::uint32_t contact_count = 0;
+
+        // Called on restart so a new run does not inherit the previous one's success.
+        auto Reset() -> void {
+            reached_exit = false;
+            contact_count = 0;
+        }
+};
+
+// One instance for the example: the systems are plain lambdas registered on a world, so they
+// cannot capture the screen's members without a construction-order hazard (the base
+// GameScreen constructor runs before any member is initialised). A file-scope state keeps that
+// hazard out of the design instead of ordering members around it.
+[[nodiscard]] auto Slice() -> SliceState&;
 
 } // namespace atom::game
 

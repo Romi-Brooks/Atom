@@ -33,8 +33,14 @@
 
 namespace atom::scene {
 
-// Current document version. A document with any other value is rejected.
-inline constexpr std::uint32_t kSchemaVersion = 1;
+// Current document version.
+//
+// v2 added the optional `physics` block (scene gravity / pixels-per-metre, and a per-entity
+// body). It is *additive*: a v1 document is still valid and is read as "no physics", so the
+// loader accepts exactly {1, 2} rather than "anything it can parse" - an unknown version is
+// still rejected outright.
+inline constexpr std::uint32_t kSchemaVersion = 2;
+inline constexpr std::uint32_t kOldestSupportedSchemaVersion = 1;
 
 // "no active camera" marker for SceneDesc::active_camera.
 inline constexpr std::size_t kNoActiveCamera = static_cast<std::size_t>(-1);
@@ -68,6 +74,22 @@ struct CameraDesc {
         bool active = false;
 };
 
+// Physics body shell for one entity (v2). Sizes are in PIXELS, like every other size in the
+// document; the loader divides by the scene's pixels-per-metre so the scene file stays in one
+// unit system and the conversion happens exactly once.
+struct PhysicsDesc {
+        enum class Kind : std::uint8_t { Static, Kinematic, Dynamic };
+
+        Kind kind = Kind::Static;
+        // radius > 0 selects a circle; otherwise half_extent describes a box (both in pixels).
+        float radius = 0.0F;
+        algo::Vec2 half_extent{25.0F, 25.0F};
+        float density = 1.0F;
+        float friction = 0.5F;
+        float restitution = 0.0F;
+        bool is_sensor = false;
+};
+
 struct EntityDesc {
         std::uint32_t id = 0;
         bool has_name = false;
@@ -78,6 +100,7 @@ struct EntityDesc {
         std::optional<SpriteDesc> sprite{};
         std::optional<CameraDesc> camera{};
         std::optional<float> lifetime{};
+        std::optional<PhysicsDesc> physics{};
         // Where the entity starts in the document, so a later build failure can
         // still point at the right place.
         std::uint32_t line = 0;
@@ -86,6 +109,10 @@ struct EntityDesc {
 
 struct SceneDesc {
         std::uint32_t schema_version = kSchemaVersion;
+        // v2: physics scale and gravity. Defaults keep a v1 document meaningful, and the
+        // integration layer is created with the same pixels-per-metre the loader used.
+        float pixels_per_meter = 100.0F;
+        algo::Vec2 gravity{0.0F, -9.81F}; // metres/second^2, physics axes (y up)
         std::string id{};
         bool has_name = false;
         std::string name{};

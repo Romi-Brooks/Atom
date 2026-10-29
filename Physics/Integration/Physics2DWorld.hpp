@@ -99,6 +99,13 @@ class Physics2DWorld final {
         [[nodiscard]] auto ToMeters(algo::Vec2 pixels) const -> algo::Vec2;
         [[nodiscard]] auto ToPixels(algo::Vec2 meters) const -> algo::Vec2;
 
+        // Velocity control for a dynamic body, in world pixels per second (converted here so
+        // gameplay never sees metres). A top-down character sets this every fixed step
+        // instead of writing the transform: physics then owns the position, so collisions
+        // actually stop it - and it still pushes the crates it walks into.
+        auto SetLinearVelocity(ecs::Entity entity, algo::Vec2 pixels_per_second) -> bool;
+        [[nodiscard]] auto GetLinearVelocity(ecs::Entity entity) const -> algo::Vec2;
+
     private:
         struct Impl;
         explicit Physics2DWorld(std::unique_ptr<Impl> impl);

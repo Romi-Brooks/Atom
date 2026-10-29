@@ -2,13 +2,13 @@
  * @file GameInput.hpp
  * @brief The game's action vocabulary and its default bindings.
  *
- * This lives in the example, not in the engine, on purpose: the engine owns "how do I
- * ask whether an action is held", the game owns "what actions exist". A second game
- * would bring its own enum and its own bindings and reuse ActionState unchanged.
+ * This lives in the example, not in the engine: the engine owns "how do I ask whether an
+ * action is held", the game owns "what actions exist". A second game would bring its own
+ * enum and its own bindings and reuse ActionState unchanged.
  *
- * Everything gameplay-side reads actions from here. No system compares a `Key`, which
- * is what makes a remap screen, arrow-key alternatives or a gamepad a change to this
- * file's bindings rather than a change to the systems.
+ * Everything gameplay-side reads actions from here. No system compares a `Key`, which is
+ * what makes a remap screen, arrow-key alternatives or a gamepad a change to this file's
+ * bindings rather than a change to the systems.
  */
 
 #ifndef ATOM_EXAMPLE_GAME_GAMEINPUT_HPP
@@ -26,12 +26,12 @@ enum class GameAction : std::uint8_t {
     MoveRight,
     MoveUp,
     MoveDown,
-    // One-shot gameplay action: exists so the demo has a non-movement action whose
-    // "pressed once, gated by pause" behaviour is exercised.
+    // One-shot gameplay action: toggles the camera lens.
     Interact,
-    // Menu action. Handled on the event path (ActionMap::FindAction), so it keeps
-    // working while the gameplay gate is closed - that is the pause/resume loop.
+    // Menu actions. Handled on the event path (ActionMap::FindAction), so they keep working
+    // while the gameplay gate is closed - that is the pause/resume/restart loop.
     Pause,
+    Restart,
 };
 
 class GameInput final {
@@ -45,13 +45,13 @@ class GameInput final {
             return actions_;
         }
 
-        // Installs the default profile: WASD and the arrow keys both drive movement,
-        // E interacts, Escape and Space pause. Idempotent, so a "reset bindings" button
+        // Installs the default profile: WASD and the arrow keys both drive movement, E toggles
+        // the lens, Escape/Space pause, R restarts. Idempotent, so a "reset bindings" button
         // would call the same function.
         auto ApplyDefaultBindings() -> void;
 
-        // Replaces the profile wholesale - what a key-remap screen does. Exposed so a
-        // caller can prove gameplay works with a different set of keys.
+        // Replaces the profile wholesale - what a key-remap screen does. Exposed so a caller
+        // can prove gameplay works with a different set of keys.
         auto SetBindings(input::ActionMap<GameAction> map) -> void {
             actions_.SetBindings(std::move(map));
         }

@@ -1,8 +1,10 @@
-// MUST FAIL TO LOAD. Kept as a validation fixture for T2.2's tests.
-// A reader that "tries its best" on a newer schema silently drops whatever the
-// newer version added. v1 rejects the whole file instead.
+// MUST FAIL TO LOAD. Kept as a validation fixture for the loader tests.
+//
+// v2 is supported now (it added the physics block), so this fixture names a version no build
+// can know. A reader that "tries its best" would silently drop whatever the newer version
+// added; this loader rejects the whole file instead.
 {
-  "schema_version": 2,
+  "schema_version": 99,
   "id": "invalid_bad_version",
   "entities": []
 }

@@ -23,7 +23,7 @@
 | 单位 | 世界像素、**y 向下**、旋转为弧度且逆时针为正（与 `Renderer2D` / `Camera2D` 一致） |
 | 坐标 | 世界原点在 (0,0)，没有"场景偏移"字段；T3.1 的物理在边界处一次性换算米制 |
 | 资源引用 | 只能 `res://...`（`AssetPath` 规则），禁止绝对路径、盘符、`..` |
-| 版本 | `schema_version` 必填，v1 只接受 `1`；未知版本必须拒绝，不得"尽力解析" |
+| 版本 | `schema_version` 必填。文档是 v1 的历史描述；当前 loader 接受 **{1, 2}**（v2 只**新增**了 `physics` 块，v1 文档仍然有效），范围外的版本一律拒绝，不得"尽力解析"。见 §10 |
 | 未知字段 | **一律拒绝**（防拼写错误静默生效），错误里给出最接近的合法字段名 |
 
 ## 3. 顶层结构
@@ -278,12 +278,57 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
 
 地板阵列不在 v1 手写：几十上百块地砖必须由 T5.1 的 Tilemap 生成，样例只给房间里的少量实体。示例里的地板目前由 C++ 生成装饰，不参与场景文档。
 
-## 10. v2 预留（不得在 v1 悄悄加字段）
+## 9.5 后续版本预留（不得在旧版本里悄悄加字段）
 
-- `physics` 块（body 类型、shape、sensor）—— 依赖 G0.4 的契约扩展；
+- ~~`physics` 块~~ —— **已在 v2 落地，见 §10**；
 - `tilemap` 层（tileset 引用、chunk 坐标）—— T5.1；
 - `animation` / `animator` —— T5.3；
 - Prefab 嵌套与 override merge —— T2.3 只做平面 Prefab；
 - 跨场景引用与 `WorldManifest` —— T5.4。
 
 以上任何一项进入格式都必须 `schema_version` 递增，并保留旧版本读取器的拒绝行为。
+
+---
+
+## 10. v2：`physics` 块（T3.1/T3.3 落地）
+
+版本策略：**新增字段必须递增 `schema_version`**；loader 只接受声明支持的集合（当前 `{1, 2}`），集合外的版本
+整份拒绝。接受 v1 不等于"尽力解析"——它是明确声明的兼容范围，v1 文档按"没有 physics"读取。
+
+### 10.1 顶层 `physics`（可选）
+
+```jsonc
+"physics": {
+  "gravity": [0.0, 0.0],        // 可选，米/秒²，**物理坐标系（y 向上）**；缺省 [0, -9.81]
+  "pixels_per_meter": 100.0     // 可选，> 0；缺省 100
+}
+```
+
+为什么在场景级而不是实体级：两者都是世界的属性。两个实体对"一米是多少像素"意见不一致，就是一个静默的单位
+bug。集成层（`Physics2DWorld`）必须用**同一个** `pixels_per_meter` 创建，`SceneDesc` 因此带着这个值。
+
+### 10.2 实体 `physics`（可选）
+
+```jsonc
+"physics": {
+  "kind": "static",                         // static | kinematic | dynamic
+  "shape": { "box": [200.0, 12.0] },        // 半宽高，**像素**（与其它尺寸同一单位）
+  // "shape": { "circle": 25.0 },           // 半径，像素；与 box 互斥
+  "density": 1.0,                           // 可选，>= 0
+  "friction": 0.5,                          // 可选，>= 0
+  "restitution": 0.0,                       // 可选，0..1
+  "sensor": false                           // 可选；true = 只上报接触，不产生解算响应
+}
+```
+
+- `shape` 必填，`box` 与 `circle` **互斥**（两个都给是错误，不是"优先取一个"）。
+- 尺寸用像素，因为文档里所有尺寸都是像素；loader 除以 `pixels_per_meter` 换成米，**只有这一处换算**。
+- 角度：屏幕 y 向下、CCW；物理 y 向上。loader 与集成层各翻转一次符号，符号错误会表现为"旋转方向反了"。
+- 行为归属：`dynamic` 的 `Transform2D` **由物理写回**；`kinematic` 由代码写 `Transform2D`、集成层再推给物理；
+  `static` 两者都不动。
+
+### 10.3 已知限制
+
+- 一个实体一个形状（多 fixture 留待后续），没有关节、没有 CCD。
+- 没有射线/点查询（T3.1a 时明确延后，等真实调用方）。
+- `physics` 不参与 Prefab override 白名单：目前只能在 Prefab 本体里定义，实例不能只改尺寸/类型。

@@ -304,7 +304,8 @@ constexpr std::string_view kSpriteKeys[] = {"texture", "source", "size",     "pi
                                             "layer",   "sort_key", "flip_x", "flip_y", "atlas",
                                             "frame"};
 constexpr std::string_view kCameraKeys[] = {"zoom", "viewport", "active"};
-constexpr std::string_view kEntityKeys[] = {"id", "name", "tags", "transform", "sprite", "camera", "lifetime"};
+constexpr std::string_view kEntityKeys[] = {"id", "name", "tags", "transform", "sprite", "camera", "lifetime",
+                                            "physics"};
 // A prefab instance is `{ id, prefab, overrides? }` and nothing else.
 constexpr std::string_view kPrefabInstanceKeys[] = {"id", "prefab", "overrides"};
 // Overridable per block. What is *absent* is the point: a prefab instance may move,
@@ -316,8 +317,12 @@ constexpr std::string_view kOverrideCameraKeys[] = {"zoom", "viewport", "active"
 constexpr std::string_view kPrefabDocumentKeys[] = {"schema_version", "kind", "id", "entity"};
 // A prefab body is a scene entity body minus identity: every instance supplies its own
 // id, so an id here would be read by nobody and silently ignored.
-constexpr std::string_view kPrefabEntityKeys[] = {"name", "tags", "transform", "sprite", "camera", "lifetime"};
-constexpr std::string_view kSceneKeys[] = {"schema_version", "id", "name", "entities"};
+constexpr std::string_view kPrefabEntityKeys[] = {"name", "tags", "transform", "sprite", "camera", "lifetime",
+                                                  "physics"};
+constexpr std::string_view kSceneKeys[] = {"schema_version", "id", "name", "entities", "physics"};
+constexpr std::string_view kScenePhysicsKeys[] = {"gravity", "pixels_per_meter"};
+constexpr std::string_view kPhysicsKeys[] = {"kind", "shape", "density", "friction", "restitution", "sensor"};
+constexpr std::string_view kPhysicsShapeKeys[] = {"box", "circle"};
 constexpr std::string_view kTagActive = "active";
 constexpr std::string_view kTagStatic = "static";
 constexpr std::string_view kTagRejected = "pending_destroy";
@@ -348,6 +353,122 @@ auto ReadTransform(Ctx& ctx, const Value& value, const std::string& entity, Tran
 // The frame is looked up here rather than by the provider so a missing frame can list
 // the frames the atlas does have: "no frame \"gren\"" plus the available names is a
 // one-glance fix, while "atlas resolution failed" is a trip back to the atlas file.
+// Reads one entity's physics shell (v2). Sizes stay in pixels here; dividing by
+// pixels-per-metre is the loader's job, so a scene file never mixes units.
+auto ReadPhysics(Ctx& ctx, const Value& value, const std::string& entity, PhysicsDesc& out) -> bool {
+    if (!value.IsObject()) {
+        Report(ctx, value, entity, "physics", "expected an object, got " + std::string{KindName(value.kind)});
+        return false;
+    }
+    CheckKeys(ctx, value, entity, "physics", kPhysicsKeys);
+
+    bool ok = true;
+
+    if (const auto* member = value.Find("kind"); member != nullptr) {
+        std::string kind{};
+        if (ReadString(ctx, *member, entity, "physics.kind", kind, 16)) {
+            if (kind == "static") {
+                out.kind = PhysicsDesc::Kind::Static;
+            } else if (kind == "kinematic") {
+                out.kind = PhysicsDesc::Kind::Kinematic;
+            } else if (kind == "dynamic") {
+                out.kind = PhysicsDesc::Kind::Dynamic;
+            } else {
+                Report(ctx, *member, entity, "physics.kind",
+                       "unknown kind \"" + kind + "\" (allowed: \"static\", \"kinematic\", \"dynamic\")");
+                ok = false;
+            }
+        } else {
+            ok = false;
+        }
+    }
+
+    if (const auto* member = value.Find("shape"); member == nullptr) {
+        Report(ctx, value, entity, "physics.shape", "physics requires a \"shape\": {\"box\": [hx, hy]} or {\"circle\": r}");
+        ok = false;
+    } else if (!member->IsObject()) {
+        Report(ctx, *member, entity, "physics.shape",
+               "expected an object, got " + std::string{KindName(member->kind)});
+        ok = false;
+    } else {
+        CheckKeys(ctx, *member, entity, "physics.shape", kPhysicsShapeKeys);
+        const auto* box = member->Find("box");
+        const auto* circle = member->Find("circle");
+        if (box != nullptr && circle != nullptr) {
+            Report(ctx, *member, entity, "physics.shape", "a shape is either a \"box\" or a \"circle\", not both");
+            ok = false;
+        } else if (box != nullptr) {
+            algo::Vec2 half_extent{};
+            if (ReadVec2(ctx, *box, entity, "physics.shape.box", half_extent)) {
+                if (half_extent.GetX() <= 0.0F || half_extent.GetY() <= 0.0F) {
+                    Report(ctx, *box, entity, "physics.shape.box",
+                           "box half-extents must be greater than zero on both axes");
+                    ok = false;
+                } else {
+                    out.half_extent = half_extent;
+                    out.radius = 0.0F;
+                }
+            } else {
+                ok = false;
+            }
+        } else if (circle != nullptr) {
+            float radius = 0.0F;
+            if (ReadFloat(ctx, *circle, entity, "physics.shape.circle", radius)) {
+                if (radius <= 0.0F) {
+                    Report(ctx, *circle, entity, "physics.shape.circle", "circle radius must be greater than zero");
+                    ok = false;
+                } else {
+                    out.radius = radius;
+                }
+            } else {
+                ok = false;
+            }
+        } else {
+            Report(ctx, *member, entity, "physics.shape", "shape needs either \"box\" or \"circle\"");
+            ok = false;
+        }
+    }
+
+    if (const auto* member = value.Find("density"); member != nullptr)
+        ok = ReadFloat(ctx, *member, entity, "physics.density", out.density) && ok;
+    if (const auto* member = value.Find("friction"); member != nullptr)
+        ok = ReadFloat(ctx, *member, entity, "physics.friction", out.friction) && ok;
+    if (const auto* member = value.Find("restitution"); member != nullptr)
+        ok = ReadFloat(ctx, *member, entity, "physics.restitution", out.restitution) && ok;
+    if (const auto* member = value.Find("sensor"); member != nullptr)
+        ok = ReadBool(ctx, *member, entity, "physics.sensor", out.is_sensor) && ok;
+
+    if (out.density < 0.0F || out.friction < 0.0F || out.restitution < 0.0F || out.restitution > 1.0F) {
+        Report(ctx, value, entity, "physics",
+               "density and friction must be >= 0 and restitution must be in 0..1");
+        ok = false;
+    }
+    return ok;
+}
+
+// Reads the scene-level physics block: the scale and the gravity that the integration layer
+// must be created with. Kept scene-level because both are properties of the world, not of an
+// entity, and two entities disagreeing about pixels-per-metre would be a silent unit bug.
+auto ReadScenePhysics(Ctx& ctx, const Value& value, SceneDesc& out) -> void {
+    if (!value.IsObject()) {
+        Report(ctx, value, {}, "physics", "expected an object, got " + std::string{KindName(value.kind)});
+        return;
+    }
+    CheckKeys(ctx, value, {}, "physics", kScenePhysicsKeys);
+    if (const auto* member = value.Find("pixels_per_meter"); member != nullptr) {
+        float scale = 100.0F;
+        if (ReadFloat(ctx, *member, {}, "physics.pixels_per_meter", scale)) {
+            if (scale <= 0.0F) {
+                Report(ctx, *member, {}, "physics.pixels_per_meter", "pixels_per_meter must be greater than zero");
+            } else {
+                out.pixels_per_meter = scale;
+            }
+        }
+    }
+    if (const auto* member = value.Find("gravity"); member != nullptr)
+        (void)ReadVec2(ctx, *member, {}, "physics.gravity", out.gravity);
+}
+
 auto ResolveAtlasFrame(Ctx& ctx, const Value& atlas_value, const Value& frame_value, const std::string& entity,
                        SpriteDesc& out, const AtlasProvider& atlas_provider) -> bool {
     std::string atlas_uri{};
@@ -613,6 +734,13 @@ auto ReadEntityBody(Ctx& ctx, const Value& value, const std::string& label, Enti
         CameraDesc camera{};
         if (ReadCamera(ctx, *member, label, camera))
             out.camera = camera;
+        else
+            ok = false;
+    }
+    if (const auto* member = value.Find("physics"); member != nullptr) {
+        PhysicsDesc physics{};
+        if (ReadPhysics(ctx, *member, label, physics))
+            out.physics = physics;
         else
             ok = false;
     }
@@ -920,7 +1048,8 @@ auto ParseScene(const std::string_view text, const std::string_view uri, const P
     std::int64_t version_value = 0;
     if (!ReadInteger(ctx, *version, {}, "schema_version", version_value))
         return outcome;
-    if (version_value != static_cast<std::int64_t>(kSchemaVersion)) {
+    if (version_value < static_cast<std::int64_t>(kOldestSupportedSchemaVersion) ||
+        version_value > static_cast<std::int64_t>(kSchemaVersion)) {
         Diagnostic diagnostic{};
         diagnostic.uri = std::string{uri};
         diagnostic.line = version->line;
@@ -933,7 +1062,7 @@ auto ParseScene(const std::string_view text, const std::string_view uri, const P
     }
 
     SceneDesc scene{};
-    scene.schema_version = kSchemaVersion;
+    scene.schema_version = static_cast<std::uint32_t>(version_value);
 
     CheckKeys(ctx, root, {}, "", kSceneKeys);
 
@@ -961,6 +1090,12 @@ auto ParseScene(const std::string_view text, const std::string_view uri, const P
     if (const auto* name = root.Find("name"); name != nullptr) {
         if (ReadString(ctx, *name, {}, "name", scene.name, 64))
             scene.has_name = !scene.name.empty();
+    }
+
+    if (const auto* physics = root.Find("physics"); physics != nullptr)
+        ReadScenePhysics(ctx, *physics, scene);
+    else if (scene.schema_version >= 2) {
+        // Not an error: a v2 document may still be physics-free (a menu scene, a test).
     }
 
     const auto* entities = root.Find("entities");
@@ -1064,7 +1199,8 @@ auto ParsePrefab(const std::string_view text, const std::string_view uri, const 
         std::int64_t version_value = 0;
         if (!ReadInteger(ctx, *version, {}, "schema_version", version_value))
             return outcome;
-        if (version_value != static_cast<std::int64_t>(kSchemaVersion)) {
+        if (version_value < static_cast<std::int64_t>(kOldestSupportedSchemaVersion) ||
+        version_value > static_cast<std::int64_t>(kSchemaVersion)) {
             Report(ctx, *version, {}, "schema_version",
                    "unsupported schema_version " + std::to_string(version_value) + " (this build reads " +
                        std::to_string(kSchemaVersion) + "); refusing to guess");
