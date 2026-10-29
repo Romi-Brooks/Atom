@@ -1,7 +1,7 @@
-# Example/Game — 2D smoke scene (T1.3)
+# Example/Game — 2D scene demo (T2.2)
 
-引擎里第一个**真正持有 `GameWorld` 的 Screen**：硬编码世界、真实 `res://` 贴图、键盘驱动角色、跟随相机。
-它是 T2.2 的替换目标——`SeedSmokeScene` 就是将来被 Scene loader 取代的那个函数。
+引擎里第一个**世界来自场景文件**的示例：`Assets/scenes/smoke_room.scene.json` 定义房间内容，C++ 只负责
+系统、渲染和一段装饰用的地板。
 
 ## 运行
 
@@ -14,34 +14,41 @@ cmake --build cmake-build-debug --target Example_2D_Smoke
 - Space：暂停世界（画面继续渲染，所以"暂停"是可见的）
 - 关闭窗口：退出
 
-![smoke scene](smoke-scene.png)
+![scene demo](smoke-scene.png)
+
+截图里的东西全部来自场景文件：两块木箱、玩家、图集子矩形（绿块），以及被 `flip_x` 镜像的粉色小旗
+（`pivot` 设为底部居中，所以它插在地上）。
+
+## 数据来自哪里
+
+| 内容 | 来源 |
+|---|---|
+| 相机、玩家、木箱、图集格、过期标记 | `Assets/scenes/smoke_room.scene.json`（6 个实体） |
+| 地板 | C++ 生成（`AddBackdrop`）：**装饰**，T5.1 的 Tilemap 会用地砖集生成这一层 |
+| 移动与跟随相机 | C++ 系统（`RegisterSmokeSystems`） |
+
+改关卡不需要重编译：编辑 JSON，重开程序即可。格式见 `Docs/Plans/Scene-Schema-v1-CN.md`。
 
 ## 它验证了什么
 
 | 环节 | 落点 |
 |---|---|
-| `GameScreen` 拥有 `GameWorld`，按正确顺序跑一帧 | `Runtime/GameScreen.*`（G0.1 决策写在头文件顶部） |
-| 帧节奏：宿主 FixedUpdate 0..N + Update 1 → 世界 `Input → FixedUpdate×N → Update → LateUpdate` | `Atom_Runtime.GameScreenFrame` |
-| 组件词汇：变换 / 显示副本 / 精灵 / 相机 / Lifetime / 场景 id | `ECS/Components.hpp`（T1.1） |
-| `res://` → 纹理句柄 → 精灵排序 → 一次绘制 | `Render/Scene2D/`（T1.2） |
-| 内容根与开发期挂载约定 | `Assets/` + `SmokeMain.cpp` |
+| JSONC 解析、行号列号报错 | `Scene/Json/JsonReader`（`Atom_Scene.JsonReader`） |
+| 字段/取值/相机唯一性校验、错误一次收集 | `Scene/SceneSchema`（`Atom_Scene.SceneLoader`） |
+| 加载到**临时**世界，成功后一次替换 | `Scene/SceneLoader` + `GameWorld::ReplaceEntities` |
+| 替换后系统仍在跑、帧计数不重置 | `Atom_Runtime.WorldReplace` |
+| 系统按 `SceneEntityId` 查实体，而不是缓存句柄 | `FindBySceneId` |
 
-## 内容根（G0.5）
+## 两个必须知道的坑
 
-`SmokeMain.cpp` 启动时把 `ATOM_SOURCE_ROOT/Assets` 以 priority 200 挂到 `res://`，所以
-`SpriteRenderer::texture_uri` 里的 `res://textures/player.png` 是真实 VFS 查找，不是构造期路径。
-
-美术是占位图，由 `Assets/generate_textures.py` 生成（Pillow）：
-
-```powershell
-python Assets\generate_textures.py
-```
-
-发布期同一批 URI 改由 APKG 提供，`SmokeScreen` 与 `Render/Scene2D` 都不用改。
+1. **不要缓存 `Entity`**。换世界后索引会重用，旧句柄可能"碰巧还活着"——新世界的第一个实体与旧世界的第一个
+   实体有相同的 index/generation。要么每帧按 `SceneEntityId` 查，要么把
+   `GameWorld::GetWorldGeneration()` 一起缓存、变了就重查。
+2. **地板是代码加的**。它在换世界之后创建，否则会被整体替换掉。T5.1 之后这一层交给 Tilemap。
 
 ## 刻意不做
 
-- 没有 Scene loader（T2.2 才做），所以"贴图不显示"不可能是 schema 的问题；
 - 没有物理与碰撞（T3.1），移动是直接写 `Transform2D`；
-- 没有 HUD 与重开流程（T3.3），暂停只切换世界的推进；
+- 没有 HUD 与重开流程（T3.3）；
+- 没有 Prefab（T2.3）与 Tilemap（T5.1）；
 - 不写 `Atom.cpp`：示例是独立可执行文件，引擎入口保持干净。

@@ -49,4 +49,14 @@ auto GameScreen::Update(const float deltaTime) -> void {
     OnWorldFrameAdvanced(delta);
 }
 
+auto GameScreen::ReplaceWorldEntities(std::unique_ptr<ecs::EntityWorld> entities) -> void {
+    // A null storage would leave the screen with no world to run; ignore it rather
+    // than crash the loop, and keep the existing one.
+    if (entities == nullptr)
+        return;
+    // The previous storage dies here: nothing in Runtime holds raw ECS pointers, and
+    // a caller that needed the old world would have to keep it before swapping.
+    (void)world_->ReplaceEntities(std::move(entities));
+}
+
 } // namespace atom::runtime

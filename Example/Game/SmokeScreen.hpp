@@ -1,14 +1,23 @@
 /**
  * @file SmokeScreen.hpp
- * @brief T1.3 - a GameScreen with a hard-coded world, real res:// sprites, and a
- *        camera, i.e. the smallest thing that proves T1.1 + T1.2 end to end.
+ * @brief T2.2 - a GameScreen whose world comes from a scene document.
  *
- * Deliberately has no Scene loader: the world is built in code by
- * `SeedSmokeScene`, so a broken Scene schema cannot be blamed for a broken sprite
- * pipeline. T2.2 replaces exactly this function with a loader call.
+ * What changed from T1.3: the room's entities (camera, player, crates, atlas cell,
+ * expiring marker) are no longer built in C++. They come from
+ * `res://scenes/smoke_room.scene.json` through SceneLoader, and the switch into the
+ * running world is a single `GameWorld::ReplaceEntities`.
  *
- * Content root (G0.5): main() mounts the repository's Assets/ directory as
- * res://, so the sprite URIs below are real VFS lookups, not paths.
+ * Two consequences the code shows explicitly:
+ *
+ *  - systems cannot cache an Entity handle. A swap replaces the slot table, so a
+ *    cached handle can even be "alive" again by accident (the new world's first
+ *    entity has the same index+generation); every system looks its entity up by
+ *    SceneEntityId instead (`FindBySceneId`).
+ *  - the backdrop (the floor grid) is still generated in code. It is decoration, not
+ *    scene content: T5.1's Tilemap will generate layers like this from a tileset.
+ *
+ * Content root (G0.5): main() mounts the repository's Assets/ directory as res://,
+ * so the URIs in the scene document are real VFS lookups, not paths.
  */
 
 #ifndef ATOM_EXAMPLE_GAME_SMOKESCREEN_HPP
@@ -18,14 +27,22 @@
 #include <cstdint>
 #include <string_view>
 
+#include <ECS/Entity.hpp>
+#include <ECS/EntityWorld.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <Render/Resources/TextureCache.hpp>
 #include <Render/Scene2D/Scene2DRenderer.hpp>
 #include <Render/Scene2D/TextureCacheResolver.hpp>
 #include <Runtime/GameScreen.hpp>
+#include <Runtime/GameWorld.hpp>
 
 namespace atom::game {
+
+// Stable ids from Assets/scenes/smoke_room.scene.json: the contract between the
+// document and the systems, named once instead of repeated as magic numbers.
+inline constexpr std::uint32_t kCameraSceneId = 1;
+inline constexpr std::uint32_t kPlayerSceneId = 2;
 
 class SmokeScreen final : public runtime::GameScreen {
     public:
@@ -35,6 +52,12 @@ class SmokeScreen final : public runtime::GameScreen {
 
         SmokeScreen(const SmokeScreen&) = delete;
         auto operator=(const SmokeScreen&) -> SmokeScreen& = delete;
+
+        // Loads res://scenes/smoke_room.scene.json and makes it the running world.
+        // Called by main before the loop starts. A failure leaves the current world
+        // untouched and reports why - the whole point of loading into a temporary
+        // world first.
+        [[nodiscard]] auto LoadRoom() -> Result<void>;
 
         auto Render(render::IRenderDevice& device) -> void override;
         auto HandleEvent(const window::IEvent& event) -> bool override;
@@ -52,6 +75,7 @@ class SmokeScreen final : public runtime::GameScreen {
         [[nodiscard]] auto CameraZoom() const noexcept -> float {
             return camera_zoom_;
         }
+        [[nodiscard]] auto EntityCount() const -> std::size_t;
 
     protected:
         auto OnWorldFrameAdvanced(float delta_seconds) -> void override;
@@ -70,10 +94,13 @@ class SmokeScreen final : public runtime::GameScreen {
         bool render_failed_ = false;
 };
 
-// Builds the smoke scene into a world: a camera, a player, a floor of sprites with
-// colliding sort keys, two crates, and one atlas cell to prove the source-rect
-// path. Exposed so a test could seed the same world without a window.
-[[nodiscard]] auto SeedSmokeScene(runtime::GameWorld& world) -> Result<void>;
+// Looks an entity up by its stable scene id. Systems use this instead of caching a
+// handle, because a scene swap invalidates every handle it did not create.
+[[nodiscard]] auto FindBySceneId(ecs::EntityWorld& entities, std::uint32_t scene_id) -> ecs::Entity;
+
+// Registers the demo's systems. Called from the GameScreen setup callback, so the
+// systems exist before the first frame and survive the scene swap.
+[[nodiscard]] auto RegisterSmokeSystems(runtime::GameWorld& world) -> Result<void>;
 
 } // namespace atom::game
 

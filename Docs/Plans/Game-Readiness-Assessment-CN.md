@@ -1,6 +1,6 @@
 # Atom 2D 游戏就绪度：任务清单与实施计划
 
-> 更新日期：2026-10-25（新增 §3.2 实施复核：五处被低估的工作量；A0.1/A0.2/A0.3 已实施，见各项状态）
+> 更新日期：2026-10-25（§3.2 五处被低估的工作量；A0.1–A0.3、T1.1–T1.3、T2.1–T2.2 已实施，见各项状态）
 > 目标：Windows/Linux 桌面端、键盘鼠标优先的通用 2D 引擎底座。它优先支持正交 Tilemap 与中大型可流送世界，
 > 但不把经营、RPG、横版、弹幕等任何具体玩法写进引擎核心。
 >
@@ -327,25 +327,35 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 
 ### 阶段 2：Scene 与 Prefab（先可加载，再通用）
 
-- [~] **T2.1 — Scene schema 与资源格式决策。**
+- [x] **T2.1 — Scene schema 与资源格式决策。**
   - 新增位置：`Scene/` 或 `Runtime/Scene/`；格式文档放 `Docs/Plans/`。
   - 首期建议：人可读 JSON/JSONC 源文件，显式 `schema_version`，所有资产使用 `res://` URI；发布期可再 cook 为二进制。
   - 最小字段：Scene id/version、实体局部 id、名称、Transform、Sprite、Camera、后续 Physics 壳、资源 URI。
   - 明确拒绝：未知组件、未知字段、循环 Prefab、跨 Scene entity 引用、任意 C++/Lua 对象序列化。
   - **已落地（2026-10-25）**：格式与校验规则冻结在 [Scene-Schema-v1-CN.md](Scene-Schema-v1-CN.md)（JSONC 语法、单位与
     坐标约定、字段表与默认值、未知字段一律拒绝、错误诊断格式、与 ECS 组件的唯一映射、v2 预留清单）。样例与反例在
-    `Assets/Scenes/`：`smoke_room.scene.json`（6 个实体，覆盖全部 v1 字段）+ `Invalid/{unknown_field,duplicate_id,
+    `Assets/scenes/`：`smoke_room.scene.json`（6 个实体，覆盖全部 v1 字段）+ `Invalid/{unknown_field,duplicate_id,
     bad_version}.scene.json`，已用脚本验证语法可解析。
   - **剩余（一项决策）**：解析器选型。文档 §8 给出 A（自研 `Scene/Json` tokenizer，推荐）与 B（引入
     `nlohmann/json`）的对比与理由；确认后 T2.2 按所选方案实现。该决策只影响实现方式，不影响已冻结的格式。
   - 验收：schema 有样例、版本号和错误诊断规范；选择/引入的解析器不泄漏进 ECS/Render 公共 API。
   - 依赖：T1.1。
 
-- [ ] **T2.2 — SceneData、SceneLoader 与原子切换。**
-  - 新增位置：`Scene/SceneData.*`、`Scene/SceneLoader.*`、`Scene/SceneTransition.*`。
-  - 工作：VFS 读取；解析/语义校验；在临时 `GameWorld` 创建实体；所有步骤成功后才替换 active world。
+- [x] **T2.2 — SceneData、SceneLoader 与原子切换。**
+  - 新增位置：`Scene/`（`Json/JsonReader`、`SceneTypes`、`SceneSchema`、`SceneLoader`）。
+  - 工作：VFS 读取；解析/语义校验；在临时世界里建实体；所有步骤成功后才替换 active world。
     加载失败保留旧 world 并返回携带 URI、实体 id 和字段名的 `Error`。
-  - 验收：有效 Scene 加载后实体数量/组件/引用正确；缺资源、无效 URI、重复 id、版本不支持和未知组件都不会部分替换当前世界。
+  - **已落地（2026-10-25）**：新增 `Atom_Scene` target（依赖 ECS/FS/Log/Math/Color，**不依赖 Runtime**）。
+    `SceneLoader::Load` 读 VFS → `ParseScene` → `BuildWorld`，返回一个**全新的** `EntityWorld`；切换由
+    `GameWorld::ReplaceEntities` 的一次指针交换完成，系统与帧计数保留，待提交命令与事件丢弃（它们引用旧实体）。
+    活动相机先创建，从而拿到最低实体索引，`Render/Scene2D` 因此不需要"active"标志。
+    `Example/Game` 已改为加载 `res://scenes/smoke_room.scene.json`：房间内容全部来自文档，只有地板仍是代码生成的
+    装饰（T5.1 交给 Tilemap）；系统改为按 `SceneEntityId` 查实体，不再缓存句柄。
+  - **顺带发现的坑（已写进代码与文档）**：`Entity` 是 (index, generation)，而 generation 属于**某个世界的槽表**。
+    换世界后新世界第一个实体的 (index, generation) 与旧世界的第一个实体相同，`IsAlive()` 因此会误判旧句柄仍有效。
+    新增 `GameWorld::GetWorldGeneration()`：系统把 generation 与句柄一起缓存，变化即按 `SceneEntityId` 重查。
+  - 验收：有效 Scene 加载后实体数量/组件/引用正确；缺资源、无效 URI、重复 id、版本不支持和未知组件都不会部分替换
+    当前世界。（`Atom_Scene.JsonReader`、`Atom_Scene.SceneLoader`、`Atom_Runtime.WorldReplace`）
   - 依赖：T1.1、T1.2、T2.1。
   - 预计：约 1,500–2,500 行实现与测试。
 
@@ -455,10 +465,10 @@ A0.4/A0.5 必须在各自领域出现新功能前完成，可与硬门并行；�
 ## 7. 执行顺序、依赖与里程碑
 
 ```text
-已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3
+已完成：T0.1 / T0.2 / T0.3；A0.1 / A0.2 / A0.3；M1 = T1.1 / T1.2 / T1.3；T2.1 / T2.2
 
 M1 可见实体：T1.1 -> T1.2 -> T1.3                    ✅
-M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            <- 当前
+M2 可加载关卡：M1 -> T2.1 -> T2.2 -> T2.3            T2.1/T2.2 ✅，T2.3 待做
 M3 可玩闭环：M2 + T3.1 + T3.2 -> T3.3
 M4 P0 可交付：M3 -> T4.1 / T4.2 / T4.3
 M5 内容与世界：M4 -> T5.1 / T5.2 / T5.3 -> T5.4
@@ -467,20 +477,28 @@ M6 规模与表现：M5 -> T6.1 / T6.2 / T6.3
 
 ### 当前下一项
 
-**M1 可见实体已完成（2026-10-25）**：A0.1/A0.2/A0.3 三个硬门通过；T1.1（六个组件 + 准入规则 +
-`Emplace` 四种形态）、T1.2（`Atom_Scene2D` + `Renderer2D` 翻转 + 相机映射 + 提交前排序）、T1.3
-（`Screen::BeginFrame` 帧节奏桥 + `Runtime/GameScreen` + `Example_2D_Smoke` 实机跑通）全部落地，CTest 69/69。
-A0.4/A0.5/A0.6 的剩余项按各自领域节奏推进，不阻塞 M2。
+**M1 可见实体（2026-10-25 完成）**：A0.1/A0.2/A0.3 三个硬门通过；T1.1（六个组件 + 准入规则 + `Emplace` 四种
+形态）、T1.2（`Atom_Scene2D` + `Renderer2D` 翻转 + 相机映射 + 提交前排序）、T1.3（`Screen::BeginFrame` 帧节奏桥 +
+`Runtime/GameScreen` + `Example_2D_Smoke` 实机跑通）。
 
-**未完成的已知项（不阻塞 M2，但需在 M3 前处理）**：
+**M2 可加载关卡（2026-10-25 完成 T2.1 + T2.2）**：`Docs/Plans/Scene-Schema-v1-CN.md` 冻结 v1 格式（JSONC、未知
+字段一律拒绝、错误诊断格式、与 ECS 组件的唯一映射）；`Atom_Scene` 提供 `Scene/Json/JsonReader`、
+`Scene/SceneSchema`、`Scene/SceneLoader`，原子切换走 `GameWorld::ReplaceEntities`；
+`Example_2D_Smoke` 的房间现在全部来自 `Assets/scenes/smoke_room.scene.json`。CTest 72/72。
+
+**未完成的已知项（不阻塞 M3，但需在 T3.1/T3.3 前处理）**：
 
 - G0.3 的剩余两项：最近邻采样器（像素风必需）与旋转精灵（`Renderer2D` 无旋转视图/旋转四边形）。
   T1.2 的文档与验收均未声称支持，接入像素美术前必须补。
-- `RenderTransform2D` 目前是纯拷贝，固定步与显示帧之间没有插值（需要 previous-state 缓冲与 alpha）。
+- `RenderTransform2D` 目前是纯拷贝，固定步与显示帧之间没有插值（需要 previous-state 缓冲；`alpha` 时钟里已有）。
+- **美术管线**（独立模块 `Sprite/`，约 800–1500 行）：图集元数据 + 每精灵 pivot/矩形 + 过滤模式。它和 Scene loader
+  共用同一个读取器，所以最省的做法是在 T2.3（Prefab）同一批里做；动画仍留 M5。
+- **Example 合并不做（已决定）**：17 个 example 保持独立可执行。理由是无窗口工具（ECS/Job tour、Physics
+  benchmark、Packager GUI、audio metadata）本就该独立，而 windowed demo 迁移成本高、收益被 T3.3 覆盖。T3.3 的
+  vertical slice 直接长在 `Example/Game` 里，不另起示例。
 
-**下一步进入 M2（可加载关卡）**：T2.1 先冻结 Scene schema（`schema_version`、`res://` URI、显式拒绝未知组件/
-字段），T2.2 再做 `SceneData`/`SceneLoader`/原子切换；`Example_2D_Smoke` 的 `SeedSmokeScene` 就是 T2.2 要替换的
-那个函数，替换后 `Example_2D_Smoke` 即可升级为读取真实场景文件的示例。
+**下一步进入 M2 收尾 + M3**：T2.3 平面 Prefab（同批做 `Sprite/` 图集元数据），随后 T3.2 游戏输入动作边界 →
+T3.1 物理集成（先按 G0.4 扩契约：sensor/user-data/查询）→ T3.3 第一个 vertical slice。
 
 ## 8. 明确禁止的提前扩张
 

@@ -1,16 +1,20 @@
 /**
  * @file SmokeMain.cpp
- * @brief T1.3 entry point: a window, the repository's Assets/ mounted as res://,
- *        and one GameScreen driving a hard-coded 2D world.
+ * @brief T2.2 entry point: a window, the repository's Assets/ mounted as res://, and
+ *        one GameScreen whose world is loaded from a scene document.
  *
- * The content-root convention (G0.5) is stated here rather than hidden in a
- * helper: development runs mount ATOM_SOURCE_ROOT/Assets at priority 200, so
- * `res://textures/player.png` in a component resolves to a real file in the
- * checkout. A packaged build would mount the same URIs from game.apkg instead and
- * nothing above this point would change.
+ * The content-root convention (G0.5) is stated here rather than hidden in a helper:
+ * development runs mount ATOM_SOURCE_ROOT/Assets at priority 200, so
+ * `res://scenes/smoke_room.scene.json` and the sprite URIs inside it resolve to real
+ * files in the checkout. A packaged build would mount the same URIs from game.apkg
+ * and nothing above this point would change.
+ *
+ * Order matters: the scene is loaded *before* the screen is registered, so a broken
+ * scene fails at boot with a diagnostic instead of showing an empty world and letting
+ * the author wonder why nothing is drawn.
  *
  * Controls: WASD/arrows move, Space pauses the world (the scene keeps rendering),
- * window close or Escape quits (the host owns closing; this screen does not).
+ * window close quits.
  */
 
 #include <memory>
@@ -61,7 +65,14 @@ auto main() -> int {
         return 1;
 
     auto& screens = atom::ScreenManager::GetInstance();
-    const auto loaded = screens.LoadScreen("Smoke2D", std::make_unique<atom::game::SmokeScreen>());
+
+    auto screen = std::make_unique<atom::game::SmokeScreen>();
+    if (auto room = screen->LoadRoom(); !room.has_value()) {
+        LOG_ERROR(atom::log::core::Main, "The scene failed to load: " + room.error().Message());
+        return 1;
+    }
+
+    const auto loaded = screens.LoadScreen("Smoke2D", std::move(screen));
     if (loaded != atom::ScreenOpResult::Success) {
         LOG_ERROR(atom::log::core::ScreenManager,
                   "Failed to register the 2D smoke screen: " + std::string{atom::ToString(loaded)});
@@ -74,7 +85,7 @@ auto main() -> int {
 
     auto& window = atom::RenderWindow::GetInstance();
     auto& application = atom::runtime::Application::GetInstance();
-    const auto initialized = application.Initialize("Atom Engine - 2D Smoke Scene (T1.3)",
+    const auto initialized = application.Initialize("Atom Engine - 2D Scene Demo (T2.2)",
                                                     atom::algo::Vec2{static_cast<float>(kWindowWidth),
                                                                      static_cast<float>(kWindowHeight)},
                                                     atom::backend::RenderBackendId::SdlGpu);

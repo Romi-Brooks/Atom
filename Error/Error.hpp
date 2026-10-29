@@ -60,6 +60,7 @@ enum class Module : std::uint8_t {
     // keeping additions at the end makes review diffs trivial.
     Ecs,
     Physics,
+    Scene,
 };
 
 enum class ErrorCode : std::uint32_t {
@@ -188,6 +189,14 @@ enum class ErrorCode : std::uint32_t {
     PhysicsBackendCreationFailed,
     PhysicsWorldCreationFailed,
     PhysicsBodyCreationFailed,
+
+    // --- Scene (0x0F00) -----------------------------------------------------
+    // A scene document is authored by a human, so every failure here has to be
+    // locatable: the message carries uri:line:column plus the entity and field.
+    SceneInvalidDocument = 0x0F00, // syntax: the file is not valid JSONC
+    SceneUnsupportedVersion,       // schema_version is missing or unknown
+    SceneInvalidField,             // unknown / duplicate / out-of-range field
+    SceneLoadFailed,               // read or world-building failure
 };
 
 // Canonical name of a module, for logs and diagnostics. Named rather than an
@@ -225,6 +234,8 @@ enum class ErrorCode : std::uint32_t {
             return "ecs";
         case Module::Physics:
             return "physics";
+        case Module::Scene:
+            return "scene";
     }
     return "unknown";
 }
@@ -428,6 +439,15 @@ enum class ErrorCode : std::uint32_t {
             return "PhysicsWorldCreationFailed";
         case ErrorCode::PhysicsBodyCreationFailed:
             return "PhysicsBodyCreationFailed";
+
+        case ErrorCode::SceneInvalidDocument:
+            return "SceneInvalidDocument";
+        case ErrorCode::SceneUnsupportedVersion:
+            return "SceneUnsupportedVersion";
+        case ErrorCode::SceneInvalidField:
+            return "SceneInvalidField";
+        case ErrorCode::SceneLoadFailed:
+            return "SceneLoadFailed";
     }
     return "UnknownErrorCode";
 }
@@ -563,6 +583,8 @@ class Error {
             return Module::Ecs;
         case 0x0E00:
             return Module::Physics;
+        case 0x0F00:
+            return Module::Scene;
         default:
             return Module::Core;
     }

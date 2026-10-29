@@ -65,6 +65,15 @@ class GameScreen : public Screen {
             return world_->GetFrameIndex();
         }
 
+        // Hands the world a freshly loaded entity storage (T2.2). Runtime does not
+        // depend on the Scene module on purpose: the game code calls SceneLoader and
+        // passes the result here, so the level format never becomes part of the
+        // frame-loop contract.
+        //
+        // Systems survive the swap; an Entity handle a system cached does not, which
+        // is why scene entities are looked up by SceneEntityId.
+        auto ReplaceWorldEntities(std::unique_ptr<ecs::EntityWorld> entities) -> void;
+
         // A paused screen still receives BeginFrame and Update from the host but
         // does not advance the world, so the frame index stops moving.
         [[nodiscard]] auto IsPaused() const noexcept -> bool {

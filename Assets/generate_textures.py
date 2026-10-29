@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 # The script sits in Assets/, so its own directory is the content root.
-OUT = Path(__file__).resolve().parent / "Textures"
+OUT = Path(__file__).resolve().parent / "textures"
 
 
 def save(image: Image.Image, name: str) -> None:

@@ -3,20 +3,18 @@
 #include <cmath>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <ECS/Components.hpp>
-#include <Filesystem/Vfs.hpp>
 #include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Runtime/System.hpp>
+#include <Scene/SceneLoader.hpp>
 
 namespace atom::game {
 
 namespace {
 
-using ecs::Camera2D;
-using ecs::Entity;
-using ecs::EntityWorld;
 using ecs::RenderTransform2D;
 using ecs::SceneEntityId;
 using ecs::SpriteRenderer;
@@ -26,128 +24,70 @@ using runtime::GameWorld;
 using runtime::SystemPhase;
 
 constexpr float kPlayerSpeed = 220.0F; // pixels per second
-constexpr float kPlayerSize = 32.0F;
 constexpr float kTileSize = 48.0F;
-// Large enough to cover a 1280x720 window plus some camera travel, so the scene
-// reads as a room rather than as a floating patch of floor.
 constexpr int kFloorColumns = 40;
 constexpr int kFloorRows = 25;
-// The camera and the player both start here, so the whole window lands inside the
-// floor instead of showing the void above and to the left of the world origin.
-constexpr float kWorldCenterX = kTileSize * (static_cast<float>(kFloorColumns) * 0.5F);
-constexpr float kWorldCenterY = kTileSize * (static_cast<float>(kFloorRows) * 0.5F);
 
-auto MakeSprite(std::string uri, const float width, const float height) -> SpriteRenderer {
-    SpriteRenderer sprite{};
-    sprite.texture_uri = std::move(uri);
-    sprite.size = {width, height};
-    sprite.pivot = {0.5F, 0.5F};
-    return sprite;
-}
+constexpr std::string_view kRoomSceneUri = "res://scenes/smoke_room.scene.json";
 
-// Builds one sprite entity. The stable scene id is the caller's business: floor
-// tiles do not need one, and keeping it out of here avoids an id-shaped parameter
-// that the tile grid would have to invent values for.
-auto SpawnSprite(EntityWorld& entities, std::string uri, const float x, const float y, const float width,
-                 const float height, const std::int32_t layer, const std::int32_t sort_key) -> Entity {
+// Adds one decorative sprite. Only the backdrop uses this: room content comes from
+// the scene document.
+auto SpawnBackdropTile(ecs::EntityWorld& entities, const float x, const float y, const std::int32_t sort_key) -> bool {
     const auto entity = entities.CreateEntity();
     if (!entities.Emplace<Transform2D>(entity, Transform2D{.position = {x, y}}).has_value())
-        return {};
+        return false;
     if (!entities.Emplace<RenderTransform2D>(entity).has_value())
-        return {};
-    auto sprite = MakeSprite(std::move(uri), width, height);
-    sprite.layer = layer;
+        return false;
+    SpriteRenderer sprite{};
+    sprite.texture_uri = "res://textures/floor.png";
+    sprite.size = {kTileSize, kTileSize};
+    sprite.pivot = {0.5F, 0.5F};
+    sprite.layer = -10;
     sprite.sort_key = sort_key;
-    if (!entities.Emplace<SpriteRenderer>(entity, sprite).has_value())
-        return {};
-    return entity;
+    return entities.Emplace<SpriteRenderer>(entity, sprite).has_value();
 }
 
-} // namespace
-
-auto SeedSmokeScene(GameWorld& world) -> Result<void> {
-    auto& entities = world.GetEntities();
-    auto& scheduler = world.GetScheduler();
-
-    // Every entity here is created directly, not through the command buffer: this
-    // runs during GameScreen construction, before any phase is iterating, so a
-    // structural change is legal. Spawning from inside a phase (T2/T3) must queue.
-    std::uint32_t next_id = 1;
-
-    // --- camera -------------------------------------------------------------
-    const auto camera = entities.CreateEntity();
-    if (auto placed = entities.Emplace<Transform2D>(camera, Transform2D{.position = {kWorldCenterX, kWorldCenterY}});
-        !placed.has_value())
-        return placed;
-    if (auto placed = entities.Emplace<Camera2D>(camera, Camera2D{.zoom = 1.0F}); !placed.has_value())
-        return placed;
-    if (auto placed = entities.Emplace<SceneEntityId>(camera, SceneEntityId{.value = next_id++}); !placed.has_value())
-        return placed;
-
-    // --- floor: a grid whose sort keys collide in pairs ---------------------
-    //
-    // The collision is intentional: two sprites with the same (layer, sort_key) must
-    // still come out in entity order, which is what makes the draw order stable.
+// The floor grid, until T5.1's Tilemap generates layers from a tileset. It is
+// decoration: nothing in the scene document refers to it, and removing it would not
+// change what the room *is*.
+auto AddBackdrop(ecs::EntityWorld& entities) -> bool {
     for (auto row = 0; row < kFloorRows; ++row) {
         for (auto column = 0; column < kFloorColumns; ++column) {
             const auto x = kTileSize * (static_cast<float>(column) + 0.5F);
             const auto y = kTileSize * (static_cast<float>(row) + 0.5F);
-            if (!SpawnSprite(entities, "res://textures/floor.png", x, y, kTileSize, kTileSize, /*layer=*/-10,
-                             /*sort_key=*/row)
-                     .IsValid())
-                return Fail(MakeError(ErrorCode::Internal, Module::Core, "SeedSmokeScene")
-                                .WithDetail("floor tile spawn failed"));
+            if (!SpawnBackdropTile(entities, x, y, row))
+                return false;
         }
     }
+    return true;
+}
 
-    // --- crates -------------------------------------------------------------
-    const auto crate_left = SpawnSprite(entities, "res://textures/crate.png", kWorldCenterX - 160.0F, kWorldCenterY - 90.0F,
-                                        kTileSize, kTileSize, /*layer=*/0, /*sort_key=*/10);
-    const auto crate_right = SpawnSprite(entities, "res://textures/crate.png", kWorldCenterX + 190.0F, kWorldCenterY + 60.0F,
-                                         kTileSize, kTileSize, /*layer=*/0, /*sort_key=*/20);
-    if (!crate_left.IsValid() || !crate_right.IsValid())
-        return Fail(MakeError(ErrorCode::Internal, Module::Core, "SeedSmokeScene").WithDetail("crate spawn failed"));
+} // namespace
 
-    // --- one atlas cell, to exercise the source-rect path -------------------
-    {
-        const auto entity = entities.CreateEntity();
-        if (auto placed = entities.Emplace<Transform2D>(entity, Transform2D{.position = {kWorldCenterX - 300.0F, kWorldCenterY + 130.0F}});
-            !placed.has_value())
-            return placed;
-        if (auto placed = entities.Emplace<RenderTransform2D>(entity); !placed.has_value())
-            return placed;
-        auto sprite = MakeSprite("res://textures/atlas.png", 64.0F, 64.0F);
-        sprite.source_position = {8.0F, 0.0F};
-        sprite.source_size = {8.0F, 8.0F};
-        sprite.layer = 0;
-        sprite.sort_key = 5;
-        if (auto placed = entities.Emplace<SpriteRenderer>(entity, sprite); !placed.has_value())
-            return placed;
-        if (auto placed = entities.Emplace<SceneEntityId>(entity, SceneEntityId{.value = next_id++});
-            !placed.has_value())
-            return placed;
+auto FindBySceneId(ecs::EntityWorld& entities, const std::uint32_t scene_id) -> ecs::Entity {
+    for (const auto entity : entities.With<SceneEntityId>()) {
+        const auto* id = entities.TryGet<SceneEntityId>(entity);
+        if (id != nullptr && id->value == scene_id)
+            return entity;
     }
+    return {};
+}
 
-    // --- player -------------------------------------------------------------
-    const auto player = SpawnSprite(entities, "res://textures/player.png", kWorldCenterX, kWorldCenterY,
-                                    kPlayerSize, kPlayerSize, /*layer=*/10, /*sort_key=*/100);
-    if (!player.IsValid())
-        return Fail(MakeError(ErrorCode::Internal, Module::Core, "SeedSmokeScene").WithDetail("player spawn failed"));
-    if (auto placed = entities.Emplace<SceneEntityId>(player, SceneEntityId{.value = next_id++}); !placed.has_value())
-        return placed;
+auto RegisterSmokeSystems(GameWorld& world) -> Result<void> {
+    auto& scheduler = world.GetScheduler();
 
-    // --- systems ------------------------------------------------------------
-    //
-    // Captured by value: these run during phases, long after the screen exists, and
-    // must not depend on screen members (which are not initialised while the base
-    // GameScreen constructor runs).
+    // Movement. The player is resolved by scene id on every fixed step: a cached
+    // handle would dangle the moment the room is reloaded.
     if (auto added = scheduler.Add(
             SystemPhase::FixedUpdate,
             runtime::SystemDescriptor{
-                "move-player", [player](GameWorld& world_ref, const FrameContext& context) -> Result<void> {
+                "move-player", [](GameWorld& world_ref, const FrameContext& context) -> Result<void> {
+                    auto& entities = world_ref.GetEntities();
+                    const auto player = FindBySceneId(entities, kPlayerSceneId);
+                    if (!player.IsValid())
+                        return Ok();
+
                     const auto& input = input::InputSystem::GetInstance();
-                    // Movement is continuous input: it stops only while a text field
-                    // owns the keyboard.
                     if (input.IsTextInputCapturedByUi())
                         return Ok();
 
@@ -164,13 +104,11 @@ auto SeedSmokeScene(GameWorld& world) -> Result<void> {
                     if (direction_x == 0.0F && direction_y == 0.0F)
                         return Ok();
 
-                    // Normalise so a diagonal is not 1.41x faster.
                     const float length = std::sqrt(direction_x * direction_x + direction_y * direction_y);
                     direction_x /= length;
                     direction_y /= length;
 
-                    auto& entities_ref = world_ref.GetEntities();
-                    auto* transform = entities_ref.TryGet<Transform2D>(player);
+                    auto* transform = entities.TryGet<Transform2D>(player);
                     if (transform == nullptr)
                         return Ok();
                     const float step = kPlayerSpeed * context.delta_seconds;
@@ -179,8 +117,8 @@ auto SeedSmokeScene(GameWorld& world) -> Result<void> {
 
                     // Facing is a sprite property, not a simulation one, so the flip
                     // lives next to the movement that causes it.
-                    if (auto* sprite = entities_ref.TryGet<SpriteRenderer>(player); sprite != nullptr &&
-                                                                                 direction_x != 0.0F) {
+                    if (auto* sprite = entities.TryGet<SpriteRenderer>(player);
+                        sprite != nullptr && direction_x != 0.0F) {
                         sprite->flip_x = direction_x < 0.0F;
                     }
                     return Ok();
@@ -188,18 +126,24 @@ auto SeedSmokeScene(GameWorld& world) -> Result<void> {
         !added.has_value())
         return added;
 
+    // Camera follow. Also resolves both entities by scene id, for the same reason.
     if (auto added = scheduler.Add(
             SystemPhase::LateUpdate,
             runtime::SystemDescriptor{
-                "camera-follow", [player, camera](GameWorld& world_ref, const FrameContext& context) -> Result<void> {
-                    auto& entities_ref = world_ref.GetEntities();
-                    const auto* target = entities_ref.TryGet<Transform2D>(player);
-                    auto* eye = entities_ref.TryGet<Transform2D>(camera);
+                "camera-follow", [](GameWorld& world_ref, const FrameContext& context) -> Result<void> {
+                    auto& entities = world_ref.GetEntities();
+                    const auto player = FindBySceneId(entities, kPlayerSceneId);
+                    const auto camera = FindBySceneId(entities, kCameraSceneId);
+                    if (!player.IsValid() || !camera.IsValid())
+                        return Ok();
+
+                    const auto* target = entities.TryGet<Transform2D>(player);
+                    auto* eye = entities.TryGet<Transform2D>(camera);
                     if (target == nullptr || eye == nullptr)
                         return Ok();
 
-                    // A quarter-second-smoothed follow: frame-rate independent because
-                    // the blend uses the variable delta it is given.
+                    // Frame-rate independent smoothing: the blend uses the variable
+                    // delta the phase was given.
                     const float blend = 1.0F - std::exp(-8.0F * context.delta_seconds);
                     eye->position = algo::Vec2::Lerp(eye->position, target->position, blend);
                     return Ok();
@@ -211,12 +155,44 @@ auto SeedSmokeScene(GameWorld& world) -> Result<void> {
 }
 
 SmokeScreen::SmokeScreen()
-    : GameScreen([](GameWorld& world) -> Result<void> { return SeedSmokeScene(world); }) {}
+    : GameScreen([](GameWorld& world) -> Result<void> { return RegisterSmokeSystems(world); }) {}
 
 SmokeScreen::~SmokeScreen() {
     // The GPU device outlives the screen, so renderer-owned resources must be
     // released before the device goes away.
     renderer_.Shutdown();
+}
+
+auto SmokeScreen::LoadRoom() -> Result<void> {
+    fs::AssetPath path{};
+    if (!fs::AssetPath::TryParse(kRoomSceneUri, path)) {
+        return Fail(MakeError(ErrorCode::SceneLoadFailed, Module::Scene, "SmokeScreen::LoadRoom")
+                        .WithDetail("the room URI is not a valid asset path: " + std::string{kRoomSceneUri}));
+    }
+
+    auto loaded = scene::SceneLoader::Load(fs::Vfs::GetInstance(), path);
+    if (!loaded.has_value())
+        return Fail(std::move(loaded.error()));
+
+    // One call swaps the whole world. Everything above happened in a throwaway
+    // storage, so a failure there left the running world exactly as it was.
+    ReplaceWorldEntities(std::move(loaded->entities));
+
+    // Decoration goes in after the swap: the swap replaces the storage, so anything
+    // added to the old one would simply disappear.
+    if (!AddBackdrop(World().GetEntities())) {
+        return Fail(MakeError(ErrorCode::SceneLoadFailed, Module::Scene, "SmokeScreen::LoadRoom")
+                        .WithDetail("the backdrop floor could not be created"));
+    }
+
+    LOG_INFO(atom::log::core::Screen, "Loaded scene '" + loaded->description.id + "' from " +
+                                          std::string{kRoomSceneUri} + " with " +
+                                          std::to_string(loaded->description.entities.size()) + " entities");
+    return Ok();
+}
+
+auto SmokeScreen::EntityCount() const -> std::size_t {
+    return World().GetEntities().AliveCount();
 }
 
 auto SmokeScreen::OnWorldFrameAdvanced(const float /*delta_seconds*/) -> void {
@@ -258,8 +234,8 @@ auto SmokeScreen::HandleEvent(const window::IEvent& event) -> bool {
     if (key.key != input::Key::Space)
         return false;
 
-    // Space toggles the world without stopping the host: the screen keeps
-    // rendering, so a paused scene is visibly paused.
+    // Space toggles the world without stopping the host: the screen keeps rendering,
+    // so a paused scene is visibly paused.
     SetPaused(!IsPaused());
     return true;
 }

@@ -39,6 +39,25 @@ auto GameWorld::CommitStructuralChanges() -> Result<void> {
     return commands_.Flush(*entities_);
 }
 
+auto GameWorld::ReplaceEntities(std::unique_ptr<ecs::EntityWorld> entities) -> std::unique_ptr<ecs::EntityWorld> {
+    if (entities == nullptr)
+        return nullptr;
+
+    // Both buffers hold handles into the storage being replaced, so they are cleared
+    // rather than flushed: applying them to the new world would target the wrong
+    // entities, or entities that do not exist at all.
+    commands_.Clear();
+    events_.Clear();
+
+    auto previous = std::move(entities_);
+    entities_ = std::move(entities);
+    // Bumped *after* the swap so a caller that stores the generation with a cached
+    // Entity notices that the handle's meaning changed. See the header for why
+    // IsAlive() alone cannot detect this.
+    ++world_generation_;
+    return previous;
+}
+
 auto GameWorld::RunPhase(const SystemPhase phase, const float delta_seconds, const std::uint32_t fixed_step_index)
     -> Result<void> {
     const FrameContext context{phase, delta_seconds, frame_index_, fixed_step_index};

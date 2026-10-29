@@ -451,6 +451,24 @@ endif()
     target_include_directories(Atom_Scene2D PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(Atom_Scene2D PUBLIC Atom_ECS Atom_Renderer2D Atom_Render_Resources)
 
+# 3k. Scene — the level document format (T2.1) and its loader (T2.2).
+#     Depends on ECS + FS + Error + Log and NOT on Runtime: a loader is usable by a
+#     tool or a test with no frame loop, and the switch is a single
+#     GameWorld::ReplaceEntities call made by the game code.
+    add_library(Atom_Scene STATIC
+        Scene/Json/JsonReader.hpp
+        Scene/Json/JsonReader.cpp
+        Scene/SceneTypes.hpp
+        Scene/SceneSchema.hpp
+        Scene/SceneSchema.cpp
+        Scene/SceneLoader.hpp
+        Scene/SceneLoader.cpp
+    )
+    target_include_directories(Atom_Scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    # The parser and the schema are part of the public headers, but the JSON DOM is
+    # reachable only through Scene/Json: nothing in ECS, Render or Runtime may name it.
+    target_link_libraries(Atom_Scene PUBLIC Atom_ECS Atom_FS Atom_Log Atom_Math Atom_Color)
+
 # 4. Backend extension registration and format codecs
     add_library(Atom_Backend_Extension STATIC
         Backend/Extension/AudioDecoderRegistry.hpp
@@ -895,7 +913,7 @@ add_executable(Example_2D_Smoke
     Example/Game/SmokeScreen.hpp
 )
 target_link_libraries(Example_2D_Smoke PRIVATE
-    Atom_Runtime Atom_Scene2D Atom_Render_Resources Atom_Renderer2D Atom_FS Atom_InputSystem Atom_Debugger)
+    Atom_Runtime Atom_Scene Atom_Scene2D Atom_Render_Resources Atom_Renderer2D Atom_FS Atom_InputSystem Atom_Debugger)
 target_compile_definitions(Example_2D_Smoke PRIVATE
     ATOM_SHADER_OUTPUT_DIR="${ATOM_SHADER_OUTPUT_DIR}"
     # Development content root (G0.5): Assets/ in the checkout is mounted as res://

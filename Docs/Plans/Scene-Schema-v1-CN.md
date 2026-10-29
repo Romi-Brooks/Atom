@@ -1,6 +1,6 @@
 # Atom Scene Schema v1（T2.1）
 
-> 状态：**schema 已冻结**；解析器选型是唯一待确认项（见 §8）。
+> 状态：**schema 已冻结**；解析器选型已定（§8：A 自研），实现见 T2.2。
 > 更新日期：2026-10-25
 > 关联：`Game-Readiness-Assessment-CN.md` 的 T2.1 / T2.2 / T2.3。
 
@@ -165,7 +165,7 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
 5. 同一个实体最多报 8 条，避免一个坏实体刷屏；
 6. 不打印无关的展开上下文，日志里一行一条。
 
-## 8. 解析器选型（唯一待确认项）
+## 8. 解析器选型（已定：A 自研）
 
 约束：解析器**不得**出现在 `ECS` / `Render` / `Scene` 的公共 API 里；T2.2 只把解析后的**值**交给建实体的代码。
 两个候选：
@@ -182,17 +182,23 @@ res://scenes/smoke_room.scene.json: entity 12: duplicate entity id 7 (first seen
   反查行号，"未知字段 + 建议名"仍然要自己写一层包装；
 - 增加约 1 MB 的第三方头，Debug 编译时间明显上升。
 
-**建议 A**：我们的需求很窄（只读、严格、要中文友好的定位），自研的实际代码量比"引入后包装一层"更小，
-也不给 `ThirdParty/` 增加维护面。若同意，T2.2 按 A 实现。
+**决定：A（2026-10-25 确认）。** 理由与我们当初的判断一致：需求很窄（只读、严格、中文友好定位），自研的实际
+代码量比"引入后包装一层"更小，也不给 `ThirdParty/` 增加维护面。
+
+实现落点：
+- `Scene/Json/JsonReader.{hpp,cpp}`：tokenizer + 递归下降，`TryParse()` 返回 `SyntaxError{line, column, message}`，
+  `Parse()` 是其 `Result` 包装；
+- `Scene/SceneSchema.cpp`：把 DOM 变成 `SceneDesc`，收集至多 32 条诊断；
+- 若以后需要**写** JSON（存档 T5.5、工具），再补一个约 150 行的 writer，而不是现在预先引入库。
 
 ## 9. 示例与测试资源
 
 | 文件 | 用途 |
 |---|---|
-| `Assets/Scenes/smoke_room.scene.json` | 合法样例；T2.2 用它替换 `SeedSmokeScene` |
-| `Assets/Scenes/Invalid/unknown_field.scene.json` | 拼写错误拒绝 |
-| `Assets/Scenes/Invalid/duplicate_id.scene.json` | 重复 id 拒绝 |
-| `Assets/Scenes/Invalid/bad_version.scene.json` | 未知 `schema_version` 拒绝 |
+| `Assets/scenes/smoke_room.scene.json` | 合法样例；T2.2 用它替换 `SeedSmokeScene` |
+| `Assets/scenes/Invalid/unknown_field.scene.json` | 拼写错误拒绝 |
+| `Assets/scenes/Invalid/duplicate_id.scene.json` | 重复 id 拒绝 |
+| `Assets/scenes/Invalid/bad_version.scene.json` | 未知 `schema_version` 拒绝 |
 
 地板阵列不在 v1 手写：几十上百块地砖必须由 T5.1 的 Tilemap 生成，样例只给房间里的少量实体。
 

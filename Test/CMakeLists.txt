@@ -404,6 +404,31 @@ atom_add_test(Atom_Runtime.GameScreenFrame
     Runtime/GameScreenFrameTest.cpp
     Atom_Runtime)
 
+# T2.2: swapping a world's entity storage in one step. Systems and the frame counter
+# survive; the old world's pending commands and queued events are dropped, because
+# they name entities that no longer exist.
+atom_add_test(Atom_Runtime.WorldReplace
+    Atom_Runtime_WorldReplace_Tests
+    Runtime/WorldReplaceTest.cpp
+    Atom_Runtime)
+
+# --- Scene (T2.1 format, T2.2 loader) ---
+# The JSONC reader: acceptance, plus every rejection the schema document promises,
+# each pinned to a line:column.
+atom_add_test(Atom_Scene.JsonReader
+    Atom_Scene_JsonReader_Tests
+    Scene/JsonReaderTest.cpp
+    Atom_Scene)
+
+# Schema + loader: the committed samples are read through a real filesystem so they
+# cannot rot, the invalid fixtures must be rejected, and the component mapping is
+# asserted field by field.
+atom_add_test(Atom_Scene.SceneLoader
+    Atom_Scene_SceneLoader_Tests
+    Scene/SceneLoaderTest.cpp
+    Atom_Scene)
+target_compile_definitions(Atom_Scene_SceneLoader_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---
 atom_add_test(Atom_Lua.LuaHost
     Atom_Lua_LuaHost_Tests

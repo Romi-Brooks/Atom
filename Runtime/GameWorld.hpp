@@ -49,6 +49,32 @@ class GameWorld final {
             return frame_index_;
         }
 
+        // Replaces the entity storage in one step - the scene switch (T2.2).
+        //
+        // Systems, events and the frame counter stay: a scene owns entities, not
+        // behaviour, so loading a level must not silently unregister the systems a
+        // screen configured. Pending structural commands and queued events are
+        // dropped, because both may reference entities of the storage being
+        // replaced.
+        //
+        // Returns the previous storage so the caller can decide when it dies; a
+        // caller that does not care can ignore it and let it be destroyed here.
+        auto ReplaceEntities(std::unique_ptr<ecs::EntityWorld> entities) -> std::unique_ptr<ecs::EntityWorld>;
+
+        // Incremented by every ReplaceEntities. An Entity is (index, generation) and
+        // the generation lives in the *slot table of one world*, so a handle cached
+        // before a swap can be "alive" again afterwards by accident: a new world's
+        // first entity is index 1 generation 0, exactly like the old world's first
+        // entity. IsAlive() therefore cannot detect a stale handle across a swap.
+        //
+        // Systems that cache an Entity must cache this value too and re-resolve
+        // (by SceneEntityId) when it changes. The alternative - looking the entity up
+        // every frame - is always correct and is the right default until profiling
+        // says otherwise.
+        [[nodiscard]] auto GetWorldGeneration() const noexcept -> std::uint64_t {
+            return world_generation_;
+        }
+
     private:
         explicit GameWorld(std::unique_ptr<ecs::EntityWorld> entities) : entities_(std::move(entities)) {}
         [[nodiscard]] auto RunPhase(SystemPhase phase, float delta_seconds, std::uint32_t fixed_step_index)
@@ -59,6 +85,7 @@ class GameWorld final {
         EntityCommandBuffer commands_{};
         GameEventQueue events_{};
         std::uint64_t frame_index_ = 0;
+        std::uint64_t world_generation_ = 0;
 };
 
 } // namespace atom::runtime
