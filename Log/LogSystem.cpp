@@ -12,6 +12,8 @@
 #include <iostream>
 #include <utility>
 
+#include <Concurrency/ThreadRegistry.hpp>
+
 #ifdef _WIN32
 // This implementation file is the only Atom source that needs this API.
 // windows.h is never exposed through LogSystem.hpp or included by callers.
@@ -133,8 +135,10 @@ auto FormatCurrentTimestamp() -> std::string {
 Log::Log() {
     // Console output is drained by a dedicated writer so a realtime/decode
     // thread never blocks on the console and never formats I/O while holding the
-    // logger lock.
+    // logger lock. The file sink is drained the same way; it idles until a path
+    // is configured.
     console_writer_ = std::thread([this] { ConsoleWriterLoop(); });
+    file_writer_ = std::thread([this] { FileWriterLoop(); });
 }
 
 Log::~Log() {
@@ -145,6 +149,14 @@ Log::~Log() {
     console_cv_.notify_all();
     if (console_writer_.joinable())
         console_writer_.join();
+
+    {
+        std::lock_guard<std::mutex> lock(file_mutex_);
+        file_writer_stop_ = true;
+    }
+    file_cv_.notify_all();
+    if (file_writer_.joinable())
+        file_writer_.join();
 
     // Anything the producer queued before the stop request still reaches the
     // console: shutdown must not swallow the final lines. Take the lock even
@@ -157,6 +169,25 @@ Log::~Log() {
         console_queue_.clear();
     }
     std::cout.flush();
+
+    // Drain the file queue the same way, then close the stream.
+    {
+        std::vector<std::string> pending;
+        {
+            std::lock_guard<std::mutex> lock(file_mutex_);
+            file_sink_enabled_.store(false, std::memory_order_relaxed);
+            pending.assign(file_queue_.begin(), file_queue_.end());
+            file_queue_.clear();
+        }
+        std::lock_guard<std::mutex> stream_lock(file_stream_mutex_);
+        for (const auto& line : pending) {
+            if (file_stream_.is_open())
+                file_stream_ << line;
+        }
+        if (file_stream_.is_open())
+            file_stream_.flush();
+        file_stream_.close();
+    }
 }
 
 auto Log::GetLogInstance() -> Log& {
@@ -237,6 +268,7 @@ auto Log::EnqueueConsoleLine(std::string line) -> void {
 }
 
 auto Log::ConsoleWriterLoop() -> void {
+    atom::concurrency::ThreadRegistry::ScopedRegistration registration{"LogConsoleWriter"};
     std::unique_lock<std::mutex> lock(console_mutex_);
     while (true) {
         console_cv_.wait(lock, [this] { return console_writer_stop_ || !console_queue_.empty(); });
@@ -255,6 +287,62 @@ auto Log::ConsoleWriterLoop() -> void {
         --console_in_flight_;
         // Wake FlushConsole() promptly once the queue has drained.
         console_cv_.notify_all();
+    }
+}
+
+auto Log::EnqueueFileLine(std::string line) -> void {
+    if (!file_sink_enabled_.load(std::memory_order_relaxed))
+        return;
+    {
+        std::lock_guard<std::mutex> lock(file_mutex_);
+        if (!file_sink_enabled_.load(std::memory_order_relaxed))
+            return;
+        if (file_queue_capacity_ == 0) {
+            dropped_file_lines_.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
+        if (file_queue_.size() + file_in_flight_ >= file_queue_capacity_) {
+            if (file_queue_.empty()) {
+                dropped_file_lines_.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
+            file_queue_.pop_front();
+            dropped_file_lines_.fetch_add(1, std::memory_order_relaxed);
+        }
+        file_queue_.push_back(std::move(line));
+    }
+    file_cv_.notify_one();
+}
+
+auto Log::FileWriterLoop() -> void {
+    atom::concurrency::ThreadRegistry::ScopedRegistration registration{"LogFileWriter"};
+    std::unique_lock<std::mutex> lock(file_mutex_);
+    while (true) {
+        file_cv_.wait(lock, [this] { return file_writer_stop_ || !file_queue_.empty(); });
+        if (file_queue_.empty()) {
+            if (file_writer_stop_)
+                return;
+            continue;
+        }
+        auto line = std::move(file_queue_.front());
+        file_queue_.pop_front();
+        ++file_in_flight_;
+        lock.unlock();
+
+        {
+            // The stream is opened/closed by SetFileSinkPath under
+            // file_stream_mutex_; serialize with it so a path change never races
+            // an in-progress write. file_mutex_ is deliberately NOT held here.
+            std::lock_guard<std::mutex> stream_lock(file_stream_mutex_);
+            if (file_stream_.is_open()) {
+                file_stream_ << line;
+                file_stream_.flush();
+            }
+        }
+
+        lock.lock();
+        --file_in_flight_;
+        file_cv_.notify_all();
     }
 }
 
@@ -315,10 +403,12 @@ auto Log::LogOut(const std::string_view channelPrefix, const std::string_view ch
                  const std::string_view function) -> void {
     auto& instance = GetLogInstance();
 
-    // The console threshold and the sink switch are atomic, so this decision
-    // never contends with the listener list (ARCH-110).
-    const bool write_to_console = level >= instance.view_log_level_.load(std::memory_order_relaxed) &&
-                                  instance.console_sink_enabled_.load(std::memory_order_relaxed);
+    // The console threshold and the sink switches are atomic, so these
+    // decisions never contend with the listener list (ARCH-110). Both sinks
+    // share the same view-level threshold and the same formatted line.
+    const bool level_passes = level >= instance.view_log_level_.load(std::memory_order_relaxed);
+    const bool write_to_console = level_passes && instance.console_sink_enabled_.load(std::memory_order_relaxed);
+    const bool write_to_file = level_passes && instance.file_sink_enabled_.load(std::memory_order_relaxed);
 
     // Build the record outside the lock. FormatCurrentTimestamp() is
     // thread-safe, and `logMessage` is moved rather than copied.
@@ -343,10 +433,15 @@ auto Log::LogOut(const std::string_view channelPrefix, const std::string_view ch
         instance.RecordLocked(record);
     }
 
-    // Hand the formatted line to the console writer thread. No console I/O and
-    // no blocking lock on this thread.
-    if (write_to_console)
-        instance.EnqueueConsoleLine(FormatConsoleLine(record));
+    // Hand the formatted line to the console and/or file writer threads. No
+    // console/disk I/O and no blocking lock on this thread.
+    if (write_to_console || write_to_file) {
+        std::string line = FormatConsoleLine(record);
+        if (write_to_console)
+            instance.EnqueueConsoleLine(line);
+        if (write_to_file)
+            instance.EnqueueFileLine(std::move(line));
+    }
 
     // Never invoke user/UI callbacks while holding the logger mutex. A callback
     // may safely unsubscribe or emit another log record.
@@ -441,4 +536,73 @@ auto Log::GetPendingConsoleLineCount() -> std::size_t {
 
 auto Log::GetDroppedConsoleLineCount() -> uint64_t {
     return GetLogInstance().dropped_console_lines_.load(std::memory_order_relaxed);
+}
+
+auto Log::SetFileSinkPath(const std::string& path) -> bool {
+    auto& instance = GetLogInstance();
+    bool opened = false;
+    {
+        std::lock_guard<std::mutex> lock(instance.file_stream_mutex_);
+        if (instance.file_stream_.is_open())
+            instance.file_stream_.close();
+        instance.file_path_.clear();
+        if (!path.empty()) {
+            instance.file_stream_.open(path, std::ios::out | std::ios::trunc);
+            opened = instance.file_stream_.is_open();
+            if (opened)
+                instance.file_path_ = path;
+        }
+    }
+    // Enable only when a stream is actually open (empty path disables).
+    instance.file_sink_enabled_.store(opened, std::memory_order_relaxed);
+    return opened;
+}
+
+auto Log::GetFileSinkPath() -> std::string {
+    auto& instance = GetLogInstance();
+    std::lock_guard<std::mutex> lock(instance.file_stream_mutex_);
+    return instance.file_path_;
+}
+
+auto Log::SetFileSinkEnabled(const bool enabled) -> void {
+    auto& instance = GetLogInstance();
+    instance.file_sink_enabled_.store(enabled, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(instance.file_mutex_);
+        if (!enabled)
+            instance.file_queue_.clear();
+    }
+    instance.file_cv_.notify_all();
+}
+
+auto Log::IsFileSinkEnabled() -> bool {
+    return GetLogInstance().file_sink_enabled_.load(std::memory_order_relaxed);
+}
+
+auto Log::SetFileQueueCapacity(const std::size_t capacity) -> void {
+    auto& instance = GetLogInstance();
+    std::lock_guard<std::mutex> lock(instance.file_mutex_);
+    instance.file_queue_capacity_ = capacity;
+    while (!instance.file_queue_.empty() &&
+           instance.file_queue_.size() + instance.file_in_flight_ > capacity) {
+        instance.file_queue_.pop_front();
+        instance.dropped_file_lines_.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
+auto Log::FlushFile() -> void {
+    auto& instance = GetLogInstance();
+    std::unique_lock<std::mutex> lock(instance.file_mutex_);
+    while (!instance.file_queue_.empty() || instance.file_in_flight_ > 0)
+        instance.file_cv_.wait_for(lock, std::chrono::milliseconds{1});
+}
+
+auto Log::GetPendingFileLineCount() -> std::size_t {
+    auto& instance = GetLogInstance();
+    std::lock_guard<std::mutex> lock(instance.file_mutex_);
+    return instance.file_queue_.size() + instance.file_in_flight_;
+}
+
+auto Log::GetDroppedFileLineCount() -> uint64_t {
+    return GetLogInstance().dropped_file_lines_.load(std::memory_order_relaxed);
 }

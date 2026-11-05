@@ -23,8 +23,8 @@ atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
 ```cpp
 #include <Window/RenderWindow.hpp>
-#include <Window/ScreenManager.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/ScreenManager.hpp>
+#include <Runtime/Screen.hpp>
 
 class MenuScreen final : public atom::Screen {
 public:
@@ -109,20 +109,22 @@ logs.SetEnabled(true);
 - 用户**不要**直接 `#include <imgui.h>` 或任何 `Backend/*` 头文件；`Debugger/Overlay.hpp` 是唯一入口。
 - 可选工具按需 include：`Debugger/LogDebugger.hpp`、`Debugger/FontLoader.hpp`。
 - 调试面板默认位置由 `atom::debugger::Apply*PanelSlot()` 在首次绘制时写入；ImGui 不再读写 `imgui.ini`。
-- 一个 `RenderWindow` 由窗口级 `OverlayManager` 维护一份 ImGui context/backend；多个 `DebugPanel` 可独立 attach。
+- 一个 `Runtime::Application` 由 Runtime 集成的 `OverlayManager` 维护一份 ImGui context/backend；多个 `DebugPanel` 可独立 attach。
 - 每个面板应使用不同的 `ImGui::Begin()` 窗口名，并在 `Begin` 前调用合适的 `Apply*PanelSlot()`。
 - `FontLoader` 是调试字体工具（不是面板、不是 Atom 业务字体 API）；业务文字走 Renderer2D。
 - 这里的“多个窗口”指同一 ImGui context 内的多个 ImGui window；如果需要拖出为原生 SDL 窗口，还需要额外实现 multi-viewports。
 
-### 窗口扩展监听器
+### Runtime 工具观察器
 
-事件、帧更新、Overlay、Resize、Shutdown 均通过监听器注册（ARCH-112），返回 RAII
-`ListenerConnection`，析构自动注销；多个监听器可并存，注销一个不影响其他：
+事件、帧更新、Overlay、Resize、Shutdown 均可由 Runtime 的工具观察器订阅（ARCH-112），返回 RAII
+`RuntimeConnection`，析构自动注销；多个观察器可并存，注销一个不影响其他。它们适合 Debugger、Profiler
+等工具，**不应用来替代游戏系统调度**：
 
 ```cpp
-auto conn = window.AddUpdateListener([](float dt) { /* 每帧更新 */ });
-auto resizeConn = window.AddResizeListener([](uint32_t w, uint32_t h) { /* 窗口尺寸变化 */ });
-// conn / resizeConn 析构时自动移除对应监听器
+auto& app = atom::runtime::Application::GetInstance();
+auto conn = app.AddUpdateObserver([](float dt) { /* 工具采样 */ });
+auto resizeConn = app.AddResizeObserver([](uint32_t w, uint32_t h) { /* 调整工具资源 */ });
+// conn / resizeConn 析构时自动移除对应观察器
 ```
 
 ## 输入
@@ -140,7 +142,7 @@ auto resizeConn = window.AddResizeListener([](uint32_t w, uint32_t h) { /* 窗�
 
 判断标准：**一个命令由一条事件决定，就写在 `HandleEvent`；一帧要读多次、或者跟按住时长有关的，就写在 `Update`/`FixedUpdate` 里读 `InputSystem`。**
 
-轮询方式由引擎主循环自动驱动，`RenderWindow::Run()` 在事件轮询前调用一次 `BeginFrame()`，每个规范化事件先进入状态机再分发给 Screen，所以 **业务代码不要自己再调 `BeginFrame()`**——同一帧调两次会把真实的按下边沿提前结算成 `Held`。
+轮询方式由引擎主循环自动驱动，`Runtime::Application::Run()` 在事件轮询前调用一次 `BeginFrame()`，每个规范化事件先进入状态机再分发给 Screen，所以 **业务代码不要自己再调 `BeginFrame()`**——同一帧调两次会把真实的按下边沿提前结算成 `Held`。
 
 ```cpp
 #include <Input/ActionMap.hpp>
@@ -174,7 +176,10 @@ auto& input = atom::input::InputSystem::GetInstance();
 // WASD 还会多走一帧，甚至那次用来打开聊天框的 T 会被当成聊天内容再读一次。
 if (!chat_open && input.IsActionPressed(actions, Action::OpenChat))
     chat_open = true;
-input.SetUiCapture(/*mouse=*/false, /*keyboard=*/chat_open, /*text_input=*/chat_open, "chat box");
+input.SetUiCapture(/*mouse=*/atom::input::Claim::Release,
+                   /*keyboard=*/chat_open ? atom::input::Claim::Own : atom::input::Claim::Release,
+                   /*text_input=*/chat_open ? atom::input::Claim::Own : atom::input::Claim::Release,
+                   "chat box");
 ```
 
 顺序正确时，游戏自己的 UI **没有延迟**：打开聊天框的下一帧 `FixedUpdate` 就已经被挡住。只有调试覆盖层会晚一帧，因为它的标志来自 `ImGui::NewFrame()` 之后。
@@ -204,6 +209,35 @@ if (!input.IsKeyboardCapturedByUi() && input.IsActionPressed(actions, Action::Ju
 
 完整可运行样例：`Example/Input/InputDemo.cpp`（target `Example_Input_Demo`）——WASD/方向键按住移动方块、鼠标拖拽、Space/R/Escape 走 ActionMap，按 T 打开一个**游戏内的聊天框**（用 Renderer2D 画的），打开后 R/Space 一律不生效、打字时 WASD 停住、Enter 发送、Escape 关闭。面板实时打印按键状态、鼠标增量与三个捕获标志。
 
+### 游戏 UI（`Atom_UI`）
+
+正式游戏 UI 使用保留模式的 `UiTree`，不是 ImGui，也不把每一个按钮做成 ECS entity。`UiTree` 只负责页面内部的控件树、Yoga 布局、逆绘制顺序的命中测试、焦点与输入捕获；`ScreenManager` 仍负责菜单/设置/游戏/暂停这些页面级导航。
+
+```cpp
+#include <UI/UiCanvas.hpp>
+#include <UI/UiTree.hpp>
+
+// Screen 持有它，而不是 Runtime 或 Window 持有它。
+atom::ui::UiTree ui;
+const auto button = ui.CreateButton(ui.Root(), "Start", button_layout, button_style, [] {
+    atom::ScreenManager::GetInstance().SwitchScreen("game");
+});
+
+auto HandleEvent(const atom::window::IEvent& event) -> bool override {
+    return ui.HandleEvent(event);       // true 时阻止向下层 Screen 传播
+}
+auto Update(float) -> void override {
+    ui.Update();                        // 在固定更新之后释放本帧临时 capture
+}
+auto Render(atom::render::IRenderDevice& device) -> void override {
+    const auto output = device.GetOutputSize();
+    ui.Layout(output.GetX(), output.GetY());
+    atom::ui::UiCanvas::RenderFrame(renderer, ui, font);
+}
+```
+
+`UiCanvas` 总以 `(origin=0,0, zoom=1)` 提交，UI 坐标因此不受世界相机影响；若同一 device frame 已绘制世界，可在它之后提交 UI canvas。`ui.SetModal(true)` 会阻断未命中控件的鼠标/键盘事件，适合暂停层；`ScreenManager` 对 Screen 栈本身也按视觉最上层到最下层分发事件。完整的页面流参考 `Example/UI/UiRuntimeDemo.cpp`（target `Example_UI_Runtime_Demo`）：菜单 `SwitchScreen` 到设置或游戏，游戏 `PushScreen` 暂停页，暂停页 `PopScreen` 回游戏或 `SwitchScreen` 回菜单。
+
 ## Renderer2D 与图片
 
 `Renderer2D` 通过薄的 `IRender2DContext` 使用当前设备，业务代码不接触 SDL_GPU
@@ -228,8 +262,8 @@ HDR/PIC/PNM，不支持 WebP。Windows 非 ASCII 资产路径优先经 VFS/文�
 再调用 `DecodeImageMemory`。
 
 纹理、字体与 Renderer2D 必须在创建它们的 RenderDevice 销毁前释放。使用
-`RenderWindow` 时，可把 `renderer.Shutdown()` 注册到 `AddShutdownListener`；返回的
-`ListenerConnection` 必须存活到 `window.Run()` 结束。
+`Runtime::Application` 时，可把 `renderer.Shutdown()` 注册到 `AddShutdownObserver`；返回的
+`RuntimeConnection` 必须存活到 `app.Run()` 结束。
 
 ## 音乐
 

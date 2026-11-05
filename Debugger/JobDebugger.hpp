@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * @file JobSystemDebugger.hpp
+ * @file JobDebugger.hpp
  * @brief ImGui diagnostic panel for the Atom job scheduler.
  *
  * Shows a live view of scheduler throughput: jobs submitted/completed per
@@ -12,8 +12,8 @@
  * empty).
  */
 
-#ifndef ATOM_DEBUGGER_JOB_SYSTEM_DEBUGGER_HPP
-#define ATOM_DEBUGGER_JOB_SYSTEM_DEBUGGER_HPP
+#ifndef ATOM_DEBUGGER_JOB_DEBUGGER_HPP
+#define ATOM_DEBUGGER_JOB_DEBUGGER_HPP
 
 #include <cstdint>
 #include <deque>
@@ -23,9 +23,9 @@
 
 namespace atom::debugger {
 
-class JobSystemDebugger final : public DebugPanel {
+class JobDebugger final : public DebugPanel {
     public:
-        JobSystemDebugger() : DebugPanel("JobSystemDebugger") {}
+        JobDebugger() : DebugPanel("JobDebugger") {}
 
     protected:
         auto OnDrawOverlay() -> void override;
@@ -51,4 +51,4 @@ class JobSystemDebugger final : public DebugPanel {
 
 } // namespace atom::debugger
 
-#endif // ATOM_DEBUGGER_JOB_SYSTEM_DEBUGGER_HPP
+#endif // ATOM_DEBUGGER_JOB_DEBUGGER_HPP

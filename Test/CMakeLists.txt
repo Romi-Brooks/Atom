@@ -47,6 +47,13 @@ atom_add_test(Atom_Assets.ResourceManager
     Asset/ResourceManagerTest.cpp
     Atom_Assets)
 
+# Batch acquire: input-order results, failure isolation, duplicate-id dedupe,
+# and sequential fallback when the job system is not running.
+atom_add_test(Atom_Assets.ResourceManagerBatch
+    Atom_Assets_ResourceManagerBatch_Tests
+    Asset/ResourceManagerBatchTest.cpp
+    Atom_Assets Atom_Concurrency Atom_FS)
+
 atom_add_test(Atom_Assets.ConsumerLoader
     Atom_Assets_ConsumerLoader_Tests
     Asset/ConsumerLoaderTest.cpp
@@ -73,6 +80,18 @@ atom_add_test(Atom_Render_Resources.TextureCache
     Atom_Render_Resources_TextureCache_Tests
     Render/TextureCacheTest.cpp
     Atom_Render_Resources Atom_FS)
+
+atom_add_test(Atom_Render_Text.Font
+    Atom_Render_Text_Font_Tests
+    Render/FontTest.cpp
+    Atom_Text)
+target_compile_definitions(Atom_Render_Text_Font_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+
+atom_add_test(Atom_Renderer2D.Text
+    Atom_Renderer2D_Text_Tests
+    Render/Renderer2DTextTest.cpp
+    Atom_Renderer2D)
+target_compile_definitions(Atom_Renderer2D_Text_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 
 # --- Algorithm / Color / Event (header-heavy pure logic) ---
 atom_add_test(Atom_Algorithm.Scalar
@@ -115,6 +134,12 @@ atom_add_test(Atom_Input.InputSystem
     Input/InputSystemTest.cpp
     Atom_InputSystem)
 
+# --- Retained game UI -------------------------------------------------------
+atom_add_test(Atom_UI.UiTree
+    Atom_UI_UiTree_Tests
+    UI/UiTreeTest.cpp
+    Atom_UI)
+
 # --- Unified error value (CORE-004) ---
 atom_add_test(Atom_Error.Error
     Atom_Error_Error_Tests
@@ -126,6 +151,57 @@ atom_add_test(Atom_ECS.EntityWorld
     Atom_ECS_EntityWorld_Tests
     ECS/EntityWorldTest.cpp
     Atom_ECS)
+
+# --- Physics (shapes + mass properties) ---
+atom_add_test(Atom_Physics.Shapes
+    Atom_Physics_Shapes_Tests
+    Physics/ShapeTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.RigidBody
+    Atom_Physics_RigidBody_Tests
+    Physics/RigidBodyTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.BroadPhase
+    Atom_Physics_BroadPhase_Tests
+    Physics/BroadPhaseTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.InternalWorld
+    Atom_Physics_InternalWorld_Tests
+    Physics/InternalWorldTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.NarrowPhase
+    Atom_Physics_NarrowPhase_Tests
+    Physics/NarrowPhaseTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.ContactSolver
+    Atom_Physics_ContactSolver_Tests
+    Physics/ContactSolverTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.PhysicsWorld
+    Atom_Physics_PhysicsWorld_Tests
+    Physics/PhysicsWorldTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.RevoluteJoint
+    Atom_Physics_RevoluteJoint_Tests
+    Physics/RevoluteJointTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.Integration
+    Atom_Physics_Integration_Tests
+    Physics/PhysicsIntegrationTest.cpp
+    Atom_Physics)
+
+atom_add_test(Atom_Physics.Parallel
+    Atom_Physics_Parallel_Tests
+    Physics/PhysicsParallelTest.cpp
+    Atom_Physics)
 
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry
@@ -167,6 +243,14 @@ atom_add_test(Atom_Media.MusicPlayer
     Media/MusicPlayerTest.cpp
     Atom_Media Atom_FS)
 
+# Batch metadata reads: input-order results + sequential fallback when the job
+# system is not running. Links Atom_Concurrency explicitly because the test
+# drives the scheduler's Start/Shutdown to exercise both code paths.
+atom_add_test(Atom_Media.AudioMetadataReader
+    Atom_Media_AudioMetadataReader_Tests
+    Media/AudioMetadataReaderTest.cpp
+    Atom_Media Atom_Concurrency Atom_FS)
+
 atom_add_test(Atom_Media.Image.ColorStatistics
     Atom_Media_Image_ColorStatistics_Tests
     Media/ColorStatisticsTest.cpp
@@ -177,6 +261,13 @@ atom_add_test(Atom_Media.Image.ImageDecoder
     Atom_Media_Image_ImageDecoder_Tests
     Media/ImageDecoderTest.cpp
     Atom_Image Atom_Log)
+
+# Batch image decode: input-order results + sequential fallback when the job
+# system is not running (mirrors Atom_Media.AudioMetadataReader).
+atom_add_test(Atom_Media.Image.ImageBatchDecoder
+    Atom_Media_Image_ImageBatchDecoder_Tests
+    Media/ImageBatchDecoderTest.cpp
+    Atom_Image Atom_Concurrency Atom_FS)
 
 atom_add_test(Atom_Layout.LayoutTree
     Atom_Layout_LayoutTree_Tests
@@ -219,11 +310,11 @@ atom_add_test(Atom_Packager.PackageBuilder
     Utilities/PackageBuilderTest.cpp
     Atom_Packager Atom_FS)
 
-# --- Window ---
-atom_add_test(Atom_Window.ScreenManager
-    Atom_Window_ScreenManager_Tests
-    Window/ScreenManagerTest.cpp
-    Atom_Window)
+# --- Runtime ---
+atom_add_test(Atom_Runtime.ScreenManager
+    Atom_Runtime_ScreenManager_Tests
+    Runtime/ScreenManagerTest.cpp
+    Atom_Runtime)
 
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---
 atom_add_test(Atom_Lua.LuaHost

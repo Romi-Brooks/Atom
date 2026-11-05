@@ -130,6 +130,16 @@ auto ScreenManager::UnloadScreen(const std::string& name) -> ScreenOpResult {
     return ScreenOpResult::Success;
 }
 
+auto ScreenManager::ClearScreens() -> void {
+    // Drop current/stack handles first so the registry's clear() drops the last
+    // reference and destroys each screen here, deterministically, instead of
+    // leaving it to static destruction (which runs too late for GPU resources).
+    current_screen_.reset();
+    current_screen_name_.clear();
+    screen_stack_.clear();
+    screens_.clear();
+}
+
 auto ScreenManager::GetScreen(const std::string& name) const -> Screen* {
     const auto it = screens_.find(name);
     return it != screens_.end() ? it->second.get() : nullptr;
@@ -272,8 +282,14 @@ auto ScreenManager::HandleEvent(const atom::window::IEvent& event) const -> void
             return;
         }
     }
-    for (const auto& screen : screen_stack_ | std::views::values) {
-        if (screen->HandleEvent(event)) {
+    // Render draws the stack from bottom to top and then the current screen.
+    // Input must travel in the inverse direction: an overlay that did not
+    // consume an event lets it fall through to the screen below, while a modal
+    // screen can stop it before the game sees it. Iterating in insertion order
+    // here was the opposite of that visual/input contract for stacks deeper
+    // than one.
+    for (auto it = screen_stack_.rbegin(); it != screen_stack_.rend(); ++it) {
+        if (it->second->HandleEvent(event)) {
             return;
         }
     }

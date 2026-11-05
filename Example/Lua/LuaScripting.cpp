@@ -26,9 +26,10 @@
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 #include <Debugger/LogDebugger.hpp>
 
 namespace {
@@ -63,7 +64,7 @@ class LuaScreen final : public atom::Screen {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
                 if (key.key == atom::input::Key::Escape) {
-                    atom::RenderWindow::GetInstance().Shutdown();
+                    atom::RenderWindow::GetInstance().RequestClose();
                     return true;
                 }
             }
@@ -148,7 +149,8 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("LuaScripting");
 
     auto& window = atom::RenderWindow::GetInstance();
-    const auto initialized = window.Initialize("Atom - Lua Scripting Example", atom::algo::Vec2{720, 720},
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom - Lua Scripting Example", atom::algo::Vec2{720, 720},
                                               atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
@@ -159,6 +161,6 @@ auto main() -> int {
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    window.Run();
+    application.Run();
     return 0;
 }

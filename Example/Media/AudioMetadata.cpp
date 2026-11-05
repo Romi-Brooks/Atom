@@ -48,27 +48,20 @@ auto main() -> int {
     atom::fs::Vfs::GetInstance().Mount("res", 0, std::move(filesystem));
 
     // Resolve every file's metadata in parallel through the engine's job
-    // system. Each Read() opens its own file handle (TagLib-backed, VFS-
-    // mediated), so the reads are independent and safe to run concurrently;
-    // scheduling them as jobs demonstrates the engine's generic task API for
-    // exactly the kind of off-main-thread work that would otherwise stall a
-    // frame in a real application.
+    // system. ReadBatch schedules one job per file and blocks until all finish;
+    // the parallelism now lives in the engine rather than being hand-rolled
+    // here, so the example just declares *what* to read and lets the engine
+    // decide *how* to spread it across workers.
     auto& jobs = atom::job::JobSystem::GetInstance();
     jobs.Configure(); // default: hardware_concurrency() - 1 workers
     jobs.Start();
 
-    std::vector<atom::job::JobHandle> handles;
-    handles.reserve(std::size(sample_files));
-    std::vector<std::optional<atom::audio::AudioMetadata>> results(std::size(sample_files));
-    for (std::size_t i = 0; i < std::size(sample_files); ++i) {
-        handles.push_back(jobs.Schedule([i, &results] {
-            const std::string asset_path = std::string{"res://"} + sample_files[i];
-            results[i] = atom::audio::AudioMetadataReader::Read(asset_path);
-        }));
+    std::vector<std::string> asset_paths;
+    asset_paths.reserve(std::size(sample_files));
+    for (const auto* file : sample_files) {
+        asset_paths.emplace_back(std::string{"res://"} + file);
     }
-    // Block until all metadata reads finish; the main thread helps run pending
-    // jobs rather than idling.
-    jobs.WaitAll(handles);
+    const auto results = atom::audio::AudioMetadataReader::ReadBatch(asset_paths);
 
     for (std::size_t i = 0; i < std::size(sample_files); ++i) {
         const auto* filename = sample_files[i];

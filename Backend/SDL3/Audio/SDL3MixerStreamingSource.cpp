@@ -10,6 +10,7 @@
 
 #include "SDL3MixerContext.hpp"
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
+#include <Concurrency/ThreadRegistry.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3mixer {
@@ -115,6 +116,7 @@ auto SDL3MixerStreamingSource::Play() -> void {
 
 auto SDL3MixerStreamingSource::HaltDecoding() -> void {
     running_ = false;
+    wake_cv_.notify_all();
     if (worker_.joinable())
         worker_.join();
     if (track_)
@@ -165,6 +167,7 @@ auto SDL3MixerStreamingSource::Pause() -> void {
     if (state_.load() != atom::audio::AudioSourceState::Playing)
         return;
     running_ = false;
+    wake_cv_.notify_all();
     if (worker_.joinable())
         worker_.join();
     if (track_)
@@ -338,13 +341,15 @@ auto SDL3MixerStreamingSource::IsValid() const -> bool {
 }
 
 auto SDL3MixerStreamingSource::DecodeLoop() -> void {
+    atom::concurrency::ThreadRegistry::ScopedRegistration registration{"AudioDecode(mixer)"};
     std::array<uint8_t, decode_chunk_bytes> buffer{};
     const auto bytes_per_frame =
         static_cast<std::uint64_t>(SDL_AUDIO_BYTESIZE(spec_.format)) * static_cast<std::uint64_t>(spec_.channels);
 
     while (running_.load() && state_.load() == atom::audio::AudioSourceState::Playing) {
         if (SDL_GetAudioStreamQueued(stream_) >= sdl_queue_target) {
-            std::this_thread::sleep_for(idle_sleep);
+            std::unique_lock<std::mutex> lock{wake_mutex_};
+            wake_cv_.wait_for(lock, idle_sleep, [this] { return !running_.load(); });
             continue;
         }
 
@@ -374,8 +379,10 @@ auto SDL3MixerStreamingSource::DecodeLoop() -> void {
         // Flush the converter so the final resampler tail is not stranded, then
         // wait for the device to drain before reporting completion.
         SDL_FlushAudioStream(stream_);
-        while (running_.load() && SDL_GetAudioStreamAvailable(stream_) > 0)
-            std::this_thread::sleep_for(idle_sleep);
+        while (running_.load() && SDL_GetAudioStreamAvailable(stream_) > 0) {
+            std::unique_lock<std::mutex> lock{wake_mutex_};
+            wake_cv_.wait_for(lock, idle_sleep, [this] { return !running_.load(); });
+        }
 
         if (running_.load() && state_.load() == atom::audio::AudioSourceState::Playing) {
             if (track_)

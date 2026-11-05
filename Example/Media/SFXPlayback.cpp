@@ -13,9 +13,10 @@
 #include <Media/Audio/Resources/AudioClipCache.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
 
@@ -84,7 +85,7 @@ class SFXScreen final : public atom::Screen {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
                 if (key.key == atom::input::Key::Escape) {
-                    atom::RenderWindow::GetInstance().Shutdown();
+                    atom::RenderWindow::GetInstance().RequestClose();
                     return true;
                 }
             }
@@ -140,7 +141,8 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("SFX");
 
     auto& window = atom::RenderWindow::GetInstance();
-    const auto initialized = window.Initialize("Atom Engine - SFX Playback Example", atom::algo::Vec2{720, 720},
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom Engine - SFX Playback Example", atom::algo::Vec2{720, 720},
                                               atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
@@ -158,5 +160,5 @@ auto main() -> int {
     SFXDebugger debugger{sfx};
     debugger.Attach(window);
 
-    window.Run();
+    application.Run();
 }

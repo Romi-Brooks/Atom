@@ -16,9 +16,10 @@
 #include <Filesystem/FileSystem.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
 
@@ -136,7 +137,7 @@ class MusicScreen final : public atom::Screen {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
                 if (key.key == atom::input::Key::Escape) {
-                    atom::RenderWindow::GetInstance().Shutdown();
+                    atom::RenderWindow::GetInstance().RequestClose();
                     return true;
                 }
             }
@@ -202,7 +203,8 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("MusicPlayback");
 
     auto& window = atom::RenderWindow::GetInstance();
-    const auto initialized = window.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom Engine - Music Playback Example", atom::algo::Vec2{720, 720},
                                               atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
@@ -220,5 +222,5 @@ auto main() -> int {
     MusicDebugger debugger{music, music_fade};
     debugger.Attach(window);
 
-    window.Run();
+    application.Run();
 }

@@ -12,6 +12,8 @@ set(ATOM_MINIMP3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minimp3")
 set(ATOM_STB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stb")
 set(ATOM_YOGA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Yoga")
 set(ATOM_ENTT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/EnTT")
+set(ATOM_FREETYPE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/FreeType")
+set(ATOM_HARFBUZZ_DIR "${CMAKE_CURRENT_SOURCE_DIR}/HarfBuzz")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/TargetOverlay.cmake")
 
@@ -26,7 +28,9 @@ foreach(dependency_file IN ITEMS
         "${ATOM_STB_DIR}/stb_image.h"
         "${ATOM_STB_DIR}/stb_truetype.h"
         "${ATOM_YOGA_DIR}/yoga/CMakeLists.txt"
-        "${ATOM_ENTT_DIR}/src/entt/entity/registry.hpp")
+        "${ATOM_ENTT_DIR}/src/entt/entity/registry.hpp"
+        "${ATOM_FREETYPE_DIR}/CMakeLists.txt"
+        "${ATOM_HARFBUZZ_DIR}/CMakeLists.txt")
     if(NOT EXISTS "${dependency_file}")
         message(FATAL_ERROR
             "Missing third-party dependency content: ${dependency_file}\n"
@@ -304,6 +308,71 @@ target_include_directories(Atom_3rd_Minimp3 INTERFACE "${ATOM_MINIMP3_DIR}")
 # --------------------------------------------------------------------------
 add_library(Atom_3rd_Stb INTERFACE)
 target_include_directories(Atom_3rd_Stb INTERFACE "${ATOM_STB_DIR}")
+
+# --------------------------------------------------------------------------
+# FreeType + HarfBuzz (production text provider and shaper)
+# --------------------------------------------------------------------------
+# Both projects are pinned submodules.  Their upstream target names are kept
+# out of Atom's target namespace through build-tree overlays, just like SDL,
+# TagLib and Yoga.  FreeType is linked by Atom_Text today; HarfBuzz is built as
+# the prepared shaping dependency and will be consumed by TextShaper once the
+# TextLayout contract lands.  Keep the two libraries decoupled here: FreeType
+# must not discover a system HarfBuzz, and HarfBuzz must not discover a system
+# FreeType, otherwise a local build would silently mix ABI sources.
+set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+file(SHA256 "${ATOM_FREETYPE_DIR}/CMakeLists.txt" ATOM_FREETYPE_CMAKE_HASH)
+set(ATOM_FREETYPE_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/TargetOverlays/FreeType")
+atom_prepare_target_overlay(
+    "${ATOM_FREETYPE_DIR}"
+    "${ATOM_FREETYPE_OVERLAY_DIR}"
+    "${ATOM_FREETYPE_CMAKE_HASH}:Atom_3rd_FreeType:v2"
+)
+set(ATOM_FREETYPE_CMAKE "${ATOM_FREETYPE_OVERLAY_DIR}/CMakeLists.txt")
+# Do not replace every textual `freetype`: it also names public header
+# directories such as include/freetype/config.  Rewrite only CMake target
+# references, leaving upstream source/layout paths pristine.
+atom_replace_in_file("${ATOM_FREETYPE_CMAKE}" "add_library(freetype\n" "add_library(Atom_3rd_FreeType\n")
+atom_replace_in_file("${ATOM_FREETYPE_CMAKE}" "  freetype PROPERTIES" "  Atom_3rd_FreeType PROPERTIES")
+atom_replace_in_file("${ATOM_FREETYPE_CMAKE}" "  freetype PRIVATE" "  Atom_3rd_FreeType PRIVATE")
+atom_replace_in_file("${ATOM_FREETYPE_CMAKE}" "  freetype\n" "  Atom_3rd_FreeType\n")
+atom_replace_in_file("${ATOM_FREETYPE_CMAKE}" "set_target_properties(freetype " "set_target_properties(Atom_3rd_FreeType ")
+atom_replace_in_file("${ATOM_FREETYPE_CMAKE}" "target_link_libraries(freetype " "target_link_libraries(Atom_3rd_FreeType ")
+atom_replace_in_file("${ATOM_FREETYPE_CMAKE}" "target_include_directories(freetype " "target_include_directories(Atom_3rd_FreeType ")
+atom_replace_in_file("${ATOM_FREETYPE_CMAKE}" "INTERFACE_LINK_LIBRARIES freetype" "INTERFACE_LINK_LIBRARIES Atom_3rd_FreeType")
+add_subdirectory(
+    "${ATOM_FREETYPE_OVERLAY_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/FreeType"
+    EXCLUDE_FROM_ALL
+)
+
+set(HB_BUILD_UTILS OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_SUBSET OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_FREETYPE OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_GOBJECT OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_ICU OFF CACHE BOOL "" FORCE)
+set(HB_HAVE_CAIRO OFF CACHE BOOL "" FORCE)
+file(SHA256 "${ATOM_HARFBUZZ_DIR}/CMakeLists.txt" ATOM_HARFBUZZ_CMAKE_HASH)
+set(ATOM_HARFBUZZ_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/TargetOverlays/HarfBuzz")
+atom_prepare_target_overlay(
+    "${ATOM_HARFBUZZ_DIR}"
+    "${ATOM_HARFBUZZ_OVERLAY_DIR}"
+    "${ATOM_HARFBUZZ_CMAKE_HASH}:Atom_3rd_HarfBuzz:v2"
+)
+add_subdirectory(
+    "${ATOM_HARFBUZZ_OVERLAY_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/HarfBuzz"
+    EXCLUDE_FROM_ALL
+)
+# HarfBuzz's CMake project has filenames and generated config payloads that
+# also contain its target name, so a textual target rename would corrupt the
+# pinned source layout.  Keep the upstream target private to ThirdParty and
+# expose only Atom's alias to the engine.
+add_library(Atom_3rd_HarfBuzz ALIAS harfbuzz)
 
 # --------------------------------------------------------------------------
 # Yoga (Flexbox layout engine)

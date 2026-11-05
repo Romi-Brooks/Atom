@@ -108,6 +108,14 @@ class TextureCache final {
         [[nodiscard]] auto AcquireFromEncodedMemory(std::string_view cache_key, std::span<const std::byte> encoded)
             -> TextureHandle;
 
+        // Uploads an image which has already been decoded by a worker. This
+        // keeps CPU decoding out of the render thread and lets several
+        // consumers (thumbnail generation, colour analysis, UI) share one
+        // DecodedImage rather than decoding the same encoded bytes repeatedly.
+        // Like every TextureCache acquire, this is render-thread-only.
+        [[nodiscard]] auto AcquireFromDecodedImage(std::string_view cache_key, const image::DecodedImage& decoded)
+            -> TextureHandle;
+
         auto Evict(const std::string& cache_key) -> bool;
         auto EvictAll() -> void;
         auto FlushDeferredDestroys() -> void;

@@ -8,11 +8,13 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
+#include <Debugger/FpsDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -32,8 +34,6 @@ class ExamplePanel final : public atom::debugger::DebugPanel {
                 slot_applied_ = true;
             }
             ImGui::Begin("Example Debugger");
-            ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-            ImGui::Separator();
             ImGui::Text("Press ESC to exit");
             // Built-in log-deugger
             if (auto* log_panel = atom::debugger::LogDebugger::Get()) {
@@ -71,7 +71,7 @@ class ExampleScreen final : public atom::Screen {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
                 if (key.key == atom::input::Key::Escape) {
-                    atom::RenderWindow::GetInstance().Shutdown();
+                    atom::RenderWindow::GetInstance().RequestClose();
                     return true;
                 }
             }
@@ -105,8 +105,9 @@ auto main() -> int {
 
     // Give a window instance
     auto& window = atom::RenderWindow::GetInstance();
+    auto& application = atom::runtime::Application::GetInstance();
     // Init the window instance, Can pass a render backend explicit
-    const auto initialized = window.Initialize("Atom Engine - Debug Overlay Example",  // Title (also the window name)
+    const auto initialized = application.Initialize("Atom Engine - Debug Overlay Example",  // Title (also the window name)
                                               atom::algo::Vec2{1280, 720},  // Resolution
                                               atom::backend::RenderBackendId::SdlGpu  // Render Backend
     );
@@ -128,6 +129,10 @@ auto main() -> int {
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
+    // Attach the shared FPS debugger (replaces the ad-hoc FPS text).
+    atom::debugger::FpsDebugger fps_panel{};
+    fps_panel.Attach(window);
+
     // Main loop
-    window.Run();
+    application.Run();
 }

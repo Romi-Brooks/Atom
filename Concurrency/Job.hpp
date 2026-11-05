@@ -44,7 +44,7 @@ struct Job {
     std::function<void()> fn;
     Priority priority = Priority::Normal;
     // Optional human-readable label for diagnostics / tooling. Never used for
-    // correctness; an empty name means "unnamed". Shown by the JobSystemDebugger
+    // correctness; an empty name means "unnamed". Shown by the JobDebugger
     // so a running job can be identified at a glance.
     std::string name;
 

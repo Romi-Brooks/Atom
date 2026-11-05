@@ -2,8 +2,8 @@
 #include <Backend/Contracts/Window/IWindow.hpp>
 #include <Log/LogSystem.hpp>
 #include <Test/Support/TestHelpers.hpp>
-#include <Window/Screen.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/Screen.hpp>
+#include <Runtime/ScreenManager.hpp>
 
 #include <memory>
 #include <functional>
@@ -179,9 +179,23 @@ auto main() -> int {
     ATOM_CHECK(home_ptr->events == 1);
     ATOM_CHECK(pause_ptr->events == 0);
     home_ptr->consume_events = false;
+    pause_ptr->consume_events = true;
     manager.HandleEvent(event);
     ATOM_CHECK(home_ptr->events == 2);
     ATOM_CHECK(pause_ptr->events == 1);
+    ATOM_CHECK(settings_ptr->events == 0); // top-most stacked screen sees it first
+
+    // When the current page declines an event, stacked pages are traversed
+    // from top to bottom, the inverse of their render order. This is the
+    // modal-input rule game UI relies on: pause must receive the event before
+    // the obscured settings page.
+    pause_ptr->consume_events = false;
+    settings_ptr->consume_events = true;
+    manager.HandleEvent(event);
+    ATOM_CHECK(home_ptr->events == 3);
+    ATOM_CHECK(pause_ptr->events == 2);
+    ATOM_CHECK(settings_ptr->events == 1);
+    settings_ptr->consume_events = false;
 
     ATOM_CHECK(manager.PopScreen() == atom::ScreenOpResult::Success);
     ATOM_CHECK(manager.GetCurrentScreenName() == "pause");

@@ -18,6 +18,33 @@ namespace {
 
 LogDebugger* g_log_debugger_instance = nullptr;
 
+// A LogRecord plus everything the viewer renders, precomputed exactly once when
+// the record arrives. This keeps the hot per-frame path to pointer copies +
+// ImGuiListClipper instead of rebuilding a string for every buffered line on
+// every frame (the old behavior, which scaled badly as the buffer filled).
+struct DisplayRecord {
+        LogRecord record;
+        std::string channel;   // prefix + name
+        std::string line;      // "[timestamp] [LEVEL] channel -> message"
+        std::string location;  // "file:line function" (empty when unspecified)
+};
+
+auto BuildDisplayRecord(const LogRecord& record) -> std::shared_ptr<const DisplayRecord> {
+    auto display = std::make_shared<DisplayRecord>();
+    display->record = record;
+    display->channel = record.channel_prefix + record.channel_name;
+    display->line = "[" + record.timestamp + "] [" + atom::ToString(record.level) + "] " + display->channel +
+                    " -> " + record.message;
+    if (!record.file.empty()) {
+        display->location = record.file;
+        if (record.line > 0)
+            display->location += ":" + std::to_string(record.line);
+        if (!record.function.empty())
+            display->location += " " + record.function;
+    }
+    return display;
+}
+
 auto LevelColor(const LogLevel level) -> ImVec4 {
     switch (level) {
     case LogLevel::ATOM_DEBUG:
@@ -37,6 +64,15 @@ auto ChannelKey(const LogChannelInfo& channel) -> std::string {
 }
 
 } // namespace
+
+// Records are shared_ptr so the render thread can snapshot a filtered view
+// without deep-copying every LogRecord (each holds several strings). The
+// pointed-to DisplayRecord stays alive via the shared_ptr even if the ring
+// evicts it mid-frame.
+struct LogDebugger::State {
+        std::mutex mutex;
+        std::deque<std::shared_ptr<const DisplayRecord>> records;
+};
 
 LogDebugger::~LogDebugger() {
     // Detach while this derived object is still alive so OnDetach dispatches here.
@@ -74,8 +110,9 @@ auto LogDebugger::OnAttach(atom::RenderWindow&) -> bool {
     // existed still show up in the viewer.
     log_connection_ = Log::Subscribe([weak_state, max_entries = max_entries_](const LogRecord& record) {
         if (const auto state = weak_state.lock()) {
+            auto display = BuildDisplayRecord(record);
             std::lock_guard<std::mutex> lock(state->mutex);
-            state->records.push_back(record);
+            state->records.push_back(std::move(display));
             while (state->records.size() > max_entries)
                 state->records.pop_front();
         }
@@ -109,21 +146,46 @@ auto LogDebugger::OnDrawOverlay() -> void {
         return;
     }
 
-    std::vector<LogRecord> records;
+    // Snapshot a filtered view without deep-copying records: shared_ptr copies
+    // keep each entry alive for the remainder of this frame.
+    std::vector<std::shared_ptr<const DisplayRecord>> filtered;
+    std::size_t buffered = 0;
     {
         std::lock_guard<std::mutex> lock(state_->mutex);
-        records.assign(state_->records.begin(), state_->records.end());
+        buffered = state_->records.size();
+        filtered.reserve(buffered);
+        for (const auto& display : state_->records) {
+            if (display->record.level < minimum_level_)
+                continue;
+            if (!selected_channels_.empty() && !selected_channels_.contains(display->channel))
+                continue;
+            if (text_filter_[0] != '\0' &&
+                display->record.message.find(text_filter_) == std::string::npos)
+                continue;
+            filtered.push_back(display);
+        }
     }
 
-    auto channels = Log::GetRegisteredChannels();
-    std::unordered_set<std::string> known_channels;
-    for (const auto& channel : channels)
-        known_channels.insert(ChannelKey(channel));
-    for (const auto& record : records) {
-        LogChannelInfo channel{record.channel_prefix, record.channel_name};
-        if (known_channels.insert(ChannelKey(channel)).second)
-            channels.push_back(std::move(channel));
+    // Channel list refreshes at most once per second: it scans the ring, so
+    // doing it every frame would redo string keying for the whole buffer.
+    const double now = ImGui::GetTime();
+    if (channels_refresh_time_ < 0.0 || now - channels_refresh_time_ >= 1.0) {
+        channels_refresh_time_ = now;
+        auto channels = Log::GetRegisteredChannels();
+        std::unordered_set<std::string> known;
+        for (const auto& channel : channels)
+            known.insert(ChannelKey(channel));
+        {
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            for (const auto& display : state_->records) {
+                LogChannelInfo channel{display->record.channel_prefix, display->record.channel_name};
+                if (known.insert(ChannelKey(channel)).second)
+                    channels.push_back(std::move(channel));
+            }
+        }
+        cached_channels_ = std::move(channels);
     }
+    auto& channels = cached_channels_;
 
     const char* level_names[] = {"DEBUG", "INFO", "WARNING", "ERROR"};
     int level_index = static_cast<int>(minimum_level_);
@@ -160,44 +222,31 @@ auto LogDebugger::OnDrawOverlay() -> void {
     ImGui::SameLine();
     ImGui::InputText("Message", text_filter_, sizeof(text_filter_));
 
-    ImGui::Text("Buffered: %zu", records.size());
+    ImGui::Text("Buffered: %zu (showing %zu)", state_->records.size(), filtered.size());
     ImGui::Separator();
 
     ImGui::BeginChild("LogEntries", ImVec2{0.0f, 0.0f}, true, ImGuiWindowFlags_HorizontalScrollbar);
     const bool was_at_bottom = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f;
-    bool displayed_record = false;
-    for (const auto& record : records) {
-        if (record.level < minimum_level_)
-            continue;
 
-        const std::string channel = record.channel_prefix + record.channel_name;
-        if (!selected_channels_.empty() && !selected_channels_.contains(channel))
-            continue;
-        if (text_filter_[0] != '\0' && record.message.find(text_filter_) == std::string::npos)
-            continue;
-
-        const std::string line = "[" + record.timestamp + "] [" + atom::ToString(record.level) + "] " + channel +
-                                 " -> " + record.message;
-        std::string location;
-        if (!record.file.empty()) {
-            location = record.file;
-            if (record.line > 0)
-                location += ":" + std::to_string(record.line);
-            if (!record.function.empty())
-                location += " " + record.function;
-        }
-        ImGui::PushStyleColor(ImGuiCol_Text, LevelColor(record.level));
-        ImGui::TextUnformatted(line.c_str());
-        ImGui::PopStyleColor();
-        if (!location.empty()) {
-            ImGui::SameLine();
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.55f, 0.55f, 0.55f, 1.0f});
-            ImGui::TextUnformatted(location.c_str());
+    // Only the visible rows are submitted. Buffering 1024 records is cheap once
+    // rendering no longer iterates the whole ring every frame.
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(filtered.size()));
+    while (clipper.Step()) {
+        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+            const auto& display = filtered[static_cast<std::size_t>(i)];
+            ImGui::PushStyleColor(ImGuiCol_Text, LevelColor(display->record.level));
+            ImGui::TextUnformatted(display->line.c_str());
             ImGui::PopStyleColor();
+            if (!display->location.empty()) {
+                ImGui::SameLine();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{0.55f, 0.55f, 0.55f, 1.0f});
+                ImGui::TextUnformatted(display->location.c_str());
+                ImGui::PopStyleColor();
+            }
         }
-        displayed_record = true;
     }
-    if (auto_scroll_ && was_at_bottom && displayed_record)
+    if (auto_scroll_ && was_at_bottom)
         ImGui::SetScrollHereY(1.0f);
     ImGui::EndChild();
     ImGui::End();

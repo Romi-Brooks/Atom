@@ -76,6 +76,10 @@ class IResourceLoader {
         // Produces a shared_ptr whose type matches ResourceType(). Loaders must
         // not assume a native disk path. On failure the error identifies the
         // resource and, where the loader knows it, the underlying reason.
+        //
+        // Thread-safety: Load must hold no shared mutable state, because the
+        // batch acquire path calls it concurrently from multiple workers. The
+        // filesystem passed in must also support concurrent OpenRead.
         [[nodiscard]] virtual auto Load(const fs::IFileSystem& filesystem, const ResourceId& id,
                                         std::shared_ptr<void>& output) -> Result<void> = 0;
 };

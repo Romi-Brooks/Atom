@@ -12,15 +12,11 @@
 #include <Backend/Extension/RenderBackendRegistry.hpp>
 #include <Backend/Runtime/RenderBackendRuntime.hpp>
 #include <Error/Error.hpp>
-#include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom {
 
 RenderWindow::~RenderWindow() {
-    // OverlayManager owns RAII callbacks into RenderWindow's listener
-    // storage. Release it while that storage is still alive.
-    overlay_manager_.reset();
     LOG_INFO(atom::log::core::Window, "Render window destroyed");
 }
 
@@ -31,48 +27,27 @@ auto RenderWindow::GetInstance() -> RenderWindow& {
 
 namespace {
 
-// CORE-001: the ui domain is the engine's real-time authority for debugger and
-// resize-settle bookkeeping, so the window layer's own clock is not consulted
-// here. It is used only as a fallback if the domain is somehow absent.
-[[nodiscard]] auto UiSeconds(atom::window::IWindow& window) -> double {
-    const auto* ui = atom::time::TimeSystem::GetInstance().FindDomain(atom::time::domain::ui);
-    return ui != nullptr ? atom::time::ToSeconds(ui->Now()) : window.GetTimeSeconds();
-}
-
 } // namespace
 
-auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
+auto RenderWindow::PumpEvents(const EventSink& sink) -> void {
+    if (!backend_)
+        return;
     auto& window = backend_->Window();
-
-    // CORE-002: the engine owns the per-frame input edges. BeginFrame() runs
-    // once per poll, before any event is folded in, so Pressed/Released are
-    // observable for exactly one frame by screens, listeners and fixed updates.
-    auto& input = atom::input::InputSystem::GetInstance();
-    input.BeginFrame();
 
     while (auto event = window.PollEvent()) {
         if (event->type == atom::window::EventType::None)
             continue;
 
-        // Fold the normalized event into the frame state before dispatching it,
-        // so a listener that reads InputSystem during HandleEvent sees itself.
-        input.ProcessEvent(*event);
-
-        for (const auto& entry : event_listeners_) {
-            entry.fn(*event);
-        }
-
         if (event->type == atom::window::EventType::Resized) {
             const auto& resize = std::get<atom::window::ResizeEvent>(event->data);
-            // Backend first (Vulkan swapchain recreation), then engine listeners.
+            // Backend first: a consumer receiving the event observes the new
+            // device dimensions, never a stale swapchain.
             backend_->Device().HandleResize(resize.width, resize.height);
-            for (const auto& entry : resize_listeners_) {
-                entry.fn(resize.width, resize.height);
-            }
-            pending_resize_ = PendingResize{resize.width, resize.height, UiSeconds(window)};
+            pending_resize_ = PendingResize{resize.width, resize.height, window.GetTimeSeconds()};
         }
 
-        screenManager.HandleEvent(*event);
+        if (sink)
+            sink(*event);
 
         if (!window.IsOpen())
             break;
@@ -80,7 +55,7 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
 
     if (!window.IsOpen() || !pending_resize_)
         return;
-    const double now = UiSeconds(window);
+    const double now = window.GetTimeSeconds();
     if (now - pending_resize_->last_change_seconds < resize_settle_delay_seconds)
         return;
 
@@ -99,10 +74,8 @@ auto RenderWindow::ProcessEvents(const ScreenManager& screenManager) -> void {
     settledEvent.data = atom::window::ResizeEvent{settled.width, settled.height};
     LOG_INFO(atom::log::core::Window,
              "Window resize settled: " + std::to_string(settled.width) + "x" + std::to_string(settled.height));
-    for (const auto& entry : event_listeners_) {
-        entry.fn(settledEvent);
-    }
-    screenManager.HandleEvent(settledEvent);
+    if (sink)
+        sink(settledEvent);
 }
 
 auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 resolution,
@@ -114,8 +87,6 @@ auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 r
     name_ = title;
     backend_id_ = std::string{backend_id};
 
-    // Fresh window session: shutdown listeners must fire again on the next
-    // Shutdown().
     shutdown_notified_ = false;
     pending_resize_.reset();
 
@@ -139,83 +110,21 @@ auto RenderWindow::Initialize(const std::string& title, const atom::algo::Vec2 r
     }
     backend_->Window().SetFPS(fps_);
 
-    // Host clock is owned by the backend (SDL_GetPerformanceCounter). Domain
-    // clocks (game/physics/render/ui/audio) derive from it — see CORE-001.
-    atom::time::TimeSystem::GetInstance().Initialize(backend_->TimeSource());
-
-    if (overlay_manager_)
-        overlay_manager_->OnRenderWindowInitialized();
-
     return Ok();
 }
 
-auto RenderWindow::Run() -> void {
-    if (!backend_) {
-        throw std::runtime_error("Render window not initialized (backend unavailable).");
-    }
+auto RenderWindow::BeginFrame() -> bool {
+    return backend_ && backend_->Device().BeginFrame();
+}
 
-    const auto& screenManager = atom::ScreenManager::GetInstance();
-    if (screenManager.GetCurrentScreenName().empty()) {
-        throw std::runtime_error("No current screen set. Cannot run application.");
-    }
+auto RenderWindow::EndFrame() -> void {
+    if (backend_)
+        backend_->Device().EndFrame();
+}
 
-    auto& window = backend_->Window();
-    auto& device = backend_->Device();
-    auto& time_system = atom::time::TimeSystem::GetInstance();
-
-    while (window.IsOpen()) {
-        // CORE-001 frame order:
-        //   Tick (sample host delta) -> Event -> FixedUpdate x N -> Variable Update
-        //   -> Render -> Present
-        // Tick runs first so the delta it hands the domain clocks covers the whole
-        // previous frame, event handling included.
-        const auto frame = time_system.Tick();
-
-        ProcessEvents(screenManager);
-
-        if (!window.IsOpen())
-            break;
-
-        const auto* game_clock = time_system.FindDomain(atom::time::domain::game);
-        const auto* render_clock = time_system.FindDomain(atom::time::domain::render);
-
-        // Fixed-step simulation (game domain). Physics may own its own domain.
-        if (game_clock) {
-            const auto& tick = game_clock->LastTick();
-            const auto step_seconds =
-                tick.fixed_step_ns > 0 ? atom::time::ToFloatSeconds(tick.fixed_step_ns) : 0.0f;
-            for (std::uint32_t step = 0; step < tick.steps; ++step) {
-                screenManager.FixedUpdate(step_seconds);
-                for (const auto& entry : fixed_update_listeners_) {
-                    entry.fn(step_seconds);
-                }
-            }
-        }
-
-        // Variable update (render domain): animations, presentation.
-        const auto variable_delta = render_clock ? render_clock->LastTick().delta_ns : frame.host_delta_ns;
-        const auto delta_time = atom::time::ToFloatSeconds(variable_delta);
-        screenManager.Update(delta_time);
-
-        for (const auto& entry : update_listeners_) {
-            entry.fn(delta_time);
-        }
-
-        if (!device.BeginFrame()) {
-            window.WaitForNextFrame();
-            continue;
-        }
-        device.Clear(atom::render::Color::Black());
-        screenManager.Render(device);
-
-        for (const auto& entry : overlay_listeners_) {
-            entry.fn();
-        }
-
-        device.EndFrame();
-        window.WaitForNextFrame();
-    }
-    Shutdown();
+auto RenderWindow::WaitForNextFrame() -> void {
+    if (backend_)
+        backend_->Window().WaitForNextFrame();
 }
 
 auto RenderWindow::SetFPS(const unsigned int fps) -> void {
@@ -229,6 +138,10 @@ auto RenderWindow::GetIWindow() -> atom::window::IWindow* {
 }
 auto RenderWindow::GetRenderDevice() -> atom::render::IRenderDevice* {
     return backend_ ? &backend_->Device() : nullptr;
+}
+
+auto RenderWindow::GetTimeSource() -> atom::backend::ITimeSource* {
+    return backend_ ? &backend_->TimeSource() : nullptr;
 }
 
 auto RenderWindow::GetFPS() const -> unsigned {
@@ -248,45 +161,21 @@ auto RenderWindow::IsOpen() const -> bool {
 }
 
 auto RenderWindow::Shutdown() -> void {
-    // Single-shot shutdown listeners: Run() calls Shutdown() again after the
-    // loop exits, and screens may also request shutdown mid-frame.
-    if (!shutdown_notified_) {
-        shutdown_notified_ = true;
-        LOG_INFO(atom::log::core::Window, "Render window shutting down: " + name_);
-        for (const auto& entry : shutdown_listeners_) {
-            entry.fn();
-        }
-    }
+    if (shutdown_notified_)
+        return;
+    shutdown_notified_ = true;
+    LOG_INFO(atom::log::core::Window, "Render window shutting down: " + name_);
     if (backend_) {
         backend_->Shutdown();
+        backend_.reset();
     }
-    atom::time::TimeSystem::GetInstance().Shutdown();
     pending_resize_.reset();
 }
 
-// ── Listener registry ───────────────────────────────────────────────
-auto RenderWindow::AddEventListener(EventListener listener) -> ListenerConnection {
-    return AddListener(event_listeners_, std::move(listener));
-}
-
-auto RenderWindow::AddUpdateListener(UpdateListener listener) -> ListenerConnection {
-    return AddListener(update_listeners_, std::move(listener));
-}
-
-auto RenderWindow::AddFixedUpdateListener(FixedUpdateListener listener) -> ListenerConnection {
-    return AddListener(fixed_update_listeners_, std::move(listener));
-}
-
-auto RenderWindow::AddOverlayListener(OverlayListener listener) -> ListenerConnection {
-    return AddListener(overlay_listeners_, std::move(listener));
-}
-
-auto RenderWindow::AddResizeListener(ResizeListener listener) -> ListenerConnection {
-    return AddListener(resize_listeners_, std::move(listener));
-}
-
-auto RenderWindow::AddShutdownListener(ShutdownListener listener) -> ListenerConnection {
-    return AddListener(shutdown_listeners_, std::move(listener));
+auto RenderWindow::RequestClose() -> void {
+    if (backend_) {
+        backend_->Window().RequestClose();
+    }
 }
 
 auto RenderWindow::GetName() const -> const std::string& {
@@ -295,16 +184,6 @@ auto RenderWindow::GetName() const -> const std::string& {
 
 auto RenderWindow::GetBackendId() const -> const std::string& {
     return backend_id_;
-}
-
-auto RenderWindow::GetTimeSystem() -> atom::time::TimeSystem& {
-    return atom::time::TimeSystem::GetInstance();
-}
-
-auto RenderWindow::GetOverlayManager() -> atom::debugger::OverlayManager& {
-    if (!overlay_manager_)
-        overlay_manager_ = std::make_unique<atom::debugger::OverlayManager>(*this);
-    return *overlay_manager_;
 }
 
 } // namespace atom

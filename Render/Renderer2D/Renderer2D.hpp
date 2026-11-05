@@ -29,6 +29,47 @@ namespace atom::render {
 class Font;
 class IRenderDevice;
 
+// Measured extent of a text run, in the same logical pixel space DrawText uses.
+// `height` is the laid-out line box height (line count * line height); `width`
+// is the widest line's advance. Both are produced by the exact same layout
+// state machine DrawText runs, so measurements never drift from what is drawn.
+struct TextSize {
+        float width = 0.0f;
+        float height = 0.0f;
+};
+
+// A single glyph's laid-out pen origin, relative to the run's top-left
+// (0, 0). `x` is the position after kerning; `y` is its line's top.
+struct TextGlyphRun {
+        uint32_t codepoint = 0;
+        float x = 0.0f;
+        float y = 0.0f;
+};
+
+// Output of the shared text-layout pass: glyph origins (relative to origin)
+// plus the bounding size. Cached per (font, text, size, wrap) so a static or
+// scrolling run is laid out once, not once per frame.
+struct TextLayoutResult {
+        float width = 0.0f;
+        float height = 0.0f;
+        float line_height = 0.0f;
+        std::vector<TextGlyphRun> glyphs{};
+};
+
+// Cache key for TextLayoutResult. `text` is stored by value so the key owns
+// its string; the font is identified by pointer (fonts are long-lived).
+struct TextLayoutKey {
+        const Font* font = nullptr;
+        float size_px = 0.0f;
+        float max_width = 0.0f;
+        std::string text;
+        auto operator==(const TextLayoutKey&) const -> bool = default;
+};
+
+struct TextLayoutKeyHash {
+        auto operator()(const TextLayoutKey& key) const noexcept -> std::size_t;
+};
+
 // High-level batched 2D renderer (Render/ roadmap: Renderer2D). Coordinates
 // are logical "world" pixels with a top-left origin and y pointing down; the
 // camera (origin + zoom) maps world space onto the viewport. Drawing is
@@ -196,6 +237,14 @@ class Renderer2D {
         auto DrawText(const Font& font, std::string_view text, float x, float y, const Color& color, float size_px,
                       float max_width = 0.0f) -> void;
 
+        // Measures a text run without recording any draw. Uses the identical
+        // layout rules as DrawText (same wrap/word-break state machine), so the
+        // returned size matches what DrawText would paint. max_width == 0
+        // disables wrapping and returns the single-line advance, which
+        // scrolling and truncation rely on. Callable outside a frame.
+        [[nodiscard]] auto MeasureText(const Font& font, std::string_view text, float size_px,
+                                       float max_width = 0.0f) const -> TextSize;
+
         /**
          * @brief Pushes a nested world-space scissor clip.
          * @param rect Geometry/world rectangle. Renderer2D converts it
@@ -249,10 +298,6 @@ class Renderer2D {
                 int row_height = 0;
                 bool dirty = false;
                 bool needs_initial_upload = true;
-                uint32_t dirty_left = 0;
-                uint32_t dirty_top = 0;
-                uint32_t dirty_right = 0;
-                uint32_t dirty_bottom = 0;
         };
 
         struct AtlasGlyph {
@@ -282,12 +327,28 @@ class Renderer2D {
         auto EnsureGlyph(GlyphAtlas& atlas, uint32_t codepoint) -> const AtlasGlyph*;
         auto ExpandTextOp(const DrawOp& op, std::vector<DrawOp>& expanded) -> void;
 
+        // Returns the glyph layout for `text` (relative to origin), computing
+        // it once and reusing it across frames. Shared by MeasureText and
+        // ExpandTextOp so a measurement can never disagree with what is drawn,
+        // and repeated draws of the same text reuse one layout.
+        //
+        // Interim: this is a transparent memoization inside Renderer2D. The
+        // long-term contract is an explicit immutable TextLayout object owned
+        // by the caller (see Render/Text/TextLayout-Design-CN.md); this cache
+        // is replaced by that once TextShaper/TextLayout land.
+        auto GetOrLayoutText(const Font& font, std::string_view text, float size_px, float max_width) const
+            -> const TextLayoutResult&;
+
         IRenderDevice* device_ = nullptr;
         IRender2DContext* context_ = nullptr;
         // Shared with every texture handle this renderer hands out; see
         // TexturePoolState. Replaced by Initialize(), invalidated by Shutdown().
         std::shared_ptr<TexturePoolState> texture_pool_state_ = std::make_shared<TexturePoolState>();
         render::Sampler2D sampler_ = render::invalid_sampler_2d;
+        // Glyph atlas texels are raster coverage data, not colour artwork.
+        // Sampling them at exact texel centres avoids a glyph's transparent
+        // gutter bleeding into narrow strokes.
+        render::Sampler2D glyph_sampler_ = render::invalid_sampler_2d;
         bool initialized_ = false;
         bool in_frame_ = false;
         float origin_x_ = 0.0f;
@@ -305,6 +366,11 @@ class Renderer2D {
         std::vector<std::unique_ptr<Font>> fonts_{};
         std::vector<std::unique_ptr<GlyphAtlas>> atlases_{};
         Texture* white_texture_ = nullptr;
+
+        // Text layout cache (mutable so the const MeasureText can populate it).
+        // Bounded; cleared on Shutdown/Initialize because fonts are rebuilt.
+        static constexpr std::size_t text_layout_cache_capacity = 128;
+        mutable std::unordered_map<TextLayoutKey, TextLayoutResult, TextLayoutKeyHash> text_layout_cache_{};
 
         struct PendingUpload {
                 render::Texture2D handle = render::invalid_texture_2d;

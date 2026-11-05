@@ -143,7 +143,9 @@ Atom 使用 **SDL3** 作为其多媒体抽象层。第三方源码依赖以 subm
 | [TagLib](https://taglib.org/) | 2.1.1 | `ThirdParty/taglib/` | 音频元数据读取 |
 | [utfcpp](https://github.com/nemtrif/utfcpp) | 4.0.8 | `ThirdParty/utfcpp/` | UTF-8 验证和编码转换 |
 | [minimp3](https://github.com/lieff/minimp3) | master `ea99364` | `ThirdParty/minimp3/` | MP3 解码（header-only） |
-| [stb](https://github.com/nothings/stb) | `2c980bb` | `ThirdParty/stb/` | 图片解码与可信字体栅格化 |
+| [stb](https://github.com/nothings/stb) | `2c980bb` | `ThirdParty/stb/` | 图片解码 |
+| [FreeType](https://github.com/freetype/freetype) | 2.13.3 | `ThirdParty/FreeType/` | 生产字体加载、hinting、度量与字形栅格化 |
+| [HarfBuzz](https://github.com/harfbuzz/harfbuzz) | 10.4.0 | `ThirdParty/HarfBuzz/` | OpenType 文本 shaping；将在 TextLayout 边界接入 |
 | [EnTT](https://github.com/skypjack/entt) | 4.0.0 | `ThirdParty/EnTT/` | `ECS` 背后的实体/组件存储（header-only，公开头不暴露） |
 
 ### 依赖编译

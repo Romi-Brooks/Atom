@@ -21,11 +21,13 @@
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Utilities/Packager/PackageBuilder.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/Screen.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
 #include <Debugger/LogDebugger.hpp>
+#include <Debugger/FpsDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -59,9 +61,6 @@ class PackedMusicDebugger final : public atom::debugger::DebugPanel {
     protected:
         auto OnDrawOverlay() -> void override {
             ImGui::Begin("Packed Music Player");
-
-            ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-            ImGui::Separator();
 
             ImGui::TextUnformatted(pack_path_.c_str());
             ImGui::TextUnformatted(pack_status_.c_str());
@@ -149,7 +148,7 @@ class PackedMusicScreen final : public atom::Screen {
             if (event.type == atom::window::EventType::KeyPressed) {
                 const auto& key = std::get<atom::window::KeyEvent>(event.data);
                 if (key.key == atom::input::Key::Escape) {
-                    atom::RenderWindow::GetInstance().Shutdown();
+                    atom::RenderWindow::GetInstance().RequestClose();
                     return true;
                 }
             }
@@ -241,8 +240,9 @@ auto main() -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("PackedMusic");
 
     auto& window = atom::RenderWindow::GetInstance();
+    auto& application = atom::runtime::Application::GetInstance();
     const auto initialized =
-        window.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720},
+        application.Initialize("Atom Engine - Packaged Music Player (in-memory streaming)", atom::algo::Vec2{920, 720},
                           atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
@@ -254,9 +254,12 @@ auto main() -> int {
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
+    atom::debugger::FpsDebugger fps_panel{};
+    fps_panel.Attach(window);
+
     PackedMusicDebugger debugger{music, entries, pack_path, pack_status};
     debugger.Attach(window);
 
-    window.Run();
+    application.Run();
     return 0;
 }

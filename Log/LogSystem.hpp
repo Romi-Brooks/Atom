@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -145,6 +146,10 @@ class Log {
         // (or the incoming line, when the writer already holds the only slot);
         // 0 accepts nothing.
         static constexpr std::size_t default_console_queue_capacity = 4096;
+        // File-sink queue bound. Mirrors the console queue: bounds the *pending*
+        // lines so a realtime thread never blocks on disk I/O and never grows
+        // memory without limit. The file sink is disabled until a path is set.
+        static constexpr std::size_t default_file_queue_capacity = 4096;
 
     private:
         using LogListener = std::function<void(const LogRecord&)>;
@@ -171,6 +176,12 @@ class Log {
         auto EnqueueConsoleLine(std::string line) -> void;
         [[nodiscard]] static auto FormatConsoleLine(const LogRecord& record) -> std::string;
 
+        // File sink internals. The file is opened by SetFileSinkPath (main
+        // thread) and written by a dedicated worker, so a producer only ever
+        // pushes a formatted line onto a bounded queue.
+        auto FileWriterLoop() -> void;
+        auto EnqueueFileLine(std::string line) -> void;
+
         std::atomic<LogLevel> view_log_level_{LogLevel::ATOM_INFO};
 
         mutable std::mutex log_mutex_;
@@ -193,6 +204,27 @@ class Log {
         // without touching console_mutex_.
         std::atomic<bool> console_sink_enabled_{true};
         std::atomic<uint64_t> dropped_console_lines_{0};
+
+        std::mutex file_mutex_;
+        std::condition_variable file_cv_;
+        std::deque<std::string> file_queue_{};
+        std::size_t file_queue_capacity_ = default_file_queue_capacity;
+        // Lines the writer has popped but not finished writing (mirrors
+        // console_in_flight_).
+        std::size_t file_in_flight_ = 0;
+        // The stream and its path are mutated by SetFileSinkPath (main thread)
+        // and written by the worker, so they get their own mutex: the worker
+        // never holds file_mutex_ while it flushes to disk (keeping producers
+        // unblocked), but must still serialize with a path change.
+        std::mutex file_stream_mutex_;
+        std::ofstream file_stream_{};
+        std::string file_path_{};
+        std::thread file_writer_;
+        bool file_writer_stop_ = false;
+        // Off by default: no path has been configured, so the queue never fills
+        // and the worker idles. Atomic so LogOut skips formatting when off.
+        std::atomic<bool> file_sink_enabled_{false};
+        std::atomic<uint64_t> dropped_file_lines_{0};
 
     public:
         [[nodiscard]] static auto GetLogInstance() -> Log&;
@@ -248,6 +280,28 @@ class Log {
         // Lines dropped because the console queue was full. Monotonic: it is
         // never reset, so read it as a delta between two samples.
         [[nodiscard]] static auto GetDroppedConsoleLineCount() -> uint64_t;
+
+        // --- file sink ------------------------------------------------------
+        // Writes the same formatted lines as the console sink into a file, via
+        // its own bounded queue + dedicated writer thread (standard practice:
+        // keep disk I/O off every realtime/decode thread). The threshold is the
+        // same view_log_level_ as the console, so a single SetViewLogLevel
+        // governs both.
+        //
+        // The path is opened (truncating) immediately on the calling thread;
+        // returns false when the file cannot be opened (invalid directory, no
+        // permission) and leaves the sink disabled. Call it once at startup,
+        // before the logs you want persisted are emitted.
+        static auto SetFileSinkPath(const std::string& path) -> bool;
+        [[nodiscard]] static auto GetFileSinkPath() -> std::string;
+        static auto SetFileSinkEnabled(bool enabled) -> void;
+        [[nodiscard]] static auto IsFileSinkEnabled() -> bool;
+        static auto SetFileQueueCapacity(std::size_t capacity) -> void;
+        // Blocks until every queued file line has been written and flushed.
+        // Intended for shutdown paths and tools, never a realtime thread.
+        static auto FlushFile() -> void;
+        [[nodiscard]] static auto GetPendingFileLineCount() -> std::size_t;
+        [[nodiscard]] static auto GetDroppedFileLineCount() -> uint64_t;
 
         Log(const Log&) = delete;
         Log& operator=(const Log&) = delete;

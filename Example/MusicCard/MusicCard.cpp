@@ -14,8 +14,10 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <memory>
 #include <ranges>
@@ -26,16 +28,39 @@
 #include <Backend/Runtime/BackendRuntime.hpp>
 #include <Debugger/LogDebugger.hpp>
 #include <Debugger/Overlay.hpp>
-#include <Debugger/JobSystemDebugger.hpp>
+#include <Debugger/JobDebugger.hpp>
+#include <Debugger/ThreadDebugger.hpp>
+#include <Debugger/FpsDebugger.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/MusicPlayer.hpp>
 #include <Utilities/Utf8/Utf8.hpp>
 #include <Window/RenderWindow.hpp>
-#include <Window/ScreenManager.hpp>
+#include <Runtime/Application.hpp>
+#include <Runtime/ScreenManager.hpp>
 
 namespace {
+
+// A timestamped log-file name so each run of the single main program gets its
+// own file instead of overwriting a fixed name (the standard practice for a
+// long-lived process). Format: <prefix>-YYYYMMDD-HHMMSS.log.
+[[nodiscard]] auto TimestampedLogPath(const std::string& prefix) -> std::string {
+    const auto now = std::chrono::system_clock::now();
+    const auto seconds = std::chrono::system_clock::to_time_t(now);
+    std::tm local{};
+#ifdef _WIN32
+    if (localtime_s(&local, &seconds) != 0)
+        return prefix + ".log";
+#else
+    if (localtime_r(&seconds, &local) == nullptr)
+        return prefix + ".log";
+#endif
+    char stamp[32]{};
+    std::snprintf(stamp, sizeof(stamp), "%04d%02d%02d-%02d%02d%02d", local.tm_year + 1900, local.tm_mon + 1,
+                  local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec);
+    return prefix + "-" + stamp + ".log";
+}
 
 // Discovers audio files under the configured directory. Metadata and decoder
 // work are deferred to the background prefetch loader so startup remains
@@ -109,6 +134,15 @@ auto main(int argc, char** argv) -> int {
     _setmaxstdio(512);
 #endif // _WIN32
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
+    // Persist the log to a timestamped file (the on-screen viewer keeps only a
+    // small 1024-entry ring). Open it before any subsystem logs so the whole
+    // run is captured.
+    const std::string log_file = TimestampedLogPath("atom");
+    if (!atom::Log::SetFileSinkPath(log_file)) {
+        LOG_WARNING(atom::log::core::Main, "Could not open log file: " + log_file);
+    } else {
+        LOG_INFO(atom::log::core::Main, "Log file sink enabled: " + log_file);
+    }
     atom::AudioMixer mixer;
     atom::MusicPlayer music{mixer};
     const std::string music_root = argc > 1 ? std::string{argv[1]} : std::string{MusicPath};
@@ -144,26 +178,34 @@ auto main(int argc, char** argv) -> int {
     atom::ScreenManager::GetInstance().SwitchScreen("MusicCard");
 
     auto& window = atom::RenderWindow::GetInstance();
-    const auto initialized = window.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
+    auto& application = atom::runtime::Application::GetInstance();
+    const auto initialized = application.Initialize("Atom - Music Card Layout", atom::algo::Vec2{1920.0f, 1080.0f},
                                               atom::backend::RenderBackendId::SdlGpu);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
     window.SetVSync(false);
-    window.SetFPS(165);
+    window.SetFPS(std::numeric_limits<unsigned int>::max());
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    atom::debugger::JobSystemDebugger job_panel{};
+    atom::debugger::JobDebugger job_panel{};
     job_panel.Attach(window);
+
+    atom::debugger::ThreadDebugger thread_panel{};
+    thread_panel.Attach(window);
+
+    atom::debugger::FpsDebugger fps_panel{};
+    fps_panel.Attach(window);
 
     MusicCardDebugger debugger{*music_card_screen};
     debugger.Attach(window);
-    auto renderer_shutdown = window.AddShutdownListener([music_card_screen] { music_card_screen->Shutdown(); });
+
+    auto renderer_shutdown = application.AddShutdownObserver([music_card_screen] { music_card_screen->Shutdown(); });
     music_card_screen->LoadInterfaceFont();
 
-    window.Run();
+    application.Run();
     return 0;
 }

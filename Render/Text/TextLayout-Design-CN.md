@@ -1,10 +1,12 @@
 # Atom TextLayout 设计记录
 
-> 状态：提案。本文记录当前 stb 路径的边界、已完成修复，以及迁移至 FreeType + HarfBuzz 前必须稳定的契约；不是本版本立即引入新三方库的决定。
+> 状态：提案。本文记录当前 FreeType 路径的边界、已完成修复，以及将 HarfBuzz 接入 TextLayout 前必须稳定的契约；FreeType 2.13.3 与 HarfBuzz 10.4.0 已作为锁定 submodule 引入。
+>
+> 可执行的分阶段落地计划见 [TextLayout-Implementation-Plan-CN.md](TextLayout-Implementation-Plan-CN.md)（P3 备用，待 review，暂不实施）。
 
 ## 当前实现与已完成修复
 
-当前 `Renderer2D` 仍直接将 UTF-8 解码为 codepoint、按单字体 `stb_truetype` 计算 advance/kerning、栅格化并管理动态图集。该路径适合单字体、简单左到右文本与轻量 HUD。
+当前 `Renderer2D` 仍直接将 UTF-8 解码为 codepoint、按单个 FreeType face 计算 advance/kerning、栅格化并管理动态图集。该路径适合单字体、简单左到右文本与轻量 HUD。
 
 本版本已完成：
 
@@ -13,10 +15,10 @@
 - CRLF 的 `\r` 忽略、tab 对齐至下一个四空格宽的列停靠点；
 - 缺字尝试栅格化当前字体的 `.notdef` glyph；
 - atlas 尺号量化为 0.5px，避免连续浮点字号无限创建 atlas；
-- 文本使用线性采样；新 atlas 页首次清零，后续字形使用脏矩形上传；
+- 字形 atlas 使用 nearest 采样以避免透明 gutter 侵蚀窄字形；当前 SDL_GPU/D3D12 的活动图集使用整页上传保证正确性，脏矩形/分片上传待带版本和字节预算的上传队列完成后恢复；
 - 超出 atlas 页的字形产生可定位日志，未使用的 glyph advance 字段已移除。
 
-这些修复不改变 stb 的能力上限：`.notdef` 不是字体 fallback，手写 word wrap 不是 Unicode line breaking，codepoint 也不是最终 glyph。
+这些修复不改变单字体路径的能力上限：`.notdef` 不是字体 fallback，手写 word wrap 不是 Unicode line breaking，codepoint 也不是最终 glyph。
 
 ## 未解决的问题
 
@@ -69,15 +71,15 @@ FreeType without HarfBuzz 仍无法正确处理复杂脚本；HarfBuzz without F
 
 ## 迁移策略
 
-1. 先冻结 `TextLayout`、`FontProvider`、`GlyphAtlas`、`TextRenderer` 的后端无关接口，并把当前 stb 路径包装为 `StbFontProvider`。
+1. 先冻结 `TextLayout`、`FontProvider`、`GlyphAtlas`、`TextRenderer` 的后端无关接口，并把当前 FreeType 路径包装为 `FreeTypeFontProvider`。
 2. 将现有 `Renderer2D::ExpandTextOp` 拆为适配层；保留旧 `DrawText`，内部临时创建/缓存 `TextLayout`，避免一次性破坏业务 API。
 3. 增加 `FreeTypeFontProvider` 与 `HarfBuzzTextShaper`，先覆盖 Latin + CJK + combining marks，再覆盖 Arabic/Indic/RTL 与彩色 emoji。
 4. 建立 golden tests：相同字体、字号与文本在 layout glyph 序列、行宽、baseline、截图上的预期结果；覆盖 fallback 与 atlas 淘汰。
-5. 当生产路径稳定后，把 stb 保留为可关闭 shaping 的轻量构建选项，而非删除。
+5. 当生产路径稳定后，明确轻量构建是否保留一个替代 provider；stb 保持图片解码职责，不再承担正式字体栅格。
 
 ## 成本与收益判断
 
-引入两库会增加依赖、构建配置和二进制体积；不会消除 atlas 或 GPU 上传成本。收益是把当前和未来的复杂文本逻辑交给成熟库，并使不可变 layout 可缓存：静态 UI 不再每帧重做 UTF-8 解码、kerning 和 wrap。对于仅有固定西文字体的极简程序，stb 仍可以是更小的选择；对于 Atom 需要支持的多语言 UI，FreeType + HarfBuzz 是推荐生产路径。
+两库会增加依赖、构建配置和二进制体积；不会消除 atlas 或 GPU 上传成本。收益是把当前和未来的复杂文本逻辑交给成熟库，并使不可变 layout 可缓存：静态 UI 不再每帧重做 UTF-8 解码、kerning 和 wrap。对于 Atom 需要支持的多语言 UI，FreeType + HarfBuzz 是推荐生产路径。
 
 ## 引入前的决策门槛
 

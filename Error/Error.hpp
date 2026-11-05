@@ -59,6 +59,7 @@ enum class Module : std::uint8_t {
     // Appended, never inserted: the enumerator order is not wire format, but
     // keeping additions at the end makes review diffs trivial.
     Ecs,
+    Physics,
 };
 
 enum class ErrorCode : std::uint32_t {
@@ -178,6 +179,14 @@ enum class ErrorCode : std::uint32_t {
     EcsTypeIdCollision,
     EcsStructuralChangeDuringIteration,
     EcsOutOfEntities,
+
+    // --- Physics (0x0E00) ---------------------------------------------------
+    PhysicsInvalidShape = 0x0E00,
+    PhysicsNonConvexPolygon,
+    PhysicsBackendUnavailable,
+    PhysicsBackendCreationFailed,
+    PhysicsWorldCreationFailed,
+    PhysicsBodyCreationFailed,
 };
 
 // Canonical name of a module, for logs and diagnostics. Named rather than an
@@ -213,6 +222,8 @@ enum class ErrorCode : std::uint32_t {
             return "tools";
         case Module::Ecs:
             return "ecs";
+        case Module::Physics:
+            return "physics";
     }
     return "unknown";
 }
@@ -401,6 +412,19 @@ enum class ErrorCode : std::uint32_t {
             return "EcsStructuralChangeDuringIteration";
         case ErrorCode::EcsOutOfEntities:
             return "EcsOutOfEntities";
+
+        case ErrorCode::PhysicsInvalidShape:
+            return "PhysicsInvalidShape";
+        case ErrorCode::PhysicsNonConvexPolygon:
+            return "PhysicsNonConvexPolygon";
+        case ErrorCode::PhysicsBackendUnavailable:
+            return "PhysicsBackendUnavailable";
+        case ErrorCode::PhysicsBackendCreationFailed:
+            return "PhysicsBackendCreationFailed";
+        case ErrorCode::PhysicsWorldCreationFailed:
+            return "PhysicsWorldCreationFailed";
+        case ErrorCode::PhysicsBodyCreationFailed:
+            return "PhysicsBodyCreationFailed";
     }
     return "UnknownErrorCode";
 }
@@ -534,6 +558,8 @@ class Error {
             return Module::Tools;
         case 0x0D00:
             return Module::Ecs;
+        case 0x0E00:
+            return Module::Physics;
         default:
             return Module::Core;
     }

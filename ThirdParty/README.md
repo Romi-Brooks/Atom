@@ -18,7 +18,9 @@ pinned submodule remains untouched; see `TargetOverlay.cmake`.
 | utfcpp | `Atom_3rd_UtfCpp` | UTF-8 validation and conversion | `https://github.com/nemtrif/utfcpp.git` | `f9319195dfddf369f68f18e7c0039b3f351797fd` (`v4.0.8`) |
 | minimp3 | `Atom_3rd_Minimp3` | MP3 decoding | `https://github.com/lieff/minimp3.git` | `ea99364f61c14656440e8d77e9c233ccf3124633` |
 | Yoga | `Atom_3rd_Yoga` | Flexbox-compatible UI layout calculation | `https://github.com/facebook/yoga.git` | `042f5013152eb81c1552dec945b88f7b95ca350f` (`v3.2.1`) |
-| stb | `Atom_3rd_Stb` | Image decoding and trusted font rasterization | `https://github.com/nothings/stb.git` | `2c980bb59875b0d32144a71867fbdebb2f77cd20` |
+| stb | `Atom_3rd_Stb` | Image decoding | `https://github.com/nothings/stb.git` | `2c980bb59875b0d32144a71867fbdebb2f77cd20` |
+| FreeType | `Atom_3rd_FreeType` | Production font face loading, hinting, metrics, and glyph rasterization | `https://github.com/freetype/freetype.git` | `42608f77f20749dd6ddc9e0536788eaad70ea4b5` (`VER-2-13-3`) |
+| HarfBuzz | `Atom_3rd_HarfBuzz` | OpenType text shaping; its TextLayout integration follows the provider boundary | `https://github.com/harfbuzz/harfbuzz.git` | `3ef8709829a5884517ad91a97b32b9435b2f20d1` (`10.4.0`) |
 | EnTT | `Atom_3rd_EnTT` | Entity/component storage behind `Atom_ECS`. Header-only; upstream's own CMake target is deliberately not used | `https://github.com/skypjack/entt.git` | `85c6bba014049b5de8fad49d25424df2f1f6a8c1` (`v4.0.0`) |
 
 Initialize the versions locked by Atom:

@@ -10,6 +10,8 @@
 #ifndef ATOM_BACKEND_SDLGPU_DEVICE_HPP
 #define ATOM_BACKEND_SDLGPU_DEVICE_HPP
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <unordered_map>
@@ -29,6 +31,14 @@ struct SDLGPU2DTextureEntry {
         SDL_GPUTexture* texture = nullptr;
         uint32_t width = 0;
         uint32_t height = 0;
+};
+
+// Persistent upload staging buffer. The 2D encoder creates one per in-flight
+// submission instead of allocating and freeing a transfer buffer every segment
+// of every frame (a high-frequency alloc/free that fragments GPU allocators).
+struct SDLGPUUploadBufferEntry {
+        SDL_GPUTransferBuffer* buffer = nullptr;
+        uint32_t capacity = 0;
 };
 
 class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2DContext {
@@ -55,7 +65,7 @@ class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2
         // Frame-pass coordination for in-frame encoders (scene, overlay):
         // the first encoder must CLEAR the swapchain, later ones must LOAD.
         [[nodiscard]] auto IsFrameEncoded() const -> bool {
-            return frame_encoded_;
+            return CurrentFrame().encoded;
         }
         [[nodiscard]] auto GetClearColor() const -> const render::Color& {
             return clear_color_;
@@ -77,22 +87,60 @@ class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2
         [[nodiscard]] auto GetMax2DIndices() const -> uint32_t override;
 
     private:
+        // Number of frames the CPU may be ahead of the GPU. 2 keeps latency
+        // low while removing the per-frame CPU<->GPU stall.
+        static constexpr std::size_t kMaxFramesInFlight = 2;
+
+        // Everything that is written once per frame and read by the GPU while
+        // that frame is in flight. Fence-ordered so the CPU can encode frame
+        // N+1 while the GPU still executes frame N.
+        struct FrameContext {
+                SDL_GPUCommandBuffer* command_buffer = nullptr;
+                SDL_GPUTexture* swapchain_texture = nullptr;
+                SDL_GPUFence* fence = nullptr;
+                uint32_t swap_width = 0;
+                uint32_t swap_height = 0;
+                bool encoded = false;
+                bool postprocess_encoded = false;
+                SDL_GPUBuffer* vertex_buffer = nullptr;
+                SDL_GPUBuffer* index_buffer = nullptr;
+                uint32_t vertex_capacity = 0;
+                uint32_t index_capacity = 0;
+                SDL_GPUTexture* postprocess_texture = nullptr;
+                uint32_t postprocess_width = 0;
+                uint32_t postprocess_height = 0;
+                // Geometry upload staging: one slot per in-frame segment.
+                std::vector<SDLGPUUploadBufferEntry> upload_pool;
+                std::size_t upload_cursor = 0;
+                // Transfer buffers recorded into this frame's command buffer
+                // (texture uploads); released once the frame's fence completes.
+                std::vector<SDL_GPUTransferBuffer*> pending_transfers;
+        };
+
+        [[nodiscard]] auto CurrentFrame() -> FrameContext& {
+            return frames_[frame_index_];
+        }
+        [[nodiscard]] auto CurrentFrame() const -> const FrameContext& {
+            return frames_[frame_index_];
+        }
+
         auto Release2DResources() -> void;
         auto EnsurePostProcessTarget(uint32_t width, uint32_t height) -> bool;
         auto EncodePostProcess(SDL_GPUTexture* source, uint32_t width, uint32_t height) -> bool;
+        // Returns a transfer buffer with >= min_bytes capacity for the current
+        // frame's geometry upload, growing the persistent pool only when needed.
+        [[nodiscard]] auto AcquireUploadBuffer(uint32_t min_bytes) -> SDL_GPUTransferBuffer*;
 
         SDL_GPUDevice* device_ = nullptr;
         SDL_Window* window_ = nullptr;
-        SDL_GPUCommandBuffer* command_buffer_ = nullptr;
-        SDL_GPUTexture* swapchain_texture_ = nullptr;
-        uint32_t frame_width_ = 0;
-        uint32_t frame_height_ = 0;
         render::Color clear_color_ = render::Color::Black();
         render::RenderBackendInfo info_{};
         bool vsync_enabled_ = true;
-        bool frame_encoded_ = false;
 
-        // 2D context state (owned by this device; see Encoding/SDLGPU2D.cpp).
+        std::array<FrameContext, kMaxFramesInFlight> frames_{};
+        std::size_t frame_index_ = 0;
+
+        // 2D context state (shared across frames; see Encoding/SDLGPU2D.cpp).
         std::filesystem::path shader_root_2d_{};
         SDL_GPUGraphicsPipeline* pipeline_2d_ = nullptr;
         SDL_GPUGraphicsPipeline* pipeline_postprocess_ = nullptr;
@@ -100,23 +148,11 @@ class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2
         SDL_GPUGraphicsPipeline* pipeline_blur_ = nullptr;
         SDLGPU2DPipelineSet pipeline_set_{};
         bool pipeline_2d_init_failed_ = false;
-        SDL_GPUBuffer* vertex_buffer_2d_ = nullptr;
-        SDL_GPUBuffer* index_buffer_2d_ = nullptr;
-        uint32_t vertex_capacity_2d_ = 0;
-        uint32_t index_capacity_2d_ = 0;
         uint64_t next_texture_2d_ = 1;
         uint64_t next_sampler_2d_ = 1;
         std::unordered_map<render::Texture2D, SDLGPU2DTextureEntry> textures_2d_{};
         std::unordered_map<render::Sampler2D, SDL_GPUSampler*> samplers_2d_{};
-        SDL_GPUTexture* postprocess_texture_ = nullptr;
-        uint32_t postprocess_width_ = 0;
-        uint32_t postprocess_height_ = 0;
         render::PostProcess2DParams postprocess_params_{};
-        bool postprocess_target_encoded_ = false;
-        // Transfer buffers referenced by the still-open frame command buffer.
-        // SDL_GPU requires them to stay alive until that buffer is submitted,
-        // so they are released right after EndFrame() submits (or on Shutdown).
-        std::vector<SDL_GPUTransferBuffer*> pending_transfers_2d_{};
 };
 
 } // namespace atom::backend::sdlgpu

@@ -8,6 +8,7 @@
 
 #include <Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Backend/Contracts/Numeric/NumericContract.hpp>
+#include <Concurrency/ThreadRegistry.hpp>
 #include <Log/LogSystem.hpp>
 
 namespace atom::backend::sdl3 {
@@ -78,9 +79,22 @@ auto SDL3StreamingMusicSource::EnsureStream() -> bool {
         return false;
     }
 
-    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Opening streaming stream: fmt=" + std::to_string(spec_.format) +
-                                                          " freq=" + std::to_string(spec_.freq) +
-                                                          " ch=" + std::to_string(spec_.channels));
+    // Log source vs device format at INFO: a mismatch means SDL converts or
+    // resamples every callback on the audio threads, which is the first thing
+    // to correlate when per-track playback cost varies.
+    SDL_AudioSpec device_spec{};
+    int device_sample_frames = 0;
+    const bool has_device_spec =
+        SDL_GetAudioDeviceFormat(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &device_spec, &device_sample_frames);
+    LOG_INFO(atom::log::backend::Audio::sdl3,
+             "Opening streaming stream: source fmt=" + std::to_string(static_cast<int>(spec_.format)) +
+                 " freq=" + std::to_string(spec_.freq) + " ch=" + std::to_string(spec_.channels) +
+                 "; device " +
+                 (has_device_spec ? "fmt=" + std::to_string(static_cast<int>(device_spec.format)) +
+                                        " freq=" + std::to_string(device_spec.freq) +
+                                        " ch=" + std::to_string(device_spec.channels) +
+                                        " buffer=" + std::to_string(device_sample_frames) + " frames"
+                                  : "format unavailable"));
 
     stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, nullptr, nullptr);
     if (!stream_) {
@@ -89,7 +103,6 @@ auto SDL3StreamingMusicSource::EnsureStream() -> bool {
         return false;
     }
 
-    LOG_DEBUG(atom::log::backend::Audio::sdl3, "Streaming audio stream opened successfully");
     return true;
 }
 
@@ -141,6 +154,10 @@ auto SDL3StreamingMusicSource::Play() -> void {
 auto SDL3StreamingMusicSource::HaltDecoding() -> void {
     state_.store(atom::audio::AudioSourceState::Stopped);
     thread_running_ = false;
+    // The decode thread may be parked in its throttle wait; wake it so the join
+    // below returns immediately instead of blocking the caller for up to a full
+    // sleep interval (the cause of a render-thread frame drop on Stop/seek).
+    wake_cv_.notify_all();
     if (stream_) {
         SDL_ClearAudioStream(stream_);
         SDL_PauseAudioStreamDevice(stream_);
@@ -195,6 +212,7 @@ auto SDL3StreamingMusicSource::Pause() -> void {
     if (!state_.compare_exchange_strong(expected, atom::audio::AudioSourceState::Paused))
         return;
     thread_running_ = false;
+    wake_cv_.notify_all();
     if (stream_) {
         SDL_PauseAudioStreamDevice(stream_);
     }
@@ -322,6 +340,7 @@ auto SDL3StreamingMusicSource::IsFinished() const -> bool {
 }
 
 auto SDL3StreamingMusicSource::DecodeLoop() -> void {
+    atom::concurrency::ThreadRegistry::ScopedRegistration registration{"AudioDecode"};
     SDL_SetAudioStreamGain(stream_, volume_.load() / 100.0f);
     SDL_ResumeAudioStreamDevice(stream_);
 
@@ -418,8 +437,13 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
         // converted output bytes. A flushed stream can retain a small input
         // tail that cannot produce another output frame, so completion must
         // be based on output availability rather than queued input bytes.
-        const auto available_after_push = SDL_GetAudioStreamAvailable(stream_);
-        if (eof_.load() && ReadableBytes() == 0 && available_after_push == 0) {
+        //
+        // The available() query takes the same stream lock the device callback
+        // holds while converting/resampling the current block, and its answer
+        // only matters once EOF is reached. For a 44.1 kHz source on a 48 kHz
+        // device that lock is the contended one, so it is queried only when
+        // EOF makes the result relevant instead of on every throttle pass.
+        if (eof_.load() && ReadableBytes() == 0 && SDL_GetAudioStreamAvailable(stream_) == 0) {
             if (loop_.load()) {
                 LOG_DEBUG(atom::log::backend::Audio::sdl3, "Looping: rewinding decoder");
                 if (decoder_->Rewind()) {
@@ -432,9 +456,13 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
                 }
                 LOG_ERROR(atom::log::backend::Audio::sdl3, "Decoder rewind failed during loop");
             }
-            // Drain SDL stream before stopping
+            // Drain SDL stream before stopping. Woken immediately when the
+            // thread is being stopped, so a Stop() during drain does not wait
+            // out a full sleep interval.
             while (thread_running_.load() && SDL_GetAudioStreamAvailable(stream_) > 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                std::unique_lock<std::mutex> lock{wake_mutex_};
+                wake_cv_.wait_for(lock, std::chrono::milliseconds(10),
+                                  [this] { return !thread_running_.load(); });
             }
             if (!thread_running_.load() || state_.load() != atom::audio::AudioSourceState::Playing) {
                 break;
@@ -451,7 +479,13 @@ auto SDL3StreamingMusicSource::DecodeLoop() -> void {
             break;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // Throttle the producer loop; wake immediately when Stop()/Pause()/seek
+        // asks the thread to leave so a join() from any thread is prompt.
+        {
+            std::unique_lock<std::mutex> lock{wake_mutex_};
+            wake_cv_.wait_for(lock, std::chrono::milliseconds(10),
+                              [this] { return !thread_running_.load(); });
+        }
     }
 
     thread_running_ = false;

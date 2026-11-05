@@ -17,7 +17,6 @@
 namespace atom {
 class RenderWindow;
 class Screen;
-class ListenerConnection;
 }
 
 enum class PanelScope {
@@ -29,7 +28,7 @@ namespace atom::debugger {
 
 class OverlayConnection;
 
-// One panel in the RenderWindow-owned shared ImGui context.
+// One panel in the Runtime-integrated shared ImGui context.
 // Subclasses implement OnDrawOverlay();
 // multiple panels coexist independently.
 //
