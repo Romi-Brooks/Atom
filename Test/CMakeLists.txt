@@ -10,7 +10,7 @@ function(atom_add_test test_name target_name source)
     target_link_libraries(${target_name} PRIVATE ${ARGN})
     target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     # Allow #include <Test/...> helpers via project root.
-    target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR})
+    target_include_directories(${target_name} PRIVATE ${PROJECT_SOURCE_DIR})
     add_test(NAME ${test_name} COMMAND ${target_name})
     set(ATOM_TEST_ALL_TARGETS ${ATOM_TEST_ALL_TARGETS} ${target_name} PARENT_SCOPE)
 endfunction()
@@ -98,7 +98,7 @@ atom_add_test(Atom_Render_Text.Font
     Atom_Render_Text_Font_Tests
     Render/FontTest.cpp
     Atom_Text)
-target_compile_definitions(Atom_Render_Text_Font_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Render_Text_Font_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 
 # W2a: FreeType-backed FontProvider (family registration, instance handout,
 # glyph-id mapping, metrics, on-demand rasterization) + W2b batch rasterization.
@@ -106,27 +106,27 @@ atom_add_test(Atom_Render_Text.FreeTypeFontProvider
     Atom_Render_Text_FreeTypeFontProvider_Tests
     Render/FreeTypeFontProviderTest.cpp
     Atom_Text Atom_Concurrency)
-target_compile_definitions(Atom_Render_Text_FreeTypeFontProvider_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Render_Text_FreeTypeFontProvider_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 
 # W2c: HarfBuzz shaping (glyph ids, byte-offset clusters, advances, mark positioning).
 atom_add_test(Atom_Render_Text.HarfBuzzTextShaper
     Atom_Render_Text_HarfBuzzTextShaper_Tests
     Render/HarfBuzzTextShaperTest.cpp
     Atom_Text)
-target_compile_definitions(Atom_Render_Text_HarfBuzzTextShaper_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Render_Text_HarfBuzzTextShaper_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 
 # W3: immutable TextLayout builder (shaping-driven line breaking, clusters, alignment, line boxes).
 atom_add_test(Atom_Render_Text.TextLayoutBuilder
     Atom_Render_Text_TextLayoutBuilder_Tests
     Render/TextLayoutBuilderTest.cpp
     Atom_Text Atom_Concurrency)
-target_compile_definitions(Atom_Render_Text_TextLayoutBuilder_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Render_Text_TextLayoutBuilder_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 
 atom_add_test(Atom_Renderer2D.Text
     Atom_Renderer2D_Text_Tests
     Render/Renderer2DTextTest.cpp
     Atom_Renderer2D)
-target_compile_definitions(Atom_Renderer2D_Text_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Renderer2D_Text_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 
 # T1.2: Scene2D sprite collection and the 2D camera, asserted headlessly - draw
 # order, destination rects, pivots, unresolved-texture handling and the
@@ -396,6 +396,11 @@ atom_add_test(Atom_UTF8.Utf8
     Utilities/Utf8Test.cpp
     Atom_UTF8)
 
+atom_add_test(Atom_Random.Stream
+    Atom_Random_Stream_Tests
+    Utilities/RngTest.cpp
+    Atom_Random)
+
 atom_add_test(Atom_Packager.PackageBuilder
     Atom_Packager_PackageBuilder_Tests
     Utilities/PackageBuilderTest.cpp
@@ -450,17 +455,17 @@ atom_add_test(Atom_Sprite.Atlas
     Atom_Sprite_Atlas_Tests
     Sprite/SpriteAtlasTest.cpp
     Atom_Sprite)
-target_compile_definitions(Atom_Sprite_Atlas_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Sprite_Atlas_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 
 # --- Scene (T2.1 format, T2.2 loader) ---
 # Schema + loader: the shipped demo room is read through a real filesystem so it
-# cannot rot, the invalid fixtures under Test/Data must be rejected, and the
+# cannot rot, the invalid fixtures under Test/Scene/Fixtures must be rejected, and the
 # component mapping is asserted field by field.
 atom_add_test(Atom_Scene.SceneLoader
     Atom_Scene_SceneLoader_Tests
     Scene/SceneLoaderTest.cpp
     Atom_Scene)
-target_compile_definitions(Atom_Scene_SceneLoader_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Scene_SceneLoader_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 
 # Scene sprites that name an atlas frame instead of a texel rectangle: resolution, and
 # the rule that the two sprite forms cannot be mixed.
@@ -478,6 +483,12 @@ atom_add_test(Atom_Scene.ScenePrefab
     Atom_Scene)
 
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---
+atom_add_test(Atom_World2D.Core
+    Atom_World2D_Core_Tests
+    World2D/World2DTest.cpp
+    Atom_World2D)
+target_compile_definitions(Atom_World2D_Core_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
 atom_add_test(Atom_Lua.LuaHost
     Atom_Lua_LuaHost_Tests
     Lua/LuaHostTest.cpp

@@ -15,6 +15,10 @@
 #include <string>
 #include <vector>
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Input/Key.hpp>
 #include <Filesystem/PackageFileSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
@@ -160,7 +164,7 @@ class PackedMusicScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main() -> int {
+auto main(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 

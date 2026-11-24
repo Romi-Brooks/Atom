@@ -177,10 +177,12 @@ auto main() -> int {
     // --- 4. The shipped atlas is valid ------------------------------------
     //
     // This is the only place the repository's own atlas document is exercised, so a
-    // broken sheet fails here instead of at the demo's boot.
+    // broken sheet fails here instead of at an example's boot. The document lives
+    // under Test/, not under Example/: an engine test must not depend on example
+    // content (RI-011).
     {
         std::unique_ptr<fs::NativeFileSystem> backend{};
-        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Example/TestGame/Assets",
+        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Test/Content/SampleRoom",
                                                 backend) == fs::Result::Success);
 
         sprite::SpriteAtlasLoader loader{*backend};

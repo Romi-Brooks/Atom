@@ -432,6 +432,14 @@ auto main() -> int {
         ATOM_CHECK(almost != nullptr);
         ATOM_CHECK_NEAR(almost->destination.x, 99.9F - 4.0F);
 
+        auto* sprite = world.TryGet<ecs::SpriteRenderer>(entity);
+        ATOM_CHECK(sprite != nullptr);
+        sprite->visible = false;
+        ATOM_CHECK(FindDraw(renderer.Collect(world, 0.5F), entity) == nullptr);
+        ATOM_CHECK(sprite->texture_uri == "res://textures/player.png");
+        sprite->visible = true;
+        ATOM_CHECK(FindDraw(renderer.Collect(world, 0.5F), entity) != nullptr);
+
         // Collect must not write either component: a blended value written back into the
         // display copy would make the next frame interpolate from an interpolated value.
         const auto* display = world.TryGet<ecs::RenderTransform2D>(entity);

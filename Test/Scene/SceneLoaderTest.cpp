@@ -8,9 +8,9 @@
  *   BuildWorld   SceneDesc -> EntityWorld, with the component mapping
  *
  * Two sets of on-disk files are read here on purpose:
- *  - the demo room under Example/TestGame/Assets, because it ships with the engine and
+ *  - the sample room under Test/Content/SampleRoom, which the engine owns and which
  *    must not rot into an unloadable state;
- *  - the loader's own invalid fixtures under Test/Data/scenes, which exist only to
+ *  - the loader's own invalid fixtures under Test/Scene/Fixtures, which exist only to
  *    prove that each rule rejects - a fixture that silently starts passing is a
  *    test that stopped working.
  */
@@ -66,7 +66,7 @@ auto main() -> int {
         ATOM_CHECK(fs::AssetPath::TryParse("res://scenes/test_room.scene.json", path));
 
         std::unique_ptr<fs::NativeFileSystem> backend{};
-        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Example/TestGame/Assets",
+        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Test/Content/SampleRoom",
                                                 backend) == fs::Result::Success);
 
         const auto loaded = scene::SceneLoader::Load(*backend, path);
@@ -122,9 +122,10 @@ auto main() -> int {
         ATOM_CHECK(atlas_cells == 1);
         ATOM_CHECK(flipped == 1);
 
-        // The 3rd entity is a static crate with the authored sort key.
-        // Tags are presence-only, so they are checked per entity rather than queried:
-        // that keeps the ECS instantiation list to the sets with a real caller.
+        // Crates: an invariant, not a count. The room's crate population is example content and
+        // changes whenever the level is edited; what must hold is that every crate sprite resolves
+        // through the prefab and carries a transform. (RI-011: pinning "2" here broke this test
+        // every time the room gained crates.)
         std::size_t crates = 0;
         for (const auto entity : world.With<ecs::RenderTransform2D, ecs::SpriteRenderer>()) {
             if (!world.Has<ecs::Static>(entity))
@@ -134,7 +135,7 @@ auto main() -> int {
             ATOM_CHECK(sprite->texture_uri == "res://textures/crate.png");
             ++crates;
         }
-        ATOM_CHECK(crates == 2);
+        ATOM_CHECK(crates >= 2);
 
         // Lifetime came through with its authored duration.
         for (const auto entity : world.With<ecs::Lifetime>()) {
@@ -173,7 +174,7 @@ auto main() -> int {
     // --- 2. The committed invalid fixtures are rejected, per rule ---------
     {
         std::unique_ptr<fs::NativeFileSystem> backend{};
-        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Test/Data/scenes", backend) ==
+        ATOM_CHECK(fs::NativeFileSystem::Create("res", std::string{ATOM_SOURCE_ROOT} + "/Test/Scene/Fixtures", backend) ==
                    fs::Result::Success);
 
         struct Case {

@@ -8,6 +8,10 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Runtime/Application.hpp>
@@ -83,7 +87,7 @@ class ExampleScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main() -> int {
+auto main(int, char**) -> int {
     // For windows: Console Debugger OUTPUT CP will be set to UTF-8
     atom::Log::SetConsoleOutputUtf8();
 
@@ -140,4 +144,5 @@ auto main() -> int {
 
     // Main loop
     application.Run();
+    return 0;
 }

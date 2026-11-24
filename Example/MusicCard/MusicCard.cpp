@@ -22,6 +22,10 @@
 #include <string>
 #include <vector>
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Backend/Composition/BackendRuntime.hpp>
 #include <Debugger/Panels/LogDebugger.hpp>
@@ -108,17 +112,13 @@ namespace {
 auto main(int argc, char** argv) -> int {
     atom::Log::SetConsoleOutputUtf8();
 
-    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
+    // Persist the log to Log/<YYYYMMDD-HHMMSS>.log (the on-screen viewer keeps
+    // only a small 1024-entry ring). One switch: the engine owns the directory
+    // and the file name, so the whole run is captured without the program
+    // building a path of its own.
+    atom::Log::SetFileOutput(true);
 
-    // Persist the log to Log/atom-YYYYMMDD-HHMMSS.log (the on-screen viewer keeps
-    // only a small 1024-entry ring). The engine owns the directory-naming policy,
-    // so a program never rebuilds this by hand. Open it before any subsystem
-    // logs so the whole run is captured.
-    const std::string log_file = atom::Log::EnableTimestampedFileSink();
-    if (log_file.empty())
-        LOG_WARNING(atom::log::core::Main, "Could not open the log file sink");
-    else
-        LOG_INFO(atom::log::core::Main, "Log file sink enabled: " + log_file);
+    atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
 
     atom::AudioMixer mixer;
     atom::MusicPlayer music{mixer};

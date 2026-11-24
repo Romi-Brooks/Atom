@@ -46,8 +46,19 @@ class RecordingWindow final : public atom::window::IWindow {
         }
         [[nodiscard]] auto GetWindowMode() const -> atom::window::WindowMode override { return mode_; }
 
+        auto SetResolution(std::uint32_t width, std::uint32_t height) -> bool override {
+            ++resolution_calls;
+            resolution_mode = mode_;
+            resolution = {static_cast<float>(width), static_cast<float>(height)};
+            return !reject_resolution;
+        }
+
         bool reject_window_mode = false;
+        bool reject_resolution = false;
         int set_mode_calls = 0;
+        int resolution_calls = 0;
+        atom::algo::Vec2 resolution{};
+        atom::window::WindowMode resolution_mode = atom::window::WindowMode::Windowed;
 
     private:
         atom::window::WindowMode mode_ = atom::window::WindowMode::Windowed;
@@ -178,6 +189,25 @@ auto main() -> int {
     // --- ToString identifies a measurement --------------------------------
     ATOM_CHECK(atom::display::ToString({atom::window::WindowMode::Borderless, atom::render::PresentMode::Immediate}) ==
                "borderless+immediate");
+
+    window.reject_resolution = true;
+    display.RequestResolution(1000, 750);
+    display.RequestResolution(1200, 800);
+    ATOM_CHECK(display.HasPendingChange());
+    ATOM_CHECK(window.resolution_calls == 0);
+    display.ApplyPending(window, device);
+    ATOM_CHECK(window.resolution_calls == 1);
+    ATOM_CHECK(window.resolution.GetX() == 1200 && window.resolution.GetY() == 800);
+    ATOM_CHECK(!display.HasPendingChange());
+    display.ApplyPending(window, device);
+    ATOM_CHECK(window.resolution_calls == 1);
+    window.reject_resolution = false;
+
+    display.RequestWindowMode(atom::window::WindowMode::ExclusiveFullscreen);
+    display.RequestResolution(1920, 1080);
+    display.ApplyPending(window, device);
+    ATOM_CHECK(window.resolution_mode == atom::window::WindowMode::ExclusiveFullscreen);
+    ATOM_CHECK(window.resolution_calls == 2);
 
     return 0;
 }

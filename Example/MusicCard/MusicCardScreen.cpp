@@ -1499,9 +1499,13 @@ auto MusicCardScreen::LoadTrackMetadata(std::size_t index) -> void {
     // and produces everything the card needs to render (title, artist, artwork
     // and its derived theme). Audio decoding/stream allocation is deliberately
     // deferred to LoadTrackAudio so the artwork can reach the renderer first.
-    auto metadata = filesystem_ && asset_path.IsValid()
-                        ? atom::audio::AudioMetadataReader::Read(*filesystem_, asset_path)
-                        : std::optional<atom::audio::AudioMetadata>{std::nullopt};
+    // Read returns Result: a tag-less or unreadable file simply leaves the
+    // optional empty and the filename fallback below takes over.
+    std::optional<atom::audio::AudioMetadata> metadata{};
+    if (filesystem_ && asset_path.IsValid()) {
+        if (auto read = atom::audio::AudioMetadataReader::Read(*filesystem_, asset_path); read)
+            metadata = std::move(*read);
+    }
     auto title = metadata && !metadata->title.empty() ? metadata->title : std::filesystem::path{path}.stem().string();
     auto artist = metadata && !metadata->artist.empty() ? metadata->artist : std::string{"UNKNOWN ARTIST"};
     auto artwork_mime_type = metadata ? std::move(metadata->artworkMimeType) : std::string{};

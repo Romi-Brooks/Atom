@@ -6,6 +6,17 @@
  * The ScreenManager owns page navigation; each page owns only its local UiTree.
  */
 
+#include <array>
+#include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <vector>
+
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
 #include <Runtime/ScreenManager.hpp>
@@ -13,13 +24,6 @@
 #include <Render/Renderer2D/Renderer2D.hpp>
 #include <UI/UiCanvas.hpp>
 #include <UI/UiTree.hpp>
-
-#include <array>
-#include <cstddef>
-#include <filesystem>
-#include <fstream>
-#include <memory>
-#include <vector>
 
 namespace {
 
@@ -279,7 +283,7 @@ class PausePage final : public UiPage {
 
 } // namespace
 
-auto main() -> int {
+auto main(int, char**) -> int {
     auto& application = atom::runtime::Application::GetInstance();
     if (const auto result = application.Initialize("Atom UI Runtime Demo", {1280.0f, 720.0f}); !result)
         return 1;

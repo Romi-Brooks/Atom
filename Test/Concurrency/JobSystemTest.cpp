@@ -17,6 +17,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <latch>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -35,6 +37,20 @@ auto MakeSystem(const std::size_t workers = 4) -> JobSystem& {
 } // namespace
 
 auto main() -> int {
+    // With a stopped scheduler the caller runs the job before getting its handle.
+    {
+        JobSystem sys;
+        const auto caller = std::this_thread::get_id();
+        std::thread::id runner;
+        ATOM_CHECK(!sys.Schedule([&] { runner = caller; }).IsValid());
+        ATOM_CHECK(sys.PendingJobCount() == 0);
+        const auto handle = sys.ScheduleOrRun("inline", [&] { runner = std::this_thread::get_id(); });
+        ATOM_CHECK(runner == caller);
+        ATOM_CHECK(handle.IsValid() && handle.IsComplete());
+        ATOM_CHECK(sys.Stats().submitted == 1 && sys.Stats().completed == 1);
+        ATOM_CHECK(sys.PendingJobCount() == 0);
+    }
+
     // --- 1. Single job completes and produces its result ------------------
     {
         auto& sys = MakeSystem();
@@ -212,7 +228,107 @@ auto main() -> int {
         ATOM_CHECK(total.load(std::memory_order_acquire) == 50);
     }
 
-    // --- 7. Shutdown drains and handles remain observable -----------------
+    // --- 7. Running job snapshots own their names after worker exit ------
+    {
+        auto& sys = MakeSystem();
+        std::latch executing{1};
+        std::latch finish{1};
+        const std::string name = "A named diagnostic job that completes after the snapshot";
+        auto handle = sys.Schedule(name, [&] {
+            executing.count_down();
+            finish.wait();
+        });
+        executing.wait();
+        const auto snapshot = sys.GetRunningJobs();
+        finish.count_down();
+        sys.WaitFor(handle);
+        handle = {};
+        sys.Shutdown();
+        ATOM_CHECK(snapshot.size() == 1);
+        ATOM_CHECK(snapshot.front().name == name);
+    }
+
+    // A worker from another scheduler must submit through the shared pool.
+    {
+        JobSystem source, destination;
+        source.Configure(1);
+        destination.Configure(1);
+        ATOM_CHECK(source.Start() && destination.Start());
+        std::latch destination_busy{1}, release_destination{1}, submitted{1};
+        auto blocker = destination.Schedule([&] {
+            destination_busy.count_down();
+            release_destination.wait();
+        });
+        destination_busy.wait();
+        const bool foreign_rejected = !source.Schedule([] {}, blocker).IsValid();
+        atom::job::JobHandle forwarded;
+        bool ran = false;
+        auto sender = source.Schedule([&] {
+            forwarded = destination.Schedule([&] { ran = true; });
+            submitted.count_down();
+        });
+        submitted.wait();
+        destination.WaitFor(forwarded);
+        const auto stole = destination.Stats().stolen;
+        release_destination.count_down();
+        destination.WaitFor(blocker);
+        source.WaitFor(sender);
+        ATOM_CHECK(foreign_rejected && forwarded.IsValid() && ran && stole == 0);
+    }
+
+    // A shutdown request from a job closes admission while its dependents drain.
+    {
+        JobSystem jobs;
+        jobs.Configure(1);
+        ATOM_CHECK(jobs.Start());
+        std::latch dependencies_registered{1}, admission_closed{1};
+        auto parent = jobs.Schedule([&] {
+            dependencies_registered.wait();
+            jobs.Shutdown();
+            admission_closed.count_down();
+        });
+        int steps = 0;
+        auto child = jobs.Schedule([&] { ++steps; }, parent);
+        auto tail = jobs.Schedule([&] { ++steps; }, child);
+        dependencies_registered.count_down();
+        admission_closed.wait();
+        const bool rejected = !jobs.Schedule([] {}).IsValid() && !jobs.ScheduleOrRun("late", [] {}).IsValid();
+        tail.Wait();
+        jobs.Shutdown();
+        ATOM_CHECK(rejected && parent.IsComplete() && child.IsComplete() && tail.IsComplete() && steps == 2);
+        ATOM_CHECK(jobs.PendingJobCount() == 0 && jobs.WorkerCount() == 0);
+        ATOM_CHECK(jobs.Start());
+        jobs.Schedule([] {}).Wait();
+        jobs.Shutdown();
+    }
+
+    // An external shutdown and submitter agree on which jobs were accepted.
+    {
+        JobSystem jobs;
+        jobs.Configure(2);
+        ATOM_CHECK(jobs.Start());
+        std::latch submit_started{1};
+        std::vector<atom::job::JobHandle> accepted;
+        std::atomic<int> ran{0};
+        std::jthread submitter([&] {
+            accepted.push_back(jobs.Schedule([&] { ++ran; }));
+            submit_started.count_down();
+            for (int i = 0; i < 200; ++i) {
+                auto job = jobs.Schedule([&] { ++ran; });
+                if (job.IsValid())
+                    accepted.push_back(std::move(job));
+            }
+        });
+        submit_started.wait();
+        jobs.Shutdown();
+        submitter.join();
+        for (const auto& job : accepted)
+            ATOM_CHECK(job.IsComplete());
+        ATOM_CHECK(static_cast<std::size_t>(ran.load()) == accepted.size());
+        ATOM_CHECK(jobs.PendingJobCount() == 0);
+    }
+
+    // --- 8. Shutdown drains and handles remain observable -----------------
     {
         auto& sys = MakeSystem();
         std::atomic<int> value{0};
@@ -222,6 +338,7 @@ auto main() -> int {
 
         sys.Shutdown();
         ATOM_CHECK(!sys.IsRunning());
+        ATOM_CHECK(!sys.Schedule([] {}).IsValid());
         // A handle remains observable after shutdown.
         ATOM_CHECK(handle.IsComplete());
     }

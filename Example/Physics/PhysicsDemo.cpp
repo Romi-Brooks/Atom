@@ -26,6 +26,10 @@
 #include <variant>
 #include <vector>
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Algorithm/Color/Color.hpp>
 #include <Algorithm/Geometry/Rect.hpp>
 #include <Algorithm/Vector/Vec2.hpp>
@@ -298,7 +302,7 @@ class PhysicsScreen final : public atom::Screen {
         int ball_color_index_ = 0;
 };
 
-auto main() -> int {
+auto main(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
 

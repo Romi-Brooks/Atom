@@ -2,6 +2,10 @@
 #include <memory>
 #include <string>
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Backend/Contracts/Audio/AudioExtensions.hpp>
 #include <Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
@@ -249,7 +253,7 @@ class ProbeDebugger final : public atom::debugger::DebugPanel {
 
 } // namespace
 
-auto main() -> int {
+auto main(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
     atom::ScreenManager::GetInstance().LoadScreen("Probe", std::make_unique<ProbeScreen>());
@@ -269,4 +273,5 @@ auto main() -> int {
     log_panel.Attach(window);
     debugger.Attach(window);
     application.Run();
+    return 0;
 }

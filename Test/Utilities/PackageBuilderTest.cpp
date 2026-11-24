@@ -20,6 +20,10 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace {
 
 namespace native_fs = std::filesystem;
@@ -292,6 +296,13 @@ auto main() -> int {
         ATOM_CHECK(atom::fs::PackageFileSystem::Create("res", corrupt_path.string(), package) !=
                    atom::fs::Result::Success);
 
+        // The index remains readable after a payload bit flip, while explicit
+        // verification finds the damage without loading the whole package.
+        ATOM_CHECK(CorruptByte(package_path, corrupt_path, atom::fs::package_format::header_size));
+        ATOM_CHECK(atom::fs::PackageFileSystem::Create("res", corrupt_path.string(), package) ==
+                   atom::fs::Result::Success);
+        ATOM_CHECK(package->VerifyContents() == atom::fs::Result::IoError);
+
         // Bad magic is rejected outright.
         ATOM_CHECK(WriteText(corrupt_path, "NOPE-this-is-not-a-package-at-all....................................."
                                            "...................................................................."));
@@ -306,6 +317,44 @@ auto main() -> int {
         atom::tools::PackageBuilder::Config config{};
         config.overwrite = false;
         ATOM_CHECK(builder.Build(package_path.string(), config) == atom::tools::PackageBuilder::Result::ErrorWriteFailed);
+    }
+
+    // A failed build preserves the old package and leaves a foreign .tmp alone.
+    {
+        using Result = atom::tools::PackageBuilder::Result;
+        const auto source = temp.Root() / "replacement.txt";
+        const auto foreign = temp.Root() / "game.apkg.tmp";
+        ATOM_CHECK(WriteText(source, "replacement"));
+        ATOM_CHECK(WriteText(foreign, "foreign file"));
+        std::unique_ptr<atom::fs::PackageFileSystem> old;
+        ATOM_CHECK(atom::fs::PackageFileSystem::Create("res", package_path.string(), old) == atom::fs::Result::Success);
+        ATOM_CHECK(old->VerifyContents() == atom::fs::Result::Success);
+        atom::tools::PackageBuilder builder;
+        ATOM_CHECK(builder.AddFile(source.string(), "invalid/na:me") == Result::ErrorInvalidPath);
+        ATOM_CHECK(builder.AddFile(source.string(), "root.txt") == Result::Success);
+        ATOM_CHECK(native_fs::remove(source));
+        ATOM_CHECK(builder.Build(package_path.string()) == Result::ErrorReadFile);
+        ATOM_CHECK(old->VerifyContents() == atom::fs::Result::Success);
+        ATOM_CHECK(WriteText(source, "replacement"));
+#ifdef _WIN32
+        // Deny delete sharing while allowing reads. The final publish must
+        // fail without removing the existing package.
+        const auto locked = CreateFileW(package_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                        FILE_ATTRIBUTE_NORMAL, nullptr);
+        ATOM_CHECK(locked != INVALID_HANDLE_VALUE);
+        const auto failed_publish = builder.Build(package_path.string());
+        CloseHandle(locked);
+        ATOM_CHECK(failed_publish == Result::ErrorWriteFailed);
+        ATOM_CHECK(old->VerifyContents() == atom::fs::Result::Success);
+#endif
+        ATOM_CHECK(builder.Build(package_path.string()) == Result::Success);
+        ATOM_CHECK(old->VerifyContents() == atom::fs::Result::IoError);
+        std::unique_ptr<atom::fs::PackageFileSystem> current;
+        ATOM_CHECK(atom::fs::PackageFileSystem::Create("res", package_path.string(), current) == atom::fs::Result::Success);
+        ATOM_CHECK(current->VerifyContents() == atom::fs::Result::Success);
+        std::vector<std::byte> bytes;
+        ATOM_CHECK(ReadFileBytes(foreign, bytes));
+        ATOM_CHECK(std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()) == "foreign file");
     }
 
     return 0;

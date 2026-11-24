@@ -1,5 +1,5 @@
 # Atom Engine — Coding Standard
-[English](CODING_STANDARD.md) | [中文](Docs/CODING_STANDARD-CN.md)  
+[English](CODING_STANDARD.md) | [中文](Docs/Community/CODING_STANDARD-CN.md)
 
 ---
 > This is a quick-reference guide to the project architecture and code style followed during Atom Engine development. Please adhere to this guide when contributing code to Atom Engine.
@@ -487,7 +487,7 @@ clarify a concept that English cannot express faithfully.
 This is the current header format for new Atom files and examples. Every file
 added from now on carries it. Existing headers are not being migrated in this
 phase; the SPDX/license header migration is tracked as **CORE-007** in
-`Docs/Remaining-Issues.md` (current audit: 161 Atom-owned C/C++ files, 45 with
+`Docs/Issues/Remaining-Issues.md` (current audit: 161 Atom-owned C/C++ files, 45 with
 the old header, 9 with SPDX). Do not bolt a second header style onto a file that
 is being edited for another reason — leave the migration to CORE-007.
 
