@@ -4,6 +4,9 @@
 #include <Test/Support/TestHelpers.hpp>
 
 #include <memory>
+#include <atomic>
+#include <latch>
+#include <thread>
 #include <span>
 #include <string>
 #include <vector>
@@ -80,5 +83,26 @@ auto main() -> int {
     AssetPath missing_path{};
     ATOM_CHECK(AssetPath::TryParse("res://gone.txt", missing_path));
     ATOM_CHECK(vfs.OpenRead(missing_path, missing) != Result::Success);
+
+    // Readers can finish on either mounted snapshot while the owner changes
+    // priority overlays. The underlying memory filesystems remain immutable.
+    ATOM_CHECK(vfs.Mount("res", 10, low) == Result::Success);
+    std::latch start{1};
+    std::atomic_bool invalid = false;
+    std::jthread reader([&] {
+        start.count_down();
+        for (int i = 0; i < 800; ++i) {
+            const auto text = ReadText(vfs, "res://config/app.txt");
+            if (text != "from-low" && text != "from-high")
+                invalid.store(true);
+        }
+    });
+    start.wait();
+    for (int i = 0; i < 300; ++i) {
+        ATOM_CHECK(vfs.Mount("res", 20, high) == Result::Success);
+        ATOM_CHECK(vfs.Unmount("res", high.get()) == Result::Success);
+    }
+    reader.join();
+    ATOM_CHECK(!invalid.load());
     return 0;
 }

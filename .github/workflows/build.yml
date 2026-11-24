@@ -50,6 +50,9 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
+      - name: Run CTest
+        run: ctest --test-dir build --output-on-failure --timeout 90 --no-tests=error
+
   linux:
     name: Linux GCC
     runs-on: ubuntu-latest
@@ -82,3 +85,6 @@ jobs:
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Run CTest
+        run: ctest --test-dir build --output-on-failure --timeout 90 --no-tests=error

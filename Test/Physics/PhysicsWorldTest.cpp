@@ -1,7 +1,7 @@
-#include <Backend/Contracts/Physics/IPhysicsBody.hpp>
-#include <Backend/Contracts/Physics/IPhysicsWorld.hpp>
-#include <Backend/Physics/Internal/InternalPhysicsBackend.hpp>
-#include <Backend/Contracts/Physics/PhysicsTypes.hpp>
+#include <Physics/Contracts/IPhysicsBody.hpp>
+#include <Physics/Contracts/IPhysicsWorld.hpp>
+#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Physics/Contracts/PhysicsTypes.hpp>
 #include <Physics/PhysicsWorld/FixedStepper.hpp>
 #include <Physics/Shapes/Shape.hpp>
 #include <Test/Support/TestHelpers.hpp>

@@ -22,9 +22,9 @@
 #include <string_view>
 
 #include <Algorithm/Vector/Vec2.hpp>
-#include <Backend/Contracts/Physics/IPhysicsWorld.hpp>
-#include <Backend/Contracts/Physics/PhysicsTypes.hpp>
-#include <Backend/Physics/Internal/InternalPhysicsBackend.hpp>
+#include <Physics/Contracts/IPhysicsWorld.hpp>
+#include <Physics/Contracts/PhysicsTypes.hpp>
+#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Physics/Shapes/Shape.hpp>
 

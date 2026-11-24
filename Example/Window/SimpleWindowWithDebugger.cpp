@@ -8,13 +8,18 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
-#include <Debugger/LogDebugger.hpp>
-#include <Debugger/FpsDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
+#include <Debugger/Panels/FpsDebugger.hpp>
+#include <Debugger/Panels/RenderDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -82,7 +87,7 @@ class ExampleScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main() -> int {
+auto main(int, char**) -> int {
     // For windows: Console Debugger OUTPUT CP will be set to UTF-8
     atom::Log::SetConsoleOutputUtf8();
 
@@ -133,6 +138,11 @@ auto main() -> int {
     atom::debugger::FpsDebugger fps_panel{};
     fps_panel.Attach(window);
 
+    // Frame budget + device identity, next to the frame rate that it explains.
+    atom::debugger::RenderDebugger render_panel{};
+    render_panel.Attach(window);
+
     // Main loop
     application.Run();
+    return 0;
 }

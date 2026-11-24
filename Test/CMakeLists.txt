@@ -10,7 +10,7 @@ function(atom_add_test test_name target_name source)
     target_link_libraries(${target_name} PRIVATE ${ARGN})
     target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     # Allow #include <Test/...> helpers via project root.
-    target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR})
+    target_include_directories(${target_name} PRIVATE ${PROJECT_SOURCE_DIR})
     add_test(NAME ${test_name} COMMAND ${target_name})
     set(ATOM_TEST_ALL_TARGETS ${ATOM_TEST_ALL_TARGETS} ${target_name} PARENT_SCOPE)
 endfunction()
@@ -54,6 +54,19 @@ atom_add_test(Atom_Assets.ResourceManagerBatch
     Asset/ResourceManagerBatchTest.cpp
     Atom_Assets Atom_Concurrency Atom_FS)
 
+# Async acquire (ARCH-107): pull-model Future contract, inline fallback, shared
+# in-flight load, evict-cancels-in-flight, and error propagation.
+atom_add_test(Atom_Assets.ResourceManagerAsync
+    Atom_Assets_ResourceManagerAsync_Tests
+    Asset/ResourceManagerAsyncTest.cpp
+    Atom_Assets Atom_Concurrency Atom_FS)
+
+# Font bytes enter the async-acquire machinery (ARCH-107 P4).
+atom_add_test(Atom_Text.FontFileLoader
+    Atom_Text_FontFileLoader_Tests
+    Asset/FontFileLoaderTest.cpp
+    Atom_Text Atom_Assets Atom_Concurrency Atom_FS)
+
 atom_add_test(Atom_Assets.ConsumerLoader
     Atom_Assets_ConsumerLoader_Tests
     Asset/ConsumerLoaderTest.cpp
@@ -85,13 +98,43 @@ atom_add_test(Atom_Render_Text.Font
     Atom_Render_Text_Font_Tests
     Render/FontTest.cpp
     Atom_Text)
-target_compile_definitions(Atom_Render_Text_Font_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Render_Text_Font_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
+# W2a: FreeType-backed FontProvider (family registration, instance handout,
+# glyph-id mapping, metrics, on-demand rasterization) + W2b batch rasterization.
+atom_add_test(Atom_Render_Text.FreeTypeFontProvider
+    Atom_Render_Text_FreeTypeFontProvider_Tests
+    Render/FreeTypeFontProviderTest.cpp
+    Atom_Text Atom_Concurrency)
+target_compile_definitions(Atom_Render_Text_FreeTypeFontProvider_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
+# W2c: HarfBuzz shaping (glyph ids, byte-offset clusters, advances, mark positioning).
+atom_add_test(Atom_Render_Text.HarfBuzzTextShaper
+    Atom_Render_Text_HarfBuzzTextShaper_Tests
+    Render/HarfBuzzTextShaperTest.cpp
+    Atom_Text)
+target_compile_definitions(Atom_Render_Text_HarfBuzzTextShaper_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
+# W3: immutable TextLayout builder (shaping-driven line breaking, clusters, alignment, line boxes).
+atom_add_test(Atom_Render_Text.TextLayoutBuilder
+    Atom_Render_Text_TextLayoutBuilder_Tests
+    Render/TextLayoutBuilderTest.cpp
+    Atom_Text Atom_Concurrency)
+target_compile_definitions(Atom_Render_Text_TextLayoutBuilder_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 
 atom_add_test(Atom_Renderer2D.Text
     Atom_Renderer2D_Text_Tests
     Render/Renderer2DTextTest.cpp
     Atom_Renderer2D)
-target_compile_definitions(Atom_Renderer2D_Text_Tests PRIVATE ATOM_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(Atom_Renderer2D_Text_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
+# T1.2: Scene2D sprite collection and the 2D camera, asserted headlessly - draw
+# order, destination rects, pivots, unresolved-texture handling and the
+# Camera2D -> BeginFrame(origin, zoom) mapping.
+atom_add_test(Atom_Scene2D.SpriteRenderer
+    Atom_Scene2D_SpriteRenderer_Tests
+    Render/Scene2DRendererTest.cpp
+    Atom_Scene2D)
 
 # --- Algorithm / Color / Event (header-heavy pure logic) ---
 atom_add_test(Atom_Algorithm.Scalar
@@ -134,6 +177,13 @@ atom_add_test(Atom_Input.InputSystem
     Input/InputSystemTest.cpp
     Atom_InputSystem)
 
+# T3.2: gameplay asks for actions (axes, edges) instead of keys, and one gate suspends
+# every gameplay query at once while menu input keeps working.
+atom_add_test(Atom_Input.ActionState
+    Atom_Input_ActionState_Tests
+    Input/ActionStateTest.cpp
+    Atom_InputSystem)
+
 # --- Retained game UI -------------------------------------------------------
 atom_add_test(Atom_UI.UiTree
     Atom_UI_UiTree_Tests
@@ -150,6 +200,13 @@ atom_add_test(Atom_Error.Error
 atom_add_test(Atom_ECS.EntityWorld
     Atom_ECS_EntityWorld_Tests
     ECS/EntityWorldTest.cpp
+    Atom_ECS)
+
+# T1.1: the frozen first batch of 2D scene components - concepts, defaults, and
+# the four new query sets (a used-but-not-instantiated set fails at link time).
+atom_add_test(Atom_ECS.ComponentVocabulary
+    Atom_ECS_ComponentVocabulary_Tests
+    ECS/ComponentVocabularyTest.cpp
     Atom_ECS)
 
 # --- Physics (shapes + mass properties) ---
@@ -203,6 +260,21 @@ atom_add_test(Atom_Physics.Parallel
     Physics/PhysicsParallelTest.cpp
     Atom_Physics)
 
+# T3.1a: the three contract additions the ECS integration needs - sensors (report but
+# never resolve), a stable owner id, and persist contacts.
+atom_add_test(Atom_Physics.SensorAndUserData
+    Atom_Physics_SensorAndUserData_Tests
+    Physics/SensorAndUserDataTest.cpp
+    Atom_Physics)
+
+# T3.1b: the ECS <-> physics bridge. Units converted in one place, physics authoritative for
+# dynamic bodies, no body left behind when its entity dies, sensors report only.
+atom_add_test(Atom_Physics.Physics2DWorld
+    Atom_Physics_Physics2DWorld_Tests
+    Physics/Physics2DWorldTest.cpp
+    Atom_PhysicsIntegration)
+
+
 # --- Backend extension registries ---
 atom_add_test(Atom_Backend_Extension.AudioDecoderRegistry
     Atom_Backend_Extension_AudioDecoderRegistry_Tests
@@ -219,6 +291,25 @@ atom_add_test(Atom_Backend_Contracts.NumericContract
     Atom_Backend_Contracts_NumericContract_Tests
     Backend/NumericContractTest.cpp
     Atom_Backend_Contracts)
+
+# A0.3: SDL error capture belongs to the SDL3 backend, so Atom_Error stays
+# linkable without SDL and this behaviour is covered where it lives.
+atom_add_test(Atom_Backend_SDL3_Core.SdlError
+    Atom_Backend_SDL3_Core_SdlError_Tests
+    Backend/Sdl3ErrorTest.cpp
+    Atom_Backend_SDL3_Core)
+
+# Display selection contract: window placement, present mode, capability mask.
+atom_add_test(Atom_Backend_Contracts.DisplayConfig
+    Atom_Backend_Contracts_DisplayConfig_Tests
+    Backend/DisplayConfigTest.cpp
+    Atom_Backend_Contracts)
+
+# Display policy: queue once, apply at the frame boundary, report the truth.
+atom_add_test(Atom_Display.DisplaySystem
+    Atom_Display_DisplaySystem_Tests
+    Display/DisplaySystemTest.cpp
+    Atom_Display)
 
 # --- Media / Image / Layout / Log / Utilities ---
 atom_add_test(Atom_Media.AudioMixer
@@ -305,6 +396,11 @@ atom_add_test(Atom_UTF8.Utf8
     Utilities/Utf8Test.cpp
     Atom_UTF8)
 
+atom_add_test(Atom_Random.Stream
+    Atom_Random_Stream_Tests
+    Utilities/RngTest.cpp
+    Atom_Random)
+
 atom_add_test(Atom_Packager.PackageBuilder
     Atom_Packager_PackageBuilder_Tests
     Utilities/PackageBuilderTest.cpp
@@ -316,7 +412,83 @@ atom_add_test(Atom_Runtime.ScreenManager
     Runtime/ScreenManagerTest.cpp
     Atom_Runtime)
 
+atom_add_test(Atom_Runtime.GameWorld
+    Atom_Runtime_GameWorld_Tests
+    Runtime/GameWorldTest.cpp
+    Atom_Runtime)
+
+# T1.1: spawning 2D scene entities through the command buffer - the path T1.3's
+# GameScreen uses - including the "failed setup leaves no ghost entity" rule.
+atom_add_test(Atom_Runtime.CommandBufferScene
+    Atom_Runtime_CommandBufferScene_Tests
+    Runtime/CommandBufferSceneTest.cpp
+    Atom_Runtime)
+
+# T1.3 / G0.1: a Screen's frame (FixedUpdate 0..N + one Update) mapped onto one
+# ordered GameWorld frame. Records the phase sequence the world really executes.
+atom_add_test(Atom_Runtime.GameScreenFrame
+    Atom_Runtime_GameScreenFrame_Tests
+    Runtime/GameScreenFrameTest.cpp
+    Atom_Runtime)
+
+# T2.2: swapping a world's entity storage in one step. Systems and the frame counter
+# survive; the old world's pending commands and queued events are dropped, because
+# they name entities that no longer exist.
+atom_add_test(Atom_Runtime.WorldReplace
+    Atom_Runtime_WorldReplace_Tests
+    Runtime/WorldReplaceTest.cpp
+    Atom_Runtime)
+
+# --- Json (Utilities) ---
+# The JSONC reader: acceptance, plus every rejection the schema document promises,
+# each pinned to a line:column. It is a general utility, so its test does not depend
+# on the Scene module at all.
+atom_add_test(Atom_Json.Reader
+    Atom_Json_Reader_Tests
+    Utilities/JsonReaderTest.cpp
+    Atom_Json)
+
+# --- Sprite (art pipeline: atlas metadata) ---
+# Parsing rules, defaults and rejections, plus the shipped atlas document read through
+# a real filesystem so the demo's sheet cannot rot.
+atom_add_test(Atom_Sprite.Atlas
+    Atom_Sprite_Atlas_Tests
+    Sprite/SpriteAtlasTest.cpp
+    Atom_Sprite)
+target_compile_definitions(Atom_Sprite_Atlas_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
+# --- Scene (T2.1 format, T2.2 loader) ---
+# Schema + loader: the shipped demo room is read through a real filesystem so it
+# cannot rot, the invalid fixtures under Test/Scene/Fixtures must be rejected, and the
+# component mapping is asserted field by field.
+atom_add_test(Atom_Scene.SceneLoader
+    Atom_Scene_SceneLoader_Tests
+    Scene/SceneLoaderTest.cpp
+    Atom_Scene)
+target_compile_definitions(Atom_Scene_SceneLoader_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
+# Scene sprites that name an atlas frame instead of a texel rectangle: resolution, and
+# the rule that the two sprite forms cannot be mixed.
+atom_add_test(Atom_Scene.SceneAtlas
+    Atom_Scene_SceneAtlas_Tests
+    Scene/SceneAtlasTest.cpp
+    Atom_Scene)
+
+# T2.3: flat prefabs and the override whitelist. Prefabs come from a provider
+# callback, so the merge logic is tested without a filesystem; the shipped prefab file
+# is covered by Atom_Scene.SceneLoader through the demo room.
+atom_add_test(Atom_Scene.ScenePrefab
+    Atom_Scene_ScenePrefab_Tests
+    Scene/ScenePrefabTest.cpp
+    Atom_Scene)
+
 # --- Lua (ARCH-005: error handling, stack balance, null injection) ---
+atom_add_test(Atom_World2D.Core
+    Atom_World2D_Core_Tests
+    World2D/World2DTest.cpp
+    Atom_World2D)
+target_compile_definitions(Atom_World2D_Core_Tests PRIVATE ATOM_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
 atom_add_test(Atom_Lua.LuaHost
     Atom_Lua_LuaHost_Tests
     Lua/LuaHostTest.cpp

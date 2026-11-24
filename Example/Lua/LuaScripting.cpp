@@ -18,6 +18,10 @@
 #include <string>
 #include <string_view>
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Filesystem/FileSystem.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
@@ -30,7 +34,7 @@
 #include <Window/RenderWindow.hpp>
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
-#include <Debugger/LogDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
 
 namespace {
 // Usually, this directory is open to Lua script developers,
@@ -78,14 +82,10 @@ class LuaScreen final : public atom::Screen {
 
 static auto HandleResFs() -> atom::fs::Result {
     // Mount the music directory as "res" on the process-wide default Vfs.
-    std::unique_ptr<atom::fs::NativeFileSystem> music_fs{};
-    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(MusicDir), music_fs) !=
-            atom::fs::Result::Success ||
-        !music_fs) {
+    if (atom::fs::Vfs::GetInstance().MountNative("res", 0, atom::PathToUtf8(MusicDir)) != atom::fs::Result::Success) {
         LOG_ERROR(atom::log::audio::Music, "Music directory unavailable: " + std::string{MusicDir});
         return atom::fs::Result::NotFound;
-        }
-    atom::fs::Vfs::GetInstance().Mount("res", 0, std::move(music_fs));
+    }
     return atom::fs::Result::Success;
 }
 
@@ -94,18 +94,14 @@ static auto HandleScriptFs() -> atom::fs::Result {
     // host mounts, with the script filename configured explicitly above (no
     // argv/__FILE__ derivation). The host still owns mounting; the script only
     // ever sees a mounted VFS path.
-    std::unique_ptr<atom::fs::NativeFileSystem> script_fs{};
-    if (atom::fs::NativeFileSystem::Create("scripts", atom::PathToUtf8(ScriptDir), script_fs) !=
-            atom::fs::Result::Success ||
-        !script_fs) {
+    if (atom::fs::Vfs::GetInstance().MountNative("scripts", 0, atom::PathToUtf8(ScriptDir)) != atom::fs::Result::Success) {
         LOG_ERROR(atom::log::core::Lua, "Script directory unavailable: " + std::string{ScriptDir});
         return atom::fs::Result::NotFound;
-        }
-    atom::fs::Vfs::GetInstance().Mount("scripts", 0, std::move(script_fs));
+    }
     return atom::fs::Result::Success;
 }
 
-auto main() -> int {
+auto main(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 

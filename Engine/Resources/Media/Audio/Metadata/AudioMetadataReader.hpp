@@ -1,0 +1,87 @@
+/**
+  * @file           : AudioMetadataReader.hpp
+  * @author         : Romi Brooks
+  * @brief          : Engine-level audio metadata (tags + properties) reader
+  *                   backed by TagLib.
+  * @attention      : TagLib is an implementation detail: this module exposes
+  *                   only Atom's own AudioMetadata type, so callers never
+  *                   include TagLib headers directly.
+  * @date           : 2026/8/20
+  Copyright (c) 2026 Romi Brooks, All rights reserved.
+**/
+
+#ifndef ATOM_AUDIO_METADATA_READER_HPP
+#define ATOM_AUDIO_METADATA_READER_HPP
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include <Error/Error.hpp>
+#include <Filesystem/FileSystem.hpp>
+
+namespace atom::audio {
+
+// Audio file metadata: tag fields plus basic audio properties.
+struct AudioMetadata {
+        // Tag fields
+        std::string title;
+        std::string artist;
+        std::string album;
+        std::string comment;
+        std::string genre;
+        uint32_t year = 0;
+        uint32_t track = 0;
+
+        // Audio properties (0 when unavailable)
+        uint32_t durationSeconds = 0;
+        uint32_t bitrateKbps = 0;
+        uint32_t sampleRate = 0;
+        uint16_t channels = 0;
+
+        // First embedded artwork image (usually the front cover). Empty when the
+        // file carries no image. Encoded bytes are preserved so rendering backends
+        // can decode PNG, JPEG, or another advertised MIME type as appropriate.
+        std::string artworkMimeType;
+        std::vector<uint8_t> artworkData;
+};
+
+// Reads tag and property metadata from an audio file.
+//
+// Failure carries the reason: the VFS error when the file cannot be opened, or
+// AudioDecoderOpenFailed when the bytes are readable but carry no audio tags or
+// properties. (CORE-004: a caller must be able to tell "missing" from "corrupt"
+// without parsing a log line.)
+class AudioMetadataReader {
+    public:
+        // Reads metadata through the VFS: the file is opened via `filesystem` and
+        // handed to TagLib through an IOStream adapter, so no native path is
+        // involved. This is the primary entry point.
+        static auto Read(const atom::fs::IFileSystem& filesystem, const atom::fs::AssetPath& path)
+            -> Result<AudioMetadata>;
+
+        // Convenience overload: parses `path` as an AssetPath (e.g.
+        // "res://music/song.mp3") and resolves it through the process-wide default
+        // Vfs (atom::fs::Vfs::GetInstance()). An unparseable URI forwards the
+        // AssetPath parse error.
+        static auto Read(const std::string& path) -> Result<AudioMetadata>;
+
+        // Reads metadata for many files in parallel through the engine job
+        // system: one job per path, results returned in input order (each failed
+        // slot keeps its own reason). Blocks until all reads finish (the calling
+        // thread helps run pending jobs rather than idling).
+        //
+        // Requires the job system to be running (atom::job::JobSystem::GetInstance()
+        // .Start()). When it is not running, this falls back to sequential reads,
+        // so callers never need to reason about scheduler state.
+        static auto ReadBatch(const atom::fs::IFileSystem& filesystem,
+                              const std::vector<atom::fs::AssetPath>& paths) -> std::vector<Result<AudioMetadata>>;
+
+        // Convenience overload: parses each string and resolves through the
+        // default Vfs, mirroring Read(std::string).
+        static auto ReadBatch(const std::vector<std::string>& paths) -> std::vector<Result<AudioMetadata>>;
+};
+
+} // namespace atom::audio
+
+#endif // ATOM_AUDIO_METADATA_READER_HPP

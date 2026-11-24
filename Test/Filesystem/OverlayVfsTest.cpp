@@ -95,6 +95,11 @@ auto main() -> int {
         return Fail("Overlay list missed expected entries");
 
     atom::fs::Vfs vfs{};
+    if (vfs.MountNative("res", 10, "") != atom::fs::Result::InvalidPath ||
+        vfs.MountPackage("res", 10, "") != atom::fs::Result::InvalidPath ||
+        vfs.MountCount("res") != 0) {
+        return Fail("An invalid backing path must leave the mount table unchanged");
+    }
     std::shared_ptr<atom::fs::MemoryFileSystem> engine{};
     if (!MakeMemory("engine", engine))
         return Fail("Could not create engine backend");

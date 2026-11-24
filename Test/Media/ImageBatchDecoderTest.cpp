@@ -93,7 +93,7 @@ auto MakeBmp(const std::uint32_t width, const std::uint32_t height) -> std::vect
 // The batch under test is always [bmp0, missing, bmp1, bmp2]: a missing file
 // in the middle proves both input-order preservation and that a failure slot
 // does not shift its neighbours.
-auto VerifyBatch(const std::vector<std::optional<DecodedImage>>& results) -> int {
+auto VerifyBatch(const std::vector<atom::Result<DecodedImage>>& results) -> int {
     ATOM_CHECK(results.size() == 4);
 
     ATOM_CHECK(results[0].has_value());
@@ -101,7 +101,9 @@ auto VerifyBatch(const std::vector<std::optional<DecodedImage>>& results) -> int
     ATOM_CHECK(results[0]->height == 2);
     ATOM_CHECK(results[0]->IsValid());
 
-    ATOM_CHECK(!results[1].has_value()); // missing → nullopt, order intact
+    // Missing is reported as the VFS reason, not as "nothing decoded".
+    ATOM_CHECK(!results[1].has_value());
+    ATOM_CHECK(results[1].error().Code() == atom::ErrorCode::FsNotFound);
 
     ATOM_CHECK(results[2].has_value());
     ATOM_CHECK(results[2]->width == 3);

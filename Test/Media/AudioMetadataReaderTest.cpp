@@ -88,7 +88,7 @@ auto MakeWav(const uint32_t sample_rate) -> std::vector<std::byte> {
 // The batch under test is always [track0, missing, track1, track2]: a missing
 // file in the middle proves both input-order preservation and that a failure
 // slot does not shift its neighbours.
-auto VerifyBatch(const std::vector<std::optional<AudioMetadata>>& results, const uint32_t rate0,
+auto VerifyBatch(const std::vector<atom::Result<AudioMetadata>>& results, const uint32_t rate0,
                  const uint32_t rate1, const uint32_t rate2) -> int {
     ATOM_CHECK(results.size() == 4);
 
@@ -98,8 +98,9 @@ auto VerifyBatch(const std::vector<std::optional<AudioMetadata>>& results, const
     ATOM_CHECK(results[0]->channels == 1);
     ATOM_CHECK(results[0]->durationSeconds == 1);
 
-    // missing → nullopt, without disturbing order
+    // missing → an explicit "missing" reason, without disturbing order
     ATOM_CHECK(!results[1].has_value());
+    ATOM_CHECK(results[1].error().Code() == atom::ErrorCode::FsNotFound);
 
     // track1 → rate1
     ATOM_CHECK(results[2].has_value());

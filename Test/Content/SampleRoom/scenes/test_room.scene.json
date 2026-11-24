@@ -1,0 +1,202 @@
+// Atom scene, schema_version 2 (v2 added the physics block).
+// See Docs/Plans/Scene-Schema-v1-CN.md for the v1 fields and its §10 for what v2 added.
+//
+// The room is a top-down box: no gravity, so the player stops because the movement system
+// drives its velocity rather than by friction. Units are world pixels; `physics.pixels_per_meter`
+// is what turns them into the metres the solver works in.
+{
+  "schema_version": 2,
+  "id": "test_room",
+  "name": "Test Room",
+
+  "physics": {
+    // Top-down: nothing falls. Gravity would turn the two crates into a pile on the bottom wall
+    // and make the room about falling rather than about moving.
+    "gravity": [0.0, 0.0],
+    "pixels_per_meter": 100.0
+  },
+
+  "entities": [
+    {
+      // The eye. Position comes from this entity's transform, never from a separate camera
+      // coordinate, so there is exactly one source of truth.
+      "id": 1,
+      "name": "camera",
+      "transform": { "position": [576.0, 624.0] },
+      "camera": { "zoom": 1.0, "active": true }
+    },
+
+    {
+      // Dynamic and velocity-driven: the movement system sets velocity, the solver owns position.
+      // That is what makes walls stop the player and crates get pushed instead of overlapped.
+      "id": 2,
+      "name": "player",
+      "tags": ["active"],
+      "transform": { "position": [440.0, 424.0] },
+      "sprite": {
+        "texture": "res://textures/player.png",
+        "size": [32.0, 32.0],
+        "pivot": [0.5, 0.5],
+        "layer": 10,
+        "sort_key": 100
+      },
+      "physics": {
+        "kind": "dynamic",
+        "shape": { "box": [16.0, 16.0] },
+        "density": 1.0,
+        "friction": 0.0
+      }
+    },
+
+    {
+      // The room's walls, as four static bodies. They are drawn by the floor backdrop rather
+      // than with sprites: the visible room is decoration, the physics shell is what must match.
+      "id": 10,
+      "name": "wall_top",
+      "transform": { "position": [576.0, 244.0] },
+      "sprite": {
+        "texture": "res://textures/floor.png",
+        "size": [1000.0, 24.0],
+        "tint": [150, 170, 190, 255],
+        "layer": -5
+      },
+      "physics": { "kind": "static", "shape": { "box": [500.0, 12.0] } }
+    },
+    {
+      "id": 11,
+      "name": "wall_bottom",
+      "transform": { "position": [576.0, 1004.0] },
+      "sprite": {
+        "texture": "res://textures/floor.png",
+        "size": [1000.0, 24.0],
+        "tint": [150, 170, 190, 255],
+        "layer": -5
+      },
+      "physics": { "kind": "static", "shape": { "box": [500.0, 12.0] } }
+    },
+    {
+      "id": 12,
+      "name": "wall_left",
+      "transform": { "position": [88.0, 624.0] },
+      "sprite": {
+        "texture": "res://textures/floor.png",
+        "size": [24.0, 760.0],
+        "tint": [150, 170, 190, 255],
+        "layer": -5
+      },
+      "physics": { "kind": "static", "shape": { "box": [12.0, 380.0] } }
+    },
+    {
+      "id": 13,
+      "name": "wall_right",
+      "transform": { "position": [1064.0, 624.0] },
+      "sprite": {
+        "texture": "res://textures/floor.png",
+        "size": [24.0, 760.0],
+        "tint": [150, 170, 190, 255],
+        "layer": -5
+      },
+      "physics": { "kind": "static", "shape": { "box": [12.0, 380.0] } }
+    },
+
+    {
+      // Two instances of one prefab: the base body (sprite, static tag, a dynamic physics shell)
+      // comes from the prefab file, and each instance overrides only the whitelisted fields.
+      "id": 3,
+      "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": {
+        "name": "crate_left",
+        "transform": { "position": [480.0, 534.0] },
+        "sprite": { "sort_key": 10 }
+      }
+    },
+    {
+      "id": 4,
+      "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": {
+        "name": "crate_right",
+        "transform": { "position": [640.0, 684.0] },
+        "sprite": { "sort_key": 20 }
+      }
+    },
+
+    {
+      // Ten loose crates. The point is not decoration: a pile is what makes contact count,
+      // pushing and the impact cooldown observable, and it is the cheapest way to give the
+      // physics world more than a handful of pairs to resolve.
+      "id": 30, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_30", "transform": { "position": [300.0, 380.0] }, "sprite": { "sort_key": 30 } }
+    },
+    {
+      "id": 31, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_31", "transform": { "position": [300.0, 440.0] }, "sprite": { "sort_key": 31 } }
+    },
+    {
+      "id": 32, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_32", "transform": { "position": [300.0, 500.0] }, "sprite": { "sort_key": 32 } }
+    },
+    {
+      "id": 33, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_33", "transform": { "position": [360.0, 380.0] }, "sprite": { "sort_key": 33 } }
+    },
+    {
+      "id": 34, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_34", "transform": { "position": [360.0, 440.0] }, "sprite": { "sort_key": 34 } }
+    },
+    {
+      "id": 35, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_35", "transform": { "position": [820.0, 800.0] }, "sprite": { "sort_key": 35 } }
+    },
+    {
+      "id": 36, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_36", "transform": { "position": [880.0, 800.0] }, "sprite": { "sort_key": 36 } }
+    },
+    {
+      "id": 37, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_37", "transform": { "position": [820.0, 860.0] }, "sprite": { "sort_key": 37 } }
+    },
+    {
+      "id": 38, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_38", "transform": { "position": [880.0, 860.0] }, "sprite": { "sort_key": 38 } }
+    },
+    {
+      "id": 39, "prefab": "res://prefabs/crate.prefab.json",
+      "overrides": { "name": "crate_39", "transform": { "position": [500.0, 780.0] }, "sprite": { "sort_key": 39 } }
+    },
+
+    {
+      // The exit: a sensor. It reports being touched and never pushes the player, which is the
+      // smallest demonstration that sensors earn their place in the contract.
+      "id": 20,
+      "name": "exit",
+      "transform": { "position": [1010.0, 300.0] },
+      "sprite": {
+        "texture": "res://textures/marker.png",
+        "size": [32.0, 32.0],
+        // Pivot at the bottom centre so the flag stands on the floor of the room, and flipped
+        // so it points back at the player's side - the one sprite in the room that exercises
+        // both, which the loader test checks.
+        "pivot": [0.5, 1.0],
+        "flip_x": true,
+        "layer": 5,
+        "sort_key": 0
+      },
+      "physics": { "kind": "static", "shape": { "box": [20.0, 20.0] }, "sensor": true }
+    },
+
+    {
+      // A named atlas frame: texel rect, 64x64 display size and pivot all come from
+      // res://atlases/terrain.atlas.json, and so does `filter: nearest`.
+      "id": 5,
+      "name": "atlas_cell",
+      "transform": { "position": [436.0, 824.0] },
+      "sprite": {
+        "atlas": "res://atlases/terrain.atlas.json",
+        "frame": "green",
+        "tint": [255, 255, 255, 255],
+        "layer": 0,
+        "sort_key": 5
+      }
+    }
+  ]
+}

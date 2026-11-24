@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "tilemap",
+  "id": "sample",
+  "projection": "orthogonal",
+  "tile_size": [16, 16],
+  "chunk_size": 2,
+  "tiles": [
+    {"id": 1, "texture": "res://textures/tiles.png", "source": [0, 0, 16, 16], "solid": true}
+  ],
+  "layers": [
+    {"kind": "tiles", "name": "walls", "draw_order": -1, "collision": true,
+     "chunks": [{"x": 0, "y": 0, "cells": [1, 1, 0, 0]}]},
+    {"kind": "objects", "name": "spawn", "objects": [
+      {"id": 7, "prefab": "res://prefabs/actor.prefab.json", "position": [5, 6], "rotation": 0}
+    ]}
+  ]
+}

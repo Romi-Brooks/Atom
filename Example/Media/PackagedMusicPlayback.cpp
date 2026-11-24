@@ -15,6 +15,10 @@
 #include <string>
 #include <vector>
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Input/Key.hpp>
 #include <Filesystem/PackageFileSystem.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
@@ -26,8 +30,9 @@
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
-#include <Debugger/LogDebugger.hpp>
-#include <Debugger/FpsDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
+#include <Debugger/Panels/FpsDebugger.hpp>
+#include <Debugger/Panels/RenderDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -159,7 +164,7 @@ class PackedMusicScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main() -> int {
+auto main(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
@@ -256,6 +261,9 @@ auto main() -> int {
 
     atom::debugger::FpsDebugger fps_panel{};
     fps_panel.Attach(window);
+
+    atom::debugger::RenderDebugger render_panel{};
+    render_panel.Attach(window);
 
     PackedMusicDebugger debugger{music, entries, pack_path, pack_status};
     debugger.Attach(window);

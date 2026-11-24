@@ -7,6 +7,10 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Media/Audio/AudioBackend.hpp>
 #include <Media/Audio/Mixing/AudioMixer.hpp>
 #include <Media/Audio/Playback/SFXPlayer.hpp>
@@ -18,7 +22,7 @@
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
 #include <Debugger/Overlay.hpp>
-#include <Debugger/LogDebugger.hpp>
+#include <Debugger/Panels/LogDebugger.hpp>
 
 #include <Log/LogSystem.hpp>
 
@@ -96,7 +100,7 @@ class SFXScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main() -> int {
+auto main(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
     atom::AudioMixer mixer;
@@ -161,4 +165,5 @@ auto main() -> int {
     debugger.Attach(window);
 
     application.Run();
+    return 0;
 }

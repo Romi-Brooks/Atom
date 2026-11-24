@@ -1,6 +1,6 @@
 # Contributing to Atom Engine  
 
-[English](CONTRIBUTING.md) | [中文](Docs/CONTRIBUTING-CN.md)
+[English](CONTRIBUTING.md) | [中文](Docs/Community/CONTRIBUTING-CN.md)
 
 ---
 First off, thank you for considering contributing to Atom Engine! We welcome contributions of all forms — bug reports, feature suggestions, documentation improvements, and code changes.
@@ -68,7 +68,7 @@ All code **must** conform to the project's coding standard. Key points:
 
 See the full standards:
 - [English](CODING_STANDARD.md)
-- [中文](Docs/CODING_STANDARD-CN.md)
+- [中文](Docs/Community/CODING_STANDARD-CN.md)
 
 ### Pre-commit Checklist
 

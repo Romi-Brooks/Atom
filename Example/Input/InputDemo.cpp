@@ -12,6 +12,14 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
+#include <algorithm>
+#include <cmath>
+#include <string>
+
+#ifdef ATOM_WINDOWS_GUI_ENTRY
+#include <SDL3/SDL_main.h>
+#endif
+
 #include <Window/RenderWindow.hpp>
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
@@ -22,10 +30,6 @@
 #include <Input/InputSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Render/Renderer2D/Renderer2D.hpp>
-
-#include <algorithm>
-#include <cmath>
-#include <string>
 
 namespace {
 
@@ -469,7 +473,7 @@ class InputStatePanel final : public atom::debugger::DebugPanel {
 
 } // namespace
 
-auto main() -> int {
+auto main(int, char**) -> int {
     // Windows console: make the debugger's UTF-8 output readable.
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);

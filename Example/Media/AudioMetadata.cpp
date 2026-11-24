@@ -36,16 +36,10 @@ auto main() -> int {
     // Mount the music directory as res:// so metadata reads go through the VFS
     // contract instead of a raw path.
     constexpr const char* music_dir = R"(E:\Music)";
-    std::unique_ptr<atom::fs::NativeFileSystem> filesystem{};
-    if (atom::fs::NativeFileSystem::Create("res", atom::PathToUtf8(music_dir), filesystem) !=
-            atom::fs::Result::Success ||
-        !filesystem) {
+    if (atom::fs::Vfs::GetInstance().MountNative("res", 0, atom::PathToUtf8(music_dir)) != atom::fs::Result::Success) {
         std::cout << "Music directory unavailable: " << music_dir << std::endl;
         return 1;
     }
-    // Register the mount on the process-wide default Vfs so the string
-    // convenience entry point resolves against it.
-    atom::fs::Vfs::GetInstance().Mount("res", 0, std::move(filesystem));
 
     // Resolve every file's metadata in parallel through the engine's job
     // system. ReadBatch schedules one job per file and blocks until all finish;
@@ -71,7 +65,9 @@ auto main() -> int {
 
         const auto& meta = results[i];
         if (!meta) {
-            std::cout << "(no metadata)" << std::endl << std::endl;
+            // Result carries the reason: "file missing" and "no tags" are
+            // different problems, and the example does not have to guess.
+            std::cout << "(no metadata: " << meta.error().Message() << ")" << std::endl << std::endl;
             continue;
         }
 

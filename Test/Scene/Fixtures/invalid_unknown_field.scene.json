@@ -1,0 +1,14 @@
+// MUST FAIL TO LOAD. Kept as a validation fixture for T2.2's tests.
+// "spirte" is a typo; v1 rejects unknown fields instead of silently ignoring
+// them, and the diagnostic must suggest "sprite".
+{
+  "schema_version": 1,
+  "id": "invalid_unknown_field",
+  "entities": [
+    {
+      "id": 1,
+      "transform": { "position": [10.0, 10.0] },
+      "spirte": { "texture": "res://textures/player.png" }
+    }
+  ]
+}

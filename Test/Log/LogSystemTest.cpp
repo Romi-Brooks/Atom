@@ -2,6 +2,10 @@
 #include <Test/Support/TestHelpers.hpp>
 
 #include <atomic>
+#include <cctype>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -160,6 +164,74 @@ auto main() -> int {
     atom::Log::SetConsoleQueueCapacity(atom::Log::default_console_queue_capacity);
     atom::Log::SetConsoleSinkEnabled(false);
     atom::Log::FlushConsole();
+
+    // --- file sink ----------------------------------------------------------
+    // One switch, one file per run: Log/<YYYYMMDD-HHMMSS>.log relative to the
+    // working directory, with no prefix in front of the stamp. The test reads
+    // the file back, so it also pins "the file carries the same lines as the
+    // console" and "turning the sink off does not swallow the queued tail".
+    const auto read_text = [](const std::string& path) {
+        std::ifstream stream{path, std::ios::binary};
+        return std::string{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+    };
+
+    ATOM_CHECK(!atom::Log::IsFileOutputEnabled());
+    ATOM_CHECK(atom::Log::GetFileOutputPath().empty());
+
+    atom::Log::SetFileOutput(true);
+    ATOM_CHECK(atom::Log::IsFileOutputEnabled());
+    const std::string first_path = atom::Log::GetFileOutputPath();
+    ATOM_CHECK(!first_path.empty());
+
+    const std::filesystem::path first_file{first_path};
+    ATOM_CHECK(first_file.parent_path().filename() == "Log");
+    ATOM_CHECK(first_file.extension() == ".log");
+    const std::string first_stem = first_file.stem().string();
+    // The name starts with the 15-character stamp YYYYMMDD-HHMMSS; a "-N"
+    // collision suffix may follow it, a program prefix never precedes it.
+    ATOM_CHECK(first_stem.size() >= 15);
+    for (std::size_t i = 0; i < 15; ++i) {
+        if (i == 8)
+            ATOM_CHECK(first_stem[i] == '-');
+        else
+            ATOM_CHECK(std::isdigit(static_cast<unsigned char>(first_stem[i])) != 0);
+    }
+
+    LOG_ERROR(atom::log::core::Main, "file-sink-smoke");
+    atom::Log::FlushFile();
+    ATOM_CHECK(atom::Log::GetPendingFileLineCount() == 0);
+    ATOM_CHECK(read_text(first_path).find("file-sink-smoke") != std::string::npos);
+
+    // Enabling twice is a no-op: it must not truncate or rotate the file.
+    atom::Log::SetFileOutput(true);
+    ATOM_CHECK(atom::Log::GetFileOutputPath() == first_path);
+
+    // Disabling drains what is still queued instead of dropping it.
+    LOG_ERROR(atom::log::core::Main, "file-sink-tail");
+    atom::Log::SetFileOutput(false);
+    ATOM_CHECK(!atom::Log::IsFileOutputEnabled());
+    ATOM_CHECK(atom::Log::GetFileOutputPath().empty());
+    ATOM_CHECK(read_text(first_path).find("file-sink-tail") != std::string::npos);
+
+    // The next run opens its own file: the first run's log is never truncated,
+    // even when both runs start within the same second.
+    atom::Log::SetFileOutput(true);
+    ATOM_CHECK(atom::Log::IsFileOutputEnabled());
+    const std::string second_path = atom::Log::GetFileOutputPath();
+    ATOM_CHECK(!second_path.empty());
+    ATOM_CHECK(second_path != first_path);
+    LOG_ERROR(atom::log::core::Main, "file-sink-second-run");
+    atom::Log::SetFileOutput(false);
+    ATOM_CHECK(read_text(first_path).find("file-sink-second-run") == std::string::npos);
+    ATOM_CHECK(read_text(second_path).find("file-sink-second-run") != std::string::npos);
+
+    {
+        std::error_code cleanup_ec;
+        std::filesystem::remove(first_file, cleanup_ec);
+        std::filesystem::remove(std::filesystem::path{second_path}, cleanup_ec);
+        // Removes Log/ only when this test's files were the only entries in it.
+        std::filesystem::remove(first_file.parent_path(), cleanup_ec);
+    }
 
     // Capacity 0 disables buffering entirely.
     atom::Log::SetRecentCapacity(0);

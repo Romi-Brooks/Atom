@@ -7,7 +7,10 @@
  *   - Message() renders exactly the fields that are present
  *   - With*() annotates without overwriting a lower layer's context
  *   - ModuleOf()/MatchesModule() agree with the code blocks
- *   - platform error capture reads and clears the platform slot
+ *   - errno capture is total
+ *
+ * SDL error capture is deliberately absent (A0.3): it moved to the SDL3 backend
+ * and is covered by Atom_Backend_SDL3_Core.SdlError.
  */
 
 #include <Error/Error.hpp>
@@ -17,8 +20,6 @@
 #include <cstdint>
 #include <string>
 #include <type_traits>
-
-#include <SDL3/SDL_error.h>
 
 namespace {
 
@@ -144,20 +145,7 @@ auto main() -> int {
         ATOM_CHECK(failed.error().Code() == ErrorCode::RenderFrameRejected);
     }
 
-    // --- 7. Platform error capture reads and clears the slot --------------
-    {
-        // Success path: no error recorded means an empty detail, not a stale one.
-        SDL_ClearError();
-        ATOM_CHECK(atom::CaptureSdlError().empty());
-
-        SDL_SetError("synthetic failure %d", 42);
-        const auto captured = atom::CaptureSdlError();
-        ATOM_CHECK(captured == "synthetic failure 42");
-        // Clearing is what keeps the next reader from re-reporting this failure.
-        ATOM_CHECK(atom::CaptureSdlError().empty());
-    }
-
-    // --- 8. Errno capture never throws and reports something --------------
+    // --- 7. Errno capture never throws and reports something --------------
     {
         // Not asserting the text (locale/CRT dependent), only that the helper is
         // total: it must always produce a non-empty string.
