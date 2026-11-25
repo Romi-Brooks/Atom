@@ -117,7 +117,15 @@ jobs:
                   cmake --build $build --target AtomSdkArchive --parallel 3
               }
               # Every toolchain runs the tests; only the release toolchains package.
-              ctest --test-dir $build --output-on-failure --timeout 90 --no-tests=error
+              $ctestLog = "$build-ctest.log"
+              ctest --test-dir $build --output-on-failure --timeout 90 --no-tests=error 2>&1 |
+                  Tee-Object -FilePath $ctestLog
+              if ($LASTEXITCODE -ne 0) {
+                  Select-String -Path $ctestLog -Pattern 'FAILED|Failed|ATOM_CHECK|Expected|Actual|error:|Could not|Incorrect|what\(\)' |
+                      Select-Object -First 60 |
+                      ForEach-Object { Write-Host "::error ::$($_.Line.Trim())" }
+                  exit 1
+              }
           }
           if ($env:SDK_PACKAGE -ne 'true') { return }
 

@@ -22,6 +22,7 @@
 #include <Atom/Build/BackendsExport.hpp>
 
 namespace atom::backend::audio_decoder {
+#pragma pack(push, 1)
 struct WavHeader {
         char chunk_id[4]{};         // "RIFF"
         uint32_t chunk_size = 0;    // file size - 8
@@ -34,7 +35,9 @@ struct WavHeader {
         uint32_t byte_rate = 0;
         uint16_t block_align = 0;
         uint16_t bits_per_sample = 0;
-} __attribute__((packed));
+};
+#pragma pack(pop)
+static_assert(sizeof(WavHeader) == 36, "WavHeader must match the 36-byte RIFF fmt chunk");
 
 class ATOM_BACKENDS_API RiffWaveReader {
     public:
