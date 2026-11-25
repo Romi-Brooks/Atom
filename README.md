@@ -115,6 +115,11 @@ GCC (libstdc++). Each ZIP contains separate `static/` and `shared/` install
 prefixes. Select one prefix for `CMAKE_PREFIX_PATH`. MinGW and Linux Clang
 with libc++ can build their SDK from source to match their C++ ABI.
 
+Releases are tagged `v<version>` (for example `v0.1.0`) and their assets are
+named `Atom-<version>-<toolchain>-x64-Release.zip` (`windows-msvc`,
+`linux-gcc`) plus `SHA256SUMS.txt`. Pull requests and master pushes build and
+test every toolchain but only tags publish a release.
+
 Build an installable SDK with the same toolchain and configuration your game uses.
 Use separate build directories and install prefixes for the shared and static packages.
 

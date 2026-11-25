@@ -1,8 +1,11 @@
 name: SDK packages and release
 
 on:
+  pull_request:
+    branches: [master]
   push:
     branches: [master]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -106,9 +109,8 @@ jobs:
               if ($kind -eq 'static') {
                   cmake --build $build --target AtomSdkArchive --parallel 3
               }
-              if ($env:SDK_PACKAGE -eq 'true') {
-                  ctest --test-dir $build --output-on-failure --timeout 90 --no-tests=error
-              }
+              # Every toolchain runs the tests; only the release toolchains package.
+              ctest --test-dir $build --output-on-failure --timeout 90 --no-tests=error
           }
           if ($env:SDK_PACKAGE -ne 'true') { return }
 
@@ -137,7 +139,7 @@ jobs:
           compression-level: 0
 
   release:
-    if: github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: package
     runs-on: ubuntu-24.04
     permissions:
@@ -149,7 +151,7 @@ jobs:
           path: release-assets
           merge-multiple: true
 
-      - name: Publish SDK prerelease
+      - name: Publish SDK release
         shell: bash
         working-directory: release-assets
         env:
@@ -166,15 +168,15 @@ jobs:
           assets=("${windows[0]}" "${linux[0]}")
           sha256sum "${assets[@]}" > SHA256SUMS.txt
 
-          tag="sdk-${GITHUB_SHA}"
-          if state=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null); then
-            if [[ "$state" == false ]]; then
-              echo "SDK prerelease $tag is already published."
-              exit 0
-            fi
-          else
-            gh release create "$tag" --target "$GITHUB_SHA" --draft --prerelease --latest=false \
-              --title "Atom SDK (${GITHUB_SHA:0:12})" --generate-notes
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "Release tags must look like v<major>.<minor>.<patch>; got '$tag'." >&2
+            exit 1
           fi
-          gh release upload "$tag" "${assets[@]}" SHA256SUMS.txt --clobber
-          gh release edit "$tag" --draft=false --prerelease --latest=false
+          title="Atom SDK ${tag#v}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" SHA256SUMS.txt --clobber
+          else
+            gh release create "$tag" --title "$title" --generate-notes \
+              "${assets[@]}" SHA256SUMS.txt
+          fi
