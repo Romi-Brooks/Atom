@@ -2,6 +2,8 @@
 /cmake-build-*/
 /build/
 /build-*/
+/sdk-static/
+/sdk-shared/
 
 # IDEs
 .idea

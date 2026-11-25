@@ -8,7 +8,7 @@ cmake --build build --target Example_Homeless_Package
 ```
 
 在 Atom 根目录配置构建。CLion 里选 `Example_Homeless` 运行，程序和资源位于
-`build/Example/Homeless/Game/`。默认从 `Content/` 读取资源。加 `--package` 使用
+`build/AtomExample/Homeless/`。默认从 `Content/` 读取资源。加 `--package` 使用
 `Packages/Homeless.apkg`。`--vulkan` 选择 Vulkan，`--frames=120` 渲染指定帧数后退出。
 Windows 下普通 Release 使用图形子系统，启动时没有控制台窗口。启用
 `-DATOM_ENABLE_DEBUGGER=ON` 的 Release 保留控制台。

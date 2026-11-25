@@ -663,9 +663,8 @@ endif()
 
 ```powershell
 cmake -S . -B build-static -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build-static --parallel
+cmake --build build-static --target AtomSdkArchive --parallel
 cmake --install build-static --prefix _sdk-static
-# 打包阶段把 lib/ 下的 Atom_*.lib 与第三方 .lib 合并成单个 Atom.lib
 ```
 
 合并用一个打包脚本（MSVC 用 `lib.exe /OUT:Atom.lib *.lib`；MinGW 用 `ar -M`）。
@@ -905,13 +904,11 @@ dumpbin /exports _sdk/bin/Atom.dll | findstr ImGui
 **改动**：
 
 - `project(Atom VERSION 0.1.0)`；`Atom/Version.hpp`；`Initialize` 日志打印版本；
-- GitHub Actions 矩阵：Windows x64（MSVC、MinGW-GCC、clang-cl）+ Linux x64（GCC、Clang），Release/Debug；
-- 每个 job 产出**两个包**：
-  - `build-shared`（`-DATOM_BUILD_SHARED=ON`）→ install → SdkSmoke → `...-shared.zip`；
-  - `build-static`（默认）→ install → 合并 `Atom.lib` → SdkSmoke（链静态包）→ `...-static.zip`；
-- tag `v0.1.0-prebeta` 时创建 GitHub Release，附全部包与 SHA256。
+- GitHub Actions 在 Windows x64（MSVC、MinGW GCC、clang-cl）和 Linux x64（GCC、Clang）上验证 Release 静态和共享构建。
+- Windows MSVC 和 Linux GCC 分别生成一个平台 ZIP，包含独立的 `static/`、`shared/` 安装前缀。其余工具链验证编译。
+- 合并到 `master` 后，全部构建通过才创建该提交的 SDK 预发布，附两个 ZIP 和 SHA256 清单。
 
-**验收**：下载 CI 产物，在**干净目录**分别解压 shared/static 包 → 用 SdkSmoke 编译运行 → 通过。
+**验收**：将各平台的 ZIP 解压到干净目录，分别用 `static/` 和 `shared/` 前缀编译并运行 SdkSmoke。
 
 ---
 
@@ -980,7 +977,7 @@ auto atom::platform::ApplicationMain(int, char**) -> int {
 - [ ] 每个工具链的 shared/static 包都通过上述检查
 - [ ] `atom::Version()` 输出与包名一致
 - [ ] 版本号、许可证、README 已更新
-- [ ] tag `v0.1.0-prebeta` 已创建
+- [ ] 工作流已创建对应提交的 `sdk-<commit SHA>` tag
 - [ ] GitHub Release 附件与 SHA256 已上传
 - [ ] 人工端到端验收（发布负责人用自己的小游戏完成，不属于本流程）
 
@@ -1211,14 +1208,12 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
 
    `Application::Initialize` 启动日志打印版本。
 
-2. GitHub Actions 新增 `sdk.yml`：
-   - 矩阵：`windows-latest`（MSVC / MinGW-GCC / clang-cl）为 v1 正式包；`ubuntu-latest`（GCC / Clang）产物标记 `experimental`，不阻塞发布；
-   - 每个 job 产出两个包：
-     1. `build-shared`（`-DATOM_BUILD_SHARED=ON`）→ ctest → install `_sdk-shared` → SdkSmoke（基础/面板/Lua）→ `...-shared.zip`；
-     2. `build-static`（默认）→ ctest → install `_sdk-static` → 合并 `Atom.lib` → SdkSmoke（链静态包）→ `...-static.zip`；
-   - tag `v*` 时创建 Release，附全部正式 zip + SHA256。
-3. 验收：下载 CI artifact，在**干净目录**分别解压 shared/static 包 → SdkSmoke 编译运行 → 通过。
-4. 提交：`chore(release): 0.1.0-prebeta SDK packaging`；打 tag `v0.1.0-prebeta`。
+2. GitHub Actions 工作流使用 `sdk-release.yml`：
+   - Windows MSVC、MinGW GCC、clang-cl、Linux GCC 和 Linux Clang 各编译静态与共享的 Release 版本。
+   - 仅 Windows MSVC 和 Linux GCC 运行 CTest、安装两种 SDK，并打包到各自的 ZIP。静态版先构建 `AtomSdkArchive` 再安装。
+   - 推送到 `master` 时，全部矩阵通过后为该提交发布预发布 `sdk-<commit SHA>`，附两个 ZIP 和 SHA256 清单。手动运行只生成 Actions 产物。
+3. 验收：将各平台 ZIP 解压到干净目录，用该包的工具链针对 `static/` 和 `shared/` 分别编译并运行 SdkSmoke。
+4. 合并后由工作流添加该提交对应的 SDK 预发布 tag。
 5. 发布负责人用自己的小游戏做最终人工验收（流程外）。
 
 ### 11.10 提交与回滚策略

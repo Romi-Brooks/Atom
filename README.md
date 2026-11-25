@@ -108,15 +108,34 @@ to submit work without dependencies, and `atom::random::Rng` for seeded random s
 
 ---
 
-## Shared SDK
+## SDK
+
+GitHub Releases provide one x64 Release ZIP for Windows MSVC and one for Linux
+GCC (libstdc++). Each ZIP contains separate `static/` and `shared/` install
+prefixes. Select one prefix for `CMAKE_PREFIX_PATH`. MinGW and Linux Clang
+with libc++ can build their SDK from source to match their C++ ABI.
 
 Build an installable SDK with the same toolchain and configuration your game uses.
+Use separate build directories and install prefixes for the shared and static packages.
+
+In a CLion CMake profile, set `-DATOM_BUILD_SHARED=ON -DATOM_STAGE_SDK=ON`
+to install the modular shared SDK to `<build>/sdk/shared` when you build the
+project. With `-DATOM_BUILD_SHARED=OFF`, the output goes to `<build>/sdk/static`.
+You can also build the `AtomSdk` target directly to stage the SDK on demand.
 
 ```sh
 cmake -S . -B build-shared -G Ninja -DCMAKE_BUILD_TYPE=Release -DATOM_BUILD_SHARED=ON
 cmake --build build-shared --parallel
-cmake --install build-shared --prefix sdk
+cmake --install build-shared --prefix sdk-shared
+
+cmake -S . -B build-static -G Ninja -DCMAKE_BUILD_TYPE=Release -DATOM_BUILD_SHARED=OFF -DATOM_ENABLE_DEBUGGER=ON
+cmake --build build-static --target AtomSdkArchive --parallel
+cmake --install build-static --prefix sdk-static
 ```
+
+The static SDK provides a merged `Atom.lib` or `libAtom.a`, plus the entry
+libraries. The compiler's runtime requirements still apply. The same CMake
+components work with either package.
 
 Set `CMAKE_PREFIX_PATH` to the install prefix when configuring your game.
 
@@ -127,7 +146,7 @@ target_link_libraries(my_game PRIVATE Atom::Core)
 atom_application(my_game CONSOLE)
 ```
 
-Implement `atom::platform::ApplicationMain` from `<Atom/AtomMain.hpp>`. On
+Implement `atom::platform::ApplicationMain` from `<Atom/AtomMain.hpp>`. For the shared SDK on
 Windows, deploy the DLLs from `Atom_RUNTIME_DIR`, including `SDL3.dll`, beside
 the executable. Link `Atom::Scripting` for Lua bindings and `Atom::Debugger`
 for custom ImGui panels. Both components provide their vendored headers and

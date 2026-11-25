@@ -1,0 +1,27 @@
+if(TARGET Atom::Archive)
+    return()
+endif()
+
+if(UNIX)
+    include(CMakeFindDependencyMacro)
+    find_dependency(Threads)
+endif()
+
+add_library(Atom::Archive STATIC IMPORTED)
+set_target_properties(Atom::Archive PROPERTIES
+    IMPORTED_LOCATION "${Atom_LIBRARY_DIR}/@atom_sdk_archive_name@"
+    INTERFACE_INCLUDE_DIRECTORIES "${Atom_INCLUDE_DIR}"
+    INTERFACE_COMPILE_FEATURES cxx_std_23
+    INTERFACE_LINK_LIBRARIES "@atom_static_system_libraries@"
+    INTERFACE_LINK_OPTIONS "@atom_static_link_options@")
+if(MINGW)
+    target_link_options(Atom::Archive INTERFACE -static-libgcc -static-libstdc++)
+endif()
+
+foreach(component IN ITEMS Core World Backends Platform Runtime Graphics Media Audio Image Scripting Debugger)
+    add_library(Atom::${component} INTERFACE IMPORTED)
+    target_link_libraries(Atom::${component} INTERFACE Atom::Archive)
+endforeach()
+target_include_directories(Atom::Debugger INTERFACE "${Atom_INCLUDE_DIR}/imgui")
+target_compile_definitions(Atom::Debugger INTERFACE ATOM_ENABLE_DEBUGGER=$<BOOL:@_atom_debugger_enabled@>)
+target_include_directories(Atom::Scripting INTERFACE "${Atom_INCLUDE_DIR}/lua")

@@ -2,7 +2,7 @@
 # Global Settings
 # ============================================================================
 cmake_minimum_required(VERSION 3.20)
-project(Atom LANGUAGES C CXX)
+project(Atom VERSION 0.1.0 LANGUAGES C CXX)
 
 # Target naming convention:
 #   Atom_*       - engine libraries, backends, applications, and tools
@@ -79,10 +79,10 @@ if(ATOM_BUILD_TESTS)
     add_subdirectory(Test)
 endif()
 
-add_subdirectory(Example/Homeless)
-
+if(NOT ATOM_BUILD_SHARED)
+    include(cmake/MinGWRuntime.cmake)
+endif()
+add_subdirectory(Example/Homeless "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/Example_Homeless")
 if(ATOM_BUILD_SHARED)
     include(cmake/SdkRuntime.cmake)
-else()
-    include(cmake/MinGWRuntime.cmake)
 endif()

@@ -22,7 +22,7 @@ atom_link_libraries(Example_Homeless PRIVATE
     Atom_ApplicationPaths Atom_FS Atom_Log)
 set_target_properties(Example_Homeless PROPERTIES
     OUTPUT_NAME Homeless
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Game")
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/AtomExample/Homeless")
 
 atom_application(Example_Homeless WINDOWED)
 
@@ -31,7 +31,7 @@ get_property(shader_files TARGET Atom_Shaders PROPERTY ATOM_SHADER_FILES)
 set(game_directory "$<TARGET_FILE_DIR:Example_Homeless>")
 file(GLOB_RECURSE content_files CONFIGURE_DEPENDS LIST_DIRECTORIES false "${CMAKE_CURRENT_SOURCE_DIR}/Content/*")
 
-set(staged_stamp "${CMAKE_CURRENT_BINARY_DIR}/Example_Homeless_content-$<CONFIG>.stamp")
+set(staged_stamp "${CMAKE_CURRENT_BINARY_DIR}/Example_Homeless_assets-$<CONFIG>.stamp")
 set(stage_commands
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/Content" "${game_directory}/Content"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${shader_directory}" "${game_directory}/Shaders"
@@ -51,10 +51,6 @@ add_custom_command(OUTPUT "${staged_stamp}"
     VERBATIM)
 add_custom_target(Example_Homeless_Content DEPENDS "${staged_stamp}")
 add_dependencies(Example_Homeless Example_Homeless_Content)
-
-if(MINGW)
-    target_link_options(Example_Homeless PRIVATE -static-libgcc -static-libstdc++ -lstdc++exp)
-endif()
 
 add_custom_target(Example_Homeless_Package
     COMMAND ${CMAKE_COMMAND} -E make_directory "${game_directory}/Packages"

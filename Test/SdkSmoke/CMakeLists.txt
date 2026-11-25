@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(AtomSdkSmoke LANGUAGES CXX)
 
-find_package(Atom CONFIG REQUIRED COMPONENTS
+find_package(Atom 0.1 CONFIG REQUIRED COMPONENTS
     Core World Backends Platform Runtime Graphics Media Audio Image Scripting Debugger Entry)
 
 add_executable(HelloAtom HelloAtom.cpp)
@@ -34,7 +34,7 @@ add_library(AtomSdkHeaderCheck OBJECT ${audit_sources})
 target_link_libraries(AtomSdkHeaderCheck PRIVATE Atom::Core Atom::Debugger Atom::Scripting)
 
 enable_testing()
-if(WIN32)
+if(WIN32 AND Atom_SHARED)
     file(GLOB runtime_dlls CONFIGURE_DEPENDS "${Atom_RUNTIME_DIR}/*.dll")
     add_custom_target(StageAtomSdkRuntime
         COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:HelloAtom>"
@@ -46,7 +46,7 @@ if(WIN32)
 endif()
 foreach(target IN ITEMS HelloAtom AtomCustomMain)
     add_test(NAME ${target} COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:${target}>"
-        "-DCHECK_SCREEN=$<AND:$<PLATFORM_ID:Windows>,$<STREQUAL:${target},AtomCustomMain>>" -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckProgram.cmake")
+        "-DCHECK_SCREEN=$<AND:$<BOOL:${Atom_SHARED}>,$<PLATFORM_ID:Windows>,$<STREQUAL:${target},AtomCustomMain>>" -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckProgram.cmake")
     set_tests_properties(${target} PROPERTIES TIMEOUT 15)
 endforeach()
 foreach(target IN ITEMS AtomSdkGraphics AtomSdkLua AtomSdkPanel)
