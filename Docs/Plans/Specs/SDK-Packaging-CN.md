@@ -66,7 +66,7 @@
 | 测试/示例输出目录 `AtomTest/`、`AtomExample/` | 已完成（`a9ecf17`） |
 | 删除无用的 `Engine/Atom.cpp` 与 `Atom_Engine` | 已完成（`c47a7ff`） |
 | 单元测试 | 81/81 通过（Debug，Windows MinGW） |
-| CI | `.github/workflows/build.yml`：Windows MSVC Release、Linux GCC Release，均跑 CTest |
+| CI | `.github/workflows/sdk-release.yml`（Build Release SDK）：PR/master 跑全工具链矩阵，`v*` 标签发布 |
 
 ---
 

@@ -1,4 +1,4 @@
-name: SDK packages and release
+name: Build Release SDK
 
 on:
   pull_request:
