@@ -1,6 +1,6 @@
 # Debugger
 # Debug overlay build switch. AUTO (default) follows the build type:
-# enabled in Debug, stripped in Release/MinSizeRel. Force either way with
+# enabled in shared SDKs and static Debug builds. Force either way with
 # -DATOM_ENABLE_DEBUGGER=ON (e.g. to ship a Release build that still shows
 # the debug overlay, or a future profiler built on the same panels) or
 # =OFF. The resolved value is propagated as an explicit 0/1 macro so no
@@ -11,12 +11,12 @@ if(ATOM_ENABLE_DEBUGGER STREQUAL "ON")
 elseif(ATOM_ENABLE_DEBUGGER STREQUAL "AUTO")
     # Single-config Ninja builds set CMAKE_BUILD_TYPE; the header fallback in
     # DebuggerConfig.hpp still covers non-CMake or multi-config consumers.
-    if(NOT CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+    if(ATOM_BUILD_SHARED OR (NOT CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT CMAKE_BUILD_TYPE STREQUAL "MinSizeRel"))
         set(_atom_debugger_enabled ON)
     endif()
 endif()
 
-add_library(Atom_Debugger STATIC
+add_library(Atom_Debugger ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Debugger/DebugPanel.hpp
         Engine/Atom/Debugger/DebugPanel.cpp
         Engine/Atom/Debugger/Panels/LogDebugger.hpp

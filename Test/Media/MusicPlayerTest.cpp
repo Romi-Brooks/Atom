@@ -8,7 +8,7 @@
 
 #include <Atom/Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioSource.hpp>
-#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 #include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
 #include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
 #include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>

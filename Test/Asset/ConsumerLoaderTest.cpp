@@ -6,7 +6,7 @@
 #include <Atom/Resources/Asset/ResourceManager.hpp>
 #include <Atom/Resources/Asset/ScriptSourceLoader.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
-#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 #include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
 #include <Atom/Resources/Media/Audio/Resources/AudioClipLoader.hpp>
 #include <Atom/Resources/Media/Image/DecodedImageLoader.hpp>

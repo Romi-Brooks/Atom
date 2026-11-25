@@ -9,6 +9,7 @@
 #include <Atom/Lua/lua.hpp>
 
 #include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Lua/LuaHost.hpp>
 #include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
 #include <Atom/Resources/Media/Audio/Transitions/MusicCrossfade.hpp>
 

@@ -17,7 +17,7 @@
 #include <string>
 
 #include <Atom/Backend/Contracts/Audio/AudioBackendId.hpp>
-#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 
 #include <Atom/Build/MediaAudioExport.hpp>
 

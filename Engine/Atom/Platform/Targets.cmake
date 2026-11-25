@@ -20,20 +20,20 @@ if(WIN32)
 endif()
 
 # Application resource directory. VFS remains platform-backend neutral.
-add_library(Atom_ApplicationPaths STATIC
+add_library(Atom_ApplicationPaths ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Platform/ApplicationPaths.hpp
     Engine/Atom/Platform/ApplicationPaths.cpp
 )
 target_include_directories(Atom_ApplicationPaths PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_ApplicationPaths PUBLIC Atom_Error PRIVATE Atom_Backend_SDL3_Core Atom_UTF8)
 
-add_library(Atom_FileDialogs STATIC Engine/Atom/Platform/FileDialogs.cpp Engine/Atom/Platform/FileDialogs.hpp)
+add_library(Atom_FileDialogs ${ATOM_ENGINE_LIBRARY_TYPE} Engine/Atom/Platform/FileDialogs.cpp Engine/Atom/Platform/FileDialogs.hpp)
 target_include_directories(Atom_FileDialogs PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_FileDialogs PUBLIC Atom_Error PRIVATE Atom_Backend_SDL3_Core)
 
 # Window/render host. It owns native window, backend and frame submission;
 # Runtime owns the frame loop, time domains and screen dispatch.
-add_library(Atom_Window STATIC
+add_library(Atom_Window ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Platform/Window/RenderWindow.hpp
         Engine/Atom/Platform/Window/RenderWindow.cpp
 )
@@ -53,7 +53,7 @@ target_link_libraries(Atom_Window PRIVATE
 # It sits above the contracts (it only needs IWindow/IRenderDevice) and below
 # Runtime (which ticks it), so neither the window facade nor a debug panel has
 # to own the state.
-add_library(Atom_Display STATIC
+add_library(Atom_Display ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Platform/Display/DisplaySettings.hpp
         Engine/Atom/Platform/Display/DisplaySystem.hpp
         Engine/Atom/Platform/Display/DisplaySystem.cpp

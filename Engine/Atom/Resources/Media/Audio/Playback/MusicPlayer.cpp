@@ -5,7 +5,7 @@
 
 #include <Atom/Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Atom/Backend/Contracts/Numeric/NumericContract.hpp>
-#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 #include <Atom/Backend/Composition/BackendRuntime.hpp>
 #include <Atom/Resources/Filesystem/Vfs.hpp>
 #include <Atom/Core/Log/LogSystem.hpp>

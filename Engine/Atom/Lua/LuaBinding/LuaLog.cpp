@@ -15,6 +15,7 @@
 #include <utility>
 
 #include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Lua/LuaHost.hpp>
 #include <Atom/Lua/LuaGuard.hpp>
 
 namespace {

@@ -9,7 +9,7 @@
 
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Atom/Backend/Contracts/Numeric/NumericContract.hpp>
-#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 #include <Atom/Core/Error/Error.hpp>
 #include <Atom/Resources/Filesystem/Vfs.hpp>
 #include <Atom/Core/Log/LogSystem.hpp>

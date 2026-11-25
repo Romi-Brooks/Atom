@@ -11,6 +11,7 @@
 #include <Atom/Lua/lua.hpp>
 
 #include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Lua/LuaHost.hpp>
 #include <Atom/Resources/Media/Audio/Playback/SFXPlayer.hpp>
 
 namespace {

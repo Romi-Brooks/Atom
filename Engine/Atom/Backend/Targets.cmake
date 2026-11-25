@@ -6,6 +6,7 @@ target_sources(Atom_Backend_Contracts INTERFACE
     Engine/Atom/Backend/Contracts/Audio/AudioBackendId.hpp
     Engine/Atom/Backend/Contracts/Audio/AudioSourceRegistry.hpp
     Engine/Atom/Backend/Contracts/Audio/IAudioBackend.hpp
+    Engine/Atom/Backend/Contracts/Audio/IAudioBackendChangeListener.hpp
     Engine/Atom/Backend/Contracts/Audio/IAudioDecoder.hpp
     Engine/Atom/Backend/Contracts/Audio/IAudioSource.hpp
     Engine/Atom/Backend/Contracts/Audio/NullAudioBackend.hpp
@@ -37,7 +38,7 @@ target_include_directories(Atom_Backend_Contracts INTERFACE
 target_link_libraries(Atom_Backend_Contracts INTERFACE Atom_Math Atom_Color Atom_Input Atom_FS)
 
 # SDL3 Core
-add_library(Atom_Backend_SDL3_Core STATIC
+add_library(Atom_Backend_SDL3_Core ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Backend/SDL3/Core/SDLRuntime.cpp
     Engine/Atom/Backend/SDL3/Core/SDLRuntime.hpp
     Engine/Atom/Backend/SDL3/Core/SdlError.cpp
@@ -51,7 +52,7 @@ target_include_directories(Atom_Backend_SDL3_Core PUBLIC "${PROJECT_SOURCE_DIR}/
 target_link_libraries(Atom_Backend_SDL3_Core PUBLIC Atom_3rd_SDL3 Atom_Backend_Contracts)
 
 # SDL3 window platform layer
-add_library(Atom_Backend_SDL3_Window STATIC
+add_library(Atom_Backend_SDL3_Window ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Backend/SDL3/Window/SDL3Window.cpp
     Engine/Atom/Backend/SDL3/Window/SDL3Window.hpp
 )
@@ -59,7 +60,7 @@ target_include_directories(Atom_Backend_SDL3_Window PUBLIC "${PROJECT_SOURCE_DIR
 target_link_libraries(Atom_Backend_SDL3_Window PUBLIC Atom_Backend_Contracts Atom_Backend_SDL3_Core Atom_Algorithm Atom_Log)
 
 # SDL_GPU render device and backend composition.
-add_library(Atom_Backend_SDL_GPU STATIC
+add_library(Atom_Backend_SDL_GPU ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Backend/SDLGPU/Device/SDLGPUDevice.cpp
     Engine/Atom/Backend/SDLGPU/Device/SDLGPUDevice.hpp
     Engine/Atom/Backend/SDLGPU/Device/SDLGPUBackend.cpp
@@ -77,7 +78,7 @@ target_compile_definitions(Atom_Backend_SDL_GPU PRIVATE
     ATOM_SHADER_HAS_MSL=$<BOOL:${ATOM_SHADER_BUILD_MSL}>)
 
 # SDL_GPU Debug (ImGui) Backend — ImGui glue for the SDL_GPU render backend.
-add_library(Atom_Backend_SDLGPU_Debug STATIC
+add_library(Atom_Backend_SDLGPU_Debug ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Backend/SDLGPU/Debug/SDLGPUImGuiBackend.cpp
     Engine/Atom/Backend/SDLGPU/Debug/SDLGPUImGuiBackend.hpp
 )
@@ -88,7 +89,7 @@ target_link_libraries(Atom_Backend_SDLGPU_Debug PUBLIC
 # Render Backend Runtime — the sanctioned layer that knows the concrete
 #     backends and registers them (window + render-device factory);
 #     upper layers only consume the registries and the I* interfaces.
-add_library(Atom_Backend_Render_Composition STATIC
+add_library(Atom_Backend_Render_Composition ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Backend/Composition/RenderBackendRuntime.cpp
     Engine/Atom/Backend/Composition/RenderBackendRuntime.hpp
 )
@@ -101,8 +102,8 @@ add_library(Atom_Backend_Render_Runtime INTERFACE)
 target_link_libraries(Atom_Backend_Render_Runtime INTERFACE Atom_Backend_Render_Composition)
 
 # Backend extension registration and format codecs
-add_library(Atom_Backend_Extension STATIC
-    Engine/Atom/Backend/Extension/AudioDecoderRegistry.hpp
+add_library(Atom_Backend_Extension ${ATOM_ENGINE_LIBRARY_TYPE}
+    Engine/Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp
     Engine/Atom/Backend/Extension/AudioDecoderRegistry.cpp
     Engine/Atom/Backend/Extension/BackendRegistry.hpp
     Engine/Atom/Backend/Extension/BackendRegistry.cpp
@@ -115,7 +116,7 @@ target_include_directories(Atom_Backend_Extension PUBLIC "${PROJECT_SOURCE_DIR}/
 target_link_libraries(Atom_Backend_Extension PUBLIC Atom_Backend_Contracts)
 
 # SDL3 Audio Backend
-add_library(Atom_Backend_SDL3_Audio STATIC
+add_library(Atom_Backend_SDL3_Audio ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Backend/SDL3/Audio/SDL3AudioBackend.cpp
     Engine/Atom/Backend/SDL3/Audio/SDL3AudioBackend.hpp
     Engine/Atom/Backend/SDL3/Audio/SDL3SFXSource.cpp
@@ -130,7 +131,7 @@ add_library(Atom_Backend_SDL3_Audio STATIC
 target_include_directories(Atom_Backend_SDL3_Audio PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_Backend_SDL3_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_Extension Atom_Backend_SDL3_Core Atom_Log)
 
-add_library(Atom_Backend_SDL3_Mixer_Audio STATIC
+add_library(Atom_Backend_SDL3_Mixer_Audio ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Backend/SDL3/Audio/SDL3MixerAudioBackend.cpp
     Engine/Atom/Backend/SDL3/Audio/SDL3MixerAudioBackend.hpp
     Engine/Atom/Backend/SDL3/Audio/SDL3MixerContext.cpp
@@ -143,10 +144,9 @@ add_library(Atom_Backend_SDL3_Mixer_Audio STATIC
 target_include_directories(Atom_Backend_SDL3_Mixer_Audio PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_Backend_SDL3_Mixer_Audio PUBLIC Atom_Backend_Contracts Atom_Backend_SDL3_Core Atom_Log Atom_3rd_SDL3_mixer)
 
-add_library(Atom_Backend_Composition STATIC
+add_library(Atom_Backend_Composition ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Backend/Composition/BackendRuntime.hpp
     Engine/Atom/Backend/Composition/BackendRuntime.cpp
-    Engine/Atom/Backend/Composition/IAudioBackendChangeListener.hpp
 )
 target_include_directories(Atom_Backend_Composition PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_Backend_Composition PUBLIC

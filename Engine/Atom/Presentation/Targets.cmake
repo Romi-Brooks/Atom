@@ -1,5 +1,5 @@
 # Layout
-add_library(Atom_Layout STATIC
+add_library(Atom_Layout ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Presentation/Layout/LayoutConfig.cpp
     Engine/Atom/Presentation/Layout/LayoutConfig.hpp
     Engine/Atom/Presentation/Layout/LayoutNode.cpp
@@ -12,7 +12,7 @@ target_include_directories(Atom_Layout PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_Layout PRIVATE Atom_3rd_Yoga Atom_Log)
 
 # Text — backend-neutral font provider and glyph rasterization service.
-add_library(Atom_Text STATIC
+add_library(Atom_Text ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Presentation/Render/Text/Font.cpp
     Engine/Atom/Presentation/Render/Text/Font.hpp
     Engine/Atom/Presentation/Render/Text/FontFileLoader.cpp
@@ -36,14 +36,14 @@ target_sources(Atom_Render_Pipeline INTERFACE
 target_include_directories(Atom_Render_Pipeline INTERFACE "${PROJECT_SOURCE_DIR}/Engine")
 
 # Render Core — backend-neutral pass scheduling and render orchestration.
-add_library(Atom_Render_Core STATIC
+add_library(Atom_Render_Core ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Presentation/Render/Core/RenderGraph.cpp
     Engine/Atom/Presentation/Render/Core/RenderGraph.hpp
 )
 target_include_directories(Atom_Render_Core PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 
 # Renderer2D — high-level batched 2D renderer on the IRender2DContext slice.
-add_library(Atom_Renderer2D STATIC
+add_library(Atom_Renderer2D ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Presentation/Render/Renderer2D/Renderer2D.cpp
     Engine/Atom/Presentation/Render/Renderer2D/Renderer2D.hpp
 )
@@ -54,7 +54,7 @@ target_link_libraries(Atom_Renderer2D PRIVATE Atom_Log)
 # Game UI — retained widgets over Layout, normalized input, and a
 # screen-space Renderer2D canvas. Runtime-owned pages may consume this module;
 # UI itself has no dependency on Runtime, Window implementations, ECS, or ImGui.
-add_library(Atom_UI STATIC
+add_library(Atom_UI ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Presentation/UI/UiTree.hpp
     Engine/Atom/Presentation/UI/UiTree.cpp
     Engine/Atom/Presentation/UI/UiCanvas.hpp
@@ -64,7 +64,7 @@ target_include_directories(Atom_UI PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_UI PUBLIC Atom_Layout Atom_InputSystem Atom_Renderer2D)
 
 # Render resources — bridges decoded media assets into renderer-owned GPU resources.
-add_library(Atom_Render_Resources STATIC
+add_library(Atom_Render_Resources ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Presentation/Render/Resources/ImageTexture.hpp
     Engine/Atom/Presentation/Render/Resources/ImageTexture.cpp
     Engine/Atom/Presentation/Render/Resources/TextureCache.hpp
@@ -82,7 +82,7 @@ target_link_libraries(Atom_Render_Resources PRIVATE Atom_Concurrency)
 # Scene2D — ECS sprites and a 2D camera turned into one Renderer2D pass.
 #     Depends on ECS + Renderer2D + render resources, and never on Runtime: a
 #     scene renderer must be usable by a tool or a test with no frame loop.
-add_library(Atom_Scene2D STATIC
+add_library(Atom_Scene2D ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Presentation/Render/Scene2D/Scene2DTypes.hpp
     Engine/Atom/Presentation/Render/Scene2D/Scene2DRenderer.hpp
     Engine/Atom/Presentation/Render/Scene2D/Scene2DRenderer.cpp
@@ -95,7 +95,7 @@ target_link_libraries(Atom_Scene2D PUBLIC Atom_ECS Atom_Renderer2D Atom_Render_R
 # Sprite — the art pipeline's metadata layer: one texture, named frames,
 #     one filter. Depends on Json + FS + Math/Color, NOT on ECS: an atlas is asset
 #     data, and a component must not need to know what an atlas is.
-add_library(Atom_Sprite STATIC
+add_library(Atom_Sprite ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Presentation/Sprite/SpriteAtlas.hpp
     Engine/Atom/Presentation/Sprite/SpriteAtlas.cpp
     Engine/Atom/Presentation/Sprite/SpriteAtlasLoader.hpp

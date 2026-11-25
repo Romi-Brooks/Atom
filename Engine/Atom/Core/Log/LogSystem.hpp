@@ -37,6 +37,10 @@
 #include "AtomLogChannels.hpp"
 
 namespace atom {
+namespace detail {
+auto ShutdownLogForProcessExit() -> void;
+}
+
 enum class LogLevel {
     ATOM_DEBUG,   // 0
     ATOM_INFO,    // 1
@@ -167,6 +171,8 @@ class ATOM_CORE_API Log {
 
         Log();
         ~Log();
+        friend auto detail::ShutdownLogForProcessExit() -> void;
+        auto StopWriters() -> void;
 
         // Replay ring: the most recent records, replayed to every new subscriber
         // so the startup/asset-loading phase is not lost before the debugger

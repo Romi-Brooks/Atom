@@ -2,7 +2,7 @@
 #include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
 #include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
 #include <Atom/Backend/Contracts/Audio/NullAudioBackend.hpp>
-#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <limits>

@@ -495,7 +495,7 @@ endif()
 注意：
 
 - 头文件里的 `inline` 函数只能调用已导出的符号，否则消费方链接失败；
-- 模板不导出，保持头内实现；
+- 普通模板保持头内实现。ECS 公开模板调用的后端显式实例由 Core 导出，EnTT 继续留在实现文件内；
 - `ATOM_BUILD_SHARED` 必须作为 **INTERFACE** 定义传给消费者，否则用户看到的是 `dllimport` 缺失的状态。
 
 ### 5.2 入口：`AtomMain.hpp` + `AtomEntry`
@@ -1138,9 +1138,10 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
 1. 新增选项 `ATOM_BUILD_SHARED`（默认 OFF）。
 2. 聚合引擎对象文件生成唯一的共享目标。静态默认路径保持独立。通过已安装的组件 target 暴露消费方所需的依赖。
 3. 入口库保持 STATIC。
-4. 新增 install/export（见 5.4）与 `AtomConfig.cmake.in`、`AtomHelpers.cmake`。
+4. 新增 install/export（见 5.4）与 `AtomConfig.cmake.in`、`AtomHelpers.cmake`。S4 安装包提供不带版本号的 `find_package(Atom CONFIG)`，版本文件在 S7 加入。
+   共享包同时安装预编译 shader，配置通过 `Atom_SHADER_DIR` 提供路径。
 5. 新增 `Test/SdkSmoke/`（最小 `find_package` 工程）。
-   Windows MinGW 的独立 DLL 试验已复现：日志调用成功且 `main` 返回，进程仍未退出。S4 必须让日志线程在 DLL 卸载前关闭并刷新队列，并检查同样会等待线程的作业系统单例。冒烟测试应设置退出超时。
+   Windows MinGW 的独立 DLL 试验已复现：日志调用成功且 `main` 返回，进程仍未退出。S4 必须让日志线程在 DLL 卸载前关闭并刷新队列，并检查同样会等待线程的作业系统单例。Windows 的 CMake 消费方在 EXE 侧自动注册清理，覆盖 `AtomEntry` 和自定义 `main`。冒烟测试同时验证日志刷新和退出码，并设置退出超时。
 6. 验收：
 
    ```powershell
@@ -1148,9 +1149,9 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
    cmake --build build-shared --parallel
    ctest --test-dir build-shared --output-on-failure
    cmake --install build-shared --prefix _sdk
-   cmake -S Test/SdkSmoke -B _smoke -G Ninja -DCMAKE_PREFIX_PATH=_sdk
+   cmake -S Test/SdkSmoke -B _smoke -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=_sdk
    cmake --build _smoke
-   ./_smoke/HelloAtom.exe
+   ctest --test-dir _smoke --output-on-failure
    ```
 
 7. 提交：`feat(sdk): shared build, install/export, and SDK smoke test`。

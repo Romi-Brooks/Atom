@@ -108,6 +108,31 @@ to submit work without dependencies, and `atom::random::Rng` for seeded random s
 
 ---
 
+## Shared SDK
+
+Build an installable SDK with the same toolchain and configuration your game uses.
+
+```sh
+cmake -S . -B build-shared -G Ninja -DCMAKE_BUILD_TYPE=Release -DATOM_BUILD_SHARED=ON
+cmake --build build-shared --parallel
+cmake --install build-shared --prefix sdk
+```
+
+Set `CMAKE_PREFIX_PATH` to the install prefix when configuring your game.
+
+```cmake
+find_package(Atom CONFIG REQUIRED COMPONENTS Core Entry)
+add_executable(my_game main.cpp)
+target_link_libraries(my_game PRIVATE Atom::Core)
+atom_application(my_game CONSOLE)
+```
+
+Implement `atom::platform::ApplicationMain` from `<Atom/AtomMain.hpp>`. On
+Windows, deploy the SDK DLLs from `Atom_RUNTIME_DIR` beside the executable.
+CMake links the SDK's process-exit cleanup into applications that use the
+package, including applications with their own `main`. The package also
+provides `Atom_SHADER_DIR` for the installed shader assets.
+
 ## Examples
 
 Ready-to-run examples are located in [`Example/`](Example/).

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <utility>
 
-#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 #include <Atom/Core/Concurrency/JobSystem.hpp>
 #include <Atom/Resources/Filesystem/Vfs.hpp>
 #include <Atom/Core/Log/LogSystem.hpp>

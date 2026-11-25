@@ -7,7 +7,7 @@ set(ATOM_TEST_ALL_TARGETS "")
 
 function(atom_add_test test_name target_name source)
     add_executable(${target_name} ${source})
-    target_link_libraries(${target_name} PRIVATE ${ARGN})
+    atom_link_libraries(${target_name} PRIVATE ${ARGN})
     target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     # Allow #include <Test/...> helpers via project root.
     target_include_directories(${target_name} PRIVATE ${PROJECT_SOURCE_DIR})
@@ -302,6 +302,11 @@ atom_add_test(Atom_Backend_SDL3_Core.SdlError
     Atom_Backend_SDL3_Core_SdlError_Tests
     Backend/Sdl3ErrorTest.cpp
     Atom_Backend_SDL3_Core)
+
+if(ATOM_BUILD_SHARED)
+    target_include_directories(Atom_Backend_SDL3_Core_SdlError_Tests PRIVATE
+        "$<TARGET_PROPERTY:Atom_3rd_SDL3,INTERFACE_INCLUDE_DIRECTORIES>")
+endif()
 
 # Display selection contract: window placement, present mode, capability mask.
 atom_add_test(Atom_Backend_Contracts.DisplayConfig

@@ -13,7 +13,7 @@ target_include_directories(Atom_Color INTERFACE "${PROJECT_SOURCE_DIR}/Engine")
 #     Atom_Algorithm keeps the behaviour-bearing types and links this one.
 #     Files stay under Engine/Atom/Core/Algorithm/ because that is where they have always lived;
 #     the ownership move is a target-graph change, not a directory move.
-add_library(Atom_Math STATIC
+add_library(Atom_Math ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Core/Algorithm/Vector/Vec2.cpp
     Engine/Atom/Core/Algorithm/Vector/Vec2.hpp
     Engine/Atom/Core/Algorithm/Vector/Vec3.cpp
@@ -35,7 +35,7 @@ target_include_directories(Atom_Math PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_Math PUBLIC Atom_Color)
 
 # Deterministic pseudorandom streams for simulations and tools.
-add_library(Atom_Random STATIC
+add_library(Atom_Random ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Core/Utilities/Random/Rng.hpp
     Engine/Atom/Core/Utilities/Random/Rng.cpp
 )
@@ -45,7 +45,7 @@ target_include_directories(Atom_Random PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 #     Leaf module: no engine dependency at all, not even Log. Every other
 #     module may link it, and it must never link anything back. Defined before
 #     Log because Log consumes Error codes for its own diagnostics.
-add_library(Atom_Error STATIC
+add_library(Atom_Error ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Core/Error/Error.hpp
     Engine/Atom/Core/Error/Error.cpp
 )
@@ -56,7 +56,7 @@ target_include_directories(Atom_Error PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 # is what lets Engine/Atom/Resources/Filesystem/Asset/ECS/Scene tests link with no SDL backend.
 
 # Time (master + domain clocks, fixed-step policy)
-add_library(Atom_Time STATIC
+add_library(Atom_Time ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Core/Time/TimeTypes.hpp
         Engine/Atom/Core/Time/SteadyTimeSource.hpp
         Engine/Atom/Core/Time/MasterClock.hpp
@@ -73,7 +73,7 @@ target_link_libraries(Atom_Time PUBLIC Atom_Backend_Contracts)
 #     diagnostics (which thread is alive, which one burns the most CPU). A leaf
 #     module with no dependency on Log or Concurrency, so Log's own writer
 #     thread can register without a cycle.
-add_library(Atom_Threading STATIC
+add_library(Atom_Threading ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Core/Concurrency/ThreadRegistry.hpp
     Engine/Atom/Core/Concurrency/ThreadRegistry.cpp
 )
@@ -83,7 +83,7 @@ target_include_directories(Atom_Threading PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 #     Standalone foundation with no dependency on Engine/Atom/Core/Log/Time/backend; every
 #     subsystem (audio decode, asset loading, physics, AI) can schedule work
 #     through it. Header-only deque + job types, with a compiled scheduler.
-add_library(Atom_Concurrency STATIC
+add_library(Atom_Concurrency ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Core/Concurrency/Job.hpp
     Engine/Atom/Core/Concurrency/WorkStealingDeque.hpp
     Engine/Atom/Core/Concurrency/JobSystem.hpp
@@ -94,7 +94,7 @@ target_include_directories(Atom_Concurrency PUBLIC "${PROJECT_SOURCE_DIR}/Engine
 target_link_libraries(Atom_Concurrency PUBLIC Atom_Threading)
 
 # Log
-add_library(Atom_Log STATIC
+add_library(Atom_Log ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Core/Log/LogSystem.cpp
         Engine/Atom/Core/Log/LogSystem.hpp
         Engine/Atom/Core/Log/LogChannelMacros.hpp
@@ -117,7 +117,7 @@ target_link_libraries(Atom_Concurrency PUBLIC Atom_Log)
 #     A0.2: pure values moved to Atom_Math. This target used to link
 #     Atom_Backend_Contracts although not one of its headers includes anything
 #     from Engine/Atom/Backend/, which is what closed the Algorithm <-> Contracts cycle.
-add_library(Atom_Algorithm STATIC
+add_library(Atom_Algorithm ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Core/Algorithm/Transform/Transform2D.cpp
         Engine/Atom/Core/Algorithm/Transform/Transform2D.hpp
         Engine/Atom/Core/Algorithm/Transform/Transform3D.cpp
@@ -133,7 +133,7 @@ target_link_libraries(Atom_Algorithm PUBLIC Atom_Math)
 # Json — a strict JSONC reader, owned by Utilities because every document format
 #     needs one (scenes today; sprite metadata, prefabs and save data next). A leaf:
 #     standard library + Error only, so any layer may use it.
-add_library(Atom_Json STATIC
+add_library(Atom_Json ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Core/Utilities/Json/JsonReader.hpp
     Engine/Atom/Core/Utilities/Json/JsonReader.cpp
 )
@@ -141,7 +141,7 @@ target_include_directories(Atom_Json PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_Json PUBLIC Atom_Error)
 
 # UTF-8 encoding utilities
-add_library(Atom_UTF8 STATIC
+add_library(Atom_UTF8 ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Core/Utilities/Utf8/Utf8.hpp
     Engine/Atom/Core/Utilities/Utf8/Utf8.cpp
 )

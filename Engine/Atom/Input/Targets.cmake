@@ -10,7 +10,7 @@ target_include_directories(Atom_Input INTERFACE
 
 # Input system — per-frame keyboard/mouse state folded from the window
 #     event stream. Consumes window::IEvent, so it sits above the contracts.
-add_library(Atom_InputSystem STATIC
+add_library(Atom_InputSystem ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Input/InputSystem.hpp
     Engine/Atom/Input/InputSystem.cpp
     # Gameplay-facing action queries (axes, edges, pause gate). Header-only: a thin

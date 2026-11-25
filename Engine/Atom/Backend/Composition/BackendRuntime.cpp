@@ -9,7 +9,7 @@
 #include <Atom/Resources/Media/Audio/Codecs/WavProf/WavProfDecoder.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Atom/Backend/Contracts/Audio/NullAudioBackend.hpp>
-#include <Atom/Backend/Composition/IAudioBackendChangeListener.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioBackendChangeListener.hpp>
 #include <Atom/Backend/SDL3/Audio/SDL3AudioBackend.hpp>
 #include <Atom/Backend/SDL3/Audio/SDL3MixerAudioBackend.hpp>
 #include <Atom/Backend/SDL3/Audio/SDL3WavDecoder.hpp>

@@ -1,6 +1,6 @@
 # Runtime. This is the sole game frame-loop owner; Window intentionally
 # remains usable by tools that only need a platform/render host.
-add_library(Atom_Runtime STATIC
+add_library(Atom_Runtime ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Runtime/Application.hpp
         Engine/Atom/Runtime/Application.cpp
         Engine/Atom/Runtime/EntityCommandBuffer.hpp

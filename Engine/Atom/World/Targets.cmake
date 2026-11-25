@@ -2,7 +2,7 @@
 #     Atom_3rd_EnTT is PRIVATE on purpose: the backend must not reach any public
 #     header, and a PUBLIC link would put its include directory on the path of
 #     every Atom_ECS consumer, turning the boundary into a comment.
-add_library(Atom_ECS STATIC
+add_library(Atom_ECS ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/World/ECS/Entity.hpp
         Engine/Atom/World/ECS/TypeName.hpp
         Engine/Atom/World/ECS/Components.hpp
@@ -22,7 +22,7 @@ target_link_libraries(Atom_ECS PRIVATE Atom_3rd_EnTT)
 # Physics — collision shapes, mass properties, and the replaceable-backend
 #     contract. M1 ships pure shape/mass math + the IPhysics* contract; the
 #     Internal solver and world land in later phases (see Docs/Subsystem-Plans-CN.md).
-add_library(Atom_Physics STATIC
+add_library(Atom_Physics ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/World/Physics/Shapes/Material.hpp
     Engine/Atom/World/Physics/Shapes/MassProperties.hpp
     Engine/Atom/World/Physics/Shapes/Shape.hpp
@@ -65,7 +65,7 @@ target_link_libraries(Atom_Physics PRIVATE Atom_Concurrency)
 #     world, and therefore the only place that converts units or translates handles.
 #     Depends on Atom_Physics + Atom_ECS and deliberately NOT on Atom_Runtime: contacts are
 #     returned as values, so the caller decides whether they become GameEvents.
-add_library(Atom_PhysicsIntegration STATIC
+add_library(Atom_PhysicsIntegration ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/World/Physics/Integration/Physics2DWorld.hpp
     Engine/Atom/World/Physics/Integration/Physics2DWorld.cpp
 )
@@ -76,7 +76,7 @@ target_link_libraries(Atom_PhysicsIntegration PUBLIC Atom_Physics Atom_ECS Atom_
 #     Depends on ECS + FS + Json and NOT on Runtime: a loader is usable by a tool or
 #     a test with no frame loop, and the switch is a single
 #     GameWorld::ReplaceEntities call made by the game code.
-add_library(Atom_Scene STATIC
+add_library(Atom_Scene ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/World/Scene/SceneTypes.hpp
     Engine/Atom/World/Scene/SceneSchema.hpp
     Engine/Atom/World/Scene/SceneSchema.cpp
@@ -91,7 +91,7 @@ target_link_libraries(Atom_Scene PUBLIC Atom_ECS Atom_FS Atom_Json Atom_Log Atom
 
 # Reusable 2D world systems. Data is chunk-addressed and gameplay-neutral;
 #     applications decide how placed objects and animation events become rules.
-add_library(Atom_World2D STATIC
+add_library(Atom_World2D ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/World/World2D/ObjectLayer2D.hpp
     Engine/Atom/World/World2D/ObjectLayer2D.cpp
     Engine/Atom/World/World2D/Tilemap.hpp

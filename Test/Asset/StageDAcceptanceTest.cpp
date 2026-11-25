@@ -16,7 +16,7 @@
 #include <Atom/Resources/Media/Audio/Resources/AudioClipResourceLoader.hpp>
 #include <Atom/Resources/Media/Image/DecodedImageLoader.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
-#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 #include <Test/Support/TestHelpers.hpp>
 #include <Atom/Resources/Utilities/Packager/PackageBuilder.hpp>
 #include <Atom/Core/Utilities/Utf8/Utf8.hpp>

@@ -10,7 +10,6 @@
  */
 
 #include "MusicCardDebugger.hpp"
-#include <Atom/Backend/SDLGPU/Device/SDLGPUBackend.hpp>
 
 #include <algorithm>
 #include <array>
@@ -24,7 +23,6 @@
 
 #include <Atom/AtomMain.hpp>
 #include <Atom/Backend/Contracts/Audio/AudioBackendId.hpp>
-#include <Atom/Backend/Composition/BackendRuntime.hpp>
 #include <Atom/Debugger/Panels/LogDebugger.hpp>
 #include <Atom/Debugger/Overlay.hpp>
 #include <Atom/Debugger/Panels/JobDebugger.hpp>

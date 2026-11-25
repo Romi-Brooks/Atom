@@ -6,7 +6,7 @@
 #include <unordered_map>
 
 #include <Atom/Backend/Contracts/Numeric/NumericContract.hpp>
-#include <Atom/Backend/Composition/IAudioBackendChangeListener.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioBackendChangeListener.hpp>
 #include <Atom/Resources/Media/Audio/Playback/VoicePool.hpp>
 #include <Atom/Resources/Media/Audio/Resources/AudioClipCache.hpp>
 

@@ -84,7 +84,12 @@ JobSystem::~JobSystem() {
 }
 
 auto JobSystem::GetInstance() -> JobSystem& {
+#if defined(ATOM_BUILD_SHARED) && defined(_WIN32)
+    // The executable joins this process-wide scheduler before DLL detach.
+    static JobSystem& instance = *new JobSystem;
+#else
     static JobSystem instance;
+#endif
     return instance;
 }
 

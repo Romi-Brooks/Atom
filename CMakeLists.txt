@@ -16,6 +16,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
+option(ATOM_BUILD_SHARED "Build Atom as a shared SDK" OFF)
+set(ATOM_ENGINE_LIBRARY_TYPE STATIC)
+if(ATOM_BUILD_SHARED)
+    set(ATOM_ENGINE_LIBRARY_TYPE OBJECT)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
+
 # ============================================================================
 # Third-party dependencies
 # ============================================================================
@@ -38,7 +45,9 @@ if(MINGW)
     # toolchain's static winpthread archive is built for UCRT and references
     # __intrinsic_setjmpex, which the MSVCRT runtime sequence does not provide
     # (undefined reference at link time).
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+    if(NOT ATOM_BUILD_SHARED)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+    endif()
 
     # libwinpthread stays a DLL, and Windows resolves it next to the loading
     # executable rather than in a parent directory. The build root holds the
@@ -52,7 +61,9 @@ endif()
 set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow build type), ON, or OFF")
 set_property(CACHE ATOM_ENABLE_DEBUGGER PROPERTY STRINGS AUTO ON OFF)
 include(cmake/AtomHelpers.cmake)
+option(ATOM_BUILD_TESTS "Build Atom-owned test targets" ON)
 include(Engine/Targets.cmake)
+include(cmake/Sdk.cmake)
 
 include(cmake/Targets/Examples.cmake)
 include(Tools/Targets.cmake)
@@ -61,7 +72,6 @@ include(CTest)
 # Third-party projects may force the generic BUILD_TESTING cache option off.
 # Atom-owned tests use an independent option so that project coverage is not
 # silently disabled by a dependency's configuration policy.
-option(ATOM_BUILD_TESTS "Build Atom-owned test targets" ON)
 if(ATOM_BUILD_TESTS)
     enable_testing()
     # All Atom-owned unit tests live under Test/<Module>/ and register themselves
@@ -69,6 +79,10 @@ if(ATOM_BUILD_TESTS)
     add_subdirectory(Test)
 endif()
 
-include(cmake/MinGWRuntime.cmake)
-
 add_subdirectory(Example/Homeless)
+
+if(ATOM_BUILD_SHARED)
+    include(cmake/SdkRuntime.cmake)
+else()
+    include(cmake/MinGWRuntime.cmake)
+endif()

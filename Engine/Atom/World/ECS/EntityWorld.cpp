@@ -280,6 +280,7 @@ template <ValueComponent... Ts> auto EntityWorld::BackendForEach(const Visit<Ts.
 // change in ECS/Components.hpp and never touches this file. Explicit
 // instantiation is also what keeps the backend template bodies out of the public
 // header, which is what makes including it cheap.
+// The public templates call the exported backend instantiations across the DLL boundary.
 
 // Value components carry data: they can be read, written and patched.
 //
@@ -295,14 +296,14 @@ template <ValueComponent... Ts> auto EntityWorld::BackendForEach(const Visit<Ts.
     template auto EntityWorld::Remove<Component>(Entity) -> Result<void>;                                              \
     template auto EntityWorld::Patch<Component>(Entity, const Component&) -> Result<void>;                             \
     template auto EntityWorld::CountOf<Component>() const -> std::size_t;                                              \
-    template auto EntityWorld::BackendHas<Component>(Entity) const -> bool;                                            \
-    template auto EntityWorld::BackendGet<Component>(Entity) noexcept -> Component*;                                   \
-    template auto EntityWorld::BackendRemove<Component>(Entity) -> void;                                               \
-    template auto EntityWorld::BackendCount<Component>() const -> std::size_t;                                         \
-    template auto EntityWorld::BackendEmplace<Component>(Entity) -> void;                                              \
-    template auto EntityWorld::BackendEmplace<Component, Component>(Entity, Component&&) -> void;                       \
-    template auto EntityWorld::BackendEmplace<Component, Component&>(Entity, Component&) -> void;                       \
-    template auto EntityWorld::BackendEmplace<Component, const Component&>(Entity, const Component&) -> void;
+    template ATOM_CORE_API auto EntityWorld::BackendHas<Component>(Entity) const -> bool;                              \
+    template ATOM_CORE_API auto EntityWorld::BackendGet<Component>(Entity) noexcept -> Component*;                     \
+    template ATOM_CORE_API auto EntityWorld::BackendRemove<Component>(Entity) -> void;                                 \
+    template ATOM_CORE_API auto EntityWorld::BackendCount<Component>() const -> std::size_t;                           \
+    template ATOM_CORE_API auto EntityWorld::BackendEmplace<Component>(Entity) -> void;                                \
+    template ATOM_CORE_API auto EntityWorld::BackendEmplace<Component, Component>(Entity, Component&&) -> void;         \
+    template ATOM_CORE_API auto EntityWorld::BackendEmplace<Component, Component&>(Entity, Component&) -> void;         \
+    template ATOM_CORE_API auto EntityWorld::BackendEmplace<Component, const Component&>(Entity, const Component&) -> void;
 
 // Tag components are empty: presence is the whole datum. There is no value to
 // read, write or patch and no address to hand out, so they get the smaller set.
@@ -310,10 +311,10 @@ template <ValueComponent... Ts> auto EntityWorld::BackendForEach(const Visit<Ts.
     template auto EntityWorld::Has<Component>(Entity) const -> bool;                                                   \
     template auto EntityWorld::Remove<Component>(Entity) -> Result<void>;                                              \
     template auto EntityWorld::CountOf<Component>() const -> std::size_t;                                              \
-    template auto EntityWorld::BackendHas<Component>(Entity) const -> bool;                                            \
-    template auto EntityWorld::BackendRemove<Component>(Entity) -> void;                                               \
-    template auto EntityWorld::BackendCount<Component>() const -> std::size_t;                                         \
-    template auto EntityWorld::BackendEmplace<Component>(Entity) -> void;
+    template ATOM_CORE_API auto EntityWorld::BackendHas<Component>(Entity) const -> bool;                              \
+    template ATOM_CORE_API auto EntityWorld::BackendRemove<Component>(Entity) -> void;                                 \
+    template ATOM_CORE_API auto EntityWorld::BackendCount<Component>() const -> std::size_t;                           \
+    template ATOM_CORE_API auto EntityWorld::BackendEmplace<Component>(Entity) -> void;
 
 ATOM_ECS_INSTANTIATE(::atom::ecs::Position)
 ATOM_ECS_INSTANTIATE(::atom::ecs::Velocity)
@@ -357,16 +358,16 @@ ATOM_ECS_INSTANTIATE(::atom::ecs::PhysicsBody2D)
 // keep it that way so a reader who greps for a set sees the rule right above it.
 #define ATOM_ECS_INSTANTIATE_ITERATION(...)                                                                            \
     template auto EntityWorld::With<__VA_ARGS__>() const -> std::vector<Entity>;                                       \
-    template auto EntityWorld::BackendWith<__VA_ARGS__>(std::vector<Entity>&) const -> void;                           \
+    template ATOM_CORE_API auto EntityWorld::BackendWith<__VA_ARGS__>(std::vector<Entity>&) const -> void;             \
     template auto EntityWorld::ForEach<__VA_ARGS__>(Visit<__VA_ARGS__>) -> Result<void>;                               \
-    template auto EntityWorld::BackendForEach<__VA_ARGS__>(Visit<__VA_ARGS__>) -> Result<void>;
+    template ATOM_CORE_API auto EntityWorld::BackendForEach<__VA_ARGS__>(Visit<__VA_ARGS__>) -> Result<void>;
 
 // Collection only. A tag can be listed in With() - the caller just wants the entity
 // set, which is what the deferred-destroy sweep needs - but not in ForEach, because
 // the backend omits empty types from its callback.
 #define ATOM_ECS_INSTANTIATE_COLLECTION(...)                                                                           \
     template auto EntityWorld::With<__VA_ARGS__>() const -> std::vector<Entity>;                                       \
-    template auto EntityWorld::BackendWith<__VA_ARGS__>(std::vector<Entity>&) const -> void;
+    template ATOM_CORE_API auto EntityWorld::BackendWith<__VA_ARGS__>(std::vector<Entity>&) const -> void;
 
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Position)
 ATOM_ECS_INSTANTIATE_ITERATION(::atom::ecs::Position, ::atom::ecs::Velocity)

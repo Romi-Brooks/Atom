@@ -35,7 +35,7 @@ class ATOM_CORE_API PackageBuilder {
                 bool overwrite = true;
                 Progress progress;
 
-                Config();
+                ATOM_CORE_API Config();
         };
 
         enum class Result {

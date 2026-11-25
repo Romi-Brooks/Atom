@@ -1,7 +1,7 @@
 # Codecs parse media formats into PCM; they are not playback backends, so this
 # target stays platform-neutral (no SDL3 link). The SDL-backed WAV reader lives
 # with the SDL3 audio backend in Engine/Atom/Backend/SDL3/Audio.
-add_library(Atom_Audio_Codecs STATIC
+add_library(Atom_Audio_Codecs ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Resources/Media/Audio/Codecs/WavProf/RiffWaveReader.hpp
     Engine/Atom/Resources/Media/Audio/Codecs/WavProf/RiffWaveReader.cpp
     Engine/Atom/Resources/Media/Audio/Codecs/WavProf/WavProfDecoder.hpp
@@ -18,7 +18,7 @@ add_library(Atom_Backend_Audio INTERFACE)
 target_link_libraries(Atom_Backend_Audio INTERFACE Atom_Audio_Codecs)
 
 # Media
-add_library(Atom_Media STATIC
+add_library(Atom_Media ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Resources/Media/Audio/AudioBackend.cpp
     Engine/Atom/Resources/Media/Audio/AudioBackend.hpp
     Engine/Atom/Resources/Media/Audio/Metadata/AudioMetadataReader.cpp
@@ -46,7 +46,7 @@ target_link_libraries(Atom_Media PUBLIC Atom_Backend_Contracts Atom_Backend_Exte
 
 # Platform-independent virtual filesystem. Native implementation details
 # remain private; consumers use AssetPath and IFileSystem only.
-add_library(Atom_FS STATIC
+add_library(Atom_FS ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Resources/Filesystem/AssetPath.hpp
     Engine/Atom/Resources/Filesystem/AssetPath.cpp
     Engine/Atom/Resources/Filesystem/FileSystem.hpp
@@ -68,7 +68,7 @@ target_link_libraries(Atom_FS PUBLIC Atom_Error)
 target_link_libraries(Atom_FS PRIVATE Atom_UTF8)
 
 # Resource identity, handles, loader registry, and identity-keyed cache.
-add_library(Atom_Assets STATIC
+add_library(Atom_Assets ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Resources/Asset/AssetKind.hpp
     Engine/Atom/Resources/Asset/AssetKind.cpp
     Engine/Atom/Resources/Asset/ResourceId.hpp
@@ -90,7 +90,7 @@ target_link_libraries(Atom_Assets PUBLIC Atom_FS Atom_Log)
 target_link_libraries(Atom_Assets PRIVATE Atom_Concurrency)
 
 # Image decoding (CPU-side; GPU upload is a separate step via Renderer2D).
-add_library(Atom_Image STATIC
+add_library(Atom_Image ${ATOM_ENGINE_LIBRARY_TYPE}
     Engine/Atom/Resources/Media/Image/ImageDecoder.hpp
     Engine/Atom/Resources/Media/Image/ImageDecoder.cpp
         Engine/Atom/Resources/Media/Image/Analysis/ColorStatistics.hpp
@@ -105,7 +105,7 @@ target_link_libraries(Atom_Image PUBLIC Atom_Color Atom_Assets)
 target_link_libraries(Atom_Image PRIVATE Atom_3rd_Stb Atom_Log Atom_Concurrency Atom_Backend_Contracts)
 
 # Packager
-add_library(Atom_Packager STATIC
+add_library(Atom_Packager ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Resources/Utilities/Packager/PackageBuilder.cpp
         Engine/Atom/Resources/Utilities/Packager/PackageBuilder.hpp
 )

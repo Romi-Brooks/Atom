@@ -17,7 +17,7 @@ add_executable(Example_Homeless
 )
 target_compile_features(Example_Homeless PRIVATE cxx_std_23)
 target_include_directories(Example_Homeless PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
-target_link_libraries(Example_Homeless PRIVATE
+atom_link_libraries(Example_Homeless PRIVATE
     Atom_Runtime Atom_World2D Atom_Render_Resources Atom_Media Atom_Debugger Atom_Concurrency Atom_Random Atom_Image
     Atom_ApplicationPaths Atom_FS Atom_Log)
 set_target_properties(Example_Homeless PROPERTIES

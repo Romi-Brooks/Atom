@@ -9,7 +9,7 @@
 
 #include <Atom/Backend/Contracts/Audio/AudioTypes.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioSource.hpp>
-#include <Atom/Backend/Composition/IAudioBackendChangeListener.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioBackendChangeListener.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
 #include <Atom/Build/MediaAudioExport.hpp>

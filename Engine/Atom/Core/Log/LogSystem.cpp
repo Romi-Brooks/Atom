@@ -36,6 +36,12 @@ using atom::LogLevel;
 
 namespace {
 
+#if defined(ATOM_BUILD_SHARED) && defined(_WIN32)
+std::mutex process_log_mutex;
+Log* process_log = nullptr;
+std::atomic<bool> process_log_stopped = false;
+#endif
+
 struct ChannelRegistry {
         std::mutex mutex;
         std::vector<atom::LogChannelInfo> channels;
@@ -159,6 +165,12 @@ auto FormatFileTimestamp() -> std::string {
 } // namespace
 
 Log::Log() : console_sink_enabled_(ATOM_LOG_CONSOLE_DEFAULT != 0) {
+#if defined(ATOM_BUILD_SHARED) && defined(_WIN32)
+    if (process_log_stopped.load()) {
+        console_sink_enabled_.store(false);
+        return;
+    }
+#endif
     // Register the diagnostics singleton on this thread before either writer
     // starts. It must outlive both writers, including in short-lived programs
     // that enter CRT shutdown immediately after their first log message.
@@ -173,6 +185,10 @@ Log::Log() : console_sink_enabled_(ATOM_LOG_CONSOLE_DEFAULT != 0) {
 }
 
 Log::~Log() {
+    StopWriters();
+}
+
+auto Log::StopWriters() -> void {
     {
         std::lock_guard<std::mutex> lock(console_mutex_);
         console_writer_stop_ = true;
@@ -222,9 +238,33 @@ Log::~Log() {
 }
 
 auto Log::GetLogInstance() -> Log& {
+#if defined(ATOM_BUILD_SHARED) && defined(_WIN32)
+    // The executable drains the logger before the Windows loader locks DLL
+    // detach. Keep the object alive for late log calls during DLL teardown.
+    static Log& instance = []() -> Log& {
+        const std::scoped_lock lock{process_log_mutex};
+        process_log = new Log;
+        return *process_log;
+    }();
+#else
     static Log instance;
+#endif
     return instance;
 }
+
+#if defined(ATOM_BUILD_SHARED) && defined(_WIN32)
+auto atom::detail::ShutdownLogForProcessExit() -> void {
+    Log* instance = nullptr;
+    {
+        const std::scoped_lock lock{process_log_mutex};
+        if (process_log_stopped.exchange(true))
+            return;
+        instance = process_log;
+    }
+    if (instance)
+        instance->StopWriters();
+}
+#endif
 
 auto Log::SetConsoleOutputUtf8() -> void {
 #ifdef _WIN32
@@ -432,6 +472,10 @@ auto Log::GetRegisteredChannels() -> std::vector<atom::LogChannelInfo> {
 auto Log::LogOut(const std::string_view channelPrefix, const std::string_view channelName, const LogLevel level,
                  std::string logMessage, const std::string_view file, const int line,
                  const std::string_view function) -> void {
+#if defined(ATOM_BUILD_SHARED) && defined(_WIN32)
+    if (process_log_stopped.load())
+        return;
+#endif
     auto& instance = GetLogInstance();
 
     // The console threshold and the sink switches are atomic, so these
@@ -524,6 +568,8 @@ auto Log::SetConsoleSinkEnabled(const bool enabled) -> void {
     auto& instance = GetLogInstance();
     {
         std::lock_guard<std::mutex> lock(instance.console_mutex_);
+        if (instance.console_writer_stop_)
+            return;
         if (enabled && !instance.console_writer_.joinable())
             instance.console_writer_ = std::thread([&instance] { instance.ConsoleWriterLoop(); });
         instance.console_sink_enabled_.store(enabled, std::memory_order_relaxed);

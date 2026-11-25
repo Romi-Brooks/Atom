@@ -26,7 +26,7 @@
 #include <thread>
 #include <vector>
 
-#include <Atom/Backend/Composition/IAudioBackendChangeListener.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioBackendChangeListener.hpp>
 #include <Atom/Core/Concurrency/Future.hpp>
 #include <Atom/Core/Concurrency/JobSystem.hpp>
 #include <Atom/Presentation/Layout/LayoutTree.hpp>

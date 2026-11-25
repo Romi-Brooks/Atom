@@ -1,4 +1,4 @@
-#include "AudioDecoderRegistry.hpp"
+#include <Atom/Resources/Media/Audio/Resources/AudioDecoderRegistry.hpp>
 
 #include <algorithm>
 #include <cctype>

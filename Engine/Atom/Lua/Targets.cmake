@@ -1,5 +1,5 @@
 # Lua Binding
-add_library(Atom_Lua STATIC
+add_library(Atom_Lua ${ATOM_ENGINE_LIBRARY_TYPE}
         Engine/Atom/Lua/lua.hpp
         Engine/Atom/Lua/LuaContext.hpp
         Engine/Atom/Lua/LuaGuard.hpp

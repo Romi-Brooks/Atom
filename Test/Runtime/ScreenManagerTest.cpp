@@ -354,6 +354,9 @@ auto main() -> int {
         ATOM_CHECK(replacement_ptr->activates == 1);
 
         ATOM_CHECK(manager.UnloadScreen("reent-a") == atom::ScreenOpResult::Success);
+        // The replacement screen also refers to reentrant_counters.
+        manager.ClearScreens();
+        ATOM_CHECK(reentrant_counters.destroys == 2);
     }
 
     // --- Key auto-repeat never reaches a screen --------------------------
