@@ -19,6 +19,8 @@
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::audio_decoder {
 struct WavHeader {
         char chunk_id[4]{};         // "RIFF"
@@ -34,7 +36,7 @@ struct WavHeader {
         uint16_t bits_per_sample = 0;
 } __attribute__((packed));
 
-class RiffWaveReader {
+class ATOM_BACKENDS_API RiffWaveReader {
     public:
         RiffWaveReader() = default;
         ~RiffWaveReader();

@@ -19,8 +19,10 @@
 #include <Atom/Presentation/Layout/LayoutConfig.hpp>
 #include <Atom/Presentation/Layout/LayoutTypes.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::layout {
-class LayoutNode {
+class ATOM_GRAPHICS_API LayoutNode {
     public:
         using MeasureFunction = std::function<Size(const MeasureInput&)>;
 

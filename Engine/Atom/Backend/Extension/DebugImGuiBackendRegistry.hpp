@@ -7,6 +7,8 @@
 #include <string_view>
 #include <unordered_map>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::render {
 class IRenderDevice;
 }
@@ -22,7 +24,7 @@ class IDebugImGuiBackend;
 // Mirrors RenderBackendRegistry: backend modules register their ImGui glue
 // (e.g. "sdl_gpu" -> SDL_GPU ImGui backend) at the runtime layer; the debug
 // overlay layer (Debugger) only consumes IDebugImGuiBackend.
-class DebugImGuiBackendRegistry final {
+class ATOM_BACKENDS_API DebugImGuiBackendRegistry final {
     public:
         using Factory = std::function<std::unique_ptr<IDebugImGuiBackend>(window::IWindow&, render::IRenderDevice&)>;
 

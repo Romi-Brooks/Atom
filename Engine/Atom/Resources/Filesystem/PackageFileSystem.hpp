@@ -15,6 +15,8 @@
 
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::fs {
 
 // One packaged asset's classification metadata, for tooling that inspects a
@@ -28,7 +30,7 @@ struct PackagedAssetInfo {
 
 // Read-only view over an APKG archive (magic "APKG", fixed header + manifest).
 // Paths inside the package use '/' separators.
-class PackageFileSystem final : public IFileSystem {
+class ATOM_CORE_API PackageFileSystem final : public IFileSystem {
     public:
         [[nodiscard]] static auto Create(std::string_view mount, std::string_view package_utf8,
                                          std::unique_ptr<PackageFileSystem>& output) -> Result;

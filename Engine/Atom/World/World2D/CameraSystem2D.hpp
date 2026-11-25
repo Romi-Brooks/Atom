@@ -13,9 +13,11 @@
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 #include <Atom/World/ECS/EntityWorld.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::world2d {
 
-class CameraSystem2D final {
+class ATOM_GRAPHICS_API CameraSystem2D final {
     public:
         // Run in LateUpdate, after gameplay has moved its targets. Viewport is
         // the output size used when a Camera2D does not specify its own.

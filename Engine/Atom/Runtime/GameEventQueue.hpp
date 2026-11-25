@@ -11,6 +11,8 @@
 
 #include <Atom/World/ECS/Entity.hpp>
 
+#include <Atom/Build/RuntimeExport.hpp>
+
 namespace atom::runtime {
 
 // Event types are game-defined numeric IDs. Runtime only guarantees FIFO
@@ -23,7 +25,7 @@ struct GameEvent final {
         ecs::Entity target{};
 };
 
-class GameEventQueue final {
+class ATOM_RUNTIME_API GameEventQueue final {
     public:
         auto Enqueue(GameEvent event) -> void;
         [[nodiscard]] auto Drain() -> std::vector<GameEvent>;

@@ -22,6 +22,8 @@
 #include <Atom/Core/Time/MasterClock.hpp>
 #include <Atom/Core/Time/TimeTypes.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::time {
 
 // Well-known domain names created by CreateDefaultDomains().
@@ -39,7 +41,7 @@ struct DefaultDomainConfig {
         std::uint32_t max_steps_per_advance = 5;
 };
 
-class TimeSystem {
+class ATOM_CORE_API TimeSystem {
     public:
         [[nodiscard]] static auto GetInstance() -> TimeSystem&;
 

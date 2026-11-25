@@ -11,6 +11,8 @@
 #include <memory>
 #include <vector>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom {
 
 class RenderWindow;
@@ -62,7 +64,7 @@ class OverlayConnection {
 
 // Owns the single ImGui frame/backend lifecycle for one RenderWindow and
 // dispatches all registered panels inside that shared context.
-class OverlayManager final {
+class ATOM_DEBUGGER_API OverlayManager final {
     public:
         using DrawCallback = std::function<void()>;
 

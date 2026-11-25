@@ -20,6 +20,8 @@
 
 #include <Atom/Core/Error/Error.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::fs {
 
 // Result of an I/O operation. Kept as a small code enum because this is the
@@ -40,7 +42,7 @@ enum class Result : uint8_t {
 // Translates an I/O code into the engine's unified error value, tagged with the
 // operation that failed and optionally the resource it was applied to.
 //   return ToError(fs::Result::NotFound, "OpenRead").WithResource(path.String());
-[[nodiscard]] auto ToError(Result result, std::string_view operation = {},
+[[nodiscard]] ATOM_CORE_API auto ToError(Result result, std::string_view operation = {},
                            std::string_view resource = {}) -> Error;
 
 // Fails, or returns a default-constructed value. Folds the common
@@ -93,12 +95,12 @@ class IFileSystem {
 
 // Reads the remainder of the sequential cursor into output. Leaves output empty
 // on failure. Convenience for small assets such as config and script bytes.
-auto ReadAll(IFile& file, std::vector<std::byte>& output) -> Result;
+ATOM_CORE_API auto ReadAll(IFile& file, std::vector<std::byte>& output) -> Result;
 
 // Read-only filesystem rooted at one native directory. Every resolved asset
 // path is checked after canonicalization, preventing a virtual path or a
 // symlink from escaping the configured root.
-class NativeFileSystem final : public IFileSystem {
+class ATOM_CORE_API NativeFileSystem final : public IFileSystem {
     public:
         [[nodiscard]] static auto Create(std::string_view mount, std::string_view root_utf8,
                                          std::unique_ptr<NativeFileSystem>& output) -> Result;

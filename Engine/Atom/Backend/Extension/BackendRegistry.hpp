@@ -7,13 +7,15 @@
 #include <string_view>
 #include <unordered_map>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::audio {
 class IAudioBackend;
 }
 
 namespace atom::backend {
 
-class BackendRegistry final {
+class ATOM_BACKENDS_API BackendRegistry final {
     public:
         using AudioBackendFactory = std::function<std::unique_ptr<audio::IAudioBackend>()>;
 

@@ -21,9 +21,11 @@
 
 #include <Atom/Debugger/DebugPanel.hpp>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom::debugger {
 
-class ThreadDebugger final : public DebugPanel {
+class ATOM_DEBUGGER_API ThreadDebugger final : public DebugPanel {
     public:
         ThreadDebugger() : DebugPanel("ThreadDebugger") {}
         ~ThreadDebugger() override;

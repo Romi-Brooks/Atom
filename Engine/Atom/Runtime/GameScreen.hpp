@@ -35,9 +35,11 @@
 #include <Atom/Runtime/GameWorld.hpp>
 #include <Atom/Runtime/Screen.hpp>
 
+#include <Atom/Build/RuntimeExport.hpp>
+
 namespace atom::runtime {
 
-class GameScreen : public Screen {
+class ATOM_RUNTIME_API GameScreen : public Screen {
     public:
         ~GameScreen() override = default;
 

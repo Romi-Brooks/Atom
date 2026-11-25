@@ -37,6 +37,8 @@
 
 #include <Atom/Core/Error/Error.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::json {
 
 enum class Kind : std::uint8_t { Null, Bool, Number, String, Array, Object };
@@ -52,7 +54,7 @@ struct Member {
         std::uint32_t column = 0;
 };
 
-struct Value {
+struct ATOM_CORE_API Value {
         Kind kind = Kind::Null;
         bool boolean = false;
         double number = 0.0;
@@ -93,16 +95,16 @@ struct SyntaxError {
 
 // Reads a whole JSONC document. On failure returns nullopt and fills `error`;
 // callers that want a value-style failure use Parse() below.
-[[nodiscard]] auto TryParse(std::string_view text, SyntaxError& error) -> std::optional<Value>;
+[[nodiscard]] ATOM_CORE_API auto TryParse(std::string_view text, SyntaxError& error) -> std::optional<Value>;
 
 // Same, as a Result. The Error carries `SceneInvalidDocument` with a
 // "<line>:<column>: <message>" detail, formatted for a log line by appending the
 // uri at the call site.
-[[nodiscard]] auto Parse(std::string_view text) -> Result<Value>;
+[[nodiscard]] ATOM_CORE_API auto Parse(std::string_view text) -> Result<Value>;
 
 // "1:2: expected ',' or '}'" - exposed so callers can build the full
 // "uri:line:column: message" themselves.
-[[nodiscard]] auto FormatPosition(std::uint32_t line, std::uint32_t column, std::string_view message)
+[[nodiscard]] ATOM_CORE_API auto FormatPosition(std::uint32_t line, std::uint32_t column, std::string_view message)
     -> std::string;
 
 } // namespace atom::json

@@ -32,13 +32,15 @@
 #include <Atom/Presentation/Render/Resources/TextureCache.hpp>
 #include <Atom/Presentation/Render/Scene2D/Scene2DTypes.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::fs {
 class IFileSystem;
 }
 
 namespace atom::render::scene2d {
 
-class TextureCacheResolver final : public ITextureResolver {
+class ATOM_GRAPHICS_API TextureCacheResolver final : public ITextureResolver {
     public:
         // `filesystem` must outlive the resolver; the documented convention is the
         // mounted VFS (or a test's MemoryFileSystem).

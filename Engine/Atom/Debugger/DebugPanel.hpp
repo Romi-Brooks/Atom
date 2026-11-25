@@ -14,6 +14,8 @@
 
 #include <Atom/Debugger/DebuggerConfig.hpp>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom {
 class RenderWindow;
 class Screen;
@@ -35,7 +37,7 @@ class OverlayConnection;
 //   Attach(window)          — window-level, visible for the whole run, global Debugger
 //   Attach(window, screen)  — screen-level, drawn only while that Screen is visible
 
-class DebugPanel {
+class ATOM_DEBUGGER_API DebugPanel {
     private:
         bool attached_ = false;
         bool enabled_ = true;

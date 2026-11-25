@@ -9,6 +9,8 @@
 
 #include <Atom/Backend/Contracts/Render/RenderBackendId.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::render {
 class IRenderBackend;
 }
@@ -18,7 +20,7 @@ namespace atom::backend {
 // Registry of complete render backend factories. Engine internals register
 // concrete backends here; public game code selects via RenderBackendId on
 // RenderWindow::Initialize. Upper layers must not include Backend/<name>/*.
-class RenderBackendRegistry final {
+class ATOM_BACKENDS_API RenderBackendRegistry final {
     public:
         using BackendFactory = std::function<std::unique_ptr<render::IRenderBackend>()>;
 

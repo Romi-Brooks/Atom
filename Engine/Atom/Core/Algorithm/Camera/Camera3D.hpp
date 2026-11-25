@@ -14,9 +14,11 @@
 #include <Atom/Core/Algorithm/Matrix/Mat4.hpp>
 #include <Atom/Core/Algorithm/Vector/Vec3.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::algo {
 
-struct Camera3D {
+struct ATOM_CORE_API Camera3D {
         Vec3 position = Vec3::Zero();
         Vec3 target = Vec3::UnitZ();
         Vec3 up = Vec3::UnitY();

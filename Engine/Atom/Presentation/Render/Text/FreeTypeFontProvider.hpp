@@ -24,6 +24,8 @@
 
 #include <Atom/Presentation/Render/Text/FontProvider.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::text {
 
 // One glyph to rasterize. `instance` resolves the family bytes; `size_px` and
@@ -44,7 +46,7 @@ struct RasterizeResult {
         GlyphRaster raster{};
 };
 
-class FreeTypeFontProvider final : public FontProvider {
+class ATOM_GRAPHICS_API FreeTypeFontProvider final : public FontProvider {
     public:
         FreeTypeFontProvider();
         ~FreeTypeFontProvider() override;

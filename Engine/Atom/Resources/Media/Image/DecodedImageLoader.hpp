@@ -12,11 +12,13 @@
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 #include <Atom/Resources/Media/Image/ImageDecoder.hpp>
 
+#include <Atom/Build/MediaImageExport.hpp>
+
 namespace atom::image {
 
 // Resource payload is a CPU-side DecodedImage. GPU upload remains a separate
 // step so decoding can be cached independently of Renderer2D lifetime.
-class DecodedImageLoader final : public asset::TypedResourceLoader<DecodedImage> {
+class ATOM_MEDIA_IMAGE_API DecodedImageLoader final : public asset::TypedResourceLoader<DecodedImage> {
     public:
         [[nodiscard]] auto Kind() const -> asset::AssetKind override {
             return asset::AssetKind::Texture;

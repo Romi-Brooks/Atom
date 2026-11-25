@@ -50,6 +50,8 @@
 #include <Atom/World/ECS/TypeName.hpp>
 #include <Atom/Core/Error/Error.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::ecs {
 
 // Components live in relocatable pools, so they must be movable and destructible.
@@ -64,7 +66,7 @@ concept Component = std::is_move_constructible_v<T> && std::is_move_assignable_v
 template <typename T>
 concept ValueComponent = Component<T> && !std::is_empty_v<T>;
 
-class EntityWorld final {
+class ATOM_CORE_API EntityWorld final {
     public:
         // Creates an empty world.
         [[nodiscard]] static auto Create() -> Result<std::unique_ptr<EntityWorld>>;

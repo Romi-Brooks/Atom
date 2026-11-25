@@ -15,11 +15,13 @@
 #include <Atom/Core/Algorithm/Vector/Vec3.hpp>
 #include <Atom/Core/Algorithm/Vector/Vec4.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::algo {
 
 // Column-major matrix for column vectors. Projection helpers use SDL_GPU's
 // left-handed coordinate system and [0, 1] normalized device depth.
-class Mat4 {
+class ATOM_CORE_API Mat4 {
     private:
         std::array<float, 16> elements_{};
 

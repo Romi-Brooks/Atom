@@ -22,6 +22,8 @@
 #include <Atom/Resources/Media/Image/ImageDecoder.hpp>
 #include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render::resources {
 
 class TextureCache;
@@ -115,7 +117,7 @@ struct AsyncTextureLoad final {
 //
 // Call FlushDeferredDestroys() once per frame outside Renderer2D::BeginFrame.
 // Acquire is not internally synchronized (same contract as ResourceManager).
-class TextureCache final {
+class ATOM_GRAPHICS_API TextureCache final {
     public:
         explicit TextureCache(Renderer2D& renderer);
         ~TextureCache();

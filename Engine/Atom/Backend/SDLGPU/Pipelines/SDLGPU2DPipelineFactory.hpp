@@ -17,6 +17,8 @@
 
 #include <SDL3/SDL.h>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdlgpu {
 
 // Built-in SDL_GPU pipelines used by Renderer2D.  The factory owns creation
@@ -32,15 +34,15 @@ struct SDLGPU2DPipelineSet {
 
 // Primitive2D is required. Post-process pipelines are optional; callers may
 // still render unprocessed geometry when one of those shaders is unavailable.
-auto CreateSDLGPU2DPipelineSet(SDL_GPUDevice* device, SDL_GPUTextureFormat target_format,
+ATOM_BACKENDS_API auto CreateSDLGPU2DPipelineSet(SDL_GPUDevice* device, SDL_GPUTextureFormat target_format,
                                const std::filesystem::path& shader_root, SDLGPU2DPipelineSet& out) -> bool;
 
-auto GetOrCreateSDLGPUPostProcessPipeline(SDL_GPUDevice* device, SDL_GPUTextureFormat target_format,
+ATOM_BACKENDS_API auto GetOrCreateSDLGPUPostProcessPipeline(SDL_GPUDevice* device, SDL_GPUTextureFormat target_format,
                                        const std::filesystem::path& shader_root,
                                        render::PostProcess2DEffect effect, SDLGPU2DPipelineSet& pipelines)
     -> SDL_GPUGraphicsPipeline*;
 
-auto ReleaseSDLGPU2DPipelineSet(SDL_GPUDevice* device, SDLGPU2DPipelineSet& pipelines) -> void;
+ATOM_BACKENDS_API auto ReleaseSDLGPU2DPipelineSet(SDL_GPUDevice* device, SDLGPU2DPipelineSet& pipelines) -> void;
 
 } // namespace atom::backend::sdlgpu
 

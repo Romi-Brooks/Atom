@@ -3,6 +3,8 @@
 
 #include <memory>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 struct MIX_Mixer;
 
 namespace atom::backend::sdl3mixer {
@@ -18,7 +20,7 @@ namespace atom::backend::sdl3mixer {
 //
 // A failed context is not cached, so a later attempt can retry once the audio
 // environment is usable again.
-class SDL3MixerContext final {
+class ATOM_BACKENDS_API SDL3MixerContext final {
     public:
         [[nodiscard]] static auto Acquire() -> std::shared_ptr<SDL3MixerContext>;
 

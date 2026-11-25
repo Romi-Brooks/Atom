@@ -25,6 +25,8 @@
 #include <Atom/Backend/Contracts/Render/RenderBackendConfig.hpp>
 #include <Atom/Backend/SDLGPU/Pipelines/SDLGPU2DPipelineFactory.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdlgpu {
 
 // Texture bookkeeping: SDL_GPU does not expose a size query for textures, so
@@ -43,7 +45,7 @@ struct SDLGPUUploadBufferEntry {
         uint32_t capacity = 0;
 };
 
-class SDLGPUDevice final : public render::IRenderDevice, public render::IRender2DContext {
+class ATOM_BACKENDS_API SDLGPUDevice final : public render::IRenderDevice, public render::IRender2DContext {
     public:
         ~SDLGPUDevice() override;
         // `driver` selects which graphics API SDL_GPU runs on. Auto lets SDL

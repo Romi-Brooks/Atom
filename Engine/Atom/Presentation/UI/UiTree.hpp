@@ -16,6 +16,8 @@
 #include <Atom/Backend/Contracts/Window/IWindow.hpp>
 #include <Atom/Presentation/Layout/LayoutTree.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render {
 class Font;
 class Renderer2D;
@@ -49,7 +51,7 @@ using ClickHandler = std::function<void()>;
 // widget lifetime, hit-test order, focus and Yoga layout are local to a page.
 // A Screen (or another game-owned presentation object) owns one UiTree and
 // calls Layout/HandleEvent/Update/Render in its normal lifecycle.
-class UiTree final {
+class ATOM_GRAPHICS_API UiTree final {
     public:
         UiTree();
         ~UiTree();

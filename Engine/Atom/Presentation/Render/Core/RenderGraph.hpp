@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render {
 
 using RenderPassId = uint32_t;
@@ -28,7 +30,7 @@ struct RenderPassDesc {
 // Small backend-neutral pass scheduler. It deliberately does not know about
 // SDL_GPU/Vulkan resources yet; callbacks are the compatibility bridge while
 // RenderDevice/CommandEncoder are migrated to the graph.
-class RenderGraph final {
+class ATOM_GRAPHICS_API RenderGraph final {
     public:
         using ExecuteFunction = std::function<bool()>;
 

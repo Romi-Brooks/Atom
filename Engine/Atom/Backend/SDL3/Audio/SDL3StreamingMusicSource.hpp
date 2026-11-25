@@ -15,6 +15,8 @@
 #include <Atom/Backend/Contracts/Audio/AudioSourceRegistry.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3 {
 
 /// Streaming music source that decodes audio on-the-fly via atom::audio::IAudioDecoder.
@@ -28,7 +30,7 @@ namespace atom::backend::sdl3 {
 /// played, and must not reserve its buffer in that case).
 /// The decode thread fills the buffer from the decoder and a separate push
 /// path drains it into the SDL audio stream.
-class SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
+class ATOM_BACKENDS_API SDL3StreamingMusicSource final : public atom::audio::BackendOwnedSource {
     public:
         SDL3StreamingMusicSource(std::unique_ptr<atom::audio::IAudioDecoder> decoder, const SDL_AudioSpec& spec);
         ~SDL3StreamingMusicSource() override;

@@ -32,6 +32,8 @@
 #include <Atom/Resources/Filesystem/AssetPath.hpp>
 #include <Atom/World/Scene/SceneTypes.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::fs {
 class IFileSystem;
 }
@@ -45,7 +47,7 @@ struct LoadedScene {
         std::unique_ptr<ecs::EntityWorld> entities{};
 };
 
-class SceneLoader final {
+class ATOM_WORLD_API SceneLoader final {
     public:
         // Reads `path` through `filesystem` and builds the world. On any failure the
         // Error is `Scene*`-coded and its detail starts with "uri:line:column:" so it

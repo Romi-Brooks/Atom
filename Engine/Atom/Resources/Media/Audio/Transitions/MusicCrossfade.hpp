@@ -13,6 +13,8 @@
 #include <functional>
 #include <string>
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom {
 class MusicPlayer;
 }
@@ -32,7 +34,7 @@ struct MusicCrossfadeConfig {
         TransitionConflictPolicy conflict_policy = TransitionConflictPolicy::Replace;
 };
 
-class MusicCrossfade final {
+class ATOM_MEDIA_AUDIO_API MusicCrossfade final {
     public:
         using Callback = std::function<void(MusicTransitionState, const std::string&, const std::string&)>;
         explicit MusicCrossfade(MusicPlayer& player) : player_(player) {}

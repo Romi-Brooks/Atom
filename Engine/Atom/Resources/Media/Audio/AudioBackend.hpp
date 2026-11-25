@@ -19,6 +19,8 @@
 #include <Atom/Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom::backend {
 class IAudioBackendChangeListener;
 }
@@ -26,21 +28,21 @@ class IAudioBackendChangeListener;
 namespace atom::audio {
 
 // Canonical id of the active playback backend (e.g. "sdl3").
-[[nodiscard]] auto GetAudioBackendId() -> const std::string&;
+[[nodiscard]] ATOM_MEDIA_AUDIO_API auto GetAudioBackendId() -> const std::string&;
 
 // Monotonic switch counter — stamp cached sources with this and re-resolve
 // after a change.
-[[nodiscard]] auto GetAudioBackendGeneration() -> std::uint64_t;
+[[nodiscard]] ATOM_MEDIA_AUDIO_API auto GetAudioBackendGeneration() -> std::uint64_t;
 
 // Switch the global playback backend. Failed switches leave the active
 // backend untouched. Playback does not migrate; callers must Load/Play again.
-auto SetAudioBackend(backend::AudioBackendId id) -> bool;
+ATOM_MEDIA_AUDIO_API auto SetAudioBackend(backend::AudioBackendId id) -> bool;
 
-auto AddAudioBackendListener(backend::IAudioBackendChangeListener& listener) -> void;
-auto RemoveAudioBackendListener(backend::IAudioBackendChangeListener& listener) -> void;
+ATOM_MEDIA_AUDIO_API auto AddAudioBackendListener(backend::IAudioBackendChangeListener& listener) -> void;
+ATOM_MEDIA_AUDIO_API auto RemoveAudioBackendListener(backend::IAudioBackendChangeListener& listener) -> void;
 
 // Global format-decoder registry (settings / diagnostics UI).
-[[nodiscard]] auto GetAudioDecoders() -> AudioDecoderRegistry&;
+[[nodiscard]] ATOM_MEDIA_AUDIO_API auto GetAudioDecoders() -> AudioDecoderRegistry&;
 
 } // namespace atom::audio
 

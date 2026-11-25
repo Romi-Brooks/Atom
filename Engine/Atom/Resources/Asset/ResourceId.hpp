@@ -14,6 +14,8 @@
 #include <Atom/Core/Error/Error.hpp>
 #include <Atom/Resources/Filesystem/AssetPath.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::asset {
 
 // Why an identity was rejected. Kept next to the validation rules; Create()
@@ -25,7 +27,7 @@ enum class ResourceIdError : uint8_t {
         InvalidVariant,
 };
 
-[[nodiscard]] auto ToError(ResourceIdError error, std::string_view operation = {}) -> Error;
+[[nodiscard]] ATOM_CORE_API auto ToError(ResourceIdError error, std::string_view operation = {}) -> Error;
 
 [[nodiscard]] constexpr auto ResourceIdErrorName(ResourceIdError error) -> std::string_view {
     switch (error) {
@@ -43,7 +45,7 @@ enum class ResourceIdError : uint8_t {
 
 // Identity is (path, kind, variant). Two ids are equal only when all three
 // match. The empty variant is the default platform/quality variant.
-class ResourceId final {
+class ATOM_CORE_API ResourceId final {
     public:
         // The one way to build an identity. The failure names the offending
         // field, and carries the path when there is a valid one to report.

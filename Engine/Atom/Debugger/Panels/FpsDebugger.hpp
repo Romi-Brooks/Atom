@@ -21,9 +21,11 @@
 
 #include <Atom/Debugger/DebugPanel.hpp>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom::debugger {
 
-class FpsDebugger final : public DebugPanel {
+class ATOM_DEBUGGER_API FpsDebugger final : public DebugPanel {
     public:
         FpsDebugger() : DebugPanel("FpsDebugger") {}
 

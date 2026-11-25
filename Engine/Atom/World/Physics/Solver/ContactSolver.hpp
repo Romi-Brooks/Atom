@@ -22,6 +22,8 @@
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 #include <Atom/World/Physics/Collision/Contact.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
 struct RigidBody;
@@ -39,11 +41,11 @@ struct ContactSolverInput final {
 };
 
 // 速度求解：Prepare + 迭代 velocity_iterations 次。在「积分速度」之后、「积分位置」之前调用。
-auto SolveVelocityContacts(std::vector<ContactSolverInput>& contacts, int velocity_iterations,
+ATOM_WORLD_API auto SolveVelocityContacts(std::vector<ContactSolverInput>& contacts, int velocity_iterations,
                            const ContactSolverConfig& config) -> void;
 
 // 位置求解：重算当前穿透并迭代修正。在「积分位置」之后调用。
-auto SolvePositionContacts(std::vector<ContactSolverInput>& contacts, int position_iterations,
+ATOM_WORLD_API auto SolvePositionContacts(std::vector<ContactSolverInput>& contacts, int position_iterations,
                            const ContactSolverConfig& config) -> void;
 
 } // namespace atom::physics

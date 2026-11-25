@@ -10,6 +10,8 @@
 #include <Atom/Backend/Contracts/Audio/AudioExtensions.hpp>
 #include <Atom/Backend/Contracts/Audio/AudioSourceRegistry.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 struct MIX_Audio;
 struct MIX_Track;
 
@@ -21,7 +23,7 @@ class SDL3MixerContext;
 //
 // The mixer backend is the one that offers the optional spatial extension set:
 // pitch, manual stereo pan and 3D position.
-class SDL3MixerSource final : public atom::audio::BackendOwnedSource,
+class ATOM_BACKENDS_API SDL3MixerSource final : public atom::audio::BackendOwnedSource,
                               public atom::audio::IPitchControl,
                               public atom::audio::IPanControl,
                               public atom::audio::ISpatialEmitter {

@@ -16,6 +16,8 @@
 #include <Atom/Backend/Contracts/Window/IWindow.hpp>
 #include <Atom/Core/Error/Error.hpp>
 
+#include <Atom/Build/RuntimeExport.hpp>
+
 namespace atom {
     class RenderWindow;
     class ScreenManager;
@@ -79,7 +81,7 @@ struct ApplicationConfig final {
     unsigned fps = window::kDefaultFpsLimit;
 };
 
-class Application final {
+class ATOM_RUNTIME_API Application final {
     public:
         using EventObserver = std::function<void(window::IEvent&)>;
         using UpdateObserver = std::function<void(float)>;

@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::asset {
 
 enum class AssetKind : uint8_t {
@@ -25,8 +27,8 @@ enum class AssetKind : uint8_t {
     Video,
 };
 
-[[nodiscard]] auto ToString(AssetKind kind) -> std::string_view;
-[[nodiscard]] auto AssetKindFromString(std::string_view value) -> AssetKind;
+[[nodiscard]] ATOM_CORE_API auto ToString(AssetKind kind) -> std::string_view;
+[[nodiscard]] ATOM_CORE_API auto AssetKindFromString(std::string_view value) -> AssetKind;
 
 } // namespace atom::asset
 

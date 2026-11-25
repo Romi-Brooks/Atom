@@ -5,9 +5,11 @@
 #include <Atom/Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Atom/Backend/SDL3/Core/SDLRuntime.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3 {
 
-class SDL3AudioBackend final : public atom::audio::IAudioBackend {
+class ATOM_BACKENDS_API SDL3AudioBackend final : public atom::audio::IAudioBackend {
     public:
         SDL3AudioBackend();
 

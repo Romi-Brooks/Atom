@@ -13,9 +13,11 @@
 #include <Atom/Core/Algorithm/Matrix/Mat3.hpp>
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::algo {
 
-struct Camera2D {
+struct ATOM_CORE_API Camera2D {
         Vec2 position = Vec2::Zero();
         Vec2 viewport_size = Vec2::Zero();
         float rotation = 0.0f;

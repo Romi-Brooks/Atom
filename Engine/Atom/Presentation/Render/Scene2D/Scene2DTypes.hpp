@@ -34,6 +34,8 @@
 #include <Atom/World/ECS/Entity.hpp>
 #include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render::scene2d {
 
 /**
@@ -61,7 +63,7 @@ class ITextureResolver {
  * `center` and `viewport` are in world pixels; zoom is a uniform scale. Rotation
  * is deliberately absent: see the note at the top of this header.
  */
-struct CameraView {
+struct ATOM_GRAPHICS_API CameraView {
         algo::Vec2 center{};
         algo::Vec2 viewport{};
         float zoom = 1.0f;

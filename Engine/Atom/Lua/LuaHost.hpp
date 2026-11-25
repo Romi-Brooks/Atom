@@ -20,16 +20,18 @@
 #include <Atom/Resources/Filesystem/AssetPath.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/ScriptingExport.hpp>
+
 namespace atom {
 
 // Binding registrars (defined in LuaBinding/*.cpp). Each creates one table under
 // the Atom.Audio namespace.
-auto RegisterMusicToLua(lua_State* L, LuaContext& context) -> void;
-auto RegisterSFXToLua(lua_State* L, LuaContext& context) -> void;
-auto RegisterVolumeToLua(lua_State* L, LuaContext& context) -> void;
-auto RegisterLogToLua(lua_State* L, LuaContext& context) -> void;
+ATOM_SCRIPTING_API auto RegisterMusicToLua(lua_State* L, LuaContext& context) -> void;
+ATOM_SCRIPTING_API auto RegisterSFXToLua(lua_State* L, LuaContext& context) -> void;
+ATOM_SCRIPTING_API auto RegisterVolumeToLua(lua_State* L, LuaContext& context) -> void;
+ATOM_SCRIPTING_API auto RegisterLogToLua(lua_State* L, LuaContext& context) -> void;
 
-class LuaHost final {
+class ATOM_SCRIPTING_API LuaHost final {
     public:
         LuaHost();
         ~LuaHost();

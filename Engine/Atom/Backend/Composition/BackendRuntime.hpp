@@ -12,6 +12,8 @@
 #include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Atom/Backend/Extension/BackendRegistry.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::audio {
 class IAudioBackend;
 }
@@ -20,7 +22,7 @@ namespace atom::backend {
 
 class IAudioBackendChangeListener;
 
-class BackendRuntime final {
+class ATOM_BACKENDS_API BackendRuntime final {
     public:
         static auto GetInstance() -> BackendRuntime&;
         ~BackendRuntime();

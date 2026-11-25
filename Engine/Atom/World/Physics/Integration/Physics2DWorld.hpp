@@ -48,6 +48,8 @@
 #include <Atom/World/Physics/Contracts/IPhysicsBackend.hpp>
 #include <Atom/World/Physics/Contracts/IPhysicsWorld.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics::integration {
 
 // Which side of a contact lifecycle this event belongs to. The values are ordered the way
@@ -65,7 +67,7 @@ struct ContactEvent2D final {
         bool sensor = false;
 };
 
-class Physics2DWorld final {
+class ATOM_WORLD_API Physics2DWorld final {
     public:
         // `pixels_per_meter` is the single number that ties world pixels to physics metres.
         // The doc's suggested range is 32..100; 100 keeps a pixel-sized sprite a

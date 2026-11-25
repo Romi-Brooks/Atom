@@ -21,9 +21,11 @@
 
 #include <Atom/Debugger/DebugPanel.hpp>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom::debugger {
 
-class JobDebugger final : public DebugPanel {
+class ATOM_DEBUGGER_API JobDebugger final : public DebugPanel {
     public:
         JobDebugger() : DebugPanel("JobDebugger") {}
 

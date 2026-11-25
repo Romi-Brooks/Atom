@@ -18,6 +18,8 @@
 
 #include <string>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3 {
 
 // Copies SDL_GetError() and clears the slot. Returns an empty string when SDL
@@ -25,16 +27,16 @@ namespace atom::backend::sdl3 {
 //
 // Clearing is part of the contract: the next reader must see only its own
 // failure instead of re-reading this one.
-[[nodiscard]] auto CaptureError() -> std::string;
+[[nodiscard]] ATOM_BACKENDS_API auto CaptureError() -> std::string;
 
 // Same capture, but keeps the slot intact. Use when the caller cannot know
 // whether another SDL call will be made first and the message must survive.
-[[nodiscard]] auto PeekError() -> std::string;
+[[nodiscard]] ATOM_BACKENDS_API auto PeekError() -> std::string;
 
 // Formats a captured message as "; sdl=<message>" for use as an Error detail
 // suffix. Returns an empty string when there is nothing recorded, so callers can
 // append unconditionally without producing trailing noise.
-[[nodiscard]] auto FormatErrorSuffix() -> std::string;
+[[nodiscard]] ATOM_BACKENDS_API auto FormatErrorSuffix() -> std::string;
 
 } // namespace atom::backend::sdl3
 

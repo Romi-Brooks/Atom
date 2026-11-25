@@ -23,9 +23,11 @@
 #include <Atom/Presentation/Render/Text/FreeTypeFontProvider.hpp>
 #include <Atom/Presentation/Render/Text/TextShaper.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::text {
 
-class HarfBuzzTextShaper final : public TextShaper {
+class ATOM_GRAPHICS_API HarfBuzzTextShaper final : public TextShaper {
     public:
         // The provider must outlive this shaper; only its read-only byte lookup
         // is used during Shape().

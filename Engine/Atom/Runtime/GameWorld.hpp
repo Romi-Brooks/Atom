@@ -13,9 +13,11 @@
 #include <Atom/Runtime/GameEventQueue.hpp>
 #include <Atom/Runtime/SystemScheduler.hpp>
 
+#include <Atom/Build/RuntimeExport.hpp>
+
 namespace atom::runtime {
 
-class GameWorld final {
+class ATOM_RUNTIME_API GameWorld final {
     public:
         [[nodiscard]] static auto Create() -> Result<std::unique_ptr<GameWorld>>;
 

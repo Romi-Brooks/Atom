@@ -16,11 +16,13 @@
 
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
 struct RigidBody;
 
-struct RevoluteJoint final {
+struct ATOM_WORLD_API RevoluteJoint final {
         RigidBody* a = nullptr;
         RigidBody* b = nullptr;
         algo::Vec2 local_anchor_a{};

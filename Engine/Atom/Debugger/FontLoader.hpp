@@ -15,6 +15,8 @@
 
 #include <imgui.h>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom::debugger {
 
 enum class GlyphPreset { Default, ChineseFull };
@@ -27,7 +29,7 @@ struct FontLoadOptions {
 
 // Loads fonts into the current debugger ImGui context. Not a DebugPanel —
 // panels may call it during setup. Production UI text uses Renderer2D.
-class FontLoader final {
+class ATOM_DEBUGGER_API FontLoader final {
     public:
         [[nodiscard]] static auto LoadFromFile(std::string_view path, const FontLoadOptions& options = {})
             -> ImFont*;

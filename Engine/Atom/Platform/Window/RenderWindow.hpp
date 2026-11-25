@@ -27,13 +27,15 @@
 #include <Atom/Backend/Contracts/Window/WindowMode.hpp>
 #include <Atom/Core/Error/Error.hpp>
 
+#include <Atom/Build/PlatformExport.hpp>
+
 namespace atom {
 
 namespace runtime {
 class Application;
 }
 
-class RenderWindow {
+class ATOM_PLATFORM_API RenderWindow {
     private:
         friend class runtime::Application;
         std::unique_ptr<atom::render::IRenderBackend> backend_;

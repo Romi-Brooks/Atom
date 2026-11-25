@@ -24,13 +24,15 @@
 #include <Atom/Resources/Filesystem/AssetPath.hpp>
 #include <Atom/Presentation/Sprite/SpriteAtlas.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::fs {
 class IFileSystem;
 } // namespace atom::fs
 
 namespace atom::sprite {
 
-class SpriteAtlasLoader final {
+class ATOM_CORE_API SpriteAtlasLoader final {
     public:
         // `filesystem` must outlive the loader.
         explicit SpriteAtlasLoader(const fs::IFileSystem& filesystem) : filesystem_(&filesystem) {}

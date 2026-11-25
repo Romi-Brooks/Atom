@@ -21,8 +21,10 @@
 
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::audio_decoder {
-class Minimp3Decoder final : public atom::audio::IAudioDecoder {
+class ATOM_BACKENDS_API Minimp3Decoder final : public atom::audio::IAudioDecoder {
     public:
         Minimp3Decoder();
         ~Minimp3Decoder() override;

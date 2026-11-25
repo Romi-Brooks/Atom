@@ -10,6 +10,8 @@
 
 #include <Atom/Backend/Contracts/Audio/AudioSourceRegistry.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3 {
 
 // Buffered one-shot/looping sound effect voice on native SDL3.
@@ -18,7 +20,7 @@ namespace atom::backend::sdl3 {
 // callback instead of a single up-front push. That keeps looping exact (the
 // callback is the only writer of the read cursor) and makes completion
 // observable: drained_ is only set once every byte has been handed over.
-class SDL3SFXSource final : public atom::audio::BackendOwnedSource {
+class ATOM_BACKENDS_API SDL3SFXSource final : public atom::audio::BackendOwnedSource {
     public:
         SDL3SFXSource();
         ~SDL3SFXSource() override;

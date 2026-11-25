@@ -22,6 +22,8 @@
 #include <Atom/Presentation/Render/Text/TextLayout.hpp>
 #include <Atom/Presentation/Render/Text/TextShaper.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::text {
 
 // Horizontal alignment of each line within `max_width`. Only meaningful when
@@ -39,7 +41,7 @@ struct TextLayoutParams {
 };
 
 // Builds immutable TextLayout objects from UTF-8 text.
-class TextLayoutBuilder {
+class ATOM_GRAPHICS_API TextLayoutBuilder {
     public:
         // The provider and shaper must outlive this builder.
         TextLayoutBuilder(const FontProvider& provider, const TextShaper& shaper);

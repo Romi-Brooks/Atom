@@ -15,9 +15,11 @@
 
 #include <Atom/Core/Time/TimeTypes.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::time {
 
-class DomainClock {
+class ATOM_CORE_API DomainClock {
     public:
         explicit DomainClock(ClockDesc desc = {});
 

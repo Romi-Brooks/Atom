@@ -13,9 +13,11 @@
 #include <Atom/Core/Algorithm/Matrix/Mat4.hpp>
 #include <Atom/Core/Algorithm/Vector/Vec3.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::algo {
 
-struct Transform3D {
+struct ATOM_CORE_API Transform3D {
         Vec3 position = Vec3::Zero();
         Vec3 rotation = Vec3::Zero();
         Vec3 scale = Vec3::One();

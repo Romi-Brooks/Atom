@@ -21,9 +21,11 @@
 #include <functional>
 #include <vector>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::tools {
 
-class PackageBuilder {
+class ATOM_CORE_API PackageBuilder {
     public:
         enum class Phase { Write, Verify };
         using Progress = std::function<void(Phase, std::size_t completed, std::size_t total)>;

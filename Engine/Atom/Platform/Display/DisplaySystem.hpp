@@ -33,9 +33,11 @@
 
 #include <Atom/Platform/Display/DisplaySettings.hpp>
 
+#include <Atom/Build/PlatformExport.hpp>
+
 namespace atom::display {
 
-class DisplaySystem final {
+class ATOM_PLATFORM_API DisplaySystem final {
     public:
         [[nodiscard]] static auto GetInstance() -> DisplaySystem&;
 

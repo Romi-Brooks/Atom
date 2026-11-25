@@ -15,10 +15,12 @@
 
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::algo {
 
 // Column-major 3x3 matrix operating on column vectors.
-class Mat3 {
+class ATOM_CORE_API Mat3 {
     private:
         std::array<float, 9> elements_{};
 

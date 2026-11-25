@@ -6,6 +6,8 @@
 #include <Atom/Backend/Contracts/Audio/AudioTypes.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Atom/Backend/Contracts/Numeric/NumericContract.hpp>
+
+#include <Atom/Build/MediaAudioExport.hpp>
 namespace atom {
 // Fixed-capacity pool of interchangeable voices for one clip. The cap is part of
 // the public numeric contract (ARCH-006): it is always inside
@@ -19,7 +21,7 @@ namespace atom {
 //  - SetVoiceLimit() takes a caller-supplied value that *can* be rejected, so it
 //    returns false and leaves the cap untouched for anything outside the range.
 // Use SetVoiceLimit() when the value comes from user input or a config file.
-class VoicePool final {
+class ATOM_MEDIA_AUDIO_API VoicePool final {
     public:
         VoicePool(atom::audio::IAudioBackend& backend, std::shared_ptr<const atom::audio::DecodedAudio> clip,
                   std::size_t maximum = atom::numeric::default_voices);

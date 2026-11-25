@@ -12,6 +12,8 @@
 #include <Atom/Backend/Contracts/Audio/AudioTypes.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom::audio {
 class AudioDecoderRegistry;
 }
@@ -23,7 +25,7 @@ namespace atom {
 // same instance via ResourceManager. Streaming playback stays with MusicPlayer;
 // this loader serves the "load whole clip" path (SFX, one-shot cues) through the
 // same URI/identity machinery as Script and Texture.
-class AudioClipResourceLoader final : public asset::TypedResourceLoader<atom::audio::DecodedAudio> {
+class ATOM_MEDIA_AUDIO_API AudioClipResourceLoader final : public asset::TypedResourceLoader<atom::audio::DecodedAudio> {
     public:
         explicit AudioClipResourceLoader(atom::audio::AudioDecoderRegistry& decoders) : decoders_(decoders) {}
 

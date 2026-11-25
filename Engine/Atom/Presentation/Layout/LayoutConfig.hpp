@@ -13,10 +13,12 @@
 
 #include <memory>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::layout {
 class LayoutNode;
 
-class LayoutConfig {
+class ATOM_GRAPHICS_API LayoutConfig {
     public:
         explicit LayoutConfig(bool use_web_defaults = true);
         ~LayoutConfig();

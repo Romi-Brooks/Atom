@@ -5,6 +5,8 @@
 #ifndef ATOM_UI_UI_CANVAS_HPP
 #define ATOM_UI_UI_CANVAS_HPP
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render {
 class Font;
 class Renderer2D;
@@ -16,7 +18,7 @@ class UiTree;
 // screen-space contract explicit and prevents world-camera state from leaking
 // into a game menu/HUD. A separate canvas submission can be rendered after a
 // world renderer in the same device frame.
-class UiCanvas final {
+class ATOM_GRAPHICS_API UiCanvas final {
     public:
         [[nodiscard]] static auto RenderFrame(render::Renderer2D& renderer, UiTree& tree,
                                               const render::Font* font = nullptr) -> bool;

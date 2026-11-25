@@ -19,12 +19,14 @@
 #include <Atom/Presentation/Layout/LayoutNode.hpp>
 #include <Atom/Presentation/Layout/LayoutTypes.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::layout {
 
 // Owning convenience facade for a complete Yoga tree. LayoutNode remains
 // available for low-level integrations; LayoutTree is the recommended API for
 // UI/game code because node lifetime and parent bookkeeping are centralized.
-class LayoutTree final {
+class ATOM_GRAPHICS_API LayoutTree final {
     public:
         using NodeId = uint32_t;
         static constexpr NodeId invalid_node = 0;

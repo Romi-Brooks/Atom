@@ -21,8 +21,10 @@
 #include <Atom/Resources/Media/Audio/Codecs/WavProf/RiffWaveReader.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::audio_decoder {
-class WavProfDecoder final : public atom::audio::IAudioDecoder {
+class ATOM_BACKENDS_API WavProfDecoder final : public atom::audio::IAudioDecoder {
     public:
         [[nodiscard]] auto OpenFromMemory(const void* data, std::size_t size) -> atom::audio::DecoderOpenStatus override;
         [[nodiscard]] auto OpenStream(atom::fs::IFile& file) -> atom::audio::DecoderOpenStatus override;
@@ -45,7 +47,7 @@ class WavProfDecoder final : public atom::audio::IAudioDecoder {
 };
 
 // Registry factory for AudioDecoderRegistry::Register/Replace.
-[[nodiscard]] auto CreateWavProfDecoder() -> std::unique_ptr<atom::audio::IAudioDecoder>;
+[[nodiscard]] ATOM_BACKENDS_API auto CreateWavProfDecoder() -> std::unique_ptr<atom::audio::IAudioDecoder>;
 
 } // namespace atom::backend::audio_decoder
 

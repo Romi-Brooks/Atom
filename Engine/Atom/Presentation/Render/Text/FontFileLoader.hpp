@@ -19,6 +19,8 @@
 #include <Atom/Resources/Asset/IResourceLoader.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render {
 
 // Raw font file bytes. Handed to Font::CreateFromMemory (or a future
@@ -30,7 +32,7 @@ struct FontData final {
 // Reads a font file into FontData through the VFS (AssetKind::Font). The
 // "sister loader" to DecodedImageLoader: it lets font bytes enter the same
 // URI/identity + async-acquire machinery as textures, scripts and audio.
-class FontFileLoader final : public asset::TypedResourceLoader<FontData> {
+class ATOM_GRAPHICS_API FontFileLoader final : public asset::TypedResourceLoader<FontData> {
     public:
         [[nodiscard]] auto Kind() const -> asset::AssetKind override {
             return asset::AssetKind::Font;

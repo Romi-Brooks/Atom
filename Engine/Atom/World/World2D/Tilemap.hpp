@@ -21,6 +21,8 @@
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 #include <Atom/World/ECS/Components.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::world2d {
 
 // Projection is explicit in the data contract. Other projections must supply
@@ -42,7 +44,7 @@ struct ChunkCoord final {
         [[nodiscard]] auto operator==(const ChunkCoord&) const noexcept -> bool = default;
 };
 
-struct ChunkCoordHash final {
+struct ATOM_GRAPHICS_API ChunkCoordHash final {
         [[nodiscard]] auto operator()(ChunkCoord coord) const noexcept -> std::size_t;
 };
 
@@ -81,7 +83,7 @@ struct TileCollider final {
         algo::Rect bounds{}; // world pixels
 };
 
-class Tilemap final {
+class ATOM_GRAPHICS_API Tilemap final {
     public:
         Tilemap(algo::Vec2 tile_size, std::uint32_t chunk_size = 32,
                 TileProjection projection = TileProjection::Orthogonal);

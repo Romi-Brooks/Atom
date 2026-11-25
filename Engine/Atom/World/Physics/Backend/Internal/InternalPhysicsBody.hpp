@@ -14,9 +14,11 @@
 #include <Atom/World/Physics/Contracts/IPhysicsBody.hpp>
 #include <Atom/World/Physics/Dynamics/RigidBody.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
-class InternalPhysicsBody final : public IPhysicsBody {
+class ATOM_WORLD_API InternalPhysicsBody final : public IPhysicsBody {
     public:
         // sensor / user_data 在创建时固定：它们描述"这个刚体属于谁、必须怎么表现"，
         // 中途改写等于给自己埋一个生命周期 bug。需要换身份就重建刚体。

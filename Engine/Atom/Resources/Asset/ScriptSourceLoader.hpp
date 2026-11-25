@@ -12,11 +12,13 @@
 #include <Atom/Resources/Asset/IResourceLoader.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom {
 
 // Resource payload is the raw script source. Execution stays with LuaHost so
 // multiple Lua states can share one cached source string.
-class ScriptSourceLoader final : public asset::TypedResourceLoader<std::string> {
+class ATOM_CORE_API ScriptSourceLoader final : public asset::TypedResourceLoader<std::string> {
     public:
         [[nodiscard]] auto Kind() const -> asset::AssetKind override {
             return asset::AssetKind::Script;

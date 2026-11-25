@@ -30,6 +30,8 @@
 #include <Atom/Core/Error/Error.hpp>
 #include <Atom/World/Physics/Shapes/MassProperties.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
 struct Circle final {
@@ -48,7 +50,7 @@ struct Segment final {
         algo::Vec2 b{};
 };
 
-class Shape {
+class ATOM_WORLD_API Shape {
     public:
         enum class Kind : std::uint8_t { Circle, Polygon, Segment };
 
@@ -74,13 +76,13 @@ class Shape {
 };
 
 // 面积（线段为 0）。
-[[nodiscard]] auto ComputeArea(const Shape& shape) -> float;
+[[nodiscard]] ATOM_WORLD_API auto ComputeArea(const Shape& shape) -> float;
 // 局部空间质心（相对形状局部原点）。
-[[nodiscard]] auto ComputeCentroid(const Shape& shape) -> algo::Vec2;
+[[nodiscard]] ATOM_WORLD_API auto ComputeCentroid(const Shape& shape) -> algo::Vec2;
 // 局部空间轴对齐包围盒。
-[[nodiscard]] auto ComputeAabb(const Shape& shape) -> algo::Aabb2;
+[[nodiscard]] ATOM_WORLD_API auto ComputeAabb(const Shape& shape) -> algo::Aabb2;
 // 质量属性：density 来自 Material。质量为 0 时 inverse_* 为 0。
-[[nodiscard]] auto ComputeMassProperties(const Shape& shape, float density) -> MassProperties;
+[[nodiscard]] ATOM_WORLD_API auto ComputeMassProperties(const Shape& shape, float density) -> MassProperties;
 
 } // namespace atom::physics
 

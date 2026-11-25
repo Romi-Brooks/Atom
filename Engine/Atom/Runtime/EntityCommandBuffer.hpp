@@ -12,9 +12,11 @@
 
 #include <Atom/World/ECS/EntityWorld.hpp>
 
+#include <Atom/Build/RuntimeExport.hpp>
+
 namespace atom::runtime {
 
-class EntityCommandBuffer final {
+class ATOM_RUNTIME_API EntityCommandBuffer final {
     public:
         // Called after the entity exists. Use this to add the components that
         // define a spawned entity; do not retain the EntityWorld reference.

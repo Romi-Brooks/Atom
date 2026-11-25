@@ -34,6 +34,8 @@
 #include <string_view>
 #include <utility>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom {
 
 // --- Codes ------------------------------------------------------------------
@@ -460,7 +462,7 @@ enum class ErrorCode : std::uint32_t {
 
 // --- The error value --------------------------------------------------------
 
-class Error {
+class ATOM_CORE_API Error {
     public:
         // An Error is never "no error": Result carries the presence, so a
         // default-constructed Error still names a code (Internal) instead of
@@ -544,11 +546,11 @@ class Error {
 // Backend/SDL3/Core/SdlError.hpp and pass the captured text to WithDetail.
 
 // Copies and clears GetLastError(), formatted by FormatMessage.
-[[nodiscard]] auto CaptureLastSystemError() -> std::string;
+[[nodiscard]] ATOM_CORE_API auto CaptureLastSystemError() -> std::string;
 
 // Copies errno's message. Does not clear errno; callers that need that must do
 // it themselves right after the failing call.
-[[nodiscard]] auto CaptureErrnoMessage() -> std::string;
+[[nodiscard]] ATOM_CORE_API auto CaptureErrnoMessage() -> std::string;
 
 // --- Construction helpers ---------------------------------------------------
 

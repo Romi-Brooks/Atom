@@ -61,6 +61,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::window {
 struct IEvent;
 }
@@ -93,7 +95,7 @@ enum class Claim : std::uint8_t {
     Release,
 };
 
-class InputSystem {
+class ATOM_CORE_API InputSystem {
     public:
         [[nodiscard]] static auto GetInstance() -> InputSystem&;
 

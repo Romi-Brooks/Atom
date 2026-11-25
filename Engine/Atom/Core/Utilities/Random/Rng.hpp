@@ -9,11 +9,13 @@
 #include <span>
 #include <utility>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::random {
 
 // Value-type pseudorandom stream for simulations and procedural content.
 // Give each concurrent consumer its own stream. This is not a security RNG.
-class Rng final {
+class ATOM_CORE_API Rng final {
     public:
         explicit constexpr Rng(std::uint64_t seed) noexcept : seed_(seed), state_(seed) {}
 

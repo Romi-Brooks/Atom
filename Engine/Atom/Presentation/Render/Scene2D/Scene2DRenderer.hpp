@@ -29,9 +29,11 @@
 #include <Atom/World/ECS/EntityWorld.hpp>
 #include <Atom/Presentation/Render/Scene2D/Scene2DTypes.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render::scene2d {
 
-class Scene2DRenderer final {
+class ATOM_GRAPHICS_API Scene2DRenderer final {
     public:
         explicit Scene2DRenderer(ITextureResolver& resolver) : resolver_(&resolver) {}
 

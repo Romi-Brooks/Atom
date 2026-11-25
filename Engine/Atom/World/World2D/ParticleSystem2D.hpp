@@ -22,6 +22,8 @@
 #include <Atom/World/ECS/EntityWorld.hpp>
 #include <Atom/Core/Utilities/Random/Rng.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::world2d {
 
 struct ParticlePreset2D final {
@@ -67,7 +69,7 @@ struct ParticleDraw2D final {
         ecs::SpriteFilter filter = ecs::SpriteFilter::Linear;
 };
 
-class ParticleSystem2D final {
+class ATOM_GRAPHICS_API ParticleSystem2D final {
     public:
         explicit ParticleSystem2D(std::size_t capacity = 16384, std::uint32_t random_seed = 1);
 

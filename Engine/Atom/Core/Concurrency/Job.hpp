@@ -21,6 +21,8 @@
 #include <utility>
 #include <vector>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::job {
 
 // Scheduling priority. Three levels cover every real engine workload; more
@@ -56,7 +58,7 @@ struct JobStats {
 };
 
 // Copyable handle to a submitted job. The handle can outlive the scheduler.
-class JobHandle {
+class ATOM_CORE_API JobHandle {
     public:
         JobHandle() = default;
 

@@ -23,9 +23,11 @@
 #include <thread>
 #include <vector>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::job {
 
-class JobSystem {
+class ATOM_CORE_API JobSystem {
     public:
         JobSystem();
         ~JobSystem();

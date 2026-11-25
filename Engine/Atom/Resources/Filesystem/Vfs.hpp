@@ -14,6 +14,8 @@
 
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::fs {
 
 // Mount table keyed by AssetPath mount name. Multiple backends may share one
@@ -22,7 +24,7 @@ namespace atom::fs {
 // Mount and Unmount take effect immediately. Each lookup uses a mount snapshot
 // and releases the table lock before calling any backend. Backends own their own
 // synchronization and a frame that needs a stable view still owns the safe point.
-class Vfs final : public IFileSystem {
+class ATOM_CORE_API Vfs final : public IFileSystem {
     public:
         Vfs() = default;
         ~Vfs() override;

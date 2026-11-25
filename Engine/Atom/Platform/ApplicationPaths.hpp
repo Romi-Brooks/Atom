@@ -8,12 +8,14 @@
 
 #include <Atom/Core/Error/Error.hpp>
 
+#include <Atom/Build/PlatformExport.hpp>
+
 namespace atom::platform {
 
 // Base directory for read-only application resources. This is normally the
 // executable directory on desktop and may be a resource directory in an app bundle.
 // Available before window or audio initialization.
-[[nodiscard]] auto ApplicationBasePath() -> Result<std::filesystem::path>;
+[[nodiscard]] ATOM_PLATFORM_API auto ApplicationBasePath() -> Result<std::filesystem::path>;
 
 } // namespace atom::platform
 

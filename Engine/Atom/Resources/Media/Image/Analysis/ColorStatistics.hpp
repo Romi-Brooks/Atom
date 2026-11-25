@@ -11,6 +11,8 @@
 #include <Atom/Core/Algorithm/Color/Color.hpp>
 #include <Atom/Resources/Media/Image/ImageDecoder.hpp>
 
+#include <Atom/Build/MediaImageExport.hpp>
+
 namespace atom::image {
 
 struct ColorStatistics {
@@ -28,7 +30,7 @@ struct ColorStatisticsOptions {
 // Samples valid pixels, orders their colors by Rec. 709 relative luminance,
 // and returns the darkest, median, brightest, and arithmetic-average colors.
 // These are image facts only; palette/theme/filter policy belongs to callers.
-[[nodiscard]] auto CalculateColorStatistics(const DecodedImage& image,
+[[nodiscard]] ATOM_MEDIA_IMAGE_API auto CalculateColorStatistics(const DecodedImage& image,
                                             ColorStatisticsOptions options = {}) -> std::optional<ColorStatistics>;
 
 } // namespace atom::image

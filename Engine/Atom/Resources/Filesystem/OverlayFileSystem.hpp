@@ -12,12 +12,14 @@
 
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::fs {
 
 // Open and Stat use the first backend that can resolve the path. List merges
 // directory entries; a name present in a higher-priority backend overwrites the
 // same name from a lower-priority backend.
-class OverlayFileSystem final : public IFileSystem {
+class ATOM_CORE_API OverlayFileSystem final : public IFileSystem {
     public:
         // Backends are tried in the given order (index 0 is highest priority).
         [[nodiscard]] static auto Create(std::vector<std::shared_ptr<IFileSystem>> backends_highest_first,

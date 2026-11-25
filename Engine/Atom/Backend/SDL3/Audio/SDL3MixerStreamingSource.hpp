@@ -13,6 +13,8 @@
 #include <Atom/Backend/Contracts/Audio/AudioSourceRegistry.hpp>
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 struct MIX_Track;
 
 namespace atom::backend::sdl3mixer {
@@ -23,7 +25,7 @@ class SDL3MixerContext;
 // MIX_Track plays. This is the source MusicPlayer creates, so it carries the
 // same optional spatial extension set as SDL3MixerSource -- music must be able
 // to participate in 3D spatial audio exactly like SFX do.
-class SDL3MixerStreamingSource final : public atom::audio::BackendOwnedSource,
+class ATOM_BACKENDS_API SDL3MixerStreamingSource final : public atom::audio::BackendOwnedSource,
                                        public atom::audio::IPitchControl,
                                        public atom::audio::IPanControl,
                                        public atom::audio::ISpatialEmitter {

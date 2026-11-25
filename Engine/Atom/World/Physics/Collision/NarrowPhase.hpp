@@ -16,11 +16,13 @@
 #include <Atom/World/Physics/Collision/Contact.hpp>
 #include <Atom/World/Physics/Shapes/Shape.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
 // 检测两个形状（世界 transform）是否碰撞。相交返回 true 并填充 manifold
 // （normal 指向 a）。圆/凸多边形组合支持；含 Segment 时返回 false。
-[[nodiscard]] auto Collide(const Shape& a, algo::Vec2 position_a, float angle_a, const Shape& b, algo::Vec2 position_b,
+[[nodiscard]] ATOM_WORLD_API auto Collide(const Shape& a, algo::Vec2 position_a, float angle_a, const Shape& b, algo::Vec2 position_b,
                            float angle_b, ContactManifold& manifold) -> bool;
 
 } // namespace atom::physics

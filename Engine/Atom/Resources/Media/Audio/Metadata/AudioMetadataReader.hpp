@@ -20,6 +20,8 @@
 #include <Atom/Core/Error/Error.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom::audio {
 
 // Audio file metadata: tag fields plus basic audio properties.
@@ -52,7 +54,7 @@ struct AudioMetadata {
 // AudioDecoderOpenFailed when the bytes are readable but carry no audio tags or
 // properties. (CORE-004: a caller must be able to tell "missing" from "corrupt"
 // without parsing a log line.)
-class AudioMetadataReader {
+class ATOM_MEDIA_AUDIO_API AudioMetadataReader {
     public:
         // Reads metadata through the VFS: the file is opened via `filesystem` and
         // handed to TagLib through an IOStream adapter, so no native path is

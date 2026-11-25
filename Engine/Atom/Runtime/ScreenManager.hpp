@@ -23,6 +23,8 @@
 
 #include <Atom/Runtime/Screen.hpp>
 
+#include <Atom/Build/RuntimeExport.hpp>
+
 namespace atom {
 
 // Outcome of every ScreenManager mutation. Returning a value instead of a void
@@ -41,7 +43,7 @@ enum class ScreenOpResult : std::uint8_t {
 };
 
 // Human-readable name for logs and tests.
-[[nodiscard]] auto ToString(ScreenOpResult result) -> std::string_view;
+[[nodiscard]] ATOM_RUNTIME_API auto ToString(ScreenOpResult result) -> std::string_view;
 
 // What LoadScreen does when `name` is already registered.
 enum class ScreenReplacePolicy : std::uint8_t {
@@ -63,7 +65,7 @@ struct ScreenStackEntry {
         Screen* screen = nullptr;
 };
 
-class ScreenManager {
+class ATOM_RUNTIME_API ScreenManager {
     private:
         // shared_ptr, not unique_ptr: current_screen_ / screen_stack_ are
         // handles into this registry, and a reload must not invalidate them.

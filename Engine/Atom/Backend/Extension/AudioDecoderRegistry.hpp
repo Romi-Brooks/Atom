@@ -10,6 +10,8 @@
 
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::audio {
 
 // Format -> decoder factory registry.
@@ -20,7 +22,7 @@ namespace atom::audio {
 // one coexist (for example WavProf streaming PCM while SDL3's loader covers the
 // compressed WAV encodings WavProf cannot read) without making every caller pick
 // one implementation up front.
-class AudioDecoderRegistry final {
+class ATOM_BACKENDS_API AudioDecoderRegistry final {
     public:
         using Factory = std::function<std::unique_ptr<IAudioDecoder>()>;
 

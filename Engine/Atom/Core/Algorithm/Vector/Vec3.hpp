@@ -3,9 +3,11 @@
 
 #include <cmath>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::algo {
 
-class Vec3 {
+class ATOM_CORE_API Vec3 {
     private:
         float x_ = 0.0f;
         float y_ = 0.0f;

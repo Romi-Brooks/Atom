@@ -16,6 +16,8 @@
 #include <Atom/World/World2D/ParticleSystem2D.hpp>
 #include <Atom/World/World2D/Tilemap.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::world2d {
 
 struct WorldDraw2D final {
@@ -33,7 +35,7 @@ struct WorldDraw2D final {
         bool flip_y = false;
 };
 
-class World2DRenderer final {
+class ATOM_GRAPHICS_API World2DRenderer final {
     public:
         explicit World2DRenderer(render::scene2d::ITextureResolver& resolver)
             : resolver_(&resolver), sprites_(resolver) {}

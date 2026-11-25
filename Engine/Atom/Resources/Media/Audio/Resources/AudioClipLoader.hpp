@@ -12,8 +12,10 @@
 #include <Atom/Core/Error/Error.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom {
-class AudioClipLoader final {
+class ATOM_MEDIA_AUDIO_API AudioClipLoader final {
     public:
         explicit AudioClipLoader(atom::audio::AudioDecoderRegistry& decoders) : decoders_(decoders) {}
 

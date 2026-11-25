@@ -24,9 +24,11 @@
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 #include <Atom/Resources/Media/Image/ImageDecoder.hpp>
 
+#include <Atom/Build/MediaImageExport.hpp>
+
 namespace atom::image {
 
-class ImageBatchDecoder {
+class ATOM_MEDIA_IMAGE_API ImageBatchDecoder {
     public:
         // Decodes a single image file through the VFS. A failure carries the
         // reason: the VFS error (FsNotFound, FsIoError, ...) or

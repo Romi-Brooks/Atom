@@ -12,6 +12,8 @@
 #include <Atom/Backend/Composition/IAudioBackendChangeListener.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom::audio {
 class AudioDecoderRegistry;
 class IAudioBackend;
@@ -24,7 +26,7 @@ class BackendRuntime;
 namespace atom {
 class AudioMixer;
 
-class MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
+class ATOM_MEDIA_AUDIO_API MusicPlayer final : public atom::backend::IAudioBackendChangeListener {
     public:
         explicit MusicPlayer(AudioMixer& mixer);
         MusicPlayer(atom::audio::IAudioBackend& backend, atom::audio::AudioDecoderRegistry& decoders,

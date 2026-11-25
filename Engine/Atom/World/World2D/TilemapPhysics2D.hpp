@@ -13,6 +13,8 @@
 #include <Atom/World/ECS/EntityWorld.hpp>
 #include <Atom/World/World2D/Tilemap.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::world2d {
 
 struct TileColliderEntity final {
@@ -27,10 +29,10 @@ struct TileColliderEntities final {
 
 // Invoke after loading chunks and before Physics2DWorld::Step. The returned
 // handles let a WorldSession remove colliders when it unloads those chunks.
-[[nodiscard]] auto CreateTileColliders(const Tilemap& map, ecs::EntityWorld& world,
+[[nodiscard]] ATOM_GRAPHICS_API auto CreateTileColliders(const Tilemap& map, ecs::EntityWorld& world,
                                        float pixels_per_meter) -> Result<TileColliderEntities>;
-auto DestroyTileColliders(ecs::EntityWorld& world, const TileColliderEntities& handles) -> void;
-auto DestroyChunkColliders(ecs::EntityWorld& world, TileColliderEntities& handles,
+ATOM_GRAPHICS_API auto DestroyTileColliders(ecs::EntityWorld& world, const TileColliderEntities& handles) -> void;
+ATOM_GRAPHICS_API auto DestroyChunkColliders(ecs::EntityWorld& world, TileColliderEntities& handles,
                            std::size_t layer_index, ChunkCoord chunk) -> void;
 
 } // namespace atom::world2d

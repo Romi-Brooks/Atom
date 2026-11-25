@@ -24,9 +24,11 @@
 
 #include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::audio_decoder {
 
-class SDL3WavDecoder final : public atom::audio::IAudioDecoder {
+class ATOM_BACKENDS_API SDL3WavDecoder final : public atom::audio::IAudioDecoder {
     public:
         SDL3WavDecoder();
         ~SDL3WavDecoder() override;
@@ -56,7 +58,7 @@ class SDL3WavDecoder final : public atom::audio::IAudioDecoder {
 };
 
 // Registry factory for AudioDecoderRegistry::Register/Replace.
-[[nodiscard]] auto CreateSDL3WavDecoder() -> std::unique_ptr<atom::audio::IAudioDecoder>;
+[[nodiscard]] ATOM_BACKENDS_API auto CreateSDL3WavDecoder() -> std::unique_ptr<atom::audio::IAudioDecoder>;
 
 } // namespace atom::backend::audio_decoder
 

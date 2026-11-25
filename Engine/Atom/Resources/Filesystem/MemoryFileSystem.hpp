@@ -16,12 +16,14 @@
 
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::fs {
 
 // Stores files and synthetic directories under one mount. Open files share
 // ownership of their byte buffers, so overwriting or removing a path does not
 // invalidate an already-open IFile.
-class MemoryFileSystem final : public IFileSystem {
+class ATOM_CORE_API MemoryFileSystem final : public IFileSystem {
     public:
         [[nodiscard]] static auto Create(std::string_view mount, std::unique_ptr<MemoryFileSystem>& output) -> Result;
         ~MemoryFileSystem() override;

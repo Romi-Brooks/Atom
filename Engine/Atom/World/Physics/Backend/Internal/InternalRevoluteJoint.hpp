@@ -12,11 +12,13 @@
 #include <Atom/World/Physics/Contracts/IPhysicsJoint.hpp>
 #include <Atom/World/Physics/Solver/RevoluteJoint.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
 class InternalPhysicsBody;
 
-class InternalRevoluteJoint final : public IPhysicsJoint {
+class ATOM_WORLD_API InternalRevoluteJoint final : public IPhysicsJoint {
     public:
         InternalRevoluteJoint(RevoluteJoint joint, InternalPhysicsBody* a, InternalPhysicsBody* b);
 

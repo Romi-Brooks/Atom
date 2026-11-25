@@ -14,9 +14,11 @@
 
 #include <Atom/World/Physics/Contracts/IPhysicsBackend.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
-class InternalPhysicsBackend final : public IPhysicsBackend {
+class ATOM_WORLD_API InternalPhysicsBackend final : public IPhysicsBackend {
     public:
         [[nodiscard]] auto CreateWorld() -> std::unique_ptr<IPhysicsWorld> override;
         [[nodiscard]] auto Name() const -> std::string_view override;

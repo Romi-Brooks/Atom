@@ -13,6 +13,8 @@
 
 #include <Atom/Core/Error/Error.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::fs {
 
 // Why a path was rejected. Kept as a code enum next to the parser so the
@@ -28,7 +30,7 @@ enum class PathError : uint8_t {
         InvalidSegment,
 };
 
-[[nodiscard]] auto ToError(PathError error, std::string_view operation = {}) -> Error;
+[[nodiscard]] ATOM_CORE_API auto ToError(PathError error, std::string_view operation = {}) -> Error;
 
 [[nodiscard]] constexpr auto PathErrorName(PathError error) -> std::string_view {
     switch (error) {
@@ -53,7 +55,7 @@ enum class PathError : uint8_t {
 // A canonical resource identifier such as "res://textures/ui/button.png".
 // It deliberately does not model drive letters, backslashes, or relative
 // traversal. Native file paths stay inside filesystem backend implementations.
-class AssetPath final {
+class ATOM_CORE_API AssetPath final {
     public:
         // The one way to build an AssetPath from external text. Failure carries
         // the exact rule that rejected the input:

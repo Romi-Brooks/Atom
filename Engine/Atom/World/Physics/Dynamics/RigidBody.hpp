@@ -19,6 +19,8 @@
 #include <Atom/World/Physics/Shapes/Material.hpp>
 #include <Atom/World/Physics/Shapes/Shape.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
 struct RigidBody final {
@@ -57,16 +59,16 @@ struct RigidBody final {
 
 // 半隐式 Euler 拆成两步：求解器在速度积分与位置积分之间插入碰撞求解。
 // IntegrateVelocity 消费重力与累积力并清零；IntegratePosition 推进位置。
-auto IntegrateVelocity(RigidBody& body, float dt, algo::Vec2 gravity) -> void;
-auto IntegratePosition(RigidBody& body, float dt) -> void;
+ATOM_WORLD_API auto IntegrateVelocity(RigidBody& body, float dt, algo::Vec2 gravity) -> void;
+ATOM_WORLD_API auto IntegratePosition(RigidBody& body, float dt) -> void;
 // 便捷合并版（无碰撞场景用），等价于先 velocity 后 position。
-auto Integrate(RigidBody& body, float dt, algo::Vec2 gravity) -> void;
+ATOM_WORLD_API auto Integrate(RigidBody& body, float dt, algo::Vec2 gravity) -> void;
 
 // 由局部形状 + 世界 transform 计算世界 AABB，写回 body.aabb。
-auto UpdateWorldAabb(RigidBody& body) -> void;
+ATOM_WORLD_API auto UpdateWorldAabb(RigidBody& body) -> void;
 
 // 纯函数版：不修改 body。
-[[nodiscard]] auto ComputeWorldAabb(const Shape& shape, algo::Vec2 position, float angle) -> algo::Aabb2;
+[[nodiscard]] ATOM_WORLD_API auto ComputeWorldAabb(const Shape& shape, algo::Vec2 position, float angle) -> algo::Aabb2;
 
 } // namespace atom::physics
 

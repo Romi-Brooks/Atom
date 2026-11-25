@@ -10,6 +10,8 @@
 #include <Atom/World/ECS/EntityWorld.hpp>
 #include <Atom/World/World2D/Tilemap.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::world2d {
 
 // The game supplies prefab construction. The engine applies placement and
@@ -22,9 +24,9 @@ struct MapObjectEntity final {
         ecs::Entity entity{};
 };
 
-[[nodiscard]] auto InstantiateObjects(const Tilemap& map, ecs::EntityWorld& world,
+[[nodiscard]] ATOM_GRAPHICS_API auto InstantiateObjects(const Tilemap& map, ecs::EntityWorld& world,
                                       const MapObjectFactory& factory) -> Result<std::vector<MapObjectEntity>>;
-auto DestroyObjects(ecs::EntityWorld& world, const std::vector<MapObjectEntity>& handles) -> void;
+ATOM_GRAPHICS_API auto DestroyObjects(ecs::EntityWorld& world, const std::vector<MapObjectEntity>& handles) -> void;
 
 } // namespace atom::world2d
 

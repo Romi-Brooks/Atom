@@ -28,6 +28,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::concurrency {
 
 /// One registered thread, safe to copy out to a debugger panel or telemetry.
@@ -41,7 +43,7 @@ struct ThreadSnapshot {
 };
 
 /// Registry of the engine's long-lived threads. A process-wide singleton.
-class ThreadRegistry final {
+class ATOM_CORE_API ThreadRegistry final {
     public:
         ThreadRegistry(const ThreadRegistry&) = delete;
         auto operator=(const ThreadRegistry&) -> ThreadRegistry& = delete;
@@ -51,7 +53,7 @@ class ThreadRegistry final {
         /// RAII guard: construct at the top of a thread's entry function.
         /// The thread is unregistered when the guard is destroyed (including
         /// via stack unwinding on an exception).
-        class ScopedRegistration final {
+        class ATOM_CORE_API ScopedRegistration final {
             public:
                 explicit ScopedRegistration(std::string name);
                 ~ScopedRegistration();

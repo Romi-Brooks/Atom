@@ -14,14 +14,16 @@
 #include <Atom/Resources/Filesystem/AssetPath.hpp>
 #include <Atom/World/World2D/Tilemap.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::fs { class IFileSystem; }
 
 namespace atom::world2d {
 
 // Format v1: orthogonal tile_size/chunk_size, tile definitions, tile layers
 // with fixed-size chunk cell arrays, and object layers with stable prefab IDs.
-[[nodiscard]] auto ParseTilemap(std::string_view text, std::string_view uri) -> Result<Tilemap>;
-[[nodiscard]] auto LoadTilemap(const fs::IFileSystem& filesystem, const fs::AssetPath& path) -> Result<Tilemap>;
+[[nodiscard]] ATOM_GRAPHICS_API auto ParseTilemap(std::string_view text, std::string_view uri) -> Result<Tilemap>;
+[[nodiscard]] ATOM_GRAPHICS_API auto LoadTilemap(const fs::IFileSystem& filesystem, const fs::AssetPath& path) -> Result<Tilemap>;
 
 } // namespace atom::world2d
 

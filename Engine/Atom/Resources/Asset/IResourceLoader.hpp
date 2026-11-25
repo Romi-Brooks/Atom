@@ -16,6 +16,8 @@
 #include <Atom/Core/Error/Error.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::asset {
 
 // Failure codes a loader may raise. Loaders are not limited to these: they can
@@ -56,15 +58,15 @@ enum class AssetResult : uint8_t {
 
 // Translates an asset-layer code into the unified error value. `id` is used for
 // the resource path, so failures carry the identity they were applied to.
-[[nodiscard]] auto ToError(AssetResult result, const ResourceId& id, std::string_view operation = {}) -> Error;
-[[nodiscard]] auto ToError(AssetResult result, std::string_view operation = {}) -> Error;
+[[nodiscard]] ATOM_CORE_API auto ToError(AssetResult result, const ResourceId& id, std::string_view operation = {}) -> Error;
+[[nodiscard]] ATOM_CORE_API auto ToError(AssetResult result, std::string_view operation = {}) -> Error;
 
 // Maps a filesystem code straight into the unified error value, so a loader can
 // forward VFS failures without passing through the AssetResult enum:
 //     const auto opened = filesystem.OpenRead(id.Path(), file);
 //     if (opened != fs::Result::Success)
 //         return std::unexpected<Error>{fs::ToError(opened, "OpenRead").WithResource(id.Path().String())};
-[[nodiscard]] auto MapFsResult(fs::Result result) -> AssetResult;
+[[nodiscard]] ATOM_CORE_API auto MapFsResult(fs::Result result) -> AssetResult;
 
 class IResourceLoader {
     public:

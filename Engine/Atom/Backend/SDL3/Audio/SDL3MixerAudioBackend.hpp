@@ -7,11 +7,13 @@
 #include <Atom/Backend/Contracts/Audio/IAudioBackend.hpp>
 #include <Atom/Backend/SDL3/Core/SDLRuntime.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3mixer {
 
 class SDL3MixerContext;
 
-class SDL3MixerAudioBackend final : public atom::audio::IAudioBackend {
+class ATOM_BACKENDS_API SDL3MixerAudioBackend final : public atom::audio::IAudioBackend {
     public:
         SDL3MixerAudioBackend();
 

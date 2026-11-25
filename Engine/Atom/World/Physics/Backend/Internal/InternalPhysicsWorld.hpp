@@ -21,6 +21,8 @@
 #include <Atom/World/Physics/Collision/BroadPhase.hpp>
 #include <Atom/World/Physics/Solver/ContactSolver.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
 class InternalPhysicsBody;
@@ -31,7 +33,7 @@ class InternalRevoluteJoint;
 // 容器若每次新建就是每步一次堆抖动。成员化后 clear()/assign() 保留容量。
 struct PhysicsStepScratch;
 
-class InternalPhysicsWorld final : public IPhysicsWorld {
+class ATOM_WORLD_API InternalPhysicsWorld final : public IPhysicsWorld {
     public:
         // broad_phase_cell_size 接近物体平均尺寸（米）。
         explicit InternalPhysicsWorld(float broad_phase_cell_size = 1.0f);

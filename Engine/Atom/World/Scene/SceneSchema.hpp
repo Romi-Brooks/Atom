@@ -29,6 +29,8 @@
 #include <Atom/Presentation/Sprite/SpriteAtlas.hpp>
 #include <Atom/World/Scene/SceneTypes.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::scene {
 
 struct ParseOutcome {
@@ -67,13 +69,13 @@ using AtlasProvider = std::function<Result<const sprite::SpriteAtlas*>(std::stri
 //
 // When an entity names a prefab, `provider` is called for it; without a provider a
 // prefab reference is a diagnostic rather than a silent empty entity (T2.3).
-[[nodiscard]] auto ParseScene(std::string_view text, std::string_view uri, const PrefabProvider& provider = {},
+[[nodiscard]] ATOM_WORLD_API auto ParseScene(std::string_view text, std::string_view uri, const PrefabProvider& provider = {},
                               const AtlasProvider& atlas_provider = {}) -> ParseOutcome;
 
 // Parses a prefab document: `{ schema_version, kind: "prefab", id, entity }`. The
 // entity body is the same shape a scene entity uses, minus `id` - a prefab carries no
 // identity because every instance supplies its own.
-[[nodiscard]] auto ParsePrefab(std::string_view text, std::string_view uri, const AtlasProvider& atlas_provider = {})
+[[nodiscard]] ATOM_WORLD_API auto ParsePrefab(std::string_view text, std::string_view uri, const AtlasProvider& atlas_provider = {})
     -> PrefabOutcome;
 
 // Doc size limits the validator enforces as well, so a caller that parses by other

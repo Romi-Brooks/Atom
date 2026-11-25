@@ -1,11 +1,13 @@
 #ifndef ATOM_BACKEND_SDL3_SDLRUNTIME_HPP
 #define ATOM_BACKEND_SDL3_SDLRUNTIME_HPP
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3 {
 
 enum class SDLSubsystem { Video, Audio, Events };
 
-class SDLSubsystemLease final {
+class ATOM_BACKENDS_API SDLSubsystemLease final {
     public:
         SDLSubsystemLease() = default;
         explicit SDLSubsystemLease(SDLSubsystem subsystem);

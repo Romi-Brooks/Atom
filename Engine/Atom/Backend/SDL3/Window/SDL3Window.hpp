@@ -18,9 +18,11 @@
 #include <Atom/Backend/Contracts/Window/IWindow.hpp>
 #include <Atom/Backend/SDL3/Core/SDLRuntime.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3 {
 
-class SDL3Window final : public window::IWindow {
+class ATOM_BACKENDS_API SDL3Window final : public window::IWindow {
     public:
         ~SDL3Window() override;
         auto Initialize(const std::string& title, algo::Vec2 resolution) -> bool override;

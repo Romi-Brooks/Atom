@@ -25,9 +25,11 @@
 
 #include <Atom/Debugger/DebugPanel.hpp>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom::debugger {
 
-class RenderDebugger final : public DebugPanel {
+class ATOM_DEBUGGER_API RenderDebugger final : public DebugPanel {
     public:
         RenderDebugger() : DebugPanel("RenderDebugger") {}
 

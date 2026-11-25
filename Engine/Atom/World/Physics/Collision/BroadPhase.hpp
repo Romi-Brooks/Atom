@@ -19,6 +19,8 @@
 
 #include <Atom/Core/Algorithm/Geometry/Primitives.hpp>
 
+#include <Atom/Build/WorldExport.hpp>
+
 namespace atom::physics {
 
 class IBroadPhase {
@@ -32,7 +34,7 @@ class IBroadPhase {
 };
 
 // 均匀空间网格。cell_size 应接近物体平均尺寸。M2 默认实现。
-class UniformGrid final : public IBroadPhase {
+class ATOM_WORLD_API UniformGrid final : public IBroadPhase {
     public:
         explicit UniformGrid(float cell_size);
 

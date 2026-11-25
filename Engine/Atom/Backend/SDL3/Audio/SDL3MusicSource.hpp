@@ -12,9 +12,11 @@
 
 #include <Atom/Backend/Contracts/Audio/AudioSourceRegistry.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3 {
 
-class SDL3MusicSource final : public atom::audio::BackendOwnedSource {
+class ATOM_BACKENDS_API SDL3MusicSource final : public atom::audio::BackendOwnedSource {
     public:
         explicit SDL3MusicSource(std::vector<uint8_t> pcmData, const SDL_AudioSpec& spec);
         ~SDL3MusicSource() override;

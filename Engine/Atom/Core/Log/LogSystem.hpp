@@ -28,6 +28,8 @@
 #include <vector>
 //	using reference: LogSystem.md
 
+#include <Atom/Build/CoreExport.hpp>
+
 // 通道域定义机制（ATOM_DEFINE_CHANNELS 等预处理基础设施）
 #include "LogChannelMacros.hpp"
 
@@ -44,7 +46,7 @@ enum class LogLevel {
 
 // Stable display name for a level (also used by the debugger and the console
 // sink, so the mapping lives in exactly one place).
-[[nodiscard]] auto ToString(LogLevel level) -> const char*;
+[[nodiscard]] ATOM_CORE_API auto ToString(LogLevel level) -> const char*;
 
 struct LogRecord {
     std::string timestamp;
@@ -135,7 +137,7 @@ template <typename TChannel>
 //    console (a Windows console write can be very slow) and never formats I/O
 //    while holding the logger lock.
 //  - `LogOut` is safe to call concurrently from any thread.
-class Log {
+class ATOM_CORE_API Log {
     public:
         // Recent-log replay ring: how many records Subscribe() replays.
         static constexpr std::size_t default_recent_capacity = 512;

@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include <Atom/Build/MediaImageExport.hpp>
+
 namespace atom::image {
 
 // CPU-side decoded RGBA image. Kept deliberately separate from any GPU
@@ -47,7 +49,7 @@ struct DecodedImage {
 // into tightly packed RGBA8, top-left origin, row-major (matches the texture
 // upload layout used by Renderer2D / SDL_GPU). Returns an invalid image when
 // the data cannot be decoded.
-[[nodiscard]] auto DecodeImageMemory(std::span<const std::byte> data, bool flip_vertically = false) -> DecodedImage;
+[[nodiscard]] ATOM_MEDIA_IMAGE_API auto DecodeImageMemory(std::span<const std::byte> data, bool flip_vertically = false) -> DecodedImage;
 
 } // namespace atom::image
 

@@ -41,13 +41,15 @@
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 #include <Atom/Core/Utilities/Json/Diagnostic.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::sprite {
 
 // Sampling for this sheet. Kept separate from any renderer enum because this is asset
 // metadata; the layer that knows both (the scene loader) maps it.
 enum class AtlasFilter : std::uint8_t { Linear, Nearest };
 
-[[nodiscard]] auto FilterName(AtlasFilter filter) -> std::string_view;
+[[nodiscard]] ATOM_CORE_API auto FilterName(AtlasFilter filter) -> std::string_view;
 
 struct AtlasFrame {
         std::string name{};
@@ -61,7 +63,7 @@ struct AtlasFrame {
         std::uint32_t column = 0;
 };
 
-struct SpriteAtlas {
+struct ATOM_CORE_API SpriteAtlas {
         std::uint32_t schema_version = 1;
         std::string id{};
         std::string texture_uri{};
@@ -90,7 +92,7 @@ inline constexpr std::uint32_t kSchemaVersion = 1;
 inline constexpr std::size_t kMaxDiagnostics = 16;
 
 // Parses `{ schema_version, kind:"atlas", id, texture, filter?, frames }`.
-[[nodiscard]] auto ParseAtlas(std::string_view text, std::string_view uri) -> AtlasParseOutcome;
+[[nodiscard]] ATOM_CORE_API auto ParseAtlas(std::string_view text, std::string_view uri) -> AtlasParseOutcome;
 
 } // namespace atom::sprite
 

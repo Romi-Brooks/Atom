@@ -20,6 +20,8 @@
 #include <Atom/Debugger/DebugPanel.hpp>
 #include <Atom/Core/Log/LogSystem.hpp>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom::debugger {
 
 // Visibility (SetEnabled) is independent of lifetime (Attach/Detach):
@@ -28,7 +30,7 @@ namespace atom::debugger {
 // There is at most one live LogDebugger. Other panels toggle it via Get()
 // instead of holding a constructor-injected pointer. A second Attach is
 // rejected with a warning.
-class LogDebugger final : public DebugPanel {
+class ATOM_DEBUGGER_API LogDebugger final : public DebugPanel {
     private:
         // Defined in LogDebugger.cpp: a record plus its precomputed display
         // strings (line/location/channel), so the render loop never rebuilds

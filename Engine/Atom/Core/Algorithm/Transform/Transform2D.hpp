@@ -13,9 +13,11 @@
 #include <Atom/Core/Algorithm/Matrix/Mat3.hpp>
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::algo {
 
-struct Transform2D {
+struct ATOM_CORE_API Transform2D {
         Vec2 position = Vec2::Zero();
         float rotation = 0.0f;
         Vec2 scale = Vec2::One();

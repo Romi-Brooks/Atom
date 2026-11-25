@@ -24,6 +24,8 @@
 #include <Atom/Core/Algorithm/Geometry/Rect.hpp>
 #include <Atom/Backend/Contracts/Render/IRender2DContext.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render {
 
 class Font;
@@ -66,7 +68,7 @@ struct TextLayoutKey {
         auto operator==(const TextLayoutKey&) const -> bool = default;
 };
 
-struct TextLayoutKeyHash {
+struct ATOM_GRAPHICS_API TextLayoutKeyHash {
         auto operator()(const TextLayoutKey& key) const noexcept -> std::size_t;
 };
 
@@ -76,7 +78,7 @@ struct TextLayoutKeyHash {
 // recorded between BeginFrame()/EndFrame() and flushed in batched GPU
 // submissions through the backend's IRender2DContext, so this class never
 // touches SDL_GPU / Vulkan types.
-class Renderer2D {
+class ATOM_GRAPHICS_API Renderer2D {
     public:
         // Parameters for an optional post-process pass. The effect itself is a
         // fullscreen algorithm; `has_region` optionally confines it to a

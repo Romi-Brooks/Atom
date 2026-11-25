@@ -9,12 +9,14 @@
 #ifndef ATOM_DEBUGGER_PANEL_LAYOUT_HPP
 #define ATOM_DEBUGGER_PANEL_LAYOUT_HPP
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom::debugger {
 
-auto ApplyPanelSlot(float pos_x, float pos_y, float size_w, float size_h) -> void;
-auto ApplyLogPanelSlot() -> void;
-auto ApplyStatusPanelSlot() -> void;
-auto ApplyFpsPanelSlot() -> void;
+ATOM_DEBUGGER_API auto ApplyPanelSlot(float pos_x, float pos_y, float size_w, float size_h) -> void;
+ATOM_DEBUGGER_API auto ApplyLogPanelSlot() -> void;
+ATOM_DEBUGGER_API auto ApplyStatusPanelSlot() -> void;
+ATOM_DEBUGGER_API auto ApplyFpsPanelSlot() -> void;
 
 } // namespace atom::debugger
 

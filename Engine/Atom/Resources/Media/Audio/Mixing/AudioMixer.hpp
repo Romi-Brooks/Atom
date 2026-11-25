@@ -1,9 +1,11 @@
 #ifndef ATOM_AUDIO_MIXER_HPP
 #define ATOM_AUDIO_MIXER_HPP
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom {
 
-class AudioMixer final {
+class ATOM_MEDIA_AUDIO_API AudioMixer final {
     public:
         auto SetMasterVolume(float volume) -> void;
         [[nodiscard]] auto GetMasterVolume() const -> float;

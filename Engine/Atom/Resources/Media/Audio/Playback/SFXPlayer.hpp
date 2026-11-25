@@ -10,6 +10,8 @@
 #include <Atom/Resources/Media/Audio/Playback/VoicePool.hpp>
 #include <Atom/Resources/Media/Audio/Resources/AudioClipCache.hpp>
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom::audio {
 class IAudioBackend;
 }
@@ -21,7 +23,7 @@ class BackendRuntime;
 namespace atom {
 class AudioMixer;
 
-class SFXPlayer final : public atom::backend::IAudioBackendChangeListener {
+class ATOM_MEDIA_AUDIO_API SFXPlayer final : public atom::backend::IAudioBackendChangeListener {
     public:
         SFXPlayer(AudioClipCache& clips, AudioMixer& mixer);
         SFXPlayer(atom::audio::IAudioBackend& backend, AudioClipCache& clips, AudioMixer& mixer);

@@ -15,9 +15,11 @@
 #include <Atom/Backend/Contracts/Time/ITimeSource.hpp>
 #include <Atom/Core/Time/TimeTypes.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::time {
 
-class MasterClock {
+class ATOM_CORE_API MasterClock {
     public:
         explicit MasterClock(const backend::ITimeSource& source);
 

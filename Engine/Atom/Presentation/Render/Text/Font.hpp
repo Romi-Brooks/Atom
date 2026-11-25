@@ -15,6 +15,8 @@
 #include <span>
 #include <vector>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::render {
 
 struct FontMetricsPx {
@@ -36,7 +38,7 @@ struct RasterizedGlyph {
 // Lightweight FreeType-backed single-face provider. The API remains
 // provider-shaped so HarfBuzz TextLayout/fallback can be added without
 // changing the render backend or Renderer2D public contract.
-class Font {
+class ATOM_GRAPHICS_API Font {
     public:
         Font() = default;
         ~Font();

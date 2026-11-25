@@ -11,9 +11,11 @@
 
 #include <Atom/Runtime/System.hpp>
 
+#include <Atom/Build/RuntimeExport.hpp>
+
 namespace atom::runtime {
 
-class SystemScheduler final {
+class ATOM_RUNTIME_API SystemScheduler final {
     public:
         [[nodiscard]] auto Add(SystemPhase phase, SystemDescriptor descriptor) -> Result<void>;
         [[nodiscard]] auto Run(GameWorld& world, const FrameContext& context) -> Result<void>;

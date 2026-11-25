@@ -15,9 +15,11 @@
 
 #include <Atom/Backend/Contracts/Time/ITimeSource.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdl3 {
 
-class SDL3TimeSource final : public ITimeSource {
+class ATOM_BACKENDS_API SDL3TimeSource final : public ITimeSource {
     public:
         SDL3TimeSource();
 

@@ -18,6 +18,8 @@
 #include <Atom/Core/Algorithm/Geometry/Rect.hpp>
 #include <Atom/World/ECS/EntityWorld.hpp>
 
+#include <Atom/Build/GraphicsExport.hpp>
+
 namespace atom::world2d {
 
 struct AnimationFrame2D final {
@@ -39,7 +41,7 @@ struct AnimationEvent2D final {
         std::uint32_t type = 0;
 };
 
-class AnimationLibrary2D final {
+class ATOM_GRAPHICS_API AnimationLibrary2D final {
     public:
         [[nodiscard]] auto AddClip(AnimationClip2D clip) -> bool;
         [[nodiscard]] auto BindState(std::string state, std::string clip_name) -> bool;
@@ -54,7 +56,7 @@ class AnimationLibrary2D final {
         std::unordered_map<std::string, std::unordered_map<std::string, std::string>> transitions_{};
 };
 
-class AnimationSystem2D final {
+class ATOM_GRAPHICS_API AnimationSystem2D final {
     public:
         explicit AnimationSystem2D(const AnimationLibrary2D& library) : library_(&library) {}
 

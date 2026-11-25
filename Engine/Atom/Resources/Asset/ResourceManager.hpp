@@ -25,6 +25,8 @@
 #include <Atom/Core/Error/Error.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 
+#include <Atom/Build/CoreExport.hpp>
+
 namespace atom::asset {
 
 // Synchronous resource cache. Same ResourceId returns the same live instance.
@@ -34,7 +36,7 @@ namespace atom::asset {
 // Thread model (D6): Acquire is not internally synchronized. Callers must not
 // invoke Acquire concurrently on the same manager. Handles may be copied
 // across threads only if T itself is safe to share that way.
-class ResourceManager final {
+class ATOM_CORE_API ResourceManager final {
     public:
         explicit ResourceManager(const fs::IFileSystem& filesystem);
         ~ResourceManager();

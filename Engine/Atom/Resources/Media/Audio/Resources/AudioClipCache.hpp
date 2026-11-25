@@ -10,9 +10,11 @@
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 #include <Atom/Resources/Media/Audio/Resources/AudioClipLoader.hpp>
 
+#include <Atom/Build/MediaAudioExport.hpp>
+
 namespace atom {
 
-class AudioClipCache final {
+class ATOM_MEDIA_AUDIO_API AudioClipCache final {
     public:
         AudioClipCache();
         explicit AudioClipCache(atom::audio::AudioDecoderRegistry& decoders) : loader_(decoders) {}

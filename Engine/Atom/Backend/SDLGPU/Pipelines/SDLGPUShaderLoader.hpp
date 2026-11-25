@@ -16,12 +16,14 @@
 
 #include <SDL3/SDL.h>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdlgpu {
 
 // Runtime loader for precompiled shader variants. It is backend-specific on
 // purpose: Render/Shader owns source/manifests, while this class translates a
 // package into SDL_GPUShader objects and selects a supported format.
-auto LoadSDLGPUShader(SDL_GPUDevice* device, const std::filesystem::path& root, std::string_view name,
+ATOM_BACKENDS_API auto LoadSDLGPUShader(SDL_GPUDevice* device, const std::filesystem::path& root, std::string_view name,
                       SDL_GPUShaderStage stage, uint32_t uniform_buffers, uint32_t samplers) -> SDL_GPUShader*;
 
 } // namespace atom::backend::sdlgpu

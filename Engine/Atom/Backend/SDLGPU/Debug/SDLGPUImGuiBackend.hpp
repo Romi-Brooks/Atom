@@ -12,6 +12,8 @@
 
 #include <memory>
 
+#include <Atom/Build/DebuggerExport.hpp>
+
 namespace atom::render {
 class IRenderDevice;
 }
@@ -26,7 +28,7 @@ namespace atom::backend::sdlgpu {
 
 // Creates the SDL_GPU ImGui render backend if the device is a SDLGPUDevice;
 // input, size, and time are supplied by the backend-neutral IWindow contract.
-auto CreateSDLGPUImGuiBackend(window::IWindow& window, render::IRenderDevice& device)
+ATOM_DEBUGGER_API auto CreateSDLGPUImGuiBackend(window::IWindow& window, render::IRenderDevice& device)
     -> std::unique_ptr<debugger::IDebugImGuiBackend>;
 
 } // namespace atom::backend::sdlgpu

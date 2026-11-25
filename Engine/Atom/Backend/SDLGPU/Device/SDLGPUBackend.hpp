@@ -15,9 +15,11 @@
 #include <Atom/Backend/SDL3/Time/SDL3TimeSource.hpp>
 #include <Atom/Backend/SDL3/Window/SDL3Window.hpp>
 
+#include <Atom/Build/BackendsExport.hpp>
+
 namespace atom::backend::sdlgpu {
 
-class SDLGPUBackend final : public render::IRenderBackend {
+class ATOM_BACKENDS_API SDLGPUBackend final : public render::IRenderBackend {
     public:
         ~SDLGPUBackend() override;
         auto Initialize(const RenderBackendConfig& config) -> bool override;
