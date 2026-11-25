@@ -22,7 +22,7 @@ namespace atom {
 
 // Runtime metadata registration used by the debugger. This declaration is
 // intentionally ImGui-free; the implementation lives in Atom_Log.
-ATOM_CORE_API auto RegisterLogChannelDomain(std::string_view prefix, const std::string_view* names, std::size_t count) -> void;
+ATOM_CORE_API void RegisterLogChannelDomain(std::string_view prefix, const std::string_view* names, std::size_t count);
 
 } // namespace atom
 

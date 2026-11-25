@@ -33,7 +33,11 @@ add_subdirectory(ThirdParty)
 # BOM-less, so pin the source charset instead of depending on the host locale.
 # This sits after ThirdParty so vendored sources keep their own encodings.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    add_compile_options(/utf-8)
+    # /utf-8: pin the source charset (several headers contain UTF-8 comments
+    # and the exported files are BOM-less).
+    # /Zc:preprocessor: use the conforming preprocessor; the traditional one
+    # mis-expands the variadic channel macros in LogChannelMacros.hpp.
+    add_compile_options(/utf-8 /Zc:preprocessor)
 endif()
 
 include(Engine/Atom/Presentation/Render/Shader/AtomShaders.cmake)
