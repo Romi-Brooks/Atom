@@ -25,10 +25,20 @@ class IAudioBackendChangeListener;
 class ATOM_BACKENDS_API BackendRuntime final {
     public:
         static auto GetInstance() -> BackendRuntime&;
+        // Returns the already-created singleton, or nullptr when nothing has
+        // used audio yet. Process-exit teardown must use this: GetInstance()
+        // would construct a backend just to destroy it.
+        [[nodiscard]] static auto TryGetInstance() -> BackendRuntime*;
         ~BackendRuntime();
 
         BackendRuntime(const BackendRuntime&) = delete;
         auto operator=(const BackendRuntime&) -> BackendRuntime& = delete;
+
+        // Stops and destroys the active audio backend. Called before the
+        // process/DLL teardown so SDL's audio subsystem is quit from normal
+        // code instead of DllMain (where the WASAPI join can block forever).
+        // Idempotent; after this Audio() returns the null backend.
+        auto Shutdown() -> void;
 
         // Active playback backend. Never null and never throws: while no backend
         // is active these return the NullAudioBackend, whose factories report

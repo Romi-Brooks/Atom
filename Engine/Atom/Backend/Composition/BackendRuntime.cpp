@@ -1,6 +1,7 @@
 #include "BackendRuntime.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <stdexcept>
 #include <utility>
@@ -27,9 +28,42 @@ auto NormalizeBackendId(const std::string_view id) -> std::string {
 }
 } // namespace
 
+namespace {
+// Process-lifetime singleton. It is intentionally never destroyed: an
+// automatic object would run its destructor from DllMain/CRT exit, where
+// SDL_QuitSubSystem(Audio) can block inside the WASAPI driver and keep the
+// whole process alive. Shutdown() is called explicitly from the process-exit
+// shim while the DLL is still loaded.
+std::atomic<BackendRuntime*> g_backend_runtime{nullptr};
+} // namespace
+
 auto BackendRuntime::GetInstance() -> BackendRuntime& {
-    static BackendRuntime instance;
-    return instance;
+    static auto* instance = [] {
+        auto* created = new BackendRuntime();
+        g_backend_runtime.store(created, std::memory_order_release);
+        return created;
+    }();
+    return *instance;
+}
+
+auto BackendRuntime::TryGetInstance() -> BackendRuntime* {
+    return g_backend_runtime.load(std::memory_order_acquire);
+}
+
+auto BackendRuntime::Shutdown() -> void {
+    std::shared_ptr<audio::IAudioBackend> previous;
+    {
+        const std::scoped_lock lock{backend_mutex_};
+        previous = std::move(audio_backend_);
+        audio_backend_id_.clear();
+    }
+    if (!previous)
+        return;
+
+    // Sources must be released before the SDL audio subsystem goes away:
+    // SDL_QuitSubSystem destroys every remaining SDL_AudioStream in the process.
+    previous->Quiesce();
+    previous.reset();
 }
 
 BackendRuntime::BackendRuntime() {

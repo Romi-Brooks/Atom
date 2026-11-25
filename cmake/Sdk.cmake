@@ -113,7 +113,9 @@ if(ATOM_BUILD_SHARED)
 
     if(WIN32)
         target_sources(Atom_Sdk_Core PRIVATE cmake/AtomCoreShutdown.cpp)
+        target_sources(Atom_Sdk_Backends PRIVATE cmake/AtomBackendsShutdown.cpp)
         target_sources(Atom_Sdk_Runtime PRIVATE cmake/AtomRuntimeShutdown.cpp)
+        target_link_libraries(Atom_Sdk_Runtime PRIVATE Atom_Sdk_Backends)
         target_sources(Atom_Sdk_Core INTERFACE
             "$<BUILD_INTERFACE:$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${PROJECT_SOURCE_DIR}/cmake/AtomProcessExit.cpp>>")
         target_compile_definitions(Atom_Sdk_Runtime INTERFACE
