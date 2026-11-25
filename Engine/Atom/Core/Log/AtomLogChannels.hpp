@@ -15,7 +15,7 @@
 
 // Engine log channel form. Design and usage: see Log/Doc/LogSystem.md.
 // One ATOM_DEFINE_CHANNELS block per domain: (CppName, "DisplayName"),
-// output = domain prefix + DisplayName + " -> ". Each domain holds up to 16 channels.
+// output = domain prefix + DisplayName + " -> ". Each domain holds up to 64 channels.
 
 // Level-1
 ATOM_DEFINE_CHANNELS(atom::log::core, Channel, "Atom.", (Main, "Main"), (Logger, "Logger"),

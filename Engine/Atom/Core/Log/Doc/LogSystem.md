@@ -90,7 +90,7 @@ Complete list of engine channels (grouped by domain):
 | `atom::log::backend::sdl3::Window` | Atom.SDL3.Backend.Window |
 | `atom::log::utilities::Packager` | Atom.Utilities.Packager |
 
-To add a channel, add one `(PascalCaseName, "Display.Name")` entry to the appropriate domain in `Log/AtomLogChannels.hpp`. Each domain supports up to 16 channels; you can nest domains arbitrarily deep (e.g. `atom::log::entity::npc`). Backend implementation channels are the exception: use their canonical runtime IDs, such as `sdl3` and `sdl3_mixer`.
+To add a channel, add one `(PascalCaseName, "Display.Name")` entry to the appropriate domain in `Log/AtomLogChannels.hpp`. Each domain supports up to 64 channels; you can nest domains arbitrarily deep (e.g. `atom::log::entity::npc`). Backend implementation channels are the exception: use their canonical runtime IDs, such as `sdl3` and `sdl3_mixer`.
 
 ### Game Channels (Custom Domain)
 
@@ -272,6 +272,6 @@ Domain-based filtering is the next planned feature set
 
 1. Channels are **enums** — typos fail at compile time, and the IDE autocompletes them.
 2. Display format is `prefix + shortName + " -> "`. Engine domains use `Atom.*` prefixes; each game domain picks its own.
-3. To add a channel, add one line to the form of its domain (`(CPP_NAME, "Short.Name")`). A single domain supports up to 16 channels; nesting domains is unlimited.
+3. To add a channel, add one line to the form of its domain (`(CPP_NAME, "Short.Name")`). A single domain supports up to 64 channels; nesting domains is unlimited.
 4. Ad-hoc channels are plain strings — no declaration or registration required.
 5. Log output is serialized by an internal mutex. Changing the view level concurrently with logging is not yet guaranteed to be thread-safe.
