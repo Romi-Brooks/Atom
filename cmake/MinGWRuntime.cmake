@@ -1,6 +1,4 @@
 if(MINGW)
-    target_link_options(Atom_Engine PRIVATE -lstdc++exp -lws2_32)
-
     # The thread runtime stays a DLL. Runtime outputs now split across the build
     # root (engine + tools), AtomTest/ and AtomExample/, and Windows resolves a
     # DLL next to the loading executable rather than in a parent directory, so
@@ -30,7 +28,7 @@ if(MINGW)
 
         add_custom_target(Atom_Mingw_Runtime_DLL DEPENDS ${atom_mingw_runtime_copies})
 
-        foreach(atom_exe IN ITEMS Atom_Engine Example_Audio_Playback
+        foreach(atom_exe IN ITEMS Example_Audio_Playback
                                Example_Audio_Metadata Example_SFX_Playback
                                Example_Simple_Window Example_Simple_Window_Debug
                                Example_Packaged_Music Example_Log_Channel_Demo

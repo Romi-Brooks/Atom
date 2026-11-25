@@ -31,7 +31,7 @@ include(Engine/Presentation/Render/Shader/AtomShaders.cmake)
 # scope, so setting them further down this file silently skips every target
 # already defined. That is exactly how the test executables ended up dynamically
 # linked against libstdc++-6.dll / libgcc_s_seh-1.dll with no copy of either DLL
-# produced anywhere, while Atom.exe got both flags and worked.
+# produced anywhere, while the executables that did get both flags worked.
 if(MINGW)
     # Statically link libgcc and libstdc++ so executables do not require
     # libgcc_s_seh-1.dll / libstdc++-6.dll. Plain "-static" is avoided: this
@@ -53,17 +53,6 @@ set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow build 
 set_property(CACHE ATOM_ENABLE_DEBUGGER PROPERTY STRINGS AUTO ON OFF)
 include(cmake/ApplicationEntry.cmake)
 include(Engine/Targets.cmake)
-
-# Main Exec
-add_executable(Atom_Engine Engine/Atom.cpp)
-set_target_properties(Atom_Engine PROPERTIES OUTPUT_NAME Atom)
-
-target_link_libraries(Atom_Engine PRIVATE
-        Atom_All
-)
-if(WIN32)
-    target_link_libraries(Atom_Engine PRIVATE opengl32 gdi32)
-endif()
 
 include(cmake/Targets/Examples.cmake)
 include(Tools/Targets.cmake)
