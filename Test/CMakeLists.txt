@@ -11,6 +11,10 @@ function(atom_add_test test_name target_name source)
     target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     # Allow #include <Test/...> helpers via project root.
     target_include_directories(${target_name} PRIVATE ${PROJECT_SOURCE_DIR})
+    # Keep test binaries out of the build root: AtomTest/ holds every test
+    # executable, mirroring AtomExample/ for the runnable examples.
+    set_target_properties(${target_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/AtomTest")
     add_test(NAME ${test_name} COMMAND ${target_name})
     set(ATOM_TEST_ALL_TARGETS ${ATOM_TEST_ALL_TARGETS} ${target_name} PARENT_SCOPE)
 endfunction()

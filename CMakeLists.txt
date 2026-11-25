@@ -41,9 +41,9 @@ if(MINGW)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
 
     # libwinpthread stays a DLL, and Windows resolves it next to the loading
-    # executable rather than in a parent directory -- so tests built into Test/
-    # could never see the copy made for the build root. Collecting every Atom
-    # executable in one directory lets a single copy serve all of them.
+    # executable rather than in a parent directory. The build root holds the
+    # engine and the tools while AtomTest/ and AtomExample/ hold test and
+    # example binaries, so cmake/MinGWRuntime.cmake drops one copy in each.
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 endif()
 

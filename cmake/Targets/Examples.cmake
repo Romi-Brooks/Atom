@@ -93,6 +93,8 @@ target_link_libraries(Example_Physics_Benchmark PRIVATE Atom_Physics Atom_Concur
 add_executable(Example_ECS_Tour Example/ECS/EntityWorldTour.cpp)
 target_link_libraries(Example_ECS_Tour PRIVATE Atom_ECS)
 
+# Examples are runnable programs, not the engine: keep their binaries in
+# AtomExample/ so the build root only holds the engine and the tools.
 foreach(window_example IN ITEMS
         Example_Audio_Playback
         Example_SFX_Playback
@@ -104,6 +106,8 @@ foreach(window_example IN ITEMS
         Example_Input_Demo
         Example_UI_Runtime_Demo
         Example_Physics_Demo)
+    set_target_properties(${window_example} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/AtomExample")
     atom_use_application_entry(${window_example} WINDOWED)
 endforeach()
 
@@ -113,5 +117,7 @@ foreach(console_example IN ITEMS
         Example_Log_Channel_Demo
         Example_Physics_Benchmark
         Example_ECS_Tour)
+    set_target_properties(${console_example} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/AtomExample")
     atom_use_application_entry(${console_example} CONSOLE)
 endforeach()
