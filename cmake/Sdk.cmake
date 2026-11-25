@@ -51,7 +51,7 @@ set_property(TARGET Atom_All Atom_Core PROPERTY ATOM_SDK_LIBRARY Atom_Sdk)
 set_property(TARGET Atom_All PROPERTY INTERFACE_LINK_LIBRARIES Atom_Sdk)
 
 add_library(Atom_Sdk SHARED)
-target_link_libraries(Atom_Sdk PRIVATE ${atom_sdk_objects})
+target_link_libraries(Atom_Sdk PRIVATE ${atom_sdk_objects} Atom_3rd_Lua Atom_3rd_ImGui)
 target_compile_features(Atom_Sdk PUBLIC cxx_std_23)
 target_compile_definitions(Atom_Sdk INTERFACE ATOM_BUILD_SHARED ATOM_ENABLE_DEBUGGER=$<BOOL:${_atom_debugger_enabled}>)
 target_include_directories(Atom_Sdk INTERFACE
@@ -68,20 +68,18 @@ if(WIN32)
     target_sources(Atom_Sdk INTERFACE
         "$<BUILD_INTERFACE:$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${PROJECT_SOURCE_DIR}/cmake/AtomProcessExit.cpp>>")
 
-    # Existing in-tree examples call ImGui and Lua directly. Export those APIs
-    # from the monolithic DLL before they receive separate owners.
+    # Atom.dll owns the vendored Lua and ImGui implementations in this build.
+    # Lua's C sources already select LUA_CORE or LUA_LIB themselves.
     target_compile_definitions(Atom_3rd_ImGui PUBLIC "IMGUI_API=__declspec(dllexport)")
     target_compile_definitions(Atom_3rd_Lua PRIVATE LUA_BUILD_AS_DLL)
     target_compile_definitions(Atom_Lua PRIVATE LUA_BUILD_AS_DLL LUA_CORE)
     target_compile_definitions(Atom_Sdk INTERFACE
         "$<BUILD_INTERFACE:IMGUI_API=__declspec(dllimport)>"
         "$<BUILD_INTERFACE:LUA_BUILD_AS_DLL>")
-
-    # The backend error test calls these functions in the same copy of SDL.
-    # Once SDL is shared, the test links SDL3 directly instead.
-    if(ATOM_BUILD_TESTS)
-        target_sources(Atom_Sdk PRIVATE cmake/AtomSdkSdlTest.def)
-    endif()
+elseif(APPLE)
+    set_target_properties(Atom_Sdk PROPERTIES INSTALL_RPATH "@loader_path")
+elseif(UNIX)
+    set_target_properties(Atom_Sdk PROPERTIES INSTALL_RPATH "$ORIGIN")
 endif()
 
 set(atom_sdk_targets Atom_Sdk Atom_Entry)
@@ -112,6 +110,13 @@ install(TARGETS ${atom_sdk_targets} EXPORT AtomTargets
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(EXPORT AtomTargets NAMESPACE Atom:: DESTINATION "${atom_sdk_cmake_dir}")
+
+# Consumers load SDL through Atom. The SDK only needs SDL's runtime files.
+install(TARGETS Atom_3rd_SDL3
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+install(FILES ThirdParty/SDL3/LICENSE.txt DESTINATION "${CMAKE_INSTALL_DATADIR}/Atom/licenses" RENAME SDL3.txt)
+install(FILES ThirdParty/ImGUI/LICENSE.txt DESTINATION "${CMAKE_INSTALL_DATADIR}/Atom/licenses" RENAME ImGui.txt)
 
 install(DIRECTORY Engine/Atom/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Atom"
     FILES_MATCHING PATTERN "*.hpp"

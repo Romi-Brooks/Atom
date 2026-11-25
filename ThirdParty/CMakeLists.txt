@@ -71,8 +71,17 @@ target_include_directories(Atom_3rd_UtfCpp INTERFACE "${ATOM_UTFCPP_DIR}/source"
 # --------------------------------------------------------------------------
 # SDL3
 # --------------------------------------------------------------------------
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
+if(ATOM_BUILD_SHARED)
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+    set(atom_sdl_target SDL3-shared)
+    set(atom_sdl_overlay SDL3-shared)
+else()
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(atom_sdl_target SDL3-static)
+    set(atom_sdl_overlay SDL3)
+endif()
 set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
 set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -83,13 +92,13 @@ set(SDL_UNINSTALL OFF CACHE BOOL "" FORCE)
 set(SDL_REVISION "SDL-3.4.12-release-3.4.12" CACHE STRING "" FORCE)
 
 file(SHA256 "${ATOM_SDL3_DIR}/CMakeLists.txt" ATOM_SDL3_CMAKE_HASH)
-set(ATOM_SDL3_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/TargetOverlays/SDL3")
+set(ATOM_SDL3_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/TargetOverlays/${atom_sdl_overlay}")
 atom_prepare_target_overlay(
     "${ATOM_SDL3_DIR}"
     "${ATOM_SDL3_OVERLAY_DIR}"
     "${ATOM_SDL3_CMAKE_HASH}:Atom_3rd_SDL3:v1"
 )
-atom_replace_cmake_identifier("${ATOM_SDL3_OVERLAY_DIR}" "SDL3-static" "Atom_3rd_SDL3")
+atom_replace_cmake_identifier("${ATOM_SDL3_OVERLAY_DIR}" "${atom_sdl_target}" "Atom_3rd_SDL3")
 
 add_subdirectory(
     "${ATOM_SDL3_OVERLAY_DIR}"
@@ -139,7 +148,13 @@ add_subdirectory(
 # --------------------------------------------------------------------------
 # Lua
 # --------------------------------------------------------------------------
-add_library(Atom_3rd_Lua STATIC
+# Include each translation unit in its SDK owner even if Atom itself only
+# calls part of the public API. Source builds keep ordinary static libraries.
+set(atom_sdk_dependency_type STATIC)
+if(ATOM_BUILD_SHARED)
+    set(atom_sdk_dependency_type OBJECT)
+endif()
+add_library(Atom_3rd_Lua ${atom_sdk_dependency_type}
     "${ATOM_LUA_DIR}/lapi.c"
     "${ATOM_LUA_DIR}/lauxlib.c"
     "${ATOM_LUA_DIR}/lbaselib.c"
@@ -187,7 +202,7 @@ endif()
 # --------------------------------------------------------------------------
 # Dear ImGui core and SDL3 backends
 # --------------------------------------------------------------------------
-add_library(Atom_3rd_ImGui STATIC
+add_library(Atom_3rd_ImGui ${atom_sdk_dependency_type}
     "${ATOM_IMGUI_DIR}/imgui.cpp"
     "${ATOM_IMGUI_DIR}/imgui_draw.cpp"
     "${ATOM_IMGUI_DIR}/imgui_tables.cpp"

@@ -2,7 +2,7 @@ if(NOT WIN32)
     return()
 endif()
 
-set(runtime_files "$<TARGET_FILE:Atom_Sdk>")
+set(runtime_files "$<TARGET_FILE:Atom_Sdk>" "$<TARGET_FILE:Atom_3rd_SDL3>")
 if(MINGW)
     get_filename_component(compiler_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
     foreach(runtime IN ITEMS libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll)

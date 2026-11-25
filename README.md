@@ -128,7 +128,10 @@ atom_application(my_game CONSOLE)
 ```
 
 Implement `atom::platform::ApplicationMain` from `<Atom/AtomMain.hpp>`. On
-Windows, deploy the SDK DLLs from `Atom_RUNTIME_DIR` beside the executable.
+Windows, deploy the DLLs from `Atom_RUNTIME_DIR`, including `SDL3.dll`, beside
+the executable. Link `Atom::Scripting` for Lua bindings and `Atom::Debugger`
+for custom ImGui panels. Both components provide their vendored headers and
+API symbols through the SDK.
 CMake links the SDK's process-exit cleanup into applications that use the
 package, including applications with their own `main`. The package also
 provides `Atom_SHADER_DIR` for the installed shader assets.

@@ -183,7 +183,7 @@ target_link_libraries(my_game PRIVATE Atom::Graphics Atom::Runtime Atom::Entry)
 | D01 | 源码树迁到 `Engine/Atom/...`，用户包含 `<Atom/...>` | 安装后 `include/` 是公共目录，`<Window/...>` 这类名字会和别的库撞车；开发/安装路径一致 | 安装时复制并改写 include（脆弱、双份真相） |
 | D02 | 每个模块一个导出宏（`ATOM_CORE_API` 等） | 多 DLL 时同一个 `ATOM_EXPORTS` 会把别的模块符号也标成导出 | 全仓一个 `ATOM_API` |
 | D03 | `SDL3.dll` 共享；其余第三方静态进各自唯一宿主 DLL | 一份 SDL 状态；其余第三方各只有一个模块使用，静态更省部署 | 所有第三方都做 DLL（DLL 过多） |
-| D03a | **Lua 不单独出 DLL**：Lua 源码编进 `Atom.Scripting.dll`，并导出 Lua C API（`LUA_BUILD_AS_DLL`） | `LuaHost.hpp` 公开了 `lua_State*`/`BindingRegistrar`，用户写绑定需要 `lua_*` 符号。把 Lua 编进 Scripting 并导出 C API，既只有一份 Lua 状态，又不用多一个第三方 DLL | 单独 `lua.dll`（多一个文件）；或叫 `Atom.Lua.dll`（只是改名，仍需单独模块） |
+| D03a | **Lua 不单独出 DLL**：Lua 源码编进 `Atom.Scripting.dll`，并导出 Lua C API（`LUA_BUILD_AS_DLL`） | `LuaHost.hpp` 公开了 `lua_State*`/`BindingRegistrar`，用户写绑定需要 `lua_*` 符号。把 Lua 编进 Scripting 并导出 C API，Lua 实现只编译到一个 DLL，由各 LuaHost 管理自己的状态 | 单独 `lua.dll`（多一个文件）；或叫 `Atom.Lua.dll`（只是改名，仍需单独模块） |
 | D04 | `Backend/Contracts` 放进 `Atom.Core.dll` | 契约是最底层；用户只链 Core 就能拿到接口，不需要理解「Contracts 是什么模块」 | 单独 `Atom.Contracts.dll`（多一个令人困惑的模块） |
 | D05 | 第一版 10 个 DLL（见 4.3），**Debugger 必进** | 覆盖可选子系统 + 重第三方；不过度碎片化；调试能力是必须的 | 单 DLL（更新/可选性差）；按 30 个 target 全拆（DLL 太碎） |
 | D06 | 粒度规则：整体可省略 / 绑重第三方 / 有独立生命周期，满足其一才单独成 DLL | 防止「拆得爽、维护哭」；拆分只是 CMake 工作，可后补 | 固定数量、按目录机械拆 |
@@ -347,7 +347,7 @@ Debugger → Core + Platform + Runtime + Backends + SDL3
 
 为什么这样做：
 
-- 全进程只有一份 Lua 状态、一份 ImGui context；
+- 全进程加载一份 Lua 实现，各 LuaHost 管理自己的 Lua 状态。Atom 调试面板共用引擎的 ImGui context。
 - 用户无需额外链接 `lua.lib` / `imgui.lib`，也不会出现「DLL 里一个 context、exe 里一个 context」；
 - 代价：**用户不能同时再链接另一份 Lua/ImGui**（文档写明）；Linux 上把相应 DLL 的符号可见性设为 default。
 
@@ -880,7 +880,7 @@ cmake --build _smoke
 dumpbin /dependents _sdk/bin/Atom.dll            # 确认链接 SDL3.dll
 dumpbin /exports _sdk/bin/Atom.dll | findstr lua_
 dumpbin /exports _sdk/bin/Atom.dll | findstr ImGui
-# 两个 SdkSmoke（基础 + 自定义面板）都能编译运行
+# SdkSmoke 验证基础入口、自定义 main、ImGui 面板和 Lua 绑定
 ```
 
 ### Phase 6：拆分为 10 个 DLL
@@ -921,8 +921,8 @@ dumpbin /exports _sdk/bin/Atom.dll | findstr ImGui
 | 单元测试 | 81 个 CTest（`AtomTest/`） | 每次构建/PR |
 | 入口测试 | 控制台 example、GUI example 启动即退出 | CI（GUI 可用 `SDL_VIDEODRIVER=dummy` 或 smoke 退出） |
 | 安装后冒烟 | `Test/SdkSmoke`：只 `find_package(Atom)`，编译一个最小 `ApplicationMain` 并运行 | 每次 install 后 |
-| 自定义面板冒烟 | `Test/SdkSmokePanel`：`#include <imgui.h>` + `DebugPanel`，链 `Atom::Debugger` | 发布前 |
-| 脚本绑定冒烟 | `Test/SdkSmokeLua`：`LuaHost` + 一个自定义 `BindingRegistrar`（调用 `lua_*`） | 发布前 |
+| 自定义面板冒烟 | `Test/SdkSmoke` 中的 `AtomSdkPanel`：通过 `Atom::Debugger` 在消费方创建 ImGui 上下文，验证面板位置和绘制数据 | S5 起，每次安装后 |
+| 脚本绑定冒烟 | `Test/SdkSmoke` 中的 `AtomSdkLua`：通过 `Atom::Scripting` 注册消费方的 Lua 回调，执行脚本并读取结果 | S5 起，每次安装后 |
 | 符号/依赖检查 | `dumpbin /dependents` / `objdump -p`；确认无重复 SDL、无 `lua.dll`/`imgui.dll`，`lua_*`/`ImGui` 从宿主 DLL 导出 | 发布前 |
 | 公开头自包含 | 每个安装头单独编译 | PR |
 | 工具链矩阵 | MSVC / MinGW-GCC / clang-cl / Linux GCC / Linux Clang | 发布前 |
@@ -1164,7 +1164,8 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
    INTERFACE 定义 `LUA_BUILD_AS_DLL`。
 4. ImGui 源码编进本阶段共享库：构建 `IMGUI_API=__declspec(dllexport)`，
    INTERFACE `IMGUI_API=__declspec(dllimport)`。
-5. install：`SDL3.dll` → `bin/`；lua/imgui 头 → `include/lua/`、`include/imgui/`。
+5. Windows 安装 `SDL3.dll` 到 `bin/`。Lua 和 ImGui 公开头随对应组件提供。
+   Linux 把 SDL3 共享库与 Atom 放在同一个库目录，由相对运行时搜索路径定位。
 6. 验收：
 
    ```powershell
@@ -1173,6 +1174,9 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
    dumpbin /exports _sdk/bin/Atom.dll | findstr ImGui
    # 基础 SdkSmoke + 自定义面板 SdkSmoke + Lua 绑定 SdkSmoke
    ```
+
+   MinGW 使用 `objdump -p` 检查导入和导出。共享构建的 `SdlError` 直接链接同一个 SDL3 DLL，
+   验证测试端设置的错误能由 Atom 后端读取。安装包在搬迁后的前缀中运行四个 SdkSmoke。
 
 7. 提交：`build(sdk): share SDL3 and export Lua/ImGui APIs from their host DLLs`。
 

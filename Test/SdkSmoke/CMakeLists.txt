@@ -10,6 +10,12 @@ atom_application(HelloAtom CONSOLE)
 add_executable(AtomCustomMain CustomMain.cpp)
 target_link_libraries(AtomCustomMain PRIVATE Atom::Runtime Atom::Core)
 
+add_executable(AtomSdkLua LuaBinding.cpp)
+target_link_libraries(AtomSdkLua PRIVATE Atom::Scripting)
+
+add_executable(AtomSdkPanel DebugPanel.cpp)
+target_link_libraries(AtomSdkPanel PRIVATE Atom::Debugger)
+
 # Compile each installed header in a separate translation unit. The only
 # Atom include directories are the ones advertised by the installed targets.
 file(GLOB_RECURSE headers CONFIGURE_DEPENDS RELATIVE "${Atom_INCLUDE_DIR}" "${Atom_INCLUDE_DIR}/Atom/*.hpp")
@@ -30,11 +36,16 @@ if(WIN32)
         COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:HelloAtom>"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${runtime_dlls} "$<TARGET_FILE_DIR:HelloAtom>"
         VERBATIM)
-    add_dependencies(HelloAtom StageAtomSdkRuntime)
-    add_dependencies(AtomCustomMain StageAtomSdkRuntime)
+    foreach(target IN ITEMS HelloAtom AtomCustomMain AtomSdkLua AtomSdkPanel)
+        add_dependencies(${target} StageAtomSdkRuntime)
+    endforeach()
 endif()
 foreach(target IN ITEMS HelloAtom AtomCustomMain)
     add_test(NAME ${target} COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:${target}>"
         "-DCHECK_SCREEN=$<AND:$<PLATFORM_ID:Windows>,$<STREQUAL:${target},AtomCustomMain>>" -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckProgram.cmake")
+    set_tests_properties(${target} PROPERTIES TIMEOUT 15)
+endforeach()
+foreach(target IN ITEMS AtomSdkLua AtomSdkPanel)
+    add_test(NAME ${target} COMMAND ${target})
     set_tests_properties(${target} PROPERTIES TIMEOUT 15)
 endforeach()

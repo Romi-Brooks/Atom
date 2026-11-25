@@ -1,4 +1,0 @@
-EXPORTS
-    SDL_ClearError
-    SDL_GetError
-    SDL_SetError

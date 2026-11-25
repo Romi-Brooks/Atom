@@ -304,8 +304,7 @@ atom_add_test(Atom_Backend_SDL3_Core.SdlError
     Atom_Backend_SDL3_Core)
 
 if(ATOM_BUILD_SHARED)
-    target_include_directories(Atom_Backend_SDL3_Core_SdlError_Tests PRIVATE
-        "$<TARGET_PROPERTY:Atom_3rd_SDL3,INTERFACE_INCLUDE_DIRECTORIES>")
+    target_link_libraries(Atom_Backend_SDL3_Core_SdlError_Tests PRIVATE Atom_3rd_SDL3)
 endif()
 
 # Display selection contract: window placement, present mode, capability mask.
