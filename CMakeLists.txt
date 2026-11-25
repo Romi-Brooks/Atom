@@ -28,6 +28,14 @@ endif()
 # ============================================================================
 add_subdirectory(ThirdParty)
 
+# MSVC otherwise reads UTF-8 sources through the runner's ANSI code page.
+# Several engine headers contain Chinese comments, and the exported files are
+# BOM-less, so pin the source charset instead of depending on the host locale.
+# This sits after ThirdParty so vendored sources keep their own encodings.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options(/utf-8)
+endif()
+
 include(Engine/Atom/Presentation/Render/Shader/AtomShaders.cmake)
 
 # ============================================================================

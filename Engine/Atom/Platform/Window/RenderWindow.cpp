@@ -21,8 +21,11 @@ RenderWindow::~RenderWindow() {
 }
 
 auto RenderWindow::GetInstance() -> RenderWindow& {
-    static RenderWindow instance;
-    return instance;
+    // Process-lifetime singleton, like BackendRuntime. An automatic object
+    // would destroy its backend from DllMain, where SDL's window/video teardown
+    // can block; Application owns the explicit Shutdown() at the frame boundary.
+    static auto* instance = new RenderWindow();
+    return *instance;
 }
 
 namespace {

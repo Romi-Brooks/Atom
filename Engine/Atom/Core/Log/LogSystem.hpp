@@ -1,4 +1,4 @@
-/**
+﻿/**
 * @file           : LogSystem.hpp
   * @author         : Romi Brooks
   * @brief          :

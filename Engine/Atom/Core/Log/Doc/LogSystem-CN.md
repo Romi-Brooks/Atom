@@ -90,7 +90,7 @@ LOG_ERROR(atom::log::utilities::Packager, "Pack failed");
 | `atom::log::backend::sdl3::Window` | Atom.SDL3.Backend.Window |
 | `atom::log::utilities::Packager` | Atom.Utilities.Packager |
 
-新增通道只需在 `Log/AtomLogChannels.hpp` 对应域添加一项 `(PascalCaseName, "Display.Name")`。每个域最多 64 个通道；域可以无限嵌套（如 `atom::log::entity::npc`）。后端实现通道是例外：使用运行时规范 ID，例如 `sdl3`、`sdl3_mixer`。
+新增通道只需在 `Log/AtomLogChannels.hpp` 对应域添加一项 `(PascalCaseName, "Display.Name")`。每个域最多 16 个通道；域可以无限嵌套（如 `atom::log::entity::npc`）。后端实现通道是例外：使用运行时规范 ID，例如 `sdl3`、`sdl3_mixer`。
 
 ### 游戏自定义通道（独立域）
 
@@ -272,6 +272,6 @@ auto connection = atom::Log::Subscribe([](const atom::LogRecord& record) {
 
 1. 通道是**枚举**——拼写错误在编译期就会报错，IDE 也能自动补全。
 2. 显示格式为 `前缀 + 短名 + " -> "`。引擎域统一 `Atom.*` 前缀；游戏每个域自定义前缀。
-3. 新增通道 = 在所属域的表单里加一行 `(CPP_NAME, "Short.Name")`。单个域最多 64 个通道；域可无限嵌套。
+3. 新增通道 = 在所属域的表单里加一行 `(CPP_NAME, "Short.Name")`。单个域最多 16 个通道；域可无限嵌套。
 4. 临时通道直接用字符串，无需声明或注册。
 5. 日志输出由内部 mutex 串行化；并发修改显示等级目前尚不保证线程安全。
