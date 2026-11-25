@@ -6,7 +6,7 @@
 #include <thread>
 #include <utility>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Core/Concurrency/JobSystem.hpp>
 #include <Atom/Core/Log/LogSystem.hpp>
 #include <Atom/Platform/ApplicationPaths.hpp>

@@ -18,7 +18,7 @@
 #include <cstddef>
 #include <iostream>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Core/Log/LogSystem.hpp>
 
 #include "GameChannels.hpp"

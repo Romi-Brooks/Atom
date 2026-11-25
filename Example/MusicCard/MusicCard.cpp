@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Atom/Backend/Composition/BackendRuntime.hpp>
 #include <Atom/Debugger/Panels/LogDebugger.hpp>

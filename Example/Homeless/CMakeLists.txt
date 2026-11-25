@@ -24,7 +24,7 @@ set_target_properties(Example_Homeless PROPERTIES
     OUTPUT_NAME Homeless
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Game")
 
-atom_use_application_entry(Example_Homeless WINDOWED)
+atom_application(Example_Homeless WINDOWED)
 
 get_property(shader_directory TARGET Atom_Shaders PROPERTY ATOM_SHADER_DIRECTORY)
 get_property(shader_files TARGET Atom_Shaders PROPERTY ATOM_SHADER_FILES)

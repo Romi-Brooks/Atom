@@ -19,7 +19,7 @@
 #include <thread>
 #include <vector>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Core/Concurrency/JobSystem.hpp>
 
 namespace {

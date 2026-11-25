@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Input/Key.hpp>
 #include <Atom/Resources/Filesystem/PackageFileSystem.hpp>
 #include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>

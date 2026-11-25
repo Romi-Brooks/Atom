@@ -21,7 +21,7 @@
 #include <iostream>
 #include <string_view>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 #include <Atom/World/Physics/Contracts/IPhysicsWorld.hpp>
 #include <Atom/World/Physics/Contracts/PhysicsTypes.hpp>
@@ -100,7 +100,7 @@ auto PrintUsage() -> void {
 
 } // namespace
 
-auto atom::platform::ApplicationMain(const int argc, char** argv) -> int {
+auto atom::platform::ApplicationMain(int argc, char** argv) -> int {
     Config config{};
     if (!ParseArgs(argc, argv, config)) {
         PrintUsage();

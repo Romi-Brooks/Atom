@@ -12,7 +12,7 @@
 #include <string>
 #include <utility>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Resources/Media/Audio/AudioBackend.hpp>
 #include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
 #include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>

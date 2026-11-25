@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Runtime/Application.hpp>
 #include <Atom/Runtime/Screen.hpp>
 #include <Atom/Runtime/ScreenManager.hpp>

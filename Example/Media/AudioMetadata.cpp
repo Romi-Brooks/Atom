@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Core/Concurrency/JobSystem.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 #include <Atom/Resources/Filesystem/Vfs.hpp>

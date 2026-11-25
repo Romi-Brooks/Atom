@@ -47,9 +47,9 @@ ModuleName/            # 模块名，PascalCase，单数
 
 ### 1.3 示例程序入口
 
-`Example/` 下的可执行程序统一包含 `<Atom/Platform/ApplicationEntry.hpp>` 并实现
+`Example/` 下的可执行程序统一包含 `<Atom/AtomMain.hpp>` 并实现
 `atom::platform::ApplicationMain(int, char**)`。在 CMake 中用
-`atom_use_application_entry(target WINDOWED)` 或 `atom_use_application_entry(target CONSOLE)` 注册。
+`atom_application(target WINDOWED)` 或 `atom_application(target CONSOLE)` 注册。
 独立工具与测试可以定义自己的 `main`。
 
 ## 2. 头文件规范

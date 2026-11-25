@@ -18,7 +18,7 @@
 #include <string>
 #include <string_view>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Resources/Filesystem/FileSystem.hpp>
 #include <Atom/Resources/Filesystem/Vfs.hpp>
 #include <Atom/Core/Log/LogSystem.hpp>

@@ -8,7 +8,7 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Runtime/ScreenManager.hpp>
 #include <Atom/Platform/Window/RenderWindow.hpp>
 #include <Atom/Runtime/Application.hpp>

@@ -28,10 +28,10 @@ atom::Log::SetFileOutput(true);
 
 ## 窗口与 Screen
 
-仓库内的 Example 包含 `<Atom/Platform/ApplicationEntry.hpp>`，并实现
+仓库内的 Example 包含 `<Atom/AtomMain.hpp>`，并实现
 `atom::platform::ApplicationMain(int, char**)`。在 CMake 中用
-`atom_use_application_entry(target WINDOWED)` 配置窗口应用，用
-`atom_use_application_entry(target CONSOLE)` 配置终端工具或无窗口基准。
+`atom_application(target WINDOWED)` 配置窗口应用，用
+`atom_application(target CONSOLE)` 配置终端工具或无窗口基准。
 平台层提供系统入口并传递参数与退出码。独立工具、测试和自行管理进程入口的应用可以直接定义 `main`。
 
 ```cpp

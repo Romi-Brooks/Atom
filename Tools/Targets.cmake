@@ -15,6 +15,7 @@ target_link_libraries(Atom_Tool_Packager PRIVATE Atom_Tool_PackagerOperations At
 if(WIN32)
     # Preserve shell waiting, exit codes and redirection for CLI/TUI commands.
     # Windows 11 24H2+ skips console creation for desktop launches with this manifest.
+    set(ATOM_WINDOWS_QUIET_RELEASE "$<AND:$<CONFIG:Release,MinSizeRel>,$<NOT:$<STREQUAL:${ATOM_ENABLE_DEBUGGER},ON>>>")
     set(packager_manifest "${CMAKE_CURRENT_LIST_DIR}/Packager/Packager.manifest")
     if(MSVC)
         target_sources(Atom_Tool_Packager PRIVATE "$<${ATOM_WINDOWS_QUIET_RELEASE}:${packager_manifest}>")

@@ -16,7 +16,7 @@
 #include <cmath>
 #include <string>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Platform/Window/RenderWindow.hpp>
 #include <Atom/Runtime/Application.hpp>
 #include <Atom/Runtime/Screen.hpp>

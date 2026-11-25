@@ -108,7 +108,7 @@ foreach(window_example IN ITEMS
         Example_Physics_Demo)
     set_target_properties(${window_example} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/AtomExample")
-    atom_use_application_entry(${window_example} WINDOWED)
+    atom_application(${window_example} WINDOWED)
 endforeach()
 
 foreach(console_example IN ITEMS
@@ -119,5 +119,5 @@ foreach(console_example IN ITEMS
         Example_ECS_Tour)
     set_target_properties(${console_example} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/AtomExample")
-    atom_use_application_entry(${console_example} CONSOLE)
+    atom_application(${console_example} CONSOLE)
 endforeach()

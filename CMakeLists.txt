@@ -51,7 +51,7 @@ endif()
 # binary paths and support cross-module target references.
 set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow build type), ON, or OFF")
 set_property(CACHE ATOM_ENABLE_DEBUGGER PROPERTY STRINGS AUTO ON OFF)
-include(cmake/ApplicationEntry.cmake)
+include(cmake/AtomHelpers.cmake)
 include(Engine/Targets.cmake)
 
 include(cmake/Targets/Examples.cmake)

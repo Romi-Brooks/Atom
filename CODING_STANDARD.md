@@ -45,8 +45,8 @@ ModuleName/            # PascalCase, singular
 ### 1.3 Example Entry Points
 
 Every executable under `Example/` implements `atom::platform::ApplicationMain(int, char**)` from
-`<Atom/Platform/ApplicationEntry.hpp>`. Register it with `atom_use_application_entry(target WINDOWED)`
-or `atom_use_application_entry(target CONSOLE)` in CMake. Standalone tools and tests can define `main`.
+`<Atom/AtomMain.hpp>`. Register it with `atom_application(target WINDOWED)`
+or `atom_application(target CONSOLE)` in CMake. Standalone tools and tests can define `main`.
 
 ## 2. Header File Rules
 

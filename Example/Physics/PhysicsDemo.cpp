@@ -26,7 +26,7 @@
 #include <variant>
 #include <vector>
 
-#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/AtomMain.hpp>
 #include <Atom/Core/Algorithm/Color/Color.hpp>
 #include <Atom/Core/Algorithm/Geometry/Rect.hpp>
 #include <Atom/Core/Algorithm/Vector/Vec2.hpp>
