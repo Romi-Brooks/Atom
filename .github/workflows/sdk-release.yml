@@ -106,25 +106,33 @@ jobs:
               $build = "build-$kind"
               cmake -S . -B $build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DATOM_BUILD_SHARED=$($variants[$kind])" -DATOM_ENABLE_DEBUGGER=ON @compilerArgs
               $buildLog = "$build-build.log"
+              $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+              $PSNativeCommandUseErrorActionPreference = $false
               cmake --build $build --parallel 3 2>&1 | Tee-Object -FilePath $buildLog
-              if ($LASTEXITCODE -ne 0) {
-                  Select-String -Path $buildLog -Pattern 'error C[0-9]+|fatal error|error LNK' |
+              $buildExit = $LASTEXITCODE
+              $PSNativeCommandUseErrorActionPreference = $previousNativePreference
+              if ($buildExit -ne 0) {
+                  Select-String -Path $buildLog -Pattern 'error C[0-9]+|fatal error|error LNK|error:' |
                       Select-Object -First 20 |
                       ForEach-Object { Write-Host "::error ::$($_.Line.Trim())" }
-                  exit 1
+                  exit $buildExit
               }
               if ($kind -eq 'static') {
                   cmake --build $build --target AtomSdkArchive --parallel 3
               }
               # Every toolchain runs the tests; only the release toolchains package.
               $ctestLog = "$build-ctest.log"
+              $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+              $PSNativeCommandUseErrorActionPreference = $false
               ctest --test-dir $build --output-on-failure --timeout 90 --no-tests=error 2>&1 |
                   Tee-Object -FilePath $ctestLog
-              if ($LASTEXITCODE -ne 0) {
+              $ctestExit = $LASTEXITCODE
+              $PSNativeCommandUseErrorActionPreference = $previousNativePreference
+              if ($ctestExit -ne 0) {
                   Select-String -Path $ctestLog -Pattern 'FAILED|Failed|ATOM_CHECK|Expected|Actual|error:|Could not|Incorrect|what\(\)' |
                       Select-Object -First 60 |
                       ForEach-Object { Write-Host "::error ::$($_.Line.Trim())" }
-                  exit 1
+                  exit $ctestExit
               }
           }
           if ($env:SDK_PACKAGE -ne 'true') { return }
