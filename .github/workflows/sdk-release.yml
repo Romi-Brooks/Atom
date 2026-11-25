@@ -105,7 +105,14 @@ jobs:
           foreach ($kind in $variants.Keys) {
               $build = "build-$kind"
               cmake -S . -B $build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DATOM_BUILD_SHARED=$($variants[$kind])" -DATOM_ENABLE_DEBUGGER=ON @compilerArgs
-              cmake --build $build --parallel 3
+              $buildLog = "$build-build.log"
+              cmake --build $build --parallel 3 2>&1 | Tee-Object -FilePath $buildLog
+              if ($LASTEXITCODE -ne 0) {
+                  Select-String -Path $buildLog -Pattern 'error C[0-9]+|fatal error|error LNK' |
+                      Select-Object -First 20 |
+                      ForEach-Object { Write-Host "::error ::$($_.Line.Trim())" }
+                  exit 1
+              }
               if ($kind -eq 'static') {
                   cmake --build $build --target AtomSdkArchive --parallel 3
               }
