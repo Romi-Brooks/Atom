@@ -95,7 +95,6 @@ add_library(Atom_Backend_Render_Composition ${ATOM_ENGINE_LIBRARY_TYPE}
 )
 target_include_directories(Atom_Backend_Render_Composition PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
 target_link_libraries(Atom_Backend_Render_Composition PUBLIC Atom_Backend_Extension Atom_Backend_SDL_GPU)
-target_link_libraries(Atom_Backend_Render_Composition PRIVATE Atom_Backend_SDLGPU_Debug)
 
 # Compatibility only; new code should name the composition role directly.
 add_library(Atom_Backend_Render_Runtime INTERFACE)

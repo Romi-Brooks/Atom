@@ -1,14 +1,18 @@
 cmake_minimum_required(VERSION 3.20)
 project(AtomSdkSmoke LANGUAGES CXX)
 
-find_package(Atom CONFIG REQUIRED COMPONENTS Core Runtime Debugger Scripting Entry)
+find_package(Atom CONFIG REQUIRED COMPONENTS
+    Core World Backends Platform Runtime Graphics Media Audio Image Scripting Debugger Entry)
 
 add_executable(HelloAtom HelloAtom.cpp)
 target_link_libraries(HelloAtom PRIVATE Atom::Core)
 atom_application(HelloAtom CONSOLE)
 
 add_executable(AtomCustomMain CustomMain.cpp)
-target_link_libraries(AtomCustomMain PRIVATE Atom::Runtime Atom::Core)
+target_link_libraries(AtomCustomMain PRIVATE Atom::Runtime)
+
+add_executable(AtomSdkGraphics Graphics.cpp)
+target_link_libraries(AtomSdkGraphics PRIVATE Atom::Graphics)
 
 add_executable(AtomSdkLua LuaBinding.cpp)
 target_link_libraries(AtomSdkLua PRIVATE Atom::Scripting)
@@ -36,7 +40,7 @@ if(WIN32)
         COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:HelloAtom>"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${runtime_dlls} "$<TARGET_FILE_DIR:HelloAtom>"
         VERBATIM)
-    foreach(target IN ITEMS HelloAtom AtomCustomMain AtomSdkLua AtomSdkPanel)
+    foreach(target IN ITEMS HelloAtom AtomCustomMain AtomSdkGraphics AtomSdkLua AtomSdkPanel)
         add_dependencies(${target} StageAtomSdkRuntime)
     endforeach()
 endif()
@@ -45,7 +49,7 @@ foreach(target IN ITEMS HelloAtom AtomCustomMain)
         "-DCHECK_SCREEN=$<AND:$<PLATFORM_ID:Windows>,$<STREQUAL:${target},AtomCustomMain>>" -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckProgram.cmake")
     set_tests_properties(${target} PROPERTIES TIMEOUT 15)
 endforeach()
-foreach(target IN ITEMS AtomSdkLua AtomSdkPanel)
+foreach(target IN ITEMS AtomSdkGraphics AtomSdkLua AtomSdkPanel)
     add_test(NAME ${target} COMMAND ${target})
     set_tests_properties(${target} PROPERTIES TIMEOUT 15)
 endforeach()

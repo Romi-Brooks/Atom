@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <string>
 #include <Atom/Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
+#include <Atom/Backend/Contracts/Render/RenderBackendId.hpp>
 #include <Atom/Backend/Extension/DebugImGuiBackendRegistry.hpp>
+#include <Atom/Backend/SDLGPU/Debug/SDLGPUImGuiBackend.hpp>
 #include <Atom/Debugger/DebuggerConfig.hpp>
 #include <Atom/Input/InputSystem.hpp>
 #include <Atom/Core/Log/LogSystem.hpp>
@@ -42,7 +44,12 @@ auto OverlayManager::EnsureInitialized() -> bool {
         return false;
     }
 
-    backend_ = DebugImGuiBackendRegistry::GetInstance().Create(window_.GetBackendId(), *platform_window, *render_device);
+    auto& registry = DebugImGuiBackendRegistry::GetInstance();
+    const auto default_id = backend::ToString(backend::RenderBackendId::SdlGpu);
+    if (!registry.Contains(default_id)) {
+        registry.Register(default_id, backend::sdlgpu::CreateSDLGPUImGuiBackend);
+    }
+    backend_ = registry.Create(window_.GetBackendId(), *platform_window, *render_device);
     if (!backend_ || !backend_->Initialize()) {
         LOG_ERROR(atom::log::debugger::ImGui,
                   "Overlay manager initialization failed for render backend '" + window_.GetBackendId() + "'");

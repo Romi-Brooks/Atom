@@ -303,16 +303,17 @@ Atom-0.1.0-msvc-x64-Release-static/
 > 4. World2D 通过 Core 的 ECS 组件描述碰撞体。物理系统仍由 World 提供。
 > 5. SDL_GPU 的 ImGui 工厂由 Debugger 在初始化 overlay 时注册。Backends 提供注册表和渲染实现，
 >    保持可独立加载。Debugger 独占 ImGui 和其 SDL_GPU glue，调用所需的 Backends 入口。
+> 6. Platform 的应用路径与文件对话框直接调用 SDL3，SDL 头留在实现文件内。
 
 | DLL | 包含（target） | 私有第三方 | 依赖 |
 |---|---|---|---|
 | `Atom.Core.dll` | Error、Log、Math/Algorithm/Color、Random、UTF8、Time、Threading/Concurrency、FS、Json、Assets、Packager、**ECS**、**Sprite**、**InputSystem**、**Backend/Contracts** | EnTT | 无 |
 | `Atom.World.dll` | Physics、PhysicsIntegration、Scene | 无 | Core |
-| `Atom.Backends.dll` | Backend/Extension、Composition、SDL3 Core/Window/Audio/Mixer、SDL_GPU、Audio_Codecs | SDL3（动态）、SDL3_mixer（静态） | Core |
-| `Atom.Platform.dll` | Window、Display、ApplicationPaths、FileDialogs | 无 | Core、Backends |
+| `Atom.Backends.dll` | Backend/Extension、Composition、SDL3 Core/Window/Audio/Mixer、SDL_GPU、Audio_Codecs | SDL3（动态）、SDL3_mixer（静态）、minimp3 | Core、SDL3 |
+| `Atom.Platform.dll` | Window、Display、ApplicationPaths、FileDialogs | SDL3（动态） | Core、Backends、SDL3 |
 | `Atom.Runtime.dll` | Runtime（Application、ScreenManager、GameWorld、调度器） | 无 | Core、Platform |
 | `Atom.Graphics.dll` | Render_Core、Render_Pipeline、Renderer2D、Render_Resources、Text、UI、Layout、Scene2D、**World2D** | FreeType、HarfBuzz、Yoga | Core、Media.Image |
-| `Atom.Media.Audio.dll` | Media（播放器/混音/解码调度） | minimp3、TagLib、stb_vorbis（若有） | Core、Backends |
+| `Atom.Media.Audio.dll` | Media（播放器/混音/解码调度） | TagLib | Core、Backends |
 | `Atom.Media.Image.dll` | Image | stb_image | Core |
 | `Atom.Scripting.dll` | Lua、LuaBinding | 无（Lua 编入本 DLL 并导出 C API） | Core、Media.Audio |
 | `Atom.Debugger.dll` | Debugger、Backend_SDLGPU_Debug | ImGui（编入本 DLL 并导出 API） | Core、Platform、Runtime、Backends、SDL3 |
@@ -550,7 +551,7 @@ auto WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) -> int {
 
 - 用 `WinMain`（不是 `wWinMain`），避免 MinGW 需要 `-municode`；GUI 命令行用
   `GetCommandLineW` 解析，转换为以空指针结尾的 UTF-8 `argv`。控制台转发现有 CRT 参数。
-- 入口库**不链接 SDL**；Backends 和 Debugger 共用 `SDL3.dll`。
+- 入口库**不链接 SDL**；Backends、Platform 和 Debugger 共用 `SDL3.dll`。
 - 控制台应用链接 `AtomEntry`，GUI 应用链接 `AtomEntryWindowed`；CMake helper 选择。
 - 用户永远不写 `main`，只写 `ApplicationMain`。
 
@@ -866,7 +867,7 @@ cmake --build _smoke
 **改动**：
 
 - `SDL_SHARED ON`、`SDL_STATIC OFF`；安装 `SDL3.dll` 到 `bin/`；
-- 单共享目标私有链接 SDL3 导入库，S6 拆分后由 Backends、Debugger 链接；
+- 单共享目标私有链接 SDL3 导入库，S6 拆分后由 Backends、Platform、Debugger 链接；
 - Lua 源码编进本阶段共享库，构建时定义 `LUA_BUILD_AS_DLL`，
   消费方由 `Atom::Scripting` INTERFACE 定义 `LUA_BUILD_AS_DLL`（见 4.3.1）；
 - ImGui 源码编进本阶段共享库，构建时 `IMGUI_API=__declspec(dllexport)`，
@@ -1159,7 +1160,7 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
 ### 11.7 S5：SDL3 共享 + Lua/ImGui API 导出（一个 commit）
 
 1. `SDL_SHARED ON`、`SDL_STATIC OFF`；不构建 `lua.dll`/`imgui.dll`。
-2. 单共享目标私有链接 `SDL3.dll` 导入库。S6 拆分后由 Backends、Debugger 链接。
+2. 单共享目标私有链接 `SDL3.dll` 导入库。S6 拆分后由 Backends、Platform、Debugger 链接。
 3. Lua 源码编进本阶段共享库：构建定义 `LUA_BUILD_AS_DLL`，
    INTERFACE 定义 `LUA_BUILD_AS_DLL`。
 4. ImGui 源码编进本阶段共享库：构建 `IMGUI_API=__declspec(dllexport)`，
@@ -1184,13 +1185,13 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
 
 1. 按 4.3 定义 10 个 SHARED target；每个模块的静态库只属于一个 DLL。
 2. 设置 `EXPORT_NAME`：`Core`、`World`、`Backends`、`Platform`、`Runtime`、`Graphics`、`Media`、`Audio`、`Image`、`Scripting`、`Debugger`、`Entry`、`EntryWindowed`。
-3. 每个 DLL 的 `PRIVATE` 链接关系严格按 4.3；禁止反向/环。
-4. `Atom.Debugger` 始终build/打包（不提供关闭选项）。
+3. DLL 的实际导入关系按 4.3。CMake 目标传递公开 API 所需的 Atom 模块，SDL3 保持为 DLL 的私有依赖。依赖图保持无环。
+4. 共享 SDK 始终启用并打包 `Atom.Debugger`。静态开发构建继续使用原有调试开关。
 5. 验收：
 
    - 静态构建 + 81 测试；
    - `ATOM_BUILD_SHARED=ON` + 81 测试；
-   - 四个 SdkSmoke：只链 `Atom::Core`；链 `Atom::Runtime`；链 `Atom::Graphics`；链 `Atom::Debugger`（自定义面板）；
+   - 五个 SdkSmoke 分别使用 `Atom::Core`、`Atom::Runtime`、`Atom::Graphics`、`Atom::Debugger` 和 `Atom::Scripting`。额外检查 Core 入口程序和 Core DLL 的导入表，确认这条路径只加载 Core 与系统及编译器运行时。
    - `dumpbin /dependents` 每个 DLL 与 4.3 一致；
    - `bin/` 只含预期 DLL。
 

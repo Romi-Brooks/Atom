@@ -132,6 +132,9 @@ Windows, deploy the DLLs from `Atom_RUNTIME_DIR`, including `SDL3.dll`, beside
 the executable. Link `Atom::Scripting` for Lua bindings and `Atom::Debugger`
 for custom ImGui panels. Both components provide their vendored headers and
 API symbols through the SDK.
+Use `Atom::Core` for headless tools. Link `Atom::Runtime` for an application
+and `Atom::Graphics` for rendering and layout. `Atom::Media` groups the Audio
+and Image components.
 CMake links the SDK's process-exit cleanup into applications that use the
 package, including applications with their own `main`. The package also
 provides `Atom_SHADER_DIR` for the installed shader assets.

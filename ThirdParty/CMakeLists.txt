@@ -214,7 +214,7 @@ target_include_directories(Atom_3rd_ImGui PUBLIC "${ATOM_IMGUI_DIR}")
 # Platform + render backends. The SDL3 platform backend feeds SDL_Event; the
 # render backend targets the SDL_GPU device; the retired
 # imgui_impl_sdlrenderer3 path is intentionally not built.
-add_library(Atom_3rd_ImGui_SDL3 STATIC
+add_library(Atom_3rd_ImGui_SDL3 ${atom_sdk_dependency_type}
     "${ATOM_IMGUI_DIR}/backends/imgui_impl_sdl3.cpp"
     "${ATOM_IMGUI_DIR}/backends/imgui_impl_sdlgpu3.cpp"
 )

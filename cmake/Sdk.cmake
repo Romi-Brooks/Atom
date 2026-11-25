@@ -30,80 +30,113 @@ endif()
 
 set(atom_sdk_cmake_dir "${CMAKE_INSTALL_DATADIR}/Atom/cmake")
 set(atom_sdk_shader_dir "${CMAKE_INSTALL_DATADIR}/Atom/shaders")
-set(atom_sdk_components Core World Backends Platform Runtime Graphics Media Audio Image Scripting Debugger)
-set(atom_sdk_objects "")
-set(atom_sdk_export_definitions "")
-foreach(module IN LISTS ATOM_SDK_MODULES)
-    list(APPEND atom_sdk_export_definitions ATOM_${module}_EXPORTS)
+function(atom_add_sdk_module module component output_name)
+    set(dll Atom_Sdk_${component})
+    add_library(${dll} SHARED)
+    target_compile_features(${dll} PUBLIC cxx_std_23)
+    target_compile_definitions(${dll} PUBLIC ATOM_BUILD_SHARED
+        PRIVATE ATOM_${module}_EXPORTS)
+    target_include_directories(${dll} PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Engine>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+    set_target_properties(${dll} PROPERTIES OUTPUT_NAME "${output_name}" EXPORT_NAME ${component})
+    if(WIN32)
+        set_target_properties(${dll} PROPERTIES PREFIX "")
+    elseif(APPLE)
+        set_target_properties(${dll} PROPERTIES INSTALL_RPATH "@loader_path")
+        target_link_options(${dll} PRIVATE "LINKER:-undefined,error")
+    elseif(UNIX)
+        set_target_properties(${dll} PROPERTIES INSTALL_RPATH "$ORIGIN")
+        target_link_options(${dll} PRIVATE "LINKER:-z,defs")
+    endif()
+
     foreach(target IN LISTS ATOM_${module}_MODULE_TARGETS)
-        set_property(TARGET ${target} PROPERTY ATOM_SDK_LIBRARY Atom_Sdk)
+        set_property(TARGET ${target} PROPERTY ATOM_SDK_LIBRARY ${dll})
         get_target_property(type ${target} TYPE)
         if(type STREQUAL "OBJECT_LIBRARY")
-            list(APPEND atom_sdk_objects ${target})
+            target_compile_definitions(${target} PRIVATE ATOM_BUILD_SHARED)
             set_target_properties(${target} PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+            # Original targets describe compilation requirements. Only this
+            # DLL owns their objects and their binary link dependencies.
+            target_sources(${dll} PRIVATE "$<TARGET_OBJECTS:${target}>")
         endif()
     endforeach()
-endforeach()
-foreach(target IN LISTS atom_sdk_objects)
-    target_compile_definitions(${target} PRIVATE ATOM_BUILD_SHARED ${atom_sdk_export_definitions})
-endforeach()
-set_property(TARGET Atom_All Atom_Core PROPERTY ATOM_SDK_LIBRARY Atom_Sdk)
-set_property(TARGET Atom_All PROPERTY INTERFACE_LINK_LIBRARIES Atom_Sdk)
 
-add_library(Atom_Sdk SHARED)
-target_link_libraries(Atom_Sdk PRIVATE ${atom_sdk_objects} Atom_3rd_Lua Atom_3rd_ImGui)
-target_compile_features(Atom_Sdk PUBLIC cxx_std_23)
-target_compile_definitions(Atom_Sdk INTERFACE ATOM_BUILD_SHARED ATOM_ENABLE_DEBUGGER=$<BOOL:${_atom_debugger_enabled}>)
-target_include_directories(Atom_Sdk INTERFACE
-    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Engine>"
+    set(atom_sdk_dlls ${atom_sdk_dlls} ${dll} PARENT_SCOPE)
+endfunction()
+
+set(atom_sdk_dlls "")
+atom_add_sdk_module(CORE Core Atom.Core)
+atom_add_sdk_module(WORLD World Atom.World)
+atom_add_sdk_module(BACKENDS Backends Atom.Backends)
+atom_add_sdk_module(PLATFORM Platform Atom.Platform)
+atom_add_sdk_module(RUNTIME Runtime Atom.Runtime)
+atom_add_sdk_module(GRAPHICS Graphics Atom.Graphics)
+atom_add_sdk_module(MEDIA_AUDIO Audio Atom.Media.Audio)
+atom_add_sdk_module(MEDIA_IMAGE Image Atom.Media.Image)
+atom_add_sdk_module(SCRIPTING Scripting Atom.Scripting)
+atom_add_sdk_module(DEBUGGER Debugger Atom.Debugger)
+
+# SDL is a private runtime dependency. The installed SDK ships the loader's
+# library without exposing SDL's build target or headers to consumers.
+set(atom_sdl_link "$<BUILD_INTERFACE:$<TARGET_LINKER_FILE:Atom_3rd_SDL3>>")
+target_link_libraries(Atom_Sdk_World PUBLIC Atom_Sdk_Core)
+target_link_libraries(Atom_Sdk_Backends PUBLIC Atom_Sdk_Core PRIVATE Atom_3rd_SDL3_mixer "${atom_sdl_link}")
+target_link_libraries(Atom_Sdk_Platform PUBLIC Atom_Sdk_Core PRIVATE Atom_Sdk_Backends "${atom_sdl_link}")
+target_link_libraries(Atom_Sdk_Runtime PUBLIC Atom_Sdk_Core Atom_Sdk_Platform)
+target_link_libraries(Atom_Sdk_Graphics PUBLIC Atom_Sdk_Core Atom_Sdk_Image
+    PRIVATE Atom_3rd_FreeType Atom_3rd_HarfBuzz Atom_3rd_Yoga)
+target_link_libraries(Atom_Sdk_Audio PUBLIC Atom_Sdk_Core Atom_Sdk_Backends PRIVATE Atom_3rd_TagLib)
+target_link_libraries(Atom_Sdk_Image PUBLIC Atom_Sdk_Core)
+target_link_libraries(Atom_Sdk_Scripting PUBLIC Atom_Sdk_Core PRIVATE Atom_Sdk_Audio Atom_3rd_Lua)
+target_link_libraries(Atom_Sdk_Debugger PUBLIC Atom_Sdk_Core Atom_Sdk_Platform Atom_Sdk_Runtime
+    PRIVATE Atom_Sdk_Backends "${atom_sdl_link}" Atom_3rd_ImGui)
+target_sources(Atom_Sdk_Debugger PRIVATE "$<TARGET_OBJECTS:Atom_3rd_ImGui_SDL3>")
+foreach(target IN ITEMS Atom_Sdk_Backends Atom_Sdk_Platform Atom_Sdk_Debugger)
+    add_dependencies(${target} Atom_3rd_SDL3)
+endforeach()
+
+add_library(Atom_Sdk_Media INTERFACE)
+set_target_properties(Atom_Sdk_Media PROPERTIES EXPORT_NAME Media)
+target_link_libraries(Atom_Sdk_Media INTERFACE Atom_Sdk_Audio Atom_Sdk_Image)
+get_property(atom_all_members TARGET Atom_All PROPERTY INTERFACE_LINK_LIBRARIES)
+set_property(TARGET Atom_All PROPERTY INTERFACE_LINK_LIBRARIES "")
+atom_link_libraries(Atom_All INTERFACE ${atom_all_members})
+get_property(atom_all_dlls TARGET Atom_All PROPERTY INTERFACE_LINK_LIBRARIES)
+set_property(TARGET Atom_All Atom_Core PROPERTY ATOM_SDK_LIBRARY "${atom_all_dlls}")
+
+target_include_directories(Atom_Sdk_Debugger INTERFACE
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/ThirdParty/ImGUI>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/imgui>")
+target_include_directories(Atom_Sdk_Scripting INTERFACE
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/ThirdParty/Lua>"
-    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-set_target_properties(Atom_Sdk PROPERTIES OUTPUT_NAME Atom EXPORT_NAME Sdk)
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/lua>")
+target_compile_definitions(Atom_Sdk_Debugger INTERFACE ATOM_ENABLE_DEBUGGER=1)
 
 if(WIN32)
-    set_target_properties(Atom_Sdk PROPERTIES PREFIX "")
-    target_sources(Atom_Sdk PRIVATE cmake/AtomShutdown.cpp)
-    target_compile_definitions(Atom_Sdk PRIVATE ATOM_BUILD_SHARED ${atom_sdk_export_definitions})
-    target_sources(Atom_Sdk INTERFACE
+    target_sources(Atom_Sdk_Core PRIVATE cmake/AtomCoreShutdown.cpp)
+    target_sources(Atom_Sdk_Runtime PRIVATE cmake/AtomRuntimeShutdown.cpp)
+    target_sources(Atom_Sdk_Core INTERFACE
         "$<BUILD_INTERFACE:$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${PROJECT_SOURCE_DIR}/cmake/AtomProcessExit.cpp>>")
+    target_compile_definitions(Atom_Sdk_Runtime INTERFACE
+        "$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:ATOM_SDK_RUNTIME_EXIT>")
 
-    # Atom.dll owns the vendored Lua and ImGui implementations in this build.
-    # Lua's C sources already select LUA_CORE or LUA_LIB themselves.
     target_compile_definitions(Atom_3rd_ImGui PUBLIC "IMGUI_API=__declspec(dllexport)")
     target_compile_definitions(Atom_3rd_Lua PRIVATE LUA_BUILD_AS_DLL)
     target_compile_definitions(Atom_Lua PRIVATE LUA_BUILD_AS_DLL LUA_CORE)
-    target_compile_definitions(Atom_Sdk INTERFACE
-        "$<BUILD_INTERFACE:IMGUI_API=__declspec(dllimport)>"
-        "$<BUILD_INTERFACE:LUA_BUILD_AS_DLL>")
-elseif(APPLE)
-    set_target_properties(Atom_Sdk PROPERTIES INSTALL_RPATH "@loader_path")
-elseif(UNIX)
-    set_target_properties(Atom_Sdk PROPERTIES INSTALL_RPATH "$ORIGIN")
+    target_compile_definitions(Atom_Sdk_Debugger INTERFACE "IMGUI_API=__declspec(dllimport)")
+    target_compile_definitions(Atom_Sdk_Scripting INTERFACE LUA_BUILD_AS_DLL)
+    target_link_libraries(Atom_Sdk_Debugger PRIVATE opengl32 gdi32)
 endif()
 
-set(atom_sdk_targets Atom_Sdk Atom_Entry)
+set(atom_sdk_entries Atom_Entry)
 if(WIN32)
-    list(APPEND atom_sdk_targets Atom_Entry_Windowed)
+    list(APPEND atom_sdk_entries Atom_Entry_Windowed)
 endif()
-foreach(target IN LISTS atom_sdk_targets)
-    if(NOT target STREQUAL "Atom_Sdk")
-        target_include_directories(${target} INTERFACE "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-    endif()
+foreach(target IN LISTS atom_sdk_entries)
+    target_include_directories(${target} INTERFACE "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 endforeach()
-foreach(component IN LISTS atom_sdk_components)
-    set(target Atom_Sdk_${component})
-    add_library(${target} INTERFACE)
-    target_link_libraries(${target} INTERFACE Atom_Sdk)
-    set_target_properties(${target} PROPERTIES EXPORT_NAME ${component})
-    list(APPEND atom_sdk_targets ${target})
-endforeach()
-target_include_directories(Atom_Sdk_Debugger INTERFACE "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/imgui>")
-target_include_directories(Atom_Sdk_Scripting INTERFACE "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/lua>")
-if(WIN32)
-    target_compile_definitions(Atom_Sdk_Debugger INTERFACE "$<INSTALL_INTERFACE:IMGUI_API=__declspec(dllimport)>")
-    target_compile_definitions(Atom_Sdk_Scripting INTERFACE "$<INSTALL_INTERFACE:LUA_BUILD_AS_DLL>")
-endif()
+set(atom_sdk_targets ${atom_sdk_dlls} Atom_Sdk_Media ${atom_sdk_entries})
 
 install(TARGETS ${atom_sdk_targets} EXPORT AtomTargets
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
