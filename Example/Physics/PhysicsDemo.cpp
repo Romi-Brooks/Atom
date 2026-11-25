@@ -18,7 +18,7 @@
  *   Esc       退出
  */
 
-#include "Debugger/Panels/ThreadDebugger.hpp"
+#include <Atom/Debugger/Panels/ThreadDebugger.hpp>
 
 #include <array>
 #include <cstddef>
@@ -26,30 +26,30 @@
 #include <variant>
 #include <vector>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Algorithm/Color/Color.hpp>
-#include <Algorithm/Geometry/Rect.hpp>
-#include <Algorithm/Vector/Vec2.hpp>
-#include <Backend/Contracts/Render/RenderBackendId.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Debugger/Panels/FpsDebugger.hpp>
-#include <Debugger/Panels/RenderDebugger.hpp>
-#include <Debugger/Panels/JobDebugger.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
-#include <Display/DisplaySystem.hpp>
-#include <Input/InputSystem.hpp>
-#include <Input/Key.hpp>
-#include <Log/LogSystem.hpp>
-#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
-#include <Physics/Contracts/IPhysicsBody.hpp>
-#include <Physics/Contracts/IPhysicsWorld.hpp>
-#include <Physics/Contracts/PhysicsTypes.hpp>
-#include <Physics/Shapes/Shape.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Runtime/ScreenManager.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Core/Algorithm/Color/Color.hpp>
+#include <Atom/Core/Algorithm/Geometry/Rect.hpp>
+#include <Atom/Core/Algorithm/Vector/Vec2.hpp>
+#include <Atom/Backend/Contracts/Render/RenderBackendId.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Debugger/Panels/FpsDebugger.hpp>
+#include <Atom/Debugger/Panels/RenderDebugger.hpp>
+#include <Atom/Debugger/Panels/JobDebugger.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Platform/Display/DisplaySystem.hpp>
+#include <Atom/Input/InputSystem.hpp>
+#include <Atom/Input/Key.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/World/Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsBody.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsWorld.hpp>
+#include <Atom/World/Physics/Contracts/PhysicsTypes.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
 
 namespace {
 

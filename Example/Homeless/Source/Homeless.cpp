@@ -6,13 +6,13 @@
 #include <thread>
 #include <utility>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Log/LogSystem.hpp>
-#include <Platform/ApplicationPaths.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Platform/ApplicationPaths.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
 
 #include "Content/ContentMount.hpp"
 #include "Debug/PromenadeDebugger.hpp"

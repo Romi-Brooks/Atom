@@ -12,23 +12,23 @@
 #include <string>
 #include <utility>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Media/Audio/AudioBackend.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Media/Audio/Transitions/MusicCrossfade.hpp> // fade in plugin
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Resources/Media/Audio/AudioBackend.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Resources/Media/Audio/Transitions/MusicCrossfade.hpp> // fade in plugin
 
-#include <Filesystem/FileSystem.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
 
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace {
 // replace it

@@ -1,5 +1,5 @@
-#include <Backend/Contracts/Audio/NullAudioBackend.hpp>
-#include <Backend/Extension/BackendRegistry.hpp>
+#include <Atom/Backend/Contracts/Audio/NullAudioBackend.hpp>
+#include <Atom/Backend/Extension/BackendRegistry.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <memory>

@@ -1,7 +1,7 @@
-#include <Backend/Contracts/Audio/NullAudioBackend.hpp>
-#include <Backend/Contracts/Audio/AudioTypes.hpp>
-#include <Backend/Contracts/Numeric/NumericContract.hpp>
-#include <Media/Audio/Playback/VoicePool.hpp>
+#include <Atom/Backend/Contracts/Audio/NullAudioBackend.hpp>
+#include <Atom/Backend/Contracts/Audio/AudioTypes.hpp>
+#include <Atom/Backend/Contracts/Numeric/NumericContract.hpp>
+#include <Atom/Resources/Media/Audio/Playback/VoicePool.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <limits>

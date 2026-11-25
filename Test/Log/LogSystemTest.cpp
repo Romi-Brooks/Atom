@@ -1,4 +1,4 @@
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <atomic>

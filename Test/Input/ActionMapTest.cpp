@@ -1,4 +1,4 @@
-#include <Input/ActionMap.hpp>
+#include <Atom/Input/ActionMap.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 namespace {

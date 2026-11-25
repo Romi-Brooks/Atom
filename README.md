@@ -151,7 +151,7 @@ Scripts can use `pack`, `list`, and `verify`.
 
 Engine code can build archives with `PackageBuilder` and mount them for streaming with `Vfs::MountPackage`.
 
-- [Packager documentation](Engine/Resources/Utilities/Packager/Doc/Packager.md) — GUI, command line, and API
+- [Packager documentation](Engine/Atom/Resources/Utilities/Packager/Doc/Packager.md) — GUI, command line, and API
 
 ---
 

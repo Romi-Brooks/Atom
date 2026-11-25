@@ -12,10 +12,10 @@
  *     the filesystem's own reason (FsNotFound)
 **/
 
-#include <Asset/ResourceManager.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Render/Text/FontFileLoader.hpp>
+#include <Atom/Resources/Asset/ResourceManager.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Presentation/Render/Text/FontFileLoader.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <algorithm>

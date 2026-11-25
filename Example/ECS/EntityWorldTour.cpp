@@ -23,9 +23,9 @@
 #include <string>
 #include <vector>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <ECS/Components.hpp>
-#include <ECS/EntityWorld.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
 
 namespace {
 

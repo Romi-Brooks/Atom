@@ -8,18 +8,18 @@
  * Script all load and share a single instance through ResourceManager.
 **/
 
-#include <Asset/ResourceManager.hpp>
-#include <Asset/ScriptSourceLoader.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Filesystem/PackageFileSystem.hpp>
-#include <Filesystem/Vfs.hpp>
-#include <Media/Audio/Resources/AudioClipResourceLoader.hpp>
-#include <Media/Image/DecodedImageLoader.hpp>
-#include <Backend/Contracts/Audio/IAudioDecoder.hpp>
-#include <Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Asset/ResourceManager.hpp>
+#include <Atom/Resources/Asset/ScriptSourceLoader.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Resources/Filesystem/PackageFileSystem.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioClipResourceLoader.hpp>
+#include <Atom/Resources/Media/Image/DecodedImageLoader.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
+#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Test/Support/TestHelpers.hpp>
-#include <Utilities/Packager/PackageBuilder.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Resources/Utilities/Packager/PackageBuilder.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 #include <array>
 #include <chrono>

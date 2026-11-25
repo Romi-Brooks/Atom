@@ -12,9 +12,9 @@
  *     one-way trip.
  */
 
-#include <Input/ActionState.hpp>
+#include <Atom/Input/ActionState.hpp>
 
-#include <Backend/Contracts/Window/IWindow.hpp>
+#include <Atom/Backend/Contracts/Window/IWindow.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

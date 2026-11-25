@@ -2,9 +2,9 @@
 
 #include <filesystem>
 
-#include <Log/LogSystem.hpp>
-#include <Utilities/Packager/PackageBuilder.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Utilities/Packager/PackageBuilder.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 namespace atom::packager {
 namespace {

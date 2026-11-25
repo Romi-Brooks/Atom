@@ -11,7 +11,7 @@
  * needed.
  */
 
-#include <Display/DisplaySystem.hpp>
+#include <Atom/Platform/Display/DisplaySystem.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

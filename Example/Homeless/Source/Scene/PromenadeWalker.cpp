@@ -4,8 +4,8 @@
 #include <cmath>
 #include <utility>
 
-#include <ECS/Components.hpp>
-#include <Input/InputSystem.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/Input/InputSystem.hpp>
 
 #include "PromenadeConfig.hpp"
 

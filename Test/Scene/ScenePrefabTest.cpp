@@ -18,7 +18,7 @@
  * separately by Atom_Scene.SceneLoader.
  */
 
-#include <Scene/SceneSchema.hpp>
+#include <Atom/World/Scene/SceneSchema.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

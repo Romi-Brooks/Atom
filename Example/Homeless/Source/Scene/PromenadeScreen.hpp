@@ -7,15 +7,15 @@
 #include <memory>
 #include <vector>
 
-#include <ECS/EntityWorld.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Render/Resources/TextureCache.hpp>
-#include <Render/Scene2D/TextureCacheResolver.hpp>
-#include <Runtime/Screen.hpp>
-#include <Utilities/Random/Rng.hpp>
-#include <World2D/Animation2D.hpp>
-#include <World2D/ParticleSystem2D.hpp>
-#include <World2D/World2DRenderer.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Presentation/Render/Resources/TextureCache.hpp>
+#include <Atom/Presentation/Render/Scene2D/TextureCacheResolver.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Core/Utilities/Random/Rng.hpp>
+#include <Atom/World/World2D/Animation2D.hpp>
+#include <Atom/World/World2D/ParticleSystem2D.hpp>
+#include <Atom/World/World2D/World2DRenderer.hpp>
 
 #include "Pedestrians.hpp"
 #include "SceneAudio.hpp"

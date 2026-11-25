@@ -15,9 +15,9 @@
  *   - UI capture flags are reported without rewriting the raw device state
  */
 
-#include <Input/InputSystem.hpp>
+#include <Atom/Input/InputSystem.hpp>
 
-#include <Backend/Contracts/Window/IWindow.hpp>
+#include <Atom/Backend/Contracts/Window/IWindow.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 namespace {

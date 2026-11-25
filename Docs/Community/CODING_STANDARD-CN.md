@@ -47,7 +47,7 @@ ModuleName/            # 模块名，PascalCase，单数
 
 ### 1.3 示例程序入口
 
-`Example/` 下的可执行程序统一包含 `<Platform/ApplicationEntry.hpp>` 并实现
+`Example/` 下的可执行程序统一包含 `<Atom/Platform/ApplicationEntry.hpp>` 并实现
 `atom::platform::ApplicationMain(int, char**)`。在 CMake 中用
 `atom_use_application_entry(target WINDOWED)` 或 `atom_use_application_entry(target CONSOLE)` 注册。
 独立工具与测试可以定义自己的 `main`。
@@ -92,8 +92,8 @@ include 按以下分组顺序排列，每组空一行：
 #include <SDL3/SDL.h>
 
 // Engine Headers
-#include <Media/Audio/Music.hpp>
-#include <Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 ```
 
 **规则：**

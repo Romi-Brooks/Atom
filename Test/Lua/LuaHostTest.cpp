@@ -4,12 +4,12 @@
  *                   subsystem injection.
  */
 
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Log/LogSystem.hpp>
-#include <Lua/LuaBinding/ContextBridge.hpp>
-#include <Lua/LuaGuard.hpp>
-#include <Lua/LuaHost.hpp>
-#include <Lua/lua.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Lua/LuaBinding/ContextBridge.hpp>
+#include <Atom/Lua/LuaGuard.hpp>
+#include <Atom/Lua/LuaHost.hpp>
+#include <Atom/Lua/lua.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <memory>

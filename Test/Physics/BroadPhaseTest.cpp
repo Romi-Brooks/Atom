@@ -1,5 +1,5 @@
-#include <Algorithm/Geometry/Primitives.hpp>
-#include <Physics/Collision/BroadPhase.hpp>
+#include <Atom/Core/Algorithm/Geometry/Primitives.hpp>
+#include <Atom/World/Physics/Collision/BroadPhase.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <utility>

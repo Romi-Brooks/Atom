@@ -3,9 +3,9 @@
  * @brief          : ResourceId, cache dedupe, type check, and recycle tests.
 **/
 
-#include <Asset/ResourceManager.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Filesystem/Vfs.hpp>
+#include <Atom/Resources/Asset/ResourceManager.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
 
 #include <iostream>
 #include <memory>

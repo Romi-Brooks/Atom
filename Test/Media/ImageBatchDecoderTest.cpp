@@ -11,9 +11,9 @@
  * as production code does.
 **/
 
-#include <Concurrency/JobSystem.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Media/Image/ImageBatchDecoder.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Resources/Media/Image/ImageBatchDecoder.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <cstddef>

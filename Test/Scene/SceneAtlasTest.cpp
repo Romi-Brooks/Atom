@@ -12,8 +12,8 @@
  * Atom_Scene.SceneLoader.
  */
 
-#include <Scene/SceneSchema.hpp>
-#include <Sprite/SpriteAtlas.hpp>
+#include <Atom/World/Scene/SceneSchema.hpp>
+#include <Atom/Presentation/Sprite/SpriteAtlas.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <span>
 
-#include <ECS/Components.hpp>
+#include <Atom/World/ECS/Components.hpp>
 
 #include "PromenadeConfig.hpp"
 #include "SceneAudio.hpp"

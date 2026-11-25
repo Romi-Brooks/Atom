@@ -45,7 +45,7 @@ ModuleName/            # PascalCase, singular
 ### 1.3 Example Entry Points
 
 Every executable under `Example/` implements `atom::platform::ApplicationMain(int, char**)` from
-`<Platform/ApplicationEntry.hpp>`. Register it with `atom_use_application_entry(target WINDOWED)`
+`<Atom/Platform/ApplicationEntry.hpp>`. Register it with `atom_use_application_entry(target WINDOWED)`
 or `atom_use_application_entry(target CONSOLE)` in CMake. Standalone tools and tests can define `main`.
 
 ## 2. Header File Rules
@@ -91,8 +91,8 @@ headers in the following order, separated by blank lines:
 #include <SDL3/SDL.h>
 
 // Engine Headers
-#include <Media/Audio/Music.hpp>
-#include <Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 ```
 
 **Rules:**

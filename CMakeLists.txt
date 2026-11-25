@@ -21,7 +21,7 @@ include(GNUInstallDirs)
 # ============================================================================
 add_subdirectory(ThirdParty)
 
-include(Engine/Presentation/Render/Shader/AtomShaders.cmake)
+include(Engine/Atom/Presentation/Render/Shader/AtomShaders.cmake)
 
 # ============================================================================
 # MinGW runtime linking

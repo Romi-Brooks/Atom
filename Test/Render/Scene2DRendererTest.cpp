@@ -16,10 +16,10 @@
  * covered by the unit that computes it.
  */
 
-#include <Render/Scene2D/Scene2DRenderer.hpp>
+#include <Atom/Presentation/Render/Scene2D/Scene2DRenderer.hpp>
 
-#include <ECS/Components.hpp>
-#include <ECS/EntityWorld.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

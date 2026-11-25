@@ -18,8 +18,8 @@
 #include <cstddef>
 #include <iostream>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Log/LogSystem.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 #include "GameChannels.hpp"
 

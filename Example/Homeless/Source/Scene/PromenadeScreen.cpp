@@ -7,12 +7,12 @@
 #include <utility>
 #include <variant>
 
-#include <ECS/Components.hpp>
-#include <Filesystem/Vfs.hpp>
-#include <Log/LogSystem.hpp>
-#include <Render/Scene2D/Scene2DRenderer.hpp>
-#include <Runtime/Application.hpp>
-#include <World2D/CameraSystem2D.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Presentation/Render/Scene2D/Scene2DRenderer.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/World/World2D/CameraSystem2D.hpp>
 
 #include "PromenadeConfig.hpp"
 #include "SceneSprite.hpp"

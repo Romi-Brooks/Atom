@@ -4,8 +4,8 @@
 #include <utility>
 #include <vector>
 
-#include <Concurrency/JobSystem.hpp>
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace homeless {
 

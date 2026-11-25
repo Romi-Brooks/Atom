@@ -13,14 +13,14 @@
 #include <memory>
 #include <vector>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Runtime/ScreenManager.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
 
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <UI/UiCanvas.hpp>
-#include <UI/UiTree.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Presentation/UI/UiCanvas.hpp>
+#include <Atom/Presentation/UI/UiTree.hpp>
 
 namespace {
 

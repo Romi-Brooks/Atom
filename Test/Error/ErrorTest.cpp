@@ -13,7 +13,7 @@
  * and is covered by Atom_Backend_SDL3_Core.SdlError.
  */
 
-#include <Error/Error.hpp>
+#include <Atom/Core/Error/Error.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

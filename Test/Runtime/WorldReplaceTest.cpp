@@ -12,9 +12,9 @@
  * applying it to the new one would address an unrelated entity (or a dead handle).
  */
 
-#include <Runtime/GameWorld.hpp>
+#include <Atom/Runtime/GameWorld.hpp>
 
-#include <ECS/Components.hpp>
+#include <Atom/World/ECS/Components.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

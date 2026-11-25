@@ -3,10 +3,10 @@
  * @brief          : Glyph atlas submission and sampler regression coverage.
  */
 
-#include <Backend/Contracts/Render/IRender2DContext.hpp>
-#include <Backend/Contracts/Render/IRenderDevice.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <Render/Text/Font.hpp>
+#include <Atom/Backend/Contracts/Render/IRender2DContext.hpp>
+#include <Atom/Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Presentation/Render/Text/Font.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <cstddef>

@@ -4,7 +4,7 @@
 #include <cmath>
 #include <utility>
 
-#include <ECS/Components.hpp>
+#include <Atom/World/ECS/Components.hpp>
 
 #include "PromenadeConfig.hpp"
 #include "SceneSprite.hpp"

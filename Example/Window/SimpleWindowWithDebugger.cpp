@@ -8,17 +8,17 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
-#include <Debugger/Panels/FpsDebugger.hpp>
-#include <Debugger/Panels/RenderDebugger.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Debugger/Panels/FpsDebugger.hpp>
+#include <Atom/Debugger/Panels/RenderDebugger.hpp>
 
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace {
 // To have a debug panel, Inheriting the DebugPanel

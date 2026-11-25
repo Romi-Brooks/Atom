@@ -1,5 +1,5 @@
 #include <Test/Support/TestHelpers.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 #include <filesystem>
 #include <string>

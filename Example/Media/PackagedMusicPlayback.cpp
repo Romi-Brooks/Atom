@@ -15,23 +15,23 @@
 #include <string>
 #include <vector>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Input/Key.hpp>
-#include <Filesystem/PackageFileSystem.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Utilities/Packager/PackageBuilder.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
-#include <Debugger/Panels/FpsDebugger.hpp>
-#include <Debugger/Panels/RenderDebugger.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Input/Key.hpp>
+#include <Atom/Resources/Filesystem/PackageFileSystem.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Resources/Utilities/Packager/PackageBuilder.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Debugger/Panels/FpsDebugger.hpp>
+#include <Atom/Debugger/Panels/RenderDebugger.hpp>
 
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace {
 constexpr const char* source_files[] = {

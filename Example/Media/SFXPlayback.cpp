@@ -11,21 +11,21 @@
 #include <string>
 #include <utility>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Media/Audio/AudioBackend.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/SFXPlayer.hpp>
-#include <Media/Audio/Resources/AudioClipCache.hpp>
-#include <Filesystem/FileSystem.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Resources/Media/Audio/AudioBackend.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/SFXPlayer.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioClipCache.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
 
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace {
 // replace it

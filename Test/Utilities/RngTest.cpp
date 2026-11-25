@@ -8,7 +8,7 @@
 #include <span>
 
 #include <Test/Support/TestHelpers.hpp>
-#include <Utilities/Random/Rng.hpp>
+#include <Atom/Core/Utilities/Random/Rng.hpp>
 
 auto main() -> int {
     using atom::random::Rng;

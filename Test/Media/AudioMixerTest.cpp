@@ -1,4 +1,4 @@
-#include <Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <limits>

@@ -10,8 +10,8 @@
  * backend, these tests are what fails.
 **/
 
-#include <ECS/Components.hpp>
-#include <ECS/EntityWorld.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <iostream>

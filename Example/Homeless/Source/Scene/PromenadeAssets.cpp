@@ -6,10 +6,10 @@
 #include <utility>
 #include <vector>
 
-#include <Concurrency/JobSystem.hpp>
-#include <Log/LogSystem.hpp>
-#include <Media/Image/ImageBatchDecoder.hpp>
-#include <Render/Scene2D/Scene2DRenderer.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Image/ImageBatchDecoder.hpp>
+#include <Atom/Presentation/Render/Scene2D/Scene2DRenderer.hpp>
 
 #include "PromenadeConfig.hpp"
 

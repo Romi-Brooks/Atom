@@ -1,6 +1,6 @@
 #include "Utf8Arguments.hpp"
 
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 #ifdef _WIN32
 #include <windows.h>

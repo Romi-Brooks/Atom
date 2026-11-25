@@ -13,8 +13,8 @@
  *   - destroys queued in the same batch are applied after the creates.
  */
 
-#include <ECS/Components.hpp>
-#include <Runtime/EntityCommandBuffer.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/Runtime/EntityCommandBuffer.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

@@ -1,7 +1,7 @@
 #include <Test/Support/TestHelpers.hpp>
 
-#include <Time/DomainClock.hpp>
-#include <Time/TimeTypes.hpp>
+#include <Atom/Core/Time/DomainClock.hpp>
+#include <Atom/Core/Time/TimeTypes.hpp>
 
 namespace {
 

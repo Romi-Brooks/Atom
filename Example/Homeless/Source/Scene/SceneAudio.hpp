@@ -4,9 +4,9 @@
 #include <array>
 #include <cstddef>
 
-#include <Concurrency/Job.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Media/Audio/Playback/SFXPlayer.hpp>
+#include <Atom/Core/Concurrency/Job.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/SFXPlayer.hpp>
 
 namespace homeless {
 

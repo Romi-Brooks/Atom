@@ -5,9 +5,9 @@
 #include <cstddef>
 #include <string>
 
-#include <ECS/EntityWorld.hpp>
-#include <Utilities/Random/Rng.hpp>
-#include <World2D/Animation2D.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
+#include <Atom/Core/Utilities/Random/Rng.hpp>
+#include <Atom/World/World2D/Animation2D.hpp>
 
 namespace homeless {
 

@@ -6,9 +6,9 @@
 #include <deque>
 #include <string>
 
-#include <ECS/EntityWorld.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <Utilities/Random/Rng.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Core/Utilities/Random/Rng.hpp>
 
 namespace homeless {
 

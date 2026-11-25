@@ -12,9 +12,9 @@
  * keeping the frame-rhythm contract in Runtime rather than in the renderer.
  */
 
-#include <Runtime/GameScreen.hpp>
+#include <Atom/Runtime/GameScreen.hpp>
 
-#include <ECS/Components.hpp>
+#include <Atom/World/ECS/Components.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

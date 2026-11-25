@@ -1,5 +1,5 @@
-#include <Backend/Contracts/Audio/IAudioDecoder.hpp>
-#include <Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioDecoder.hpp>
+#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <memory>

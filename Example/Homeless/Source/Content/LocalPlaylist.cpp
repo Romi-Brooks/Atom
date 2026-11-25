@@ -3,12 +3,12 @@
 #include <algorithm>
 #include <utility>
 
-#include <Backend/Extension/AudioDecoderRegistry.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Filesystem/Vfs.hpp>
-#include <Log/LogSystem.hpp>
-#include <Media/Audio/AudioBackend.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Audio/AudioBackend.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 namespace homeless {
 

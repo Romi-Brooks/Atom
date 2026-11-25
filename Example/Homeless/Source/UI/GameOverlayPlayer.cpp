@@ -10,10 +10,10 @@
 #include <utility>
 #include <vector>
 
-#include <Concurrency/JobSystem.hpp>
-#include <Media/Audio/Metadata/AudioMetadataReader.hpp>
-#include <Media/Image/ImageDecoder.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Resources/Media/Audio/Metadata/AudioMetadataReader.hpp>
+#include <Atom/Resources/Media/Image/ImageDecoder.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 namespace homeless {
 

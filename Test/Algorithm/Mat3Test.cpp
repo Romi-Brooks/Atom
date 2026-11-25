@@ -1,5 +1,5 @@
-#include <Algorithm/Math/Scalar.hpp>
-#include <Algorithm/Matrix/Mat3.hpp>
+#include <Atom/Core/Algorithm/Math/Scalar.hpp>
+#include <Atom/Core/Algorithm/Matrix/Mat3.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

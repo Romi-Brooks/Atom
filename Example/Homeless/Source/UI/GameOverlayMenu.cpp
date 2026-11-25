@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <array>
 
-#include <Display/DisplaySystem.hpp>
-#include <Runtime/Application.hpp>
-#include <Window/RenderWindow.hpp>
+#include <Atom/Platform/Display/DisplaySystem.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
 
 namespace homeless {
 

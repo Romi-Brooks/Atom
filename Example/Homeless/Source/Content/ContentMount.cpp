@@ -1,8 +1,8 @@
 #include "ContentMount.hpp"
 
-#include <Filesystem/Vfs.hpp>
-#include <Log/LogSystem.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 namespace homeless {
 

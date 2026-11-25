@@ -3,11 +3,11 @@
 #include <algorithm>
 #include <cctype>
 
-#include <Filesystem/PackageFormat.hpp>
-#include <Media/Audio/Metadata/AudioMetadataReader.hpp>
-#include <Media/Image/ImageBatchDecoder.hpp>
-#include <Utilities/Json/JsonReader.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Resources/Filesystem/PackageFormat.hpp>
+#include <Atom/Resources/Media/Audio/Metadata/AudioMetadataReader.hpp>
+#include <Atom/Resources/Media/Image/ImageBatchDecoder.hpp>
+#include <Atom/Core/Utilities/Json/JsonReader.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 namespace atom::packager {
 namespace {

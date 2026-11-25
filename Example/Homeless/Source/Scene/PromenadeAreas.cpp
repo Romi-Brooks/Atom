@@ -4,7 +4,7 @@
 #include <array>
 #include <cmath>
 
-#include <ECS/Components.hpp>
+#include <Atom/World/ECS/Components.hpp>
 
 #include "PromenadeConfig.hpp"
 

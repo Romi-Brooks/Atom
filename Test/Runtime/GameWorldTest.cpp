@@ -8,8 +8,8 @@
 #include <string_view>
 #include <vector>
 
-#include <ECS/Components.hpp>
-#include <Runtime/GameWorld.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/Runtime/GameWorld.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 namespace {

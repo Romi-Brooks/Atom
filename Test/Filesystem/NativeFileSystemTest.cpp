@@ -1,5 +1,5 @@
-#include <Filesystem/FileSystem.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 #include <array>
 #include <chrono>

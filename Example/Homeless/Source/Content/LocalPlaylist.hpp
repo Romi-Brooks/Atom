@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 
-#include <Concurrency/Job.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Core/Concurrency/Job.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
 
 namespace homeless {
 

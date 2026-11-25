@@ -7,8 +7,8 @@
  * empty/unknown-instance failure paths.
  */
 
-#include <Render/Text/FreeTypeFontProvider.hpp>
-#include <Render/Text/HarfBuzzTextShaper.hpp>
+#include <Atom/Presentation/Render/Text/FreeTypeFontProvider.hpp>
+#include <Atom/Presentation/Render/Text/HarfBuzzTextShaper.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <cstddef>

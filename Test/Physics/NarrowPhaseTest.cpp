@@ -1,7 +1,7 @@
 #include <array>
 
-#include <Physics/Collision/NarrowPhase.hpp>
-#include <Physics/Shapes/Shape.hpp>
+#include <Atom/World/Physics/Collision/NarrowPhase.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

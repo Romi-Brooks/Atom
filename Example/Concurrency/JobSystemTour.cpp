@@ -19,8 +19,8 @@
 #include <thread>
 #include <vector>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Concurrency/JobSystem.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
 
 namespace {
 

@@ -7,10 +7,10 @@
 **/
 
 #include <Test/Support/TestHelpers.hpp>
-#include <Utilities/Packager/PackageBuilder.hpp>
-#include <Filesystem/FileSystem.hpp>
-#include <Filesystem/PackageFileSystem.hpp>
-#include <Filesystem/PackageFormat.hpp>
+#include <Atom/Resources/Utilities/Packager/PackageBuilder.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Resources/Filesystem/PackageFileSystem.hpp>
+#include <Atom/Resources/Filesystem/PackageFormat.hpp>
 
 #include <chrono>
 #include <cstdint>

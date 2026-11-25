@@ -18,20 +18,20 @@
 #include <string>
 #include <string_view>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Filesystem/FileSystem.hpp>
-#include <Filesystem/Vfs.hpp>
-#include <Log/LogSystem.hpp>
-#include <Lua/LuaHost.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Lua/LuaHost.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
 
 namespace {
 // Usually, this directory is open to Lua script developers,

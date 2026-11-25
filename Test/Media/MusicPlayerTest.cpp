@@ -6,12 +6,12 @@
  *                   player's whole lifetime.
 **/
 
-#include <Backend/Contracts/Audio/IAudioBackend.hpp>
-#include <Backend/Contracts/Audio/IAudioSource.hpp>
-#include <Backend/Extension/AudioDecoderRegistry.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioBackend.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioSource.hpp>
+#include <Atom/Backend/Extension/AudioDecoderRegistry.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <chrono>

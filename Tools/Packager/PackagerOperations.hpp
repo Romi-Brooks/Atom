@@ -4,7 +4,7 @@
 #include <functional>
 #include <vector>
 
-#include <Filesystem/PackageFileSystem.hpp>
+#include <Atom/Resources/Filesystem/PackageFileSystem.hpp>
 
 namespace atom::packager {
 

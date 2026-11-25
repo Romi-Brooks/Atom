@@ -16,17 +16,17 @@
 #include <cmath>
 #include <string>
 
-#include <Platform/ApplicationEntry.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Runtime/ScreenManager.hpp>
+#include <Atom/Platform/ApplicationEntry.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
 
-#include <Debugger/Overlay.hpp>
-#include <Input/ActionMap.hpp>
-#include <Input/InputSystem.hpp>
-#include <Log/LogSystem.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Input/ActionMap.hpp>
+#include <Atom/Input/InputSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
 
 namespace {
 

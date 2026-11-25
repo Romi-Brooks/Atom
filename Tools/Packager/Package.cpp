@@ -9,9 +9,9 @@
 #include <string>
 #include <vector>
 
-#include <Filesystem/PackageFormat.hpp>
-#include <Log/LogSystem.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Resources/Filesystem/PackageFormat.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 #ifdef _WIN32
 #include <windows.h>

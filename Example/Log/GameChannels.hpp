@@ -11,7 +11,7 @@
 #ifndef ATOM_GAMECHANNELS_HPP
 #define ATOM_GAMECHANNELS_HPP
 
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 // Level-1
 ATOM_DEFINE_CHANNELS(game::log, Channel, "Game.",

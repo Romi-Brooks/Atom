@@ -7,11 +7,11 @@
 #include <string_view>
 #include <vector>
 
-#include <Algorithm/Geometry/Rect.hpp>
-#include <Backend/Contracts/Window/IWindow.hpp>
-#include <Concurrency/Job.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Core/Algorithm/Geometry/Rect.hpp>
+#include <Atom/Backend/Contracts/Window/IWindow.hpp>
+#include <Atom/Core/Concurrency/Job.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
 
 #include "Content/LocalPlaylist.hpp"
 

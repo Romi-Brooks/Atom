@@ -9,9 +9,9 @@
  * wrong is how "vsync off" silently turns into "still capped at 144".
  */
 
-#include <Backend/Contracts/Render/PresentMode.hpp>
-#include <Backend/Contracts/Render/RenderBackendConfig.hpp>
-#include <Backend/Contracts/Window/WindowMode.hpp>
+#include <Atom/Backend/Contracts/Render/PresentMode.hpp>
+#include <Atom/Backend/Contracts/Render/RenderBackendConfig.hpp>
+#include <Atom/Backend/Contracts/Window/WindowMode.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

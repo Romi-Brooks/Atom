@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include <Window/RenderWindow.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
 
 #include "Scene/PromenadeConfig.hpp"
 

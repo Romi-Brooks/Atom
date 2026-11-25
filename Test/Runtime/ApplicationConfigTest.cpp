@@ -8,7 +8,7 @@
  * must not make.
  */
 
-#include <Runtime/Application.hpp>
+#include <Atom/Runtime/Application.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

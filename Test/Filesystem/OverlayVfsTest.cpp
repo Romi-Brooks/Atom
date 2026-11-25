@@ -1,6 +1,6 @@
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Filesystem/OverlayFileSystem.hpp>
-#include <Filesystem/Vfs.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Resources/Filesystem/OverlayFileSystem.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
 
 #include <iostream>
 #include <memory>

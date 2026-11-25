@@ -7,10 +7,10 @@
  * on-demand rasterization into a format-tagged GlyphRaster.
  */
 
-#include <Render/Text/FreeTypeFontProvider.hpp>
+#include <Atom/Presentation/Render/Text/FreeTypeFontProvider.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
-#include <Concurrency/JobSystem.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
 
 #include <cstddef>
 #include <cstdint>
