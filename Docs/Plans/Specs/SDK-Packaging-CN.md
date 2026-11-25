@@ -370,6 +370,8 @@ Atom 风格的 `Panel`/`Widget` 包装层），这样用户不必直接面对原
 - `Atom/Platform/Entry/**`（入口实现）
 - 任何包含禁用第三方头的头文件（用 5.7 的检查兜底）
 
+音频公开 API 使用 `AudioDecoderRegistry` 和 `IAudioBackendChangeListener`。S4 要将这两个声明移到可安装路径，保持类型和命名空间，并继续由原 DLL 宿主提供实现。安装验收从独立目录编译每个头文件，检查其依赖能在安装前缀内解析。
+
 **第三方头（受控安装，不算 public API）**：
 
 - `Atom/Lua/**` 全部安装，并附带 `lua.h/lualib.h/lauxlib.h/luaconf.h`（D03a）；
@@ -953,6 +955,7 @@ auto atom::platform::ApplicationMain(int, char**) -> int {
 | 静态/共享混用 | 两份引擎状态 | 分成两个压缩包；文档明确「不要混链」 |
 | 静态包与系统/第三方库重复 | 链接期重复符号 | 静态包的 `Atom.lib` 已含第三方；用户不再链 SDL3.lib/lua.lib |
 | 静态初始化顺序跨 DLL | 注册表为空/初始化两次 | 后端/通道注册改为 `Initialize()` 显式调用 |
+| Windows DLL 卸载时等待工作线程 | 程序从 `main` 返回后卡死 | 在 DLL 卸载前关闭日志和作业线程。验收同时覆盖入口库和自定义 `main` |
 | ABI 混用 | 崩溃 | 每个包自包含；文档写明同工具链；`AtomConfig` 里做编译器/配置检查 |
 | 循环依赖 | 无法构建 | 4.3 的 DAG；CI 用 `cmake --graphviz` 或脚本检查 |
 | 公开头泄漏 SDL/内部实现 | 用户被迫装 SDL | 4.4 排除清单 + 自包含检查；ImGui/Lua 头是受控安装 |
@@ -1137,6 +1140,7 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
 3. 入口库保持 STATIC。
 4. 新增 install/export（见 5.4）与 `AtomConfig.cmake.in`、`AtomHelpers.cmake`。
 5. 新增 `Test/SdkSmoke/`（最小 `find_package` 工程）。
+   Windows MinGW 的独立 DLL 试验已复现：日志调用成功且 `main` 返回，进程仍未退出。S4 必须让日志线程在 DLL 卸载前关闭并刷新队列，并检查同样会等待线程的作业系统单例。冒烟测试应设置退出超时。
 6. 验收：
 
    ```powershell
