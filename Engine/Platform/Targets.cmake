@@ -1,3 +1,14 @@
+# Executable entry point. The application supplies ApplicationMain.
+set(atom_entry_sources Engine/Platform/ApplicationEntry.cpp Engine/Platform/ApplicationEntry.hpp)
+add_library(Atom_ApplicationEntry OBJECT ${atom_entry_sources})
+target_include_directories(Atom_ApplicationEntry PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
+if(WIN32)
+    add_library(Atom_WindowsDesktopEntry OBJECT ${atom_entry_sources})
+    target_include_directories(Atom_WindowsDesktopEntry PUBLIC "${PROJECT_SOURCE_DIR}/Engine")
+    target_compile_definitions(Atom_WindowsDesktopEntry PRIVATE "$<${ATOM_WINDOWS_QUIET_RELEASE}:ATOM_WINDOWS_GUI_ENTRY>")
+    target_link_libraries(Atom_WindowsDesktopEntry PRIVATE "$<${ATOM_WINDOWS_QUIET_RELEASE}:Atom_3rd_SDL3>")
+endif()
+
 # Application resource directory. VFS remains platform-backend neutral.
 add_library(Atom_ApplicationPaths STATIC
     Engine/Platform/ApplicationPaths.hpp

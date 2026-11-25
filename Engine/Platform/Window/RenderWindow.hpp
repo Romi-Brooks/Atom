@@ -39,7 +39,7 @@ class RenderWindow {
         std::unique_ptr<atom::render::IRenderBackend> backend_;
         std::string name_{};
         std::string backend_id_{};
-        unsigned int fps_ = 60;
+        unsigned int fps_ = window::kDefaultFpsLimit;
         bool shutdown_notified_ = false;
 
         struct PendingResize {

@@ -16,10 +16,7 @@
 #include <cmath>
 #include <string>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
-
+#include <Platform/ApplicationEntry.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
@@ -473,7 +470,7 @@ class InputStatePanel final : public atom::debugger::DebugPanel {
 
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     // Windows console: make the debugger's UTF-8 output readable.
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
@@ -498,7 +495,6 @@ auto main(int, char**) -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-    window.SetFPS(60);
 
     InputStatePanel panel{};
     panel.Attach(window);

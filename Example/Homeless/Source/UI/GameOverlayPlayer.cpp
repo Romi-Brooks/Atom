@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
 #include <numbers>
 #include <span>
 #include <utility>
@@ -22,7 +21,6 @@ struct TrackPresentation {
         std::string title;
         std::string artist;
         atom::image::DecodedImage cover;
-        std::vector<char> font_bytes;
 };
 
 namespace {
@@ -30,29 +28,38 @@ namespace {
 constexpr auto ink = atom::color::Color{14, 27, 33, 255};
 constexpr auto highlight = atom::color::Color{54, 82, 91, 255};
 constexpr auto cream = atom::color::Color{239, 235, 223, 255};
+enum class TrackScript { Latin, Chinese, Korean };
 
 auto ReadSystemFont(const char* filename) -> std::vector<char> {
     const char* directory = std::getenv("WINDIR");
     const std::filesystem::path root = directory ? directory : "C:/Windows";
-    std::ifstream stream(root / "Fonts" / filename, std::ios::binary);
-    if (!stream)
+    std::ifstream stream(root / "Fonts" / filename, std::ios::binary | std::ios::ate);
+    const auto size = stream.tellg();
+    if (size <= 0)
         return {};
-    return {std::istreambuf_iterator<char>(stream), {}};
+    std::vector<char> bytes(static_cast<std::size_t>(size));
+    stream.seekg(0);
+    if (!stream.read(bytes.data(), static_cast<std::streamsize>(bytes.size())))
+        return {};
+    return bytes;
 }
 
-auto LoadSystemFont(atom::render::Renderer2D& renderer, const char* filename) -> atom::render::Font* {
-    const auto bytes = ReadSystemFont(filename);
-    return bytes.empty() ? nullptr : renderer.LoadFontFromMemory(std::as_bytes(std::span(bytes)));
+auto DisplayLine(std::string_view text) -> std::string {
+    const auto line = text.substr(0, text.find_first_of("\r\n"));
+    auto end = std::min<std::size_t>(line.size(), 96);
+    while (end < line.size() && end > 0 && (static_cast<unsigned char>(line[end]) & 0xC0) == 0x80)
+        --end;
+    return atom::ReplaceInvalidUtf8(std::string(line.substr(0, end)));
 }
 
-auto TrackFontName(const std::wstring& text) -> const char* {
+auto FindTrackScript(const std::wstring& text) -> TrackScript {
     if (std::ranges::any_of(text, [](wchar_t c) {
             return (c >= 0x1100 && c <= 0x11ff) || (c >= 0x3130 && c <= 0x318f) || (c >= 0xac00 && c <= 0xd7af);
         }))
-        return "malgun.ttf";
+        return TrackScript::Korean;
     if (std::ranges::any_of(text, [](wchar_t c) { return c >= 0x2e80 && c <= 0x9fff; }))
-        return "msyh.ttc";
-    return nullptr;
+        return TrackScript::Chinese;
+    return TrackScript::Latin;
 }
 
 auto MakeCircularCover(const atom::image::DecodedImage& image) -> atom::image::DecodedImage {
@@ -60,7 +67,7 @@ auto MakeCircularCover(const atom::image::DecodedImage& image) -> atom::image::D
         return {};
 
     const auto edge = std::min(image.width, image.height);
-    const auto size = std::min(edge, 192u);
+    constexpr auto size = 192u;
     const auto left = (image.width - edge) / 2;
     const auto top = (image.height - edge) / 2;
     const float radius = static_cast<float>(size) * 0.5f;
@@ -81,80 +88,96 @@ auto MakeCircularCover(const atom::image::DecodedImage& image) -> atom::image::D
 }
 
 auto ReadTrackPresentation(const std::string& uri, std::string title, std::string artist) -> TrackPresentation {
-    TrackPresentation result{.title = std::move(title), .artist = std::move(artist)};
+    TrackPresentation result{.title = DisplayLine(title), .artist = DisplayLine(artist)};
     if (const auto tags = atom::audio::AudioMetadataReader::Read(uri)) {
         if (!tags->title.empty())
-            result.title = tags->title;
+            result.title = DisplayLine(tags->title);
         if (!tags->artist.empty())
-            result.artist = tags->artist;
+            result.artist = DisplayLine(tags->artist);
         if (!tags->artworkData.empty()) {
             const auto image = atom::image::DecodeImageMemory(std::as_bytes(std::span(tags->artworkData)));
             result.cover = MakeCircularCover(image);
         }
     }
-    if (const auto* font_name = TrackFontName(atom::Utf8ToWide(result.title + result.artist)))
-        result.font_bytes = ReadSystemFont(font_name);
     return result;
 }
 
 } // namespace
 
-auto GameOverlay::Load(const std::string& track_uri) -> bool {
-    font_ = LoadSystemFont(renderer_, "segoeui.ttf");
-    if (!font_)
-        font_ = LoadSystemFont(renderer_, "arial.ttf");
+auto GameOverlay::ReadFonts() -> OverlayFonts {
+    auto latin = ReadSystemFont("segoeui.ttf");
+    if (latin.empty())
+        latin = ReadSystemFont("arial.ttf");
+    return {std::move(latin), ReadSystemFont("msyh.ttc"), ReadSystemFont("malgun.ttf")};
+}
+
+auto GameOverlay::Load(const OverlayFonts& fonts, const std::filesystem::path& music_directory) -> bool {
+    const auto load = [this](const std::vector<char>& bytes) {
+        return bytes.empty() ? nullptr : renderer_.LoadFontFromMemory(std::as_bytes(std::span(bytes)));
+    };
+    font_ = load(fonts.latin);
     if (!font_)
         return false;
-
-    if (track_uri.empty() || !music_.Load("phone", track_uri))
-        return true;
-
-    track_available_ = true;
-    title_ = atom::PathToUtf8(atom::PathFromUtf8(track_uri.substr(track_uri.find_last_of('/') + 1)).stem());
-    if (const auto separator = title_.find(" - "); separator != std::string::npos) {
-        artist_ = title_.substr(0, separator);
-        title_ = title_.substr(separator + 3);
-    }
-    prepared_track_ = std::make_shared<TrackPresentation>();
-    auto prepare = [result = prepared_track_, track_uri, title = title_, artist = artist_]() mutable {
-        *result = ReadTrackPresentation(track_uri, std::move(title), std::move(artist));
-    };
-    prepare_track_job_ =
-        atom::job::JobSystem::GetInstance().ScheduleOrRun("Homeless: player artwork and tags", std::move(prepare));
-    ApplyPreparedTrack();
-
+    chinese_font_ = load(fonts.chinese);
+    korean_font_ = load(fonts.korean);
+    playlist_.Scan(music_directory);
     return true;
 }
 
-auto GameOverlay::ApplyPreparedTrack() -> void {
-    if (!prepared_track_ || (prepare_track_job_.IsValid() && !prepare_track_job_.IsComplete()))
-        return;
-    auto prepared = std::move(prepared_track_);
-    prepare_track_job_ = {};
-    if (!prepared->title.empty())
-        title_ = std::move(prepared->title);
-    if (!prepared->artist.empty())
-        artist_ = std::move(prepared->artist);
-    if (prepared->cover.IsValid())
-        cover_ = renderer_.CreateTexture(prepared->cover.width, prepared->cover.height, prepared->cover.rgba.data());
-    if (!prepared->font_bytes.empty())
-        track_font_ = renderer_.LoadFontFromMemory(std::as_bytes(std::span(prepared->font_bytes)));
+auto GameOverlay::UpdateTrackDisplay() -> void {
+    const auto* track = playlist_.Selected();
+    const std::string_view uri = track ? std::string_view{track->uri} : std::string_view{};
+    bool text_changed = false;
+    if (selected_uri_ != uri) {
+        selected_uri_ = uri;
+        title_ = track ? DisplayLine(track->title) : "No track";
+        artist_ = track ? DisplayLine(track->artist) : "";
+        show_cover_ = false;
+        cover_angle_ = 0.0f;
+        text_changed = true;
+    }
+    if (prepare_track_job_.IsValid() && prepare_track_job_.IsComplete()) {
+        prepare_track_job_ = {};
+        auto prepared = std::move(prepared_track_);
+        if (track && artwork_uri_ == uri) {
+            if (!prepared->title.empty())
+                title_ = std::move(prepared->title);
+            if (!prepared->artist.empty())
+                artist_ = std::move(prepared->artist);
+            if (prepared->cover.IsValid()) {
+                const auto& cover = prepared->cover;
+                if (cover_)
+                    renderer_.UpdateTexture(*cover_, cover.rgba.data());
+                else
+                    cover_ = renderer_.CreateTexture(cover.width, cover.height, cover.rgba.data());
+                show_cover_ = cover_ != nullptr;
+            }
+            text_changed = true;
+        }
+    }
+    if (track && artwork_uri_ != uri && !prepare_track_job_.IsValid()) {
+        artwork_uri_ = uri;
+        prepared_track_ = std::make_shared<TrackPresentation>();
+        prepare_track_job_ = atom::job::JobSystem::GetInstance().Schedule(
+            "Homeless: music artwork and tags",
+            [result = prepared_track_, track = *track]() mutable {
+                *result = ReadTrackPresentation(track.uri, std::move(track.title), std::move(track.artist));
+            },
+            atom::job::Priority::Low);
+    }
+    if (text_changed) {
+        const auto script = FindTrackScript(atom::Utf8ToWide(title_ + artist_));
+        track_font_ = script == TrackScript::Chinese  ? chinese_font_
+                      : script == TrackScript::Korean ? korean_font_
+                                                      : nullptr;
+    }
 }
 
 auto GameOverlay::Update(float seconds) -> void {
-    ApplyPreparedTrack();
-    playing_ = track_available_ && music_.GetState("phone") == atom::audio::AudioSourceState::Playing;
-    if (playing_ && std::isfinite(seconds) && seconds > 0.0f)
+    playlist_.Update(mixer_.GetEffectiveMusicVolume());
+    UpdateTrackDisplay();
+    if (playlist_.IsPlaying() && std::isfinite(seconds) && seconds > 0.0f)
         cover_angle_ = std::fmod(cover_angle_ + std::min(seconds, 0.1f) * 1.6f, 2 * std::numbers::pi_v<float>);
-}
-
-auto GameOverlay::ToggleTrack() -> void {
-    if (!track_available_)
-        return;
-    if (music_.GetState("phone") == atom::audio::AudioSourceState::Playing)
-        music_.Pause("phone");
-    else
-        music_.Play("phone");
 }
 
 auto GameOverlay::PlayerScreen() const -> atom::algo::Rect {
@@ -166,16 +189,30 @@ auto GameOverlay::PlayButton() const -> atom::algo::Rect {
     return {screen.x + 54, screen.y + 52, 36, 15};
 }
 
+auto GameOverlay::SkipButton(int direction) const -> atom::algo::Rect {
+    const auto screen = PlayerScreen();
+    return {screen.x + (direction < 0 ? 17.0f : 96.0f), screen.y + 53, 31, 13};
+}
+
 auto GameOverlay::HandlePlayerClick() -> bool {
+    for (const int direction : {-1, 1}) {
+        if (SkipButton(direction).Contains(mouse_)) {
+            if (playlist_.CanMove())
+                playlist_.Move(direction);
+            return true;
+        }
+    }
     if (!PlayerScreen().Contains(mouse_) && !PlayButton().Contains(mouse_))
         return false;
-    ToggleTrack();
+    playlist_.Toggle();
     return true;
 }
 
 auto GameOverlay::DrawPlayer() -> void {
     const auto screen = PlayerScreen();
     const auto play = PlayButton();
+    const auto previous = SkipButton(-1);
+    const auto next = SkipButton(1);
     const auto x = screen.x;
     const auto y = screen.y;
     constexpr auto bezel = atom::color::Color{164, 180, 194, 255};
@@ -184,7 +221,8 @@ auto GameOverlay::DrawPlayer() -> void {
     constexpr auto passive = atom::color::Color{108, 120, 136, 255};
     constexpr auto active = atom::color::Color{207, 243, 248, 255};
     constexpr auto screen_tint = atom::color::Color{16, 30, 52, 255};
-    const bool hovered = track_available_ && (screen.Contains(mouse_) || play.Contains(mouse_));
+    const bool track_available = playlist_.Selected() != nullptr;
+    const bool hovered = track_available && (screen.Contains(mouse_) || play.Contains(mouse_));
 
     Fill({x - 4, y - 5, 157, 80}, {10, 13, 31, 151});
     Fill({x - 7, y - 5, 158, 76}, case_edge);
@@ -202,7 +240,7 @@ auto GameOverlay::DrawPlayer() -> void {
     const float cy = disc.y + disc.height * 0.5f;
     renderer_.DrawCircle(cx, cy, 20.5f * ui_scale_, {94, 133, 153, 255}, 48);
     renderer_.DrawCircle(cx, cy, 19.6f * ui_scale_, {27, 42, 62, 255}, 48);
-    if (cover_) {
+    if (show_cover_) {
         renderer_.DrawTexture(*cover_, disc, atom::color::Color::White(), nullptr, false, false,
                               atom::render::Filter2D::Linear, cover_angle_);
     } else {
@@ -212,7 +250,7 @@ auto GameOverlay::DrawPlayer() -> void {
 
     renderer_.PushClip(ToPixels({x + 51, y + 4, 90, 39}));
     auto& track_face = track_font_ ? *track_font_ : *font_;
-    Label(track_face, title_, x + 52, y + 9, 11, cream);
+    Label(track_face, playlist_.IsScanning() ? "Reading Music" : title_, x + 52, y + 9, 11, cream);
     Label(track_face, artist_, x + 53, y + 26, 9, {155, 201, 219, 255});
     renderer_.PopClip();
 
@@ -220,8 +258,10 @@ auto GameOverlay::DrawPlayer() -> void {
         Fill(bounds, case_edge);
         Fill({bounds.x + 1, bounds.y + 1, bounds.width - 2, bounds.height - 2}, background);
     };
-    transport({x + 17, y + 53, 31, 13}, {136, 153, 170, 255});
-    transport({x + 96, y + 53, 31, 13}, {136, 153, 170, 255});
+    constexpr auto button_idle = atom::color::Color{136, 153, 170, 255};
+    const bool can_skip = playlist_.CanMove();
+    transport(previous, can_skip && previous.Contains(mouse_) ? highlight : button_idle);
+    transport(next, can_skip && next.Contains(mouse_) ? highlight : button_idle);
     transport(play, hovered ? highlight : atom::color::Color{47, 69, 93, 255});
 
     const float icon_y = y + 59.5f;
@@ -231,15 +271,16 @@ auto GameOverlay::DrawPlayer() -> void {
             Fill({center + direction * (column - 2), icon_y - half_height, 1.15f, 2 * half_height}, color);
         }
     };
-    arrow(x + 33, -1, passive);
-    Fill({x + 28, icon_y - 3.5f, 1.4f, 7}, passive);
-    arrow(x + 111, 1, passive);
-    Fill({x + 115, icon_y - 3.5f, 1.4f, 7}, passive);
-    if (playing_) {
+    const auto skip_color = can_skip ? ink : passive;
+    arrow(x + 33, -1, skip_color);
+    Fill({x + 28, icon_y - 3.5f, 1.4f, 7}, skip_color);
+    arrow(x + 111, 1, skip_color);
+    Fill({x + 115, icon_y - 3.5f, 1.4f, 7}, skip_color);
+    if (playlist_.WantsPlayback()) {
         Fill({x + 68, icon_y - 3.5f, 2.6f, 7}, active);
         Fill({x + 73, icon_y - 3.5f, 2.6f, 7}, active);
     } else {
-        arrow(x + 72, 1, track_available_ ? active : passive);
+        arrow(x + 72, 1, track_available ? active : passive);
     }
 }
 

@@ -24,8 +24,6 @@ add_library(Atom_Media STATIC
     Engine/Resources/Media/Audio/Metadata/AudioMetadataReader.cpp
     Engine/Resources/Media/Audio/Metadata/AudioMetadataReader.hpp
     Engine/Resources/Media/Audio/Effects/IAudioEffect.hpp
-    Engine/Resources/Media/Audio/Effects/DopplerEffect.cpp
-    Engine/Resources/Media/Audio/Effects/DopplerEffect.hpp
     Engine/Resources/Media/Audio/Mixing/AudioMixer.cpp
     Engine/Resources/Media/Audio/Mixing/AudioMixer.hpp
     Engine/Resources/Media/Audio/Resources/AudioClipLoader.cpp

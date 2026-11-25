@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include <Platform/ApplicationEntry.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Filesystem/Vfs.hpp>
@@ -30,7 +31,7 @@ constexpr const char* sample_files[] = {
 };
 } // namespace
 
-auto main() -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
 
     // Mount the music directory as res:// so metadata reads go through the VFS

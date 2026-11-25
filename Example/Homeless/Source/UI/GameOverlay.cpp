@@ -14,22 +14,14 @@ constexpr auto cream = atom::color::Color{239, 235, 223, 255};
 
 } // namespace
 
-GameOverlay::GameOverlay(atom::render::Renderer2D& renderer, atom::AudioMixer& mixer, atom::MusicPlayer& music,
-                         atom::SFXPlayer& effects)
-    : renderer_(renderer), mixer_(mixer), music_(music), effects_(effects) {}
-
-auto GameOverlay::ApplyAudioLevels() -> void {
-    music_.SetVolume("phone", mixer_.GetEffectiveMusicVolume());
-    music_.SetVolume("waterfront", mixer_.GetEffectiveSFXVolume() * 0.34f);
-    effects_.SetVolume("passing-car", mixer_.GetEffectiveSFXVolume() * 0.18f);
-}
+GameOverlay::GameOverlay(atom::render::Renderer2D& renderer, atom::AudioMixer& mixer)
+    : renderer_(renderer), mixer_(mixer), playlist_(mixer) {}
 
 auto GameOverlay::ToggleEffects() -> void {
     const auto volume = mixer_.GetSFXVolume();
     if (volume > 0)
         last_sfx_ = volume;
     mixer_.SetSFXVolume(volume > 0 ? 0.0f : last_sfx_);
-    ApplyAudioLevels();
 }
 
 auto GameOverlay::ToUi(float x, float y) const -> atom::algo::Vec2 {
@@ -61,7 +53,26 @@ auto GameOverlay::Text(std::string_view text, float x, float y, float size) -> v
     Label(*font_, text, x, y, size, cream);
 }
 
-auto GameOverlay::Draw(atom::render::IRenderDevice& device) -> bool {
+auto GameOverlay::DrawInteractionPrompt(InteractionPrompt prompt) -> void {
+    const float y = ui_size_.GetY() - 38.0f;
+    const atom::algo::Rect panel{14, y, 125, 24};
+    Fill(panel, {19, 17, 37, 240});
+    Outline(panel, {116, 113, 156, 255});
+    float label_x = 22.0f;
+    if (!prompt.checked) {
+        Fill({21, y + 5, 14, 14}, {73, 63, 102, 255});
+        Text("E", 25, y + 5, 10);
+        label_x = 42.0f;
+    }
+    if (chinese_font_) {
+        const auto label = prompt.checked ? "入口暂未开放" : prompt.name;
+        Label(*chinese_font_, label, label_x, y + 4, 11, cream);
+    } else {
+        Text(prompt.checked ? "Entrance unavailable" : prompt.fallback_name, label_x, y + 5, 10);
+    }
+}
+
+auto GameOverlay::Draw(atom::render::IRenderDevice& device, InteractionPrompt prompt) -> bool {
     const auto output = device.GetOutputSize();
     const auto zoom = std::min(output.GetX() / scene_width, output.GetY() / scene_height);
     if (zoom <= 0)
@@ -73,6 +84,8 @@ auto GameOverlay::Draw(atom::render::IRenderDevice& device) -> bool {
     DrawPlayer();
     if (IsMenuOpen())
         DrawMenu();
+    else if (!prompt.name.empty())
+        DrawInteractionPrompt(prompt);
     return renderer_.EndFrame();
 }
 

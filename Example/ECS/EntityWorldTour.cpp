@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include <Platform/ApplicationEntry.hpp>
 #include <ECS/Components.hpp>
 #include <ECS/EntityWorld.hpp>
 
@@ -89,7 +90,7 @@ struct Integrate final {
 
 } // namespace
 
-auto main() -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     // --- world creation ---------------------------------------------------
     Header("Creating the world");
 

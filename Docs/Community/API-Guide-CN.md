@@ -28,6 +28,12 @@ atom::Log::SetFileOutput(true);
 
 ## 窗口与 Screen
 
+仓库内的 Example 包含 `<Platform/ApplicationEntry.hpp>`，并实现
+`atom::platform::ApplicationMain(int, char**)`。在 CMake 中用
+`atom_use_application_entry(target WINDOWED)` 配置窗口应用，用
+`atom_use_application_entry(target CONSOLE)` 配置终端工具或无窗口基准。
+平台层提供系统入口并传递参数与退出码。独立工具、测试和自行管理进程入口的应用可以直接定义 `main`。
+
 ```cpp
 #include <Window/RenderWindow.hpp>
 #include <Runtime/ScreenManager.hpp>
@@ -66,16 +72,16 @@ atom::ScreenManager::GetInstance().LoadScreen(
 // 卸载：仍为 active 时返回 InUse（先切走），其余情况连同引用它的栈槽一起移除。
 atom::ScreenManager::GetInstance().UnloadScreen("menu");
 
-auto& window = atom::RenderWindow::GetInstance();
-window.Initialize("My Game", atom::algo::Vec2{1280, 720}); // 默认 RenderBackendId::SdlGpu
-window.Initialize("My Game", atom::algo::Vec2{1280, 720},
-                  atom::backend::RenderBackendId::SdlGpu); // 显式指定
-window.SetFPS(60);
-window.Run();
+auto& application = atom::runtime::Application::GetInstance();
+application.Initialize("My Game", atom::algo::Vec2{1280, 720}); // 默认 RenderBackendId::SdlGpu
+application.Initialize("My Game", atom::algo::Vec2{1280, 720},
+                       atom::backend::RenderBackendId::SdlGpu); // 显式指定
+application.Run();
 ```
 
 `Initialize` 的第三个参数选择**引擎内置**渲染后端（枚举 `atom::backend::RenderBackendId`），
-默认 `SdlGpu`（内部注册表 ID `"sdl_gpu"`）。
+默认 `SdlGpu`（内部注册表 ID `"sdl_gpu"`）。窗口和帧循环都归 `Application`：
+`RenderWindow` 的 `Initialize`/`Run` 是私有的，游戏侧只通过 `Application` 驱动。
 
 ### 渲染后端 vs 图形 API（两个正交的轴）
 
@@ -104,12 +110,17 @@ config.render_backend = atom::backend::RenderBackendId::SdlGpu;
 config.gpu_driver = atom::backend::GpuDriver::Vulkan;          // 默认 Auto
 config.window_mode = atom::window::WindowMode::Windowed;        // 默认 Windowed
 config.present_mode = atom::render::PresentMode::VSync;        // 默认 VSync
+config.fps = 60;                                               // 启动限帧；0 = 不限帧，默认 60
 application.Initialize(config);
 
-// 运行期修改（这是游戏内"显示设置"页要调的两个选项）
-window.SetWindowMode(atom::window::WindowMode::Borderless);
-window.SetPresentMode(atom::render::PresentMode::Immediate);
+// 运行期修改（这是游戏内"显示设置"页要调的两个选项；在帧边界生效）
+atom::display::DisplaySystem::GetInstance().RequestWindowMode(atom::window::WindowMode::Borderless);
+atom::display::DisplaySystem::GetInstance().RequestPresentMode(atom::render::PresentMode::Immediate);
 ```
+
+`config.fps` 是**启动**软件限帧，由 `Initialize` 应用一次，默认 `60`；`0` 表示不限帧，
+节奏完全交给呈现模式。它不进 `DisplaySettings`：呈现模式/窗口模式要重建 swapchain、必须延迟到帧边界，
+而帧率改动是立即生效的，运行期直接用 `window.SetFPS(...)`——两条路径各有唯一 owner。
 
 | `PresentMode` | 提交是否阻塞 | 名义上是否跟随刷新率 | **实测（SDL_GPU / D3D12，RTX 4060）** | 典型游戏内文案 |
 |---|---|---|---|---|

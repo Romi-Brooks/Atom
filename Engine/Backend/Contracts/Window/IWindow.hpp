@@ -22,6 +22,12 @@
 
 namespace atom::window {
 
+// The engine-wide startup default for the software frame cap. Zero means "no
+// software cap": pacing is then whatever the present mode does (ARCH-006).
+// Held here because this contract owns SetFPS/GetFPS and their 0 semantics;
+// ApplicationConfig and RenderWindow both start from this one value.
+inline constexpr std::uint32_t kDefaultFpsLimit = 60;
+
 enum class EventType {
     None = 0,
     Closed,

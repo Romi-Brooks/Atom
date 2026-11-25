@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <variant>
@@ -20,7 +21,6 @@ namespace homeless {
 
 namespace {
 
-constexpr float walker_feet = 228.0f;
 constexpr auto white = atom::color::Color::White();
 constexpr auto nearest = atom::render::Filter2D::Nearest;
 
@@ -29,8 +29,8 @@ constexpr auto nearest = atom::render::Filter2D::Nearest;
 PromenadeScreen::PromenadeScreen(std::unique_ptr<atom::ecs::EntityWorld> world, unsigned frame_limit,
                                  bool& render_failed, atom::random::Rng scene_rng)
     : world_(std::move(world)), textures_(cache_, atom::fs::Vfs::GetInstance()),
-      traffic_(*world_, mixer_, effects_, scene_rng), walker_rng_(scene_rng.Fork(1)), frames_remaining_(frame_limit),
-      render_failed_(render_failed) {
+      traffic_(*world_, scene_audio_, scene_rng), pedestrians_(*world_, scene_rng.Fork(2)),
+      walker_rng_(scene_rng.Fork(1)), frames_remaining_(frame_limit), render_failed_(render_failed) {
     mixer_.SetMusicVolume(70.0f);
 }
 
@@ -39,7 +39,7 @@ auto PromenadeScreen::SetUpWorld() -> bool {
     camera_ = world_->CreateEntity();
     const atom::algo::Vec2 start{world_width_ * 0.5f, scene_height * 0.5f};
     if (!SetUpSprite(*world_, walker_, {start.GetX(), walker_feet},
-                     {.pivot = {0.5f, 1.0f}, .filter = atom::ecs::SpriteFilter::Nearest, .layer = 10}) ||
+                     {.pivot = {0.5f, 1.0f}, .filter = atom::ecs::SpriteFilter::Nearest, .layer = walker_layer}) ||
         !world_->Emplace<atom::ecs::Animator2D>(walker_) ||
         !world_->Emplace<atom::ecs::SceneEntityId>(walker_, atom::ecs::SceneEntityId{.value = 1}) ||
         !world_->Emplace<atom::ecs::Transform2D>(camera_, atom::ecs::Transform2D{.position = start}) ||
@@ -54,25 +54,21 @@ auto PromenadeScreen::SetUpWorld() -> bool {
                                                                         .bounds_max = {world_width_, scene_height}}))
         return false;
 
-    return traffic_.Initialize(world_width_) && SetUpWalkerAnimation() && SetUpWeather();
+    if (!traffic_.Initialize(world_width_) || !SetUpWalkerAnimation() || !SetUpWeather() ||
+        !pedestrians_.Initialize(world_width_, clips_))
+        return false;
+    pedestrians_.Reset(false, animation_);
+    StepAnimation(0.0f);
+    return true;
 }
 
 auto PromenadeScreen::OnActivate() -> void {
-    if (ambience_.Load("waterfront", "res://Audio/Waterfront.wav")) {
-        ambience_.SetLooping("waterfront", true);
-        ambience_.Play("waterfront", mixer_.GetEffectiveSFXVolume() * 0.34f);
-    } else {
-        LOG_WARNING(atom::log::audio::Sfx, "Waterfront ambience is unavailable");
-    }
-    (void)effects_.SetVoiceLimit(4);
-    traffic_.LoadAudio();
-    LoadFootsteps();
+    scene_audio_.Start();
 }
 
 auto PromenadeScreen::OnDeactivate() -> void {
-    ambience_.Stop("waterfront");
-    ambience_.Stop("phone");
-    effects_.StopAll();
+    scene_audio_.Stop();
+    overlay_.StopMusic();
 }
 
 auto PromenadeScreen::HandleEvent(const atom::window::IEvent& event) -> bool {
@@ -85,6 +81,10 @@ auto PromenadeScreen::HandleEvent(const atom::window::IEvent& event) -> bool {
         overlay_.ToggleEffects();
         return true;
     }
+    if (key->key == atom::input::Key::E && !overlay_.IsMenuOpen() && NearbyEntrance()) {
+        entrance_checked_ = true;
+        return true;
+    }
     return false;
 }
 
@@ -93,7 +93,15 @@ auto PromenadeScreen::FixedUpdate(float seconds) -> void {
     if (overlay_.IsMenuOpen())
         return;
 
-    UpdateWalker(seconds);
+    if (fade_ == Fade::None) {
+        UpdateWalker(seconds);
+        if (entrance_checked_ && !NearbyEntrance())
+            entrance_checked_ = false;
+    } else {
+        UpdateAreaTransition(seconds);
+    }
+    pedestrians_.Step(seconds, animation_);
+    StepAnimation(seconds);
     UpdateWeather(seconds);
     StepTraffic(seconds);
     (void)atom::world2d::CameraSystem2D::Step(*world_, {scene_width, scene_height}, seconds);
@@ -116,7 +124,8 @@ auto PromenadeScreen::Render(atom::render::IRenderDevice& device) -> void {
     world_->TryGet<atom::ecs::Camera2D>(camera_)->viewport_size = {view_width, view_height};
     const auto follow =
         atom::render::scene2d::Scene2DRenderer::FindActiveCamera(*world_, {view_width, view_height}, interpolation_);
-    const float camera_left = std::clamp(std::round(follow.Origin().GetX()), 0.0f, world_width_ - view_width);
+    const float camera_left =
+        std::clamp(std::round(follow.Origin().GetX() * scale) / scale, 0.0f, world_width_ - view_width);
     const float camera_top = scene_height - view_height;
     const atom::render::scene2d::CameraView view{
         .center = {camera_left + view_width * 0.5f, camera_top + view_height * 0.5f},
@@ -127,25 +136,37 @@ auto PromenadeScreen::Render(atom::render::IRenderDevice& device) -> void {
         return;
     }
     const atom::algo::Rect visible{camera_left, camera_top, view_width, view_height};
-    renderer_.DrawTexture(*scene_, visible, white, &visible, false, false, nearest);
-    DrawWater(camera_left, camera_left + view_width);
+    auto& background = area_ == Area::Street ? *street_ : *waterfront_;
+    renderer_.DrawTexture(background, visible, white, &visible, false, false, nearest);
+    if (area_ == Area::Waterfront)
+        DrawWater(camera_left, camera_left + view_width);
     traffic_.DrawRoadDetails(renderer_, camera_left, camera_left + view_width, interpolation_);
 
     for (const auto& draw : world_renderer_.Collect(*world_, view, nullptr, &snow_, interpolation_, true)) {
         auto dst = draw.destination;
         dst.width = std::max(1.0f, std::round(dst.width));
         dst.height = std::max(1.0f, std::round(dst.height));
-        dst.x = std::round(dst.x);
+        // Let interpolated characters move by one output pixel at enlarged scales.
+        if (draw.layer == walker_layer || draw.layer == pedestrian_layer)
+            dst.x = camera_left + std::round((dst.x - camera_left) * scale) / scale;
+        else
+            dst.x = std::round(dst.x);
         dst.y = std::round(dst.y);
         renderer_.DrawTexture(*draw.texture, dst, draw.tint, draw.has_source ? &draw.source : nullptr, draw.flip_x,
                               draw.flip_y, draw.filter);
     }
-    if (!renderer_.EndFrame() || !overlay_.Draw(device)) {
+    if (fade_opacity_ > 0.0f)
+        renderer_.DrawRect(visible, {12, 9, 22, static_cast<std::uint8_t>(std::round(fade_opacity_ * 255.0f))});
+    InteractionPrompt prompt;
+    if (const auto* entrance = NearbyEntrance())
+        prompt = {entrance->name, entrance->fallback_name, entrance_checked_};
+    if (!renderer_.EndFrame() || !overlay_.Draw(device, prompt)) {
         render_failed_ = true;
         atom::runtime::Application::GetInstance().RequestStop();
     } else if (frames_remaining_ != 0 && --frames_remaining_ == 0) {
-        LOG_INFO(atom::log::core::Screen, "Homeless frame limit reached. Snow particles: " +
-                                              std::to_string(snow_.Count()) + ". " + traffic_.Summary());
+        LOG_INFO(atom::log::core::Screen,
+                 "Homeless frame limit reached. Snow particles: " + std::to_string(snow_.Count()) +
+                     ". Pedestrians: " + std::to_string(pedestrians_.Count()) + ". " + traffic_.Summary());
         atom::runtime::Application::GetInstance().RequestStop();
     }
 }

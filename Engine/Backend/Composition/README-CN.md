@@ -169,6 +169,10 @@ runtime.SetAudioBackend(atom::backend::AudioBackendId::Sdl3Mixer);
 
 系统不迁移播放位置，也不自动重播；切换后由页面或后续场景重新调用 `Load/Play`。
 
+参考实现：`Example/Media/AudioPlayback.cpp`（流式 `MusicPlayer`，切换后重新 `Load` 并续播当前曲目）与
+`Example/Media/SFXPlayback.cpp`（`SFXPlayer`，切换会清空 PCM 缓存，因此重新解码全部音效）；`Example/MusicCard`
+则实现 `IAudioBackendChangeListener`，由页面在 `OnAudioBackendChanging()` 里自行失效缓存。
+
 ### Generation（缓存失效判定）
 
 ```cpp

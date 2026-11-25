@@ -19,6 +19,7 @@
 #include <thread>
 #include <vector>
 
+#include <Platform/ApplicationEntry.hpp>
 #include <Concurrency/JobSystem.hpp>
 
 namespace {
@@ -35,7 +36,7 @@ auto Header(const std::string& title) -> void {
 
 } // namespace
 
-auto main() -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     // One scheduler for the whole tour. Configure() picks
     // hardware_concurrency() - 1 workers (>= 1); Start() spawns them.
     auto& jobs = JobSystem::GetInstance();

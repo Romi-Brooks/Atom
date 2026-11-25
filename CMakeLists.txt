@@ -51,6 +51,7 @@ endif()
 # binary paths and support cross-module target references.
 set(ATOM_ENABLE_DEBUGGER "AUTO" CACHE STRING "Debug overlay: AUTO (follow build type), ON, or OFF")
 set_property(CACHE ATOM_ENABLE_DEBUGGER PROPERTY STRINGS AUTO ON OFF)
+include(cmake/ApplicationEntry.cmake)
 include(Engine/Targets.cmake)
 
 # Main Exec
@@ -64,7 +65,6 @@ if(WIN32)
     target_link_libraries(Atom_Engine PRIVATE opengl32 gdi32)
 endif()
 
-include(cmake/WindowsDesktop.cmake)
 include(cmake/Targets/Examples.cmake)
 include(Tools/Targets.cmake)
 

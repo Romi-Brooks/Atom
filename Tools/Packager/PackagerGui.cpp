@@ -913,7 +913,6 @@ auto atom::packager::RunGui(const std::vector<std::string>& args) -> int {
         LOG_ERROR(atom::log::utilities::Packager, initialized.error().Message());
         return 1;
     }
-    app.GetWindow().SetFPS(60);
     auto& jobs = atom::job::JobSystem::GetInstance();
     jobs.Configure(2);
     jobs.Start();

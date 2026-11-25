@@ -13,10 +13,7 @@
 #include <memory>
 #include <vector>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
-
+#include <Platform/ApplicationEntry.hpp>
 #include <Runtime/Application.hpp>
 #include <Runtime/Screen.hpp>
 #include <Runtime/ScreenManager.hpp>
@@ -283,7 +280,7 @@ class PausePage final : public UiPage {
 
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     auto& application = atom::runtime::Application::GetInstance();
     if (const auto result = application.Initialize("Atom UI Runtime Demo", {1280.0f, 720.0f}); !result)
         return 1;

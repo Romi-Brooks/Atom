@@ -93,9 +93,6 @@ target_link_libraries(Example_Physics_Benchmark PRIVATE Atom_Physics Atom_Concur
 add_executable(Example_ECS_Tour Example/ECS/EntityWorldTour.cpp)
 target_link_libraries(Example_ECS_Tour PRIVATE Atom_ECS)
 
-add_executable(Example_Spatial_Backend_Probe EXCLUDE_FROM_ALL Example/Audio/SpatialBackendProbe.cpp)
-target_link_libraries(Example_Spatial_Backend_Probe PRIVATE Atom_Media Atom_Runtime Atom_Debugger)
-
 foreach(window_example IN ITEMS
         Example_Audio_Playback
         Example_SFX_Playback
@@ -106,7 +103,15 @@ foreach(window_example IN ITEMS
         Example_MusicCard
         Example_Input_Demo
         Example_UI_Runtime_Demo
-        Example_Physics_Demo
-        Example_Spatial_Backend_Probe)
-    atom_use_windows_gui_in_release(${window_example})
+        Example_Physics_Demo)
+    atom_use_application_entry(${window_example} WINDOWED)
+endforeach()
+
+foreach(console_example IN ITEMS
+        Example_Audio_Metadata
+        Example_Job_System_Tour
+        Example_Log_Channel_Demo
+        Example_Physics_Benchmark
+        Example_ECS_Tour)
+    atom_use_application_entry(${console_example} CONSOLE)
 endforeach()

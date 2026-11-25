@@ -22,10 +22,7 @@
 #include <string>
 #include <vector>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
-
+#include <Platform/ApplicationEntry.hpp>
 #include <Backend/Contracts/Audio/AudioBackendId.hpp>
 #include <Backend/Composition/BackendRuntime.hpp>
 #include <Debugger/Panels/LogDebugger.hpp>
@@ -109,7 +106,7 @@ namespace {
 } // namespace
 
 
-auto main(int argc, char** argv) -> int {
+auto atom::platform::ApplicationMain(int argc, char** argv) -> int {
     atom::Log::SetConsoleOutputUtf8();
 
     // Persist the log to Log/<YYYYMMDD-HHMMSS>.log (the on-screen viewer keeps
@@ -168,6 +165,10 @@ auto main(int argc, char** argv) -> int {
     display_config.render_backend = atom::backend::RenderBackendId::SdlGpu;
     display_config.present_mode = atom::render::PresentMode::VSync;
     display_config.gpu_driver     = atom::backend::GpuDriver::Direct3D12;
+    // 0 disables the frame limiter entirely: the loop then runs as fast as
+    // presentation allows, so a refresh-paced present mode caps it at the
+    // display refresh while Immediate exposes the engine's own per-frame cost.
+    display_config.fps = 0;
 
     const auto initialized = application.Initialize(display_config);
 
@@ -175,12 +176,6 @@ auto main(int argc, char** argv) -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-
-    // What means unlimited: 0 disables the frame limiter entirely.
-    // The loop then runs as fast as presentation allows, so a refresh-paced
-    // present mode caps it at the display refresh while Immediate
-    // exposes the engine's own per-frame cost.
-    window.SetFPS(0);
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);

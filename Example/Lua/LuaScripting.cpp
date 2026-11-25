@@ -18,10 +18,7 @@
 #include <string>
 #include <string_view>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
-
+#include <Platform/ApplicationEntry.hpp>
 #include <Filesystem/FileSystem.hpp>
 #include <Filesystem/Vfs.hpp>
 #include <Log/LogSystem.hpp>
@@ -101,7 +98,7 @@ static auto HandleScriptFs() -> atom::fs::Result {
     return atom::fs::Result::Success;
 }
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
@@ -152,7 +149,6 @@ auto main(int, char**) -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-    window.SetFPS(60);
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);

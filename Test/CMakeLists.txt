@@ -417,6 +417,13 @@ atom_add_test(Atom_Runtime.GameWorld
     Runtime/GameWorldTest.cpp
     Atom_Runtime)
 
+# Startup config defaults: the frame cap has one engine-wide default, and it
+# belongs to ApplicationConfig rather than to a post-Initialize SetFPS call.
+atom_add_test(Atom_Runtime.ApplicationConfig
+    Atom_Runtime_ApplicationConfig_Tests
+    Runtime/ApplicationConfigTest.cpp
+    Atom_Runtime)
+
 # T1.1: spawning 2D scene entities through the command buffer - the path T1.3's
 # GameScreen uses - including the "failed setup leaves no ghost entity" rule.
 atom_add_test(Atom_Runtime.CommandBufferScene

@@ -6,10 +6,7 @@
 #include <thread>
 #include <utility>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
-
+#include <Platform/ApplicationEntry.hpp>
 #include <Concurrency/JobSystem.hpp>
 #include <Log/LogSystem.hpp>
 #include <Platform/ApplicationPaths.hpp>
@@ -32,12 +29,22 @@ struct JobSession final {
 
 } // namespace
 
-auto main(int argc, char** argv) -> int {
+auto atom::platform::ApplicationMain(int argc, char** argv) -> int {
     bool packaged = false;
     bool show_debugger = false;
-    auto window_mode = atom::window::WindowMode::Windowed;
-    unsigned frame_limit = 0;
-    auto driver = atom::backend::GpuDriver::Auto;
+
+    atom::runtime::ApplicationConfig display_config{};
+    display_config.title = "Homeless";
+    display_config.window_mode = atom::window::WindowMode::Windowed;
+    display_config.resolution = atom::algo::Vec2{1920.0f, 1080.0f};
+    display_config.render_backend = atom::backend::RenderBackendId::SdlGpu;
+    display_config.present_mode = atom::render::PresentMode::VSync;
+    display_config.gpu_driver     = atom::backend::GpuDriver::Vulkan;
+    display_config.frames_in_flight = 3;
+    display_config.fps = 0;
+
+    auto frame_limit = 0;
+
     for (int i = 1; i < argc; ++i) {
         const std::string_view option{argv[i]};
         if (option == "--package")
@@ -45,11 +52,11 @@ auto main(int argc, char** argv) -> int {
         else if (option == "--debugger")
             show_debugger = true;
         else if (option == "--windowed")
-            window_mode = atom::window::WindowMode::Windowed;
+            display_config.window_mode = atom::window::WindowMode::Windowed;
         else if (option == "--fullscreen")
-            window_mode = atom::window::WindowMode::ExclusiveFullscreen;
+            display_config.window_mode = atom::window::WindowMode::ExclusiveFullscreen;
         else if (option == "--vulkan")
-            driver = atom::backend::GpuDriver::Vulkan;
+            display_config.gpu_driver = atom::backend::GpuDriver::Vulkan;
         else if (option.starts_with("--frames=")) {
             const auto value = option.substr(9);
             const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), frame_limit);
@@ -73,22 +80,13 @@ auto main(int argc, char** argv) -> int {
     const auto& directory = *base;
     if (!homeless::MountContent(directory, packaged))
         return 1;
-    const auto local_music = homeless::MountLocalMusic(directory);
 
     auto& app = atom::runtime::Application::GetInstance();
-    if (const auto started = app.Initialize({
-            .title = "Homeless",
-            .resolution = {1120.0f, 630.0f},
-            .gpu_driver = driver,
-            .window_mode = window_mode,
-            .present_mode = atom::render::PresentMode::Immediate,
-            .frames_in_flight = 3,
-        });
+    if (const auto started = app.Initialize(display_config);
         !started) {
         LOG_ERROR(atom::log::core::Main, started.error().Message());
         return 1;
     }
-    app.GetWindow().SetFPS(0);
 
     bool render_failed = false;
     auto& screens = app.GetScreenManager();
@@ -103,10 +101,10 @@ auto main(int argc, char** argv) -> int {
     const JobSession jobs{scheduler};
     const bool jobs_started = scheduler.Start();
     if (!jobs_started)
-        LOG_WARNING(atom::log::concurrency::JobSystem, "Homeless is loading assets synchronously");
+        LOG_WARNING(atom::log::concurrency::JobSystem,
+                    "Homeless is loading required graphics synchronously. Background audio is unavailable.");
 
-    auto promenade =
-        homeless::PromenadeScreen::Create(*device, directory / "Shaders", frame_limit, render_failed, local_music);
+    auto promenade = homeless::PromenadeScreen::Create(*device, directory, frame_limit, render_failed);
     if (!promenade) {
         app.Shutdown();
         return 1;

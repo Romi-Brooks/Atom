@@ -17,11 +17,11 @@
 #include <Error/Error.hpp>
 
 namespace atom {
-class RenderWindow;
-class ScreenManager;
-namespace render {
-class IRenderDevice;
-}
+    class RenderWindow;
+    class ScreenManager;
+        namespace render {
+            class IRenderDevice;
+        }
 }
 
 namespace atom::runtime {
@@ -58,21 +58,25 @@ class RuntimeConnection final {
 };
 
 struct ApplicationConfig final {
-        std::string title = "Atom";
-        algo::Vec2 resolution{1280.0f, 720.0f};
-        backend::RenderBackendId render_backend = backend::RenderBackendId::SdlGpu;
-        // Startup presentation request, normally fed from the player's saved
-        // settings. Everything here stays changeable at runtime through
-        // RenderWindow (SetWindowMode / SetPresentMode), which is what an
-        // in-game display options page drives; these are only the defaults the
-        // process starts with.
-        backend::GpuDriver gpu_driver = backend::GpuDriver::Auto;
-        // API debug/validation layer. Auto follows the build type; a profiling
-        // run forces Off so the frame times it measures are the engine's.
-        backend::ValidationMode validation = backend::ValidationMode::Auto;
-        window::WindowMode window_mode = window::WindowMode::Windowed;
-        render::PresentMode present_mode = render::PresentMode::VSync;
-        unsigned frames_in_flight = 2;
+    std::string title = "Atom";
+    algo::Vec2 resolution{1280.0f, 720.0f};
+    backend::RenderBackendId render_backend = backend::RenderBackendId::SdlGpu;
+    // Startup presentation request, normally fed from the player's saved
+    // settings. Everything here stays changeable at runtime through
+    // RenderWindow (SetWindowMode / SetPresentMode), which is what an
+    // in-game display options page drives; these are only the defaults the
+    // process starts with.
+    backend::GpuDriver gpu_driver = backend::GpuDriver::Auto;
+    // API debug/validation layer. Auto follows the build type; a profiling
+    // run forces Off so the frame times it measures are the engine's.
+    backend::ValidationMode validation = backend::ValidationMode::Auto;
+    window::WindowMode window_mode = window::WindowMode::Windowed;
+    render::PresentMode present_mode = render::PresentMode::VSync;
+    unsigned frames_in_flight = 2;
+    // Startup software frame cap, applied once by Initialize. 0 means "no
+    // software cap": the present mode then paces the loop. After Initialize,
+    // RenderWindow::SetFPS is the only owner of this value.
+    unsigned fps = window::kDefaultFpsLimit;
 };
 
 class Application final {

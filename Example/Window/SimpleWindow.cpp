@@ -8,10 +8,7 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
-
+#include <Platform/ApplicationEntry.hpp>
 #include <Runtime/ScreenManager.hpp>
 #include <Window/RenderWindow.hpp>
 #include <Runtime/Application.hpp>
@@ -57,7 +54,7 @@ class ExampleScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     // For windows: Console Debugger OUTPUT CP will be set to UTF-8
     atom::Log::SetConsoleOutputUtf8();
 
@@ -79,8 +76,7 @@ auto main(int, char**) -> int {
     // LoadScreen: a rejected registration destroys the screen).
     atom::ScreenManager::GetInstance().SwitchScreen("Example");
 
-    // Give a window instance
-    auto& window = atom::RenderWindow::GetInstance();
+    // The application owns the window and the frame loop.
     auto& application = atom::runtime::Application::GetInstance();
     // Init the window instance, Can pass a render backend explicit. Loading a
     // render backend can fail; the reason comes back instead of only reaching
@@ -94,10 +90,9 @@ auto main(int, char**) -> int {
         return 1;
     }
 
-    // It is recommended to limit the FPS when creating the window,
-    // or define a custom FPS limit; otherwise it will significantly
-    // consume GPU/CPU resources.
-    window.SetFPS(60);
+    // The startup frame cap is part of the config (ApplicationConfig::fps,
+    // default 60; 0 = uncapped), so this convenience overload needs no explicit
+    // SetFPS call. window.SetFPS() remains available for runtime changes.
 
     // Main loop
     application.Run();

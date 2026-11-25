@@ -26,10 +26,7 @@
 #include <variant>
 #include <vector>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
-
+#include <Platform/ApplicationEntry.hpp>
 #include <Algorithm/Color/Color.hpp>
 #include <Algorithm/Geometry/Rect.hpp>
 #include <Algorithm/Vector/Vec2.hpp>
@@ -302,7 +299,7 @@ class PhysicsScreen final : public atom::Screen {
         int ball_color_index_ = 0;
 };
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
 
@@ -317,8 +314,13 @@ auto main(int, char**) -> int {
 
     auto& window = atom::RenderWindow::GetInstance();
     auto& application = atom::runtime::Application::GetInstance();
-    const auto initialized = application.Initialize("Atom - Physics Demo", atom::algo::Vec2{1280.0f, 720.0f},
-                                               atom::backend::RenderBackendId::SdlGpu);
+    atom::runtime::ApplicationConfig config{};
+    config.title = "Atom - Physics Demo";
+    config.resolution = atom::algo::Vec2{1280.0f, 720.0f};
+    config.render_backend = atom::backend::RenderBackendId::SdlGpu;
+    // 启动帧上限：165 是这块 demo 的比较基准（0 会让读数随机器波动）。
+    config.fps = 165;
+    const auto initialized = application.Initialize(config);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
@@ -326,7 +328,6 @@ auto main(int, char**) -> int {
     // 呈现策略归 DisplaySystem：VSync 关 == PresentMode::Immediate（不限帧，
     // 切换在下一帧边界生效）。运行期可在 Display 面板里再改。
     atom::display::DisplaySystem::GetInstance().RequestVSync(false);
-    window.SetFPS(165);
 
     LOG_INFO(atom::log::core::Main,
              "Physics demo ready: click to drop a ball, R to reset, Space to pause, Esc to quit");

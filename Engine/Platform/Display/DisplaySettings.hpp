@@ -26,7 +26,8 @@ namespace atom::display {
 //
 // Deliberately does NOT carry an fps limit: that belongs to the frame pacer
 // (IWindow::SetFPS / RenderWindow::SetFPS), which every program drives on its
-// own schedule, and folding it in here would give the same knob two owners.
+// own schedule, and folding it in here would give the same knob two owners. Its
+// *startup* value is ApplicationConfig::fps, which Initialize applies once.
 struct DisplaySettings {
         window::WindowMode window_mode = window::WindowMode::Windowed;
         render::PresentMode present_mode = render::PresentMode::VSync;

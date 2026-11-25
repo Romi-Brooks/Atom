@@ -6,9 +6,9 @@
 #include <span>
 
 #include <ECS/Components.hpp>
-#include <Log/LogSystem.hpp>
 
 #include "PromenadeConfig.hpp"
+#include "SceneAudio.hpp"
 #include "SceneSprite.hpp"
 
 namespace homeless {
@@ -22,9 +22,8 @@ constexpr std::array lane_speed{138.0f, -156.0f};
 
 } // namespace
 
-Traffic::Traffic(atom::ecs::EntityWorld& world, atom::AudioMixer& mixer, atom::SFXPlayer& effects,
-                 atom::random::Rng rng)
-    : world_(world), mixer_(mixer), effects_(effects), rng_(rng) {}
+Traffic::Traffic(atom::ecs::EntityWorld& world, SceneAudio& audio, atom::random::Rng rng)
+    : world_(world), audio_(audio), rng_(rng) {}
 
 auto Traffic::Initialize(float world_width) -> bool {
     world_width_ = world_width;
@@ -48,14 +47,8 @@ auto Traffic::Initialize(float world_width) -> bool {
     return true;
 }
 
-auto Traffic::LoadAudio() -> void {
-    if (!effects_.Load("passing-car", "res://Audio/PassingCar.mp3"))
-        LOG_WARNING(atom::log::audio::Sfx, "Passing car sound is unavailable");
-}
-
 auto Traffic::Step(float seconds, float listener_x) -> void {
     traffic_time_ += seconds;
-    const bool have_car_audio = effects_.IsLoaded("passing-car");
     while (!wheel_tracks_.empty() && traffic_time_ - wheel_tracks_.front().born_at >= track_lifetime)
         wheel_tracks_.pop_front();
 
@@ -76,12 +69,8 @@ auto Traffic::Step(float seconds, float listener_x) -> void {
             }
 
             const float approach_distance = westbound ? x - listener_x : listener_x - x;
-            if (have_car_audio && !car.sound_played && approach_distance <= 190.0f && approach_distance >= -32.0f) {
-                car.sound_played = true;
-                const float volume = mixer_.GetEffectiveSFXVolume() * 0.18f;
-                if (volume > 0)
-                    effects_.Play("passing-car", volume);
-            }
+            if (!car.sound_played && approach_distance <= 190.0f && approach_distance >= -32.0f)
+                car.sound_played = audio_.Queue(SceneAudio::Sound::PassingCar);
 
             // Tracks remain on the street after the car leaves. Spacing is in world pixels.
             const float rear_axle = x + (westbound ? 29.0f : -29.0f);

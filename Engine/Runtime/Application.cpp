@@ -23,6 +23,11 @@ auto Application::Initialize(const ApplicationConfig& config) -> Result<void> {
         return std::unexpected<Error>{MakeError(ErrorCode::AlreadyInitialized, Module::Core, "Application::Initialize")};
 
     auto& window = GetWindow();
+    // Frame pacing is a window property, not a backend one, and
+    // RenderWindow::Initialize re-applies the value the facade already holds
+    // when the backend comes up. Setting it here keeps exactly one push down to
+    // the platform, and lets a config of 0 mean "uncapped" from the first frame.
+    window.SetFPS(config.fps);
     // One request struct all the way down: the runtime does not re-assemble the
     // backend's startup parameters from individual fields.
     backend::RenderBackendConfig backend_config{};
