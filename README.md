@@ -110,15 +110,18 @@ to submit work without dependencies, and `atom::random::Rng` for seeded random s
 
 ## SDK
 
-GitHub Releases provide one x64 Release ZIP for Windows MSVC and one for Linux
-GCC (libstdc++). Each ZIP contains separate `static/` and `shared/` install
-prefixes. Select one prefix for `CMAKE_PREFIX_PATH`. MinGW and Linux Clang
-with libc++ can build their SDK from source to match their C++ ABI.
+GitHub Releases provide one x64 Release ZIP for Windows MinGW GCC (MSYS2
+UCRT64) and one for Linux GCC 14 (libstdc++, built on Ubuntu 24.04). Each ZIP
+contains separate `static/` and `shared/` install prefixes. Select one prefix
+for `CMAKE_PREFIX_PATH`. The binaries require a compatible C++ ABI. Build the
+SDK from source with your game’s toolchain when using another ABI, such as
+MSVC, clang-cl targeting MSVC, or Linux Clang with libc++.
 
 Releases are tagged `v<version>` (for example `v0.1.0`) and their assets are
-named `Atom-<version>-<toolchain>-x64-Release.zip` (`windows-msvc`,
-`linux-gcc`) plus `SHA256SUMS.txt`. Pull requests and master pushes build and
-test every toolchain but only tags publish a release.
+named `Atom-<version>-<toolchain>-x64-Release.zip` (`windows-mingw`,
+`linux-gcc`) plus `SHA256SUMS.txt`. Pull requests to `master`, pushes to
+`master`, and manual runs build, test, and package both SDKs. Publishing a
+GitHub Release requires a version tag and successful jobs for both toolchains.
 
 Build an installable SDK with the same toolchain and configuration your game uses.
 Use separate build directories and install prefixes for the shared and static packages.

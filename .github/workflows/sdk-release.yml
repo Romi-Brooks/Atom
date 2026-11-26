@@ -23,16 +23,12 @@ jobs:
       fail-fast: false
       matrix:
         toolchain:
-          - { name: windows-msvc, runner: windows-2022, cc: cl, cxx: cl, package: true }
-          - { name: windows-clang-cl, runner: windows-2022, cc: clang-cl, cxx: clang-cl, package: false }
-          - { name: windows-mingw, runner: windows-2022, cc: gcc, cxx: g++, package: false }
-          - { name: linux-gcc, runner: ubuntu-24.04, cc: gcc-14, cxx: g++-14, package: true }
-          - { name: linux-clang, runner: ubuntu-24.04, cc: clang-20, cxx: clang++-20, package: false }
+          - { name: windows-mingw, runner: windows-2022, cc: gcc, cxx: g++ }
+          - { name: linux-gcc, runner: ubuntu-24.04, cc: gcc-14, cxx: g++-14 }
     env:
       SDK_TOOLCHAIN: ${{ matrix.toolchain.name }}
       SDK_CC: ${{ matrix.toolchain.cc }}
       SDK_CXX: ${{ matrix.toolchain.cxx }}
-      SDK_PACKAGE: ${{ matrix.toolchain.package }}
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -48,7 +44,7 @@ jobs:
           cache: false
 
       - name: Install MinGW GCC
-        if: matrix.toolchain.name == 'windows-mingw'
+        if: runner.os == 'Windows'
         id: msys2
         uses: msys2/setup-msys2@3c51bf698df1e37b2261f53cb67797b97761185c # v2
         with:
@@ -57,7 +53,7 @@ jobs:
           install: mingw-w64-ucrt-x86_64-gcc
 
       - name: Expose native MinGW binaries
-        if: matrix.toolchain.name == 'windows-mingw'
+        if: runner.os == 'Windows'
         shell: pwsh
         env:
           MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
@@ -68,33 +64,19 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build pkg-config glslc spirv-tools \
+          sudo apt-get install -y gcc-14 g++-14 ninja-build pkg-config glslc spirv-tools \
             libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
             libxcursor-dev libxfixes-dev libxi-dev libxtst-dev libxss-dev \
             libxkbcommon-dev libdrm-dev libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
             libegl1-mesa-dev libdbus-1-dev libfribidi-dev libibus-1.0-dev libthai-dev \
             libudev-dev libusb-1.0-0-dev libwayland-dev wayland-protocols libdecor-0-dev
-          if [[ "$SDK_TOOLCHAIN" == linux-clang ]]; then
-            sudo apt-get install -y clang-20 libc++-20-dev libc++abi-20-dev
-          else
-            sudo apt-get install -y gcc-14 g++-14
-          fi
 
-      - name: Build both SDK variants and package release toolchains
+      - name: Build, test and package both SDK variants
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          if ($env:SDK_TOOLCHAIN -in 'windows-msvc', 'windows-clang-cl') {
-              $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
-              $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-              if (!$vs) { throw 'The x64 Visual C++ toolchain was not found.' }
-              & "$vs/Common7/Tools/Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-          }
           $compilerArgs = @("-DCMAKE_C_COMPILER=$env:SDK_CC", "-DCMAKE_CXX_COMPILER=$env:SDK_CXX")
-          if ($env:SDK_TOOLCHAIN -eq 'linux-clang') {
-              $compilerArgs += '-DCMAKE_CXX_FLAGS=-stdlib=libc++'
-          }
           if ($IsWindows) {
               foreach ($tool in 'glslc', 'spirv-val', 'spirv-cross', 'dxc') {
                   Get-Command $tool -CommandType Application | Out-Null
@@ -120,7 +102,6 @@ jobs:
               if ($kind -eq 'static') {
                   cmake --build $build --target AtomSdkArchive --parallel 3
               }
-              # Every toolchain runs the tests; only the release toolchains package.
               $ctestLog = "$build-ctest.log"
               $previousNativePreference = $PSNativeCommandUseErrorActionPreference
               $PSNativeCommandUseErrorActionPreference = $false
@@ -135,8 +116,6 @@ jobs:
                   exit $ctestExit
               }
           }
-          if ($env:SDK_PACKAGE -ne 'true') { return }
-
           $versionLine = Select-String -Path build-static/CMakeCache.txt -Pattern '^CMAKE_PROJECT_VERSION:STATIC=(.+)$'
           if (!$versionLine) { throw 'The Atom project version is missing.' }
           $version = $versionLine.Matches[0].Groups[1].Value
@@ -154,7 +133,6 @@ jobs:
           # own game; CI only builds, tests and packages it.
 
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        if: matrix.toolchain.package
         with:
           name: sdk-${{ matrix.toolchain.name }}
           path: artifacts/*.zip
@@ -182,10 +160,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           shopt -s nullglob
-          windows=(Atom-*-windows-msvc-x64-Release.zip)
+          windows=(Atom-*-windows-mingw-x64-Release.zip)
           linux=(Atom-*-linux-gcc-x64-Release.zip)
           if (( ${#windows[@]} != 1 || ${#linux[@]} != 1 )); then
-            echo "Expected one Windows MSVC ZIP and one Linux GCC ZIP." >&2
+            echo "Expected one Windows MinGW ZIP and one Linux GCC ZIP." >&2
             exit 1
           fi
           assets=("${windows[0]}" "${linux[0]}")

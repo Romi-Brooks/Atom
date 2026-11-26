@@ -907,9 +907,9 @@ dumpbin /exports _sdk/bin/Atom.dll | findstr ImGui
 **改动**：
 
 - `project(Atom VERSION 0.1.0)`；`Atom/Version.hpp`；`Initialize` 日志打印版本；
-- GitHub Actions 在 Windows x64（MSVC、MinGW GCC、clang-cl）和 Linux x64（GCC、Clang）上验证 Release 静态和共享构建。
-- Windows MSVC 和 Linux GCC 分别生成一个平台 ZIP，包含独立的 `static/`、`shared/` 安装前缀。其余工具链验证编译。
-- 合并到 `master` 后，全部构建通过才创建该提交的 SDK 预发布，附两个 ZIP 和 SHA256 清单。
+- GitHub Actions 在 Windows x64（MinGW GCC，MSYS2 UCRT64）和 Linux x64（GCC 14，Ubuntu 24.04）上构建并测试静态和共享 Release 版本。
+- 每个工具链生成一个 ZIP，包含独立的 `static/`、`shared/` 安装前缀。
+- 推送 `v<version>` 标签后，两项作业都通过才发布 SDK，附两个 ZIP 和 SHA256 清单。
 
 **验收**：将各平台的 ZIP 解压到干净目录，分别用 `static/` 和 `shared/` 前缀编译并运行 SdkSmoke。
 
@@ -926,7 +926,7 @@ dumpbin /exports _sdk/bin/Atom.dll | findstr ImGui
 | 脚本绑定冒烟 | `Test/SdkSmoke` 中的 `AtomSdkLua`：通过 `Atom::Scripting` 注册消费方的 Lua 回调，执行脚本并读取结果 | S5 起，每次安装后 |
 | 符号/依赖检查 | `dumpbin /dependents` / `objdump -p`；确认无重复 SDL、无 `lua.dll`/`imgui.dll`，`lua_*`/`ImGui` 从宿主 DLL 导出 | 发布前 |
 | 公开头自包含 | 每个安装头单独编译 | PR |
-| 工具链矩阵 | MSVC / MinGW-GCC / clang-cl / Linux GCC / Linux Clang | 发布前 |
+| 工具链矩阵 | Windows MinGW GCC（MSYS2 UCRT64）和 Linux GCC 14 | 发布前 |
 | 静态包 | `Atom.lib` 链接期符号完整；SdkSmoke 静态变体 | 发布前 |
 
 `SdkSmoke` 的内容（约 30 行）：
@@ -1212,11 +1212,11 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
    `Application::Initialize` 启动日志打印版本。
 
 2. GitHub Actions 工作流使用 `sdk-release.yml`：
-   - Windows MSVC、MinGW GCC、clang-cl、Linux GCC 和 Linux Clang 各编译静态与共享的 Release 版本。
-   - 仅 Windows MSVC 和 Linux GCC 运行 CTest、安装两种 SDK，并打包到各自的 ZIP。静态版先构建 `AtomSdkArchive` 再安装。
-   - 推送到 `master` 时，全部矩阵通过后为该提交发布预发布 `sdk-<commit SHA>`，附两个 ZIP 和 SHA256 清单。手动运行只生成 Actions 产物。
+   - Windows MinGW GCC（MSYS2 UCRT64）和 Linux GCC 14 各编译并测试静态与共享的 Release 版本。
+   - 两个工具链各自安装两种 SDK 并打包到各自的 ZIP。静态版先构建 `AtomSdkArchive` 再安装。
+   - 目标为 `master` 的 PR、推送到 `master` 和手动运行都会生成 Actions 产物。推送 `v<version>` 标签后，两个作业通过才发布 GitHub Release，附两个 ZIP 和 SHA256 清单。
 3. 验收：将各平台 ZIP 解压到干净目录，用该包的工具链针对 `static/` 和 `shared/` 分别编译并运行 SdkSmoke。
-4. 合并后由工作流添加该提交对应的 SDK 预发布 tag。
+4. 发布负责人为待发布的提交推送 `v<version>` 标签，触发发布流程。
 5. 发布负责人用自己的小游戏做最终人工验收（流程外）。
 
 ### 11.10 提交与回滚策略
