@@ -66,7 +66,7 @@
 | 测试/示例输出目录 `AtomTest/`、`AtomExample/` | 已完成（`a9ecf17`） |
 | 删除无用的 `Engine/Atom.cpp` 与 `Atom_Engine` | 已完成（`c47a7ff`） |
 | 单元测试 | 81/81 通过（Debug，Windows MinGW） |
-| CI | `.github/workflows/sdk-release.yml`（Build Release SDK）：PR/master 跑全工具链矩阵，`v*` 标签发布 |
+| CI | `.github/workflows/sdk-release.yml`（Build Release SDK）：目标为 `master` 的 PR 构建并测试，`v*` 标签构建、测试、打包并发布 |
 
 ---
 
@@ -907,9 +907,9 @@ dumpbin /exports _sdk/bin/Atom.dll | findstr ImGui
 **改动**：
 
 - `project(Atom VERSION 0.1.0)`；`Atom/Version.hpp`；`Initialize` 日志打印版本；
-- GitHub Actions 在 Windows x64（MinGW GCC，MSYS2 UCRT64）和 Linux x64（GCC 14，Ubuntu 24.04）上构建并测试静态和共享 Release 版本。
-- 每个工具链生成一个 ZIP，包含独立的 `static/`、`shared/` 安装前缀。
-- 推送 `v<version>` 标签后，两项作业都通过才发布 SDK，附两个 ZIP 和 SHA256 清单。
+- 目标为 `master` 的 PR 在 Windows x64（MinGW GCC，MSYS2 UCRT64）和 Linux x64（GCC 14，Ubuntu 24.04）上构建并测试静态和共享 Release 版本。
+- 正式发布时，为 `master` 上选定的提交推送 `v<version>` 标签。标签运行构建、测试并打包，每个工具链生成一个 ZIP，包含独立的 `static/`、`shared/` 安装前缀。
+- 两项作业都通过后，标签运行发布两个 ZIP 和 SHA256 清单。
 
 **验收**：将各平台的 ZIP 解压到干净目录，分别用 `static/` 和 `shared/` 前缀编译并运行 SdkSmoke。
 
@@ -1212,11 +1212,11 @@ ctest --test-dir cmake-build-debug --output-on-failure   # 81/81
    `Application::Initialize` 启动日志打印版本。
 
 2. GitHub Actions 工作流使用 `sdk-release.yml`：
-   - Windows MinGW GCC（MSYS2 UCRT64）和 Linux GCC 14 各编译并测试静态与共享的 Release 版本。
-   - 两个工具链各自安装两种 SDK 并打包到各自的 ZIP。静态版先构建 `AtomSdkArchive` 再安装。
-   - 目标为 `master` 的 PR、推送到 `master` 和手动运行都会生成 Actions 产物。推送 `v<version>` 标签后，两个作业通过才发布 GitHub Release，附两个 ZIP 和 SHA256 清单。
+   - 目标为 `master` 的 PR 在 Windows MinGW GCC（MSYS2 UCRT64）和 Linux GCC 14 上各编译并测试静态与共享的 Release 版本。
+   - 推送 `v<version>` 标签时，两个工具链各自编译、测试、安装两种 SDK，并打包到各自的 ZIP。静态版在安装前构建 `AtomSdkArchive`。
+   - 标签运行中的两个作业都通过后，发布 GitHub Release，附两个 ZIP 和 SHA256 清单。
 3. 验收：将各平台 ZIP 解压到干净目录，用该包的工具链针对 `static/` 和 `shared/` 分别编译并运行 SdkSmoke。
-4. 发布负责人为待发布的提交推送 `v<version>` 标签，触发发布流程。
+4. 发布负责人为 `master` 上待发布的提交推送 `v<version>` 标签，触发发布流程。
 5. 发布负责人用自己的小游戏做最终人工验收（流程外）。
 
 ### 11.10 提交与回滚策略
