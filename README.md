@@ -119,9 +119,10 @@ MSVC, clang-cl targeting MSVC, or Linux Clang with libc++.
 
 Releases are tagged `v<version>` (for example `v0.1.0`) and their assets are
 named `Atom-<version>-<toolchain>-x64-Release.zip` (`windows-mingw`,
-`linux-gcc`) plus `SHA256SUMS.txt`. Pull requests to `master`, pushes to
-`master`, and manual runs build, test, and package both SDKs. Publishing a
-GitHub Release requires a version tag and successful jobs for both toolchains.
+`linux-gcc`) plus `SHA256SUMS.txt`. Pull requests to `master` build and test
+both variants on both toolchains. To release a commit from `master`, push a
+version tag for it. The tag run builds, tests, packages, and publishes the
+SDKs after both toolchain jobs succeed.
 
 Build an installable SDK with the same toolchain and configuration your game uses.
 Use separate build directories and install prefixes for the shared and static packages.
