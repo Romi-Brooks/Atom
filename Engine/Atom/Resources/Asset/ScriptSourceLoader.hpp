@@ -1,0 +1,34 @@
+/**
+ * @file           : ScriptSourceLoader.hpp
+ * @brief          : Loads Lua script source text as a shareable resource.
+**/
+
+#ifndef ATOM_ASSET_SCRIPT_SOURCE_LOADER_HPP
+#define ATOM_ASSET_SCRIPT_SOURCE_LOADER_HPP
+
+#include <memory>
+#include <string>
+
+#include <Atom/Resources/Asset/IResourceLoader.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+
+#include <Atom/Build/CoreExport.hpp>
+
+namespace atom {
+
+// Resource payload is the raw script source. Execution stays with LuaHost so
+// multiple Lua states can share one cached source string.
+class ATOM_CORE_API ScriptSourceLoader final : public asset::TypedResourceLoader<std::string> {
+    public:
+        [[nodiscard]] auto Kind() const -> asset::AssetKind override {
+            return asset::AssetKind::Script;
+        }
+
+    protected:
+        [[nodiscard]] auto LoadTyped(const fs::IFileSystem& filesystem, const asset::ResourceId& id,
+                                     std::shared_ptr<std::string>& output) -> Result<void> override;
+};
+
+} // namespace atom
+
+#endif // ATOM_ASSET_SCRIPT_SOURCE_LOADER_HPP

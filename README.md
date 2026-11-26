@@ -108,6 +108,64 @@ to submit work without dependencies, and `atom::random::Rng` for seeded random s
 
 ---
 
+## SDK
+
+GitHub Releases provide one x64 Release ZIP for Windows MinGW GCC (MSYS2
+UCRT64) and one for Linux GCC 14 (libstdc++, built on Ubuntu 24.04). Each ZIP
+contains separate `static/` and `shared/` install prefixes. Select one prefix
+for `CMAKE_PREFIX_PATH`. The binaries require a compatible C++ ABI. Build the
+SDK from source with your game’s toolchain when using another ABI, such as
+MSVC, clang-cl targeting MSVC, or Linux Clang with libc++.
+
+Releases are tagged `v<version>` (for example `v0.1.0`) and their assets are
+named `Atom-<version>-<toolchain>-x64-Release.zip` (`windows-mingw`,
+`linux-gcc`) plus `SHA256SUMS.txt`. Pull requests to `master`, pushes to
+`master`, and manual runs build, test, and package both SDKs. Publishing a
+GitHub Release requires a version tag and successful jobs for both toolchains.
+
+Build an installable SDK with the same toolchain and configuration your game uses.
+Use separate build directories and install prefixes for the shared and static packages.
+
+In a CLion CMake profile, set `-DATOM_BUILD_SHARED=ON -DATOM_STAGE_SDK=ON`
+to install the modular shared SDK to `<build>/sdk/shared` when you build the
+project. With `-DATOM_BUILD_SHARED=OFF`, the output goes to `<build>/sdk/static`.
+You can also build the `AtomSdk` target directly to stage the SDK on demand.
+
+```sh
+cmake -S . -B build-shared -G Ninja -DCMAKE_BUILD_TYPE=Release -DATOM_BUILD_SHARED=ON
+cmake --build build-shared --parallel
+cmake --install build-shared --prefix sdk-shared
+
+cmake -S . -B build-static -G Ninja -DCMAKE_BUILD_TYPE=Release -DATOM_BUILD_SHARED=OFF -DATOM_ENABLE_DEBUGGER=ON
+cmake --build build-static --target AtomSdkArchive --parallel
+cmake --install build-static --prefix sdk-static
+```
+
+The static SDK provides a merged `Atom.lib` or `libAtom.a`, plus the entry
+libraries. The compiler's runtime requirements still apply. The same CMake
+components work with either package.
+
+Set `CMAKE_PREFIX_PATH` to the install prefix when configuring your game.
+
+```cmake
+find_package(Atom CONFIG REQUIRED COMPONENTS Core Entry)
+add_executable(my_game main.cpp)
+target_link_libraries(my_game PRIVATE Atom::Core)
+atom_application(my_game CONSOLE)
+```
+
+Implement `atom::platform::ApplicationMain` from `<Atom/AtomMain.hpp>`. For the shared SDK on
+Windows, deploy the DLLs from `Atom_RUNTIME_DIR`, including `SDL3.dll`, beside
+the executable. Link `Atom::Scripting` for Lua bindings and `Atom::Debugger`
+for custom ImGui panels. Both components provide their vendored headers and
+API symbols through the SDK.
+Use `Atom::Core` for headless tools. Link `Atom::Runtime` for an application
+and `Atom::Graphics` for rendering and layout. `Atom::Media` groups the Audio
+and Image components.
+CMake links the SDK's process-exit cleanup into applications that use the
+package, including applications with their own `main`. The package also
+provides `Atom_SHADER_DIR` for the installed shader assets.
+
 ## Examples
 
 Ready-to-run examples are located in [`Example/`](Example/).
@@ -151,7 +209,7 @@ Scripts can use `pack`, `list`, and `verify`.
 
 Engine code can build archives with `PackageBuilder` and mount them for streaming with `Vfs::MountPackage`.
 
-- [Packager documentation](Engine/Resources/Utilities/Packager/Doc/Packager.md) — GUI, command line, and API
+- [Packager documentation](Engine/Atom/Resources/Utilities/Packager/Doc/Packager.md) — GUI, command line, and API
 
 ---
 

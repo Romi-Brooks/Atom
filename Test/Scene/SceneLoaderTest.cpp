@@ -15,11 +15,11 @@
  *    test that stopped working.
  */
 
-#include <Scene/SceneLoader.hpp>
-#include <Scene/SceneSchema.hpp>
+#include <Atom/World/Scene/SceneLoader.hpp>
+#include <Atom/World/Scene/SceneSchema.hpp>
 
-#include <ECS/Components.hpp>
-#include <Filesystem/FileSystem.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

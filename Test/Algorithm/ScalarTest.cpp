@@ -1,4 +1,4 @@
-#include <Algorithm/Math/Scalar.hpp>
+#include <Atom/Core/Algorithm/Math/Scalar.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

@@ -10,10 +10,10 @@
  * linear sampling of pixel art.
  */
 
-#include <Sprite/SpriteAtlas.hpp>
-#include <Sprite/SpriteAtlasLoader.hpp>
+#include <Atom/Presentation/Sprite/SpriteAtlas.hpp>
+#include <Atom/Presentation/Sprite/SpriteAtlasLoader.hpp>
 
-#include <Filesystem/FileSystem.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

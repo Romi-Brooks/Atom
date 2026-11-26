@@ -1,14 +1,14 @@
 // Copyright (c) 2026 Romi Brooks
 // SPDX-License-Identifier: MIT
 
-#include <World2D/Animation2D.hpp>
-#include <World2D/CameraSystem2D.hpp>
-#include <World2D/ObjectLayer2D.hpp>
-#include <World2D/ParticleSystem2D.hpp>
-#include <World2D/TilemapLoader.hpp>
-#include <World2D/TilemapPhysics2D.hpp>
-#include <World2D/World2DRenderer.hpp>
-#include <Filesystem/FileSystem.hpp>
+#include <Atom/World/World2D/Animation2D.hpp>
+#include <Atom/World/World2D/CameraSystem2D.hpp>
+#include <Atom/World/World2D/ObjectLayer2D.hpp>
+#include <Atom/World/World2D/ParticleSystem2D.hpp>
+#include <Atom/World/World2D/TilemapLoader.hpp>
+#include <Atom/World/World2D/TilemapPhysics2D.hpp>
+#include <Atom/World/World2D/World2DRenderer.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <string>

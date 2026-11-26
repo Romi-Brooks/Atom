@@ -1,6 +1,6 @@
-#include <Asset/ResourceManager.hpp>
-#include <Asset/ScriptSourceLoader.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Resources/Asset/ResourceManager.hpp>
+#include <Atom/Resources/Asset/ScriptSourceLoader.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <memory>

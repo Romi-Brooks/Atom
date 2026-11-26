@@ -1,5 +1,5 @@
-#include <Algorithm/Math/Scalar.hpp>
-#include <Algorithm/Vector/Vec2.hpp>
+#include <Atom/Core/Algorithm/Math/Scalar.hpp>
+#include <Atom/Core/Algorithm/Vector/Vec2.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

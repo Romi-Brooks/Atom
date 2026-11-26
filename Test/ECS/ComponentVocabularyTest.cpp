@@ -20,8 +20,8 @@
  * therefore of any window/backend linkage).
  */
 
-#include <ECS/Components.hpp>
-#include <ECS/EntityWorld.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

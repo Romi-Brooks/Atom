@@ -1,6 +1,6 @@
-#include <Algorithm/Math/Scalar.hpp>
-#include <Physics/Shapes/Material.hpp>
-#include <Physics/Shapes/Shape.hpp>
+#include <Atom/Core/Algorithm/Math/Scalar.hpp>
+#include <Atom/World/Physics/Shapes/Material.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <array>

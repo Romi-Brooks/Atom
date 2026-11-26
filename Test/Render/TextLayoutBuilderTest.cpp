@@ -7,9 +7,9 @@
  * Roboto (Latin) and Mplus1p (Latin + CJK) font fixtures.
  */
 
-#include <Render/Text/FreeTypeFontProvider.hpp>
-#include <Render/Text/HarfBuzzTextShaper.hpp>
-#include <Render/Text/TextLayoutBuilder.hpp>
+#include <Atom/Presentation/Render/Text/FreeTypeFontProvider.hpp>
+#include <Atom/Presentation/Render/Text/HarfBuzzTextShaper.hpp>
+#include <Atom/Presentation/Render/Text/TextLayoutBuilder.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <cstddef>

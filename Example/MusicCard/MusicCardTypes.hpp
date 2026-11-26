@@ -21,15 +21,15 @@
 #include <utility>
 #include <vector>
 
-#include <Algorithm/Color/ColorMath.hpp>
-#include <Algorithm/Geometry/Rect.hpp>
-#include <Input/ActionMap.hpp>
-#include <Filesystem/AssetPath.hpp>
-#include <Log/LogSystem.hpp>
-#include <Media/Image/Analysis/ColorStatistics.hpp>
-#include <Media/Image/ImageDecoder.hpp>
-#include <Render/Resources/TextureCache.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Core/Algorithm/Color/ColorMath.hpp>
+#include <Atom/Core/Algorithm/Geometry/Rect.hpp>
+#include <Atom/Input/ActionMap.hpp>
+#include <Atom/Resources/Filesystem/AssetPath.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Image/Analysis/ColorStatistics.hpp>
+#include <Atom/Resources/Media/Image/ImageDecoder.hpp>
+#include <Atom/Presentation/Render/Resources/TextureCache.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
 
 // The example scans this directory for audio files. A command-line argument
 // can override it for focused cover/shader diagnostics.

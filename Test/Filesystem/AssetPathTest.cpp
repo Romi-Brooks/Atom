@@ -1,4 +1,4 @@
-#include <Filesystem/AssetPath.hpp>
+#include <Atom/Resources/Filesystem/AssetPath.hpp>
 
 #include <array>
 #include <iostream>

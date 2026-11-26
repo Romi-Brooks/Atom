@@ -9,7 +9,7 @@
  *     nothing was recorded (so it can be appended unconditionally).
  */
 
-#include <Backend/SDL3/Core/SdlError.hpp>
+#include <Atom/Backend/SDL3/Core/SdlError.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

@@ -1,6 +1,6 @@
-#include <Filesystem/AssetPath.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Filesystem/Vfs.hpp>
+#include <Atom/Resources/Filesystem/AssetPath.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <memory>

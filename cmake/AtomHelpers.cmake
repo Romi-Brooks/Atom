@@ -1,0 +1,13 @@
+function(atom_application target mode)
+    if(NOT mode STREQUAL "WINDOWED" AND NOT mode STREQUAL "CONSOLE")
+        message(FATAL_ERROR "atom_application(${target}) requires WINDOWED or CONSOLE")
+    endif()
+
+    if(WIN32 AND mode STREQUAL "WINDOWED")
+        set_property(TARGET ${target} PROPERTY WIN32_EXECUTABLE TRUE)
+        target_link_libraries(${target} PRIVATE Atom::EntryWindowed)
+    else()
+        set_property(TARGET ${target} PROPERTY WIN32_EXECUTABLE FALSE)
+        target_link_libraries(${target} PRIVATE Atom::Entry)
+    endif()
+endfunction()

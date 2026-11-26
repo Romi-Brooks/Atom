@@ -15,20 +15,20 @@
 #include <sstream>
 #include <utility>
 
-#include <Concurrency/JobSystem.hpp>
-#include <Backend/Contracts/Numeric/NumericContract.hpp>
-#include <Filesystem/PackageFormat.hpp>
-#include <Log/LogSystem.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Platform/FileDialogs.hpp>
-#include <Platform/ApplicationPaths.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/ScreenManager.hpp>
-#include <UI/UiTree.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
-#include <Window/RenderWindow.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Backend/Contracts/Numeric/NumericContract.hpp>
+#include <Atom/Resources/Filesystem/PackageFormat.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Platform/FileDialogs.hpp>
+#include <Atom/Platform/ApplicationPaths.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Presentation/UI/UiTree.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
 
 namespace {
 
@@ -913,7 +913,6 @@ auto atom::packager::RunGui(const std::vector<std::string>& args) -> int {
         LOG_ERROR(atom::log::utilities::Packager, initialized.error().Message());
         return 1;
     }
-    app.GetWindow().SetFPS(60);
     auto& jobs = atom::job::JobSystem::GetInstance();
     jobs.Configure(2);
     jobs.Start();

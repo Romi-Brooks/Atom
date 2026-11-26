@@ -1,6 +1,6 @@
-#include <Input/InputSystem.hpp>
+#include <Atom/Input/InputSystem.hpp>
 #include <Test/Support/TestHelpers.hpp>
-#include <UI/UiTree.hpp>
+#include <Atom/Presentation/UI/UiTree.hpp>
 
 namespace {
 

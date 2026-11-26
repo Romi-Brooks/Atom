@@ -3,7 +3,7 @@
  * @brief          : ARCH-006 — the shared public numeric boundary contract.
  */
 
-#include <Backend/Contracts/Numeric/NumericContract.hpp>
+#include <Atom/Backend/Contracts/Numeric/NumericContract.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <cmath>

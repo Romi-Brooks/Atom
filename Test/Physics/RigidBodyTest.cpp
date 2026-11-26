@@ -1,5 +1,5 @@
-#include <Physics/Dynamics/RigidBody.hpp>
-#include <Physics/Shapes/Shape.hpp>
+#include <Atom/World/Physics/Dynamics/RigidBody.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

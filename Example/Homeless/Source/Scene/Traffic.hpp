@@ -6,20 +6,18 @@
 #include <deque>
 #include <string>
 
-#include <ECS/EntityWorld.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/SFXPlayer.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <Utilities/Random/Rng.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Core/Utilities/Random/Rng.hpp>
 
 namespace homeless {
 
+class SceneAudio;
+
 class Traffic final {
     public:
-        Traffic(atom::ecs::EntityWorld& world, atom::AudioMixer& mixer, atom::SFXPlayer& effects,
-                atom::random::Rng rng);
+        Traffic(atom::ecs::EntityWorld& world, SceneAudio& audio, atom::random::Rng rng);
         auto Initialize(float world_width) -> bool;
-        auto LoadAudio() -> void;
         auto Step(float seconds, float listener_x) -> void;
         auto DrawRoadDetails(atom::render::Renderer2D& renderer, float left, float right, float interpolation) const
             -> void;
@@ -42,8 +40,7 @@ class Traffic final {
         };
 
         atom::ecs::EntityWorld& world_;
-        atom::AudioMixer& mixer_;
-        atom::SFXPlayer& effects_;
+        SceneAudio& audio_;
         atom::random::Rng rng_;
         float world_width_ = 0.0f;
         float traffic_time_ = 0.0f;

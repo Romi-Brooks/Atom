@@ -3,8 +3,8 @@
 
 #include <utility>
 
-#include <ECS/Components.hpp>
-#include <ECS/EntityWorld.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
 
 namespace homeless {
 

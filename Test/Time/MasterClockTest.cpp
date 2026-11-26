@@ -1,7 +1,7 @@
 #include <Test/Support/TestHelpers.hpp>
 
-#include <Time/MasterClock.hpp>
-#include <Time/SteadyTimeSource.hpp>
+#include <Atom/Core/Time/MasterClock.hpp>
+#include <Atom/Core/Time/SteadyTimeSource.hpp>
 
 namespace {
 

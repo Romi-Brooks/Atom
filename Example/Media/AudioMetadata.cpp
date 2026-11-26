@@ -14,12 +14,13 @@
 #include <string>
 #include <vector>
 
-#include <Concurrency/JobSystem.hpp>
-#include <Filesystem/FileSystem.hpp>
-#include <Filesystem/Vfs.hpp>
-#include <Log/LogSystem.hpp>
-#include <Media/Audio/Metadata/AudioMetadataReader.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/AtomMain.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Audio/Metadata/AudioMetadataReader.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
 namespace {
 // Relative filenames inside the mounted music directory.
@@ -30,7 +31,7 @@ constexpr const char* sample_files[] = {
 };
 } // namespace
 
-auto main() -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
 
     // Mount the music directory as res:// so metadata reads go through the VFS

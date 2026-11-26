@@ -26,14 +26,14 @@
 #include <thread>
 #include <vector>
 
-#include <Backend/Composition/IAudioBackendChangeListener.hpp>
-#include <Concurrency/Future.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Layout/LayoutTree.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <Render/Resources/TextureCache.hpp>
-#include <Runtime/Screen.hpp>
+#include <Atom/Backend/Contracts/Audio/IAudioBackendChangeListener.hpp>
+#include <Atom/Core/Concurrency/Future.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Presentation/Layout/LayoutTree.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Presentation/Render/Resources/TextureCache.hpp>
+#include <Atom/Runtime/Screen.hpp>
 
 class MusicCardScreen final : public atom::Screen, public atom::backend::IAudioBackendChangeListener {
     public:

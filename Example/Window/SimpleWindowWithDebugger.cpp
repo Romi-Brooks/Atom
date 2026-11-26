@@ -8,20 +8,17 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
+#include <Atom/AtomMain.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Debugger/Panels/FpsDebugger.hpp>
+#include <Atom/Debugger/Panels/RenderDebugger.hpp>
 
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
-#include <Debugger/Panels/FpsDebugger.hpp>
-#include <Debugger/Panels/RenderDebugger.hpp>
-
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace {
 // To have a debug panel, Inheriting the DebugPanel
@@ -87,7 +84,7 @@ class ExampleScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     // For windows: Console Debugger OUTPUT CP will be set to UTF-8
     atom::Log::SetConsoleOutputUtf8();
 
@@ -120,11 +117,6 @@ auto main(int, char**) -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-
-    // It is recommended to limit the FPS when creating the window,
-    // or define a custom FPS limit; otherwise it will significantly
-    // consume GPU/CPU resources.
-    window.SetFPS(60);
 
     // Attach the custom debug panel to this screen scoped (only while Example is visible)
     ExamplePanel example_panel{};

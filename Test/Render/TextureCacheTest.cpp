@@ -5,11 +5,11 @@
  *                   once the renderer's texture pool is gone.
 **/
 
-#include <Backend/Contracts/Render/IRender2DContext.hpp>
-#include <Backend/Contracts/Render/IRenderDevice.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
-#include <Render/Resources/TextureCache.hpp>
+#include <Atom/Backend/Contracts/Render/IRender2DContext.hpp>
+#include <Atom/Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Presentation/Render/Resources/TextureCache.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <array>

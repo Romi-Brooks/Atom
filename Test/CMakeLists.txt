@@ -7,10 +7,14 @@ set(ATOM_TEST_ALL_TARGETS "")
 
 function(atom_add_test test_name target_name source)
     add_executable(${target_name} ${source})
-    target_link_libraries(${target_name} PRIVATE ${ARGN})
+    atom_link_libraries(${target_name} PRIVATE ${ARGN})
     target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     # Allow #include <Test/...> helpers via project root.
     target_include_directories(${target_name} PRIVATE ${PROJECT_SOURCE_DIR})
+    # Keep test binaries out of the build root: AtomTest/ holds every test
+    # executable, mirroring AtomExample/ for the runnable examples.
+    set_target_properties(${target_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/AtomTest")
     add_test(NAME ${test_name} COMMAND ${target_name})
     set(ATOM_TEST_ALL_TARGETS ${ATOM_TEST_ALL_TARGETS} ${target_name} PARENT_SCOPE)
 endfunction()
@@ -299,6 +303,10 @@ atom_add_test(Atom_Backend_SDL3_Core.SdlError
     Backend/Sdl3ErrorTest.cpp
     Atom_Backend_SDL3_Core)
 
+if(ATOM_BUILD_SHARED)
+    target_link_libraries(Atom_Backend_SDL3_Core_SdlError_Tests PRIVATE Atom_3rd_SDL3)
+endif()
+
 # Display selection contract: window placement, present mode, capability mask.
 atom_add_test(Atom_Backend_Contracts.DisplayConfig
     Atom_Backend_Contracts_DisplayConfig_Tests
@@ -415,6 +423,13 @@ atom_add_test(Atom_Runtime.ScreenManager
 atom_add_test(Atom_Runtime.GameWorld
     Atom_Runtime_GameWorld_Tests
     Runtime/GameWorldTest.cpp
+    Atom_Runtime)
+
+# Startup config defaults: the frame cap has one engine-wide default, and it
+# belongs to ApplicationConfig rather than to a post-Initialize SetFPS call.
+atom_add_test(Atom_Runtime.ApplicationConfig
+    Atom_Runtime_ApplicationConfig_Tests
+    Runtime/ApplicationConfigTest.cpp
     Atom_Runtime)
 
 # T1.1: spawning 2D scene entities through the command buffer - the path T1.3's

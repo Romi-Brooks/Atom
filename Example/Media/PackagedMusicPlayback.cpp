@@ -15,26 +15,23 @@
 #include <string>
 #include <vector>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
+#include <Atom/AtomMain.hpp>
+#include <Atom/Input/Key.hpp>
+#include <Atom/Resources/Filesystem/PackageFileSystem.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Resources/Utilities/Packager/PackageBuilder.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Debugger/Panels/FpsDebugger.hpp>
+#include <Atom/Debugger/Panels/RenderDebugger.hpp>
 
-#include <Input/Key.hpp>
-#include <Filesystem/PackageFileSystem.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Utilities/Packager/PackageBuilder.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
-#include <Debugger/Panels/FpsDebugger.hpp>
-#include <Debugger/Panels/RenderDebugger.hpp>
-
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace {
 constexpr const char* source_files[] = {
@@ -164,7 +161,7 @@ class PackedMusicScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
@@ -253,8 +250,6 @@ auto main(int, char**) -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-
-    window.SetFPS(60);
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);

@@ -1,5 +1,5 @@
-#include <Media/Image/Analysis/ColorStatistics.hpp>
-#include <Media/Image/ImageDecoder.hpp>
+#include <Atom/Resources/Media/Image/Analysis/ColorStatistics.hpp>
+#include <Atom/Resources/Media/Image/ImageDecoder.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <cstdint>

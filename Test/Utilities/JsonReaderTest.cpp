@@ -8,7 +8,7 @@
  * number is what makes hand-editing miserable.
  */
 
-#include <Utilities/Json/JsonReader.hpp>
+#include <Atom/Core/Utilities/Json/JsonReader.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

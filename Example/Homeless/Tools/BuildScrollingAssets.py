@@ -1,4 +1,5 @@
 from pathlib import Path
+from colorsys import hsv_to_rgb, rgb_to_hsv
 from PIL import Image, ImageDraw, ImageFilter
 
 project = Path(__file__).resolve().parents[1]
@@ -16,6 +17,8 @@ patches.rectangle((1410, 24, 1655, 163), fill=255)
 source = Image.composite(roofs, source, roof_mask.filter(ImageFilter.GaussianBlur(4)))
 size = (round(source.width * 315 / source.height), 315)
 source.resize(size, Image.Resampling.NEAREST).save(textures / "WaterfrontPanorama.png")
+street = Image.open(source_art / "BridgeStreet.png").convert("RGB")
+street.resize(size, Image.Resampling.NEAREST).save(textures / "BridgeStreet.png")
 mask = Image.new("L", source.size)
 d = ImageDraw.Draw(mask)
 for left, right in [(0, 286), (735, 1420), (1921, 2171)]:
@@ -60,3 +63,46 @@ for i in range(2):
         d.ellipse((x-3, 23, x+3, 28), fill="#555771")
     fleet.paste(car, (216 + 108*i, 0))
 fleet.save(textures / "TrafficFleet.png")
+
+pedestrian_source = Image.open(source_art / "Pedestrians.png").convert("RGBA")
+pedestrian_atlas = Image.new("RGBA", (32 * 4, 46 * 12))
+# Crop loose generation cells to a shared pixel scale and align boot soles.
+cells = []
+for row in range(4):
+    for column in range(4):
+        cell = pedestrian_source.crop((
+            pedestrian_source.width * column // 4, pedestrian_source.height * row // 4,
+            pedestrian_source.width * (column + 1) // 4, pedestrian_source.height * (row + 1) // 4,
+        ))
+        cell.putalpha(cell.getchannel("A").point(lambda alpha: 255 if alpha >= 155 else 0))
+        cells.append(cell)
+scale = 41 / max(cell.getbbox()[3] - cell.getbbox()[1] for cell in cells)
+coat_palettes = (
+    (0.55, (0.38, 0.04)),
+    (0.10, (0.01, 0.32)),
+    (0.91, (0.03, 0.59)),
+    (0.40, (0.56, 0.10)),
+)
+for i, cell in enumerate(cells):
+    row, column = divmod(i, 4)
+    left, top, right, bottom = cell.getbbox()
+    frame = cell.crop((left, top, right, bottom)).resize(
+        (round((right - left) * scale), round((bottom - top) * scale)), Image.Resampling.NEAREST,
+    )
+    base = Image.new("RGBA", (32, 46))
+    center = 16 + round(((left + right) / 2 - cell.width / 2) * scale)
+    base.paste(frame, (center - frame.width // 2, 45 - frame.height))
+    coat_hue, variants = coat_palettes[row]
+    pedestrian_atlas.paste(base, (column * 32, row * 3 * 46))
+    for palette, new_hue in enumerate(variants, 1):
+        recolored = base.copy()
+        for y in range(16, 37):
+            for x in range(32):
+                r, g, b, alpha = base.getpixel((x, y))
+                hue, saturation, value = rgb_to_hsv(r / 255, g / 255, b / 255)
+                hue_delta = (hue - coat_hue + 0.5) % 1 - 0.5
+                if alpha and abs(hue_delta) < 0.11 and saturation > 0.08 and value > 0.20:
+                    color = hsv_to_rgb((new_hue + hue_delta * 0.5) % 1, max(0.20, saturation * 0.8), value)
+                    recolored.putpixel((x, y), tuple(round(channel * 255) for channel in color) + (alpha,))
+        pedestrian_atlas.paste(recolored, (column * 32, (row * 3 + palette) * 46))
+pedestrian_atlas.save(textures / "Pedestrians.png")

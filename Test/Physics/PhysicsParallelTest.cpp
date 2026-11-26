@@ -5,13 +5,13 @@
 #include <cstddef>
 #include <vector>
 
-#include <Algorithm/Vector/Vec2.hpp>
-#include <Physics/Contracts/IPhysicsBody.hpp>
-#include <Physics/Contracts/IPhysicsWorld.hpp>
-#include <Physics/Contracts/PhysicsTypes.hpp>
-#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Physics/Shapes/Shape.hpp>
+#include <Atom/Core/Algorithm/Vector/Vec2.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsBody.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsWorld.hpp>
+#include <Atom/World/Physics/Contracts/PhysicsTypes.hpp>
+#include <Atom/World/Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 namespace {

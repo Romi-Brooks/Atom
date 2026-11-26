@@ -1,4 +1,4 @@
-#include <Algorithm/Geometry/Rect.hpp>
+#include <Atom/Core/Algorithm/Geometry/Rect.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

@@ -1,0 +1,125 @@
+#include "OverlayManager.hpp"
+
+#include <algorithm>
+#include <string>
+#include <Atom/Backend/Contracts/Debug/IDebugImGuiBackend.hpp>
+#include <Atom/Backend/Contracts/Render/RenderBackendId.hpp>
+#include <Atom/Backend/Extension/DebugImGuiBackendRegistry.hpp>
+#include <Atom/Backend/SDLGPU/Debug/SDLGPUImGuiBackend.hpp>
+#include <Atom/Debugger/DebuggerConfig.hpp>
+#include <Atom/Input/InputSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+
+namespace atom::debugger {
+
+OverlayManager::OverlayManager(RenderWindow& window) : window_(window) {}
+
+auto OverlayManager::GetInstance(RenderWindow& window) -> OverlayManager& {
+    static OverlayManager instance{window};
+    return instance;
+}
+
+OverlayManager::~OverlayManager() {
+    event_connection_.reset();
+    update_connection_.reset();
+    overlay_connection_.reset();
+    shutdown_connection_.reset();
+    ShutdownBackend();
+}
+
+auto OverlayManager::EnsureInitialized() -> bool {
+#if !ATOM_ENABLE_DEBUGGER
+    return false;
+#else
+    if (initialized_)
+        return true;
+
+    auto* platform_window = window_.GetIWindow();
+    auto* render_device = window_.GetRenderDevice();
+    if (!platform_window || !render_device) {
+        LOG_WARNING(atom::log::debugger::ImGui,
+                    "Overlay manager requires an initialized render window and device");
+        return false;
+    }
+
+    auto& registry = DebugImGuiBackendRegistry::GetInstance();
+    const auto default_id = backend::ToString(backend::RenderBackendId::SdlGpu);
+    if (!registry.Contains(default_id)) {
+        registry.Register(default_id, backend::sdlgpu::CreateSDLGPUImGuiBackend);
+    }
+    backend_ = registry.Create(window_.GetBackendId(), *platform_window, *render_device);
+    if (!backend_ || !backend_->Initialize()) {
+        LOG_ERROR(atom::log::debugger::ImGui,
+                  "Overlay manager initialization failed for render backend '" + window_.GetBackendId() + "'");
+        backend_.reset();
+        return false;
+    }
+
+    auto& application = runtime::Application::GetInstance();
+    event_connection_ = std::make_unique<runtime::RuntimeConnection>(
+        application.AddEventObserver([this](window::IEvent& event) {
+            if (backend_)
+                backend_->ProcessEvent(event);
+        }));
+    update_connection_ = std::make_unique<runtime::RuntimeConnection>(application.AddUpdateObserver([this](float) {
+        if (backend_)
+            backend_->NewFrame();
+    }));
+    overlay_connection_ = std::make_unique<runtime::RuntimeConnection>(application.AddOverlayObserver([this] {
+        for (const auto& panel : panels_) {
+            if (panel.callback)
+                panel.callback();
+        }
+        if (backend_) {
+            // The debug overlay is a *partial* consumer of the engine's UI-capture
+            // contract (see InputSystem): it claims the mouse and says nothing
+            // about the keyboard or text input. Both halves matter - the narrow
+            // entry point keeps the two layers' claims independent, and the
+            // three-state claim is what lets it say "no opinion" instead of the
+            // `false` that used to erase the game's chat claim every frame.
+            atom::input::InputSystem::GetInstance().SetOverlayMouseCapture(backend_->WantsMouse());
+            backend_->Render();
+        }
+
+    }));
+    shutdown_connection_ = std::make_unique<runtime::RuntimeConnection>(application.AddShutdownObserver([this] {
+        ShutdownBackend();
+    }));
+
+    initialized_ = true;
+    return true;
+#endif
+}
+
+auto OverlayManager::AddPanel(DrawCallback callback) -> OverlayConnection {
+#if !ATOM_ENABLE_DEBUGGER
+    (void)callback;
+    return {};
+#else
+    if (!callback || !EnsureInitialized())
+        return {};
+
+    const auto id = next_panel_id_++;
+    panels_.push_back(PanelEntry{id, std::move(callback)});
+    return OverlayConnection([this, id] {
+        std::erase_if(panels_, [id](const PanelEntry& panel) { return panel.id == id; });
+    });
+#endif
+}
+
+auto OverlayManager::ShutdownBackend() -> void {
+    if (!panels_.empty()) {
+        LOG_WARNING(atom::log::debugger::ImGui,
+                    "Overlay shutting down with " + std::to_string(panels_.size()) +
+                        " debug panel(s) still attached");
+    }
+    if (backend_) {
+        backend_->Shutdown();
+        backend_.reset();
+    }
+    initialized_ = false;
+}
+
+} // namespace atom::debugger

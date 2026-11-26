@@ -7,24 +7,25 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
+#include <functional>
+#include <string>
+#include <utility>
 
-#include <Media/Audio/AudioBackend.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/SFXPlayer.hpp>
-#include <Media/Audio/Resources/AudioClipCache.hpp>
-#include <Filesystem/FileSystem.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
+#include <Atom/AtomMain.hpp>
+#include <Atom/Resources/Media/Audio/AudioBackend.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/SFXPlayer.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioClipCache.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
 
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace {
 // replace it
@@ -35,7 +36,11 @@ constexpr auto SFX2Name = "Cymatics - Vocal Essentials One Shot 2 - C.wav";
 // Debugger overlay
 class SFXDebugger final : public atom::debugger::DebugPanel {
     public:
-        explicit SFXDebugger(atom::SFXPlayer& sfx) : DebugPanel("SFXDebugger"), sfx_(sfx) {}
+        // reload_clips is what makes a backend switch usable: the runtime drops
+        // every source before the swap, and SFXPlayer's reset also clears the
+        // decoded PCM cache. See DrawBackendControls().
+        SFXDebugger(atom::SFXPlayer& sfx, std::function<bool()> reload_clips)
+            : DebugPanel("SFXDebugger"), sfx_(sfx), reload_clips_(std::move(reload_clips)) {}
 
     protected:
         auto OnDrawOverlay() -> void override {
@@ -56,8 +61,7 @@ class SFXDebugger final : public atom::debugger::DebugPanel {
             }
             ImGui::Separator();
 
-            const auto& backend_id = atom::audio::GetAudioBackendId();
-            ImGui::TextDisabled("Active audio backend: %s", backend_id.c_str());
+            DrawBackendControls();
             ImGui::Separator();
 
             ImGui::Text("Press ESC to exit");
@@ -65,7 +69,43 @@ class SFXDebugger final : public atom::debugger::DebugPanel {
         }
 
     private:
+        // Hot backend switching. SetAudioBackend() builds the replacement first
+        // and only then drops the old backend, so a failed switch keeps the
+        // current backend and its sources alive. On success every registered
+        // player resets, and because SFXPlayer::Reset() clears the decoded PCM
+        // cache, both clips have to be decoded again here.
+        auto SwitchBackend(const atom::backend::AudioBackendId id) -> void {
+            const auto generation = atom::audio::GetAudioBackendGeneration();
+            if (!atom::audio::SetAudioBackend(id))
+                return;
+            // Selecting the already-active backend does not reset anything;
+            // reloading would only re-insert the clips that are still cached.
+            if (atom::audio::GetAudioBackendGeneration() == generation)
+                return;
+
+            LOG_INFO(atom::log::audio::Sfx, "Audio backend switched to '" + atom::audio::GetAudioBackendId() +
+                                                "' (generation " +
+                                                std::to_string(atom::audio::GetAudioBackendGeneration()) + ")");
+            reload_clips_();
+        }
+
+        auto DrawBackendControls() -> void {
+            ImGui::SeparatorText("Audio backend");
+            ImGui::Text("Active backend: %s (generation %llu)", atom::audio::GetAudioBackendId().c_str(),
+                        static_cast<unsigned long long>(atom::audio::GetAudioBackendGeneration()));
+            ImGui::Text("Clips loaded: %zu / 2", sfx_.GetLoadedCount());
+
+            if (ImGui::Button("Use native SDL3"))
+                SwitchBackend(atom::backend::AudioBackendId::Sdl3);
+            ImGui::SameLine();
+            if (ImGui::Button("Use SDL3_mixer"))
+                SwitchBackend(atom::backend::AudioBackendId::Sdl3Mixer);
+            ImGui::TextWrapped("A switch destroys the old backend and its voice pools, and clears the decoded clip "
+                               "cache. This demo re-decodes both files and is ready to play again immediately.");
+        }
+
         atom::SFXPlayer& sfx_;
+        std::function<bool()> reload_clips_;
 };
 
 class SFXScreen final : public atom::Screen {
@@ -100,7 +140,7 @@ class SFXScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
     atom::AudioMixer mixer;
@@ -153,15 +193,17 @@ auto main(int, char**) -> int {
         return 1;
     }
 
-    // It is recommended to limit the FPS when creating the window,
-    // or define a custom FPS limit; otherwise it will significantly
-    // consume GPU/CPU resources.
-    window.SetFPS(60);
-
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    SFXDebugger debugger{sfx};
+    // Backend switches reset the SFXPlayer and clear its decoded clip cache (see
+    // SFXDebugger::SwitchBackend), so both clips are decoded again on demand.
+    const auto reload_clips = [&sfx, &filesystem, &sfx1, &sfx2]() {
+        return sfx.Load("registerId_1", *filesystem, *sfx1) &&
+               sfx.Load("registerId_2", *filesystem, *sfx2);
+    };
+
+    SFXDebugger debugger{sfx, reload_clips};
     debugger.Attach(window);
 
     application.Run();

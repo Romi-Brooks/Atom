@@ -1,6 +1,6 @@
-#include <Asset/AssetKind.hpp>
-#include <Asset/ResourceId.hpp>
-#include <Filesystem/AssetPath.hpp>
+#include <Atom/Resources/Asset/AssetKind.hpp>
+#include <Atom/Resources/Asset/ResourceId.hpp>
+#include <Atom/Resources/Filesystem/AssetPath.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

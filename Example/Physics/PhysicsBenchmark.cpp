@@ -21,12 +21,13 @@
 #include <iostream>
 #include <string_view>
 
-#include <Algorithm/Vector/Vec2.hpp>
-#include <Physics/Contracts/IPhysicsWorld.hpp>
-#include <Physics/Contracts/PhysicsTypes.hpp>
-#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Physics/Shapes/Shape.hpp>
+#include <Atom/AtomMain.hpp>
+#include <Atom/Core/Algorithm/Vector/Vec2.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsWorld.hpp>
+#include <Atom/World/Physics/Contracts/PhysicsTypes.hpp>
+#include <Atom/World/Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
 
 namespace {
 
@@ -99,7 +100,7 @@ auto PrintUsage() -> void {
 
 } // namespace
 
-auto main(const int argc, char** argv) -> int {
+auto atom::platform::ApplicationMain(int argc, char** argv) -> int {
     Config config{};
     if (!ParseArgs(argc, argv, config)) {
         PrintUsage();

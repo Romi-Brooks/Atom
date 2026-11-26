@@ -151,7 +151,7 @@ Atom Packager 读写 **APKG v2**，支持目录树、资源类型和内容校验
 
 引擎侧使用 `PackageBuilder` 创建资源包，通过 `Vfs::MountPackage` 挂载并读取内容。
 
-- [打包工具文档](../../Engine/Resources/Utilities/Packager/Doc/Packager-CN.md) — 界面、命令行与 API
+- [打包工具文档](../../Engine/Atom/Resources/Utilities/Packager/Doc/Packager-CN.md) — 界面、命令行与 API
 
 ***
 

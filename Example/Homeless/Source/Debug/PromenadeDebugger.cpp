@@ -2,14 +2,14 @@
 
 #include <variant>
 
-#include <Debugger/Panels/FpsDebugger.hpp>
-#include <Debugger/Panels/JobDebugger.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
-#include <Debugger/Panels/RenderDebugger.hpp>
-#include <Debugger/Panels/ThreadDebugger.hpp>
-#include <Log/LogSystem.hpp>
-#include <Runtime/Application.hpp>
-#include <Window/RenderWindow.hpp>
+#include <Atom/Debugger/Panels/FpsDebugger.hpp>
+#include <Atom/Debugger/Panels/JobDebugger.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Debugger/Panels/RenderDebugger.hpp>
+#include <Atom/Debugger/Panels/ThreadDebugger.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
 
 namespace homeless {
 

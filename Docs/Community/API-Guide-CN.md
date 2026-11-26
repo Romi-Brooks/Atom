@@ -14,7 +14,7 @@
 此开关只控制终端，文件日志和日志面板各自配置。
 
 ```cpp
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 LOG_INFO(atom::log::core::Main, "Engine started");
 LOG_WARNING(atom::log::core::Filesystem, "File not found");
@@ -28,10 +28,16 @@ atom::Log::SetFileOutput(true);
 
 ## 窗口与 Screen
 
+仓库内的 Example 包含 `<Atom/AtomMain.hpp>`，并实现
+`atom::platform::ApplicationMain(int, char**)`。在 CMake 中用
+`atom_application(target WINDOWED)` 配置窗口应用，用
+`atom_application(target CONSOLE)` 配置终端工具或无窗口基准。
+平台层提供系统入口并传递参数与退出码。独立工具、测试和自行管理进程入口的应用可以直接定义 `main`。
+
 ```cpp
-#include <Window/RenderWindow.hpp>
-#include <Runtime/ScreenManager.hpp>
-#include <Runtime/Screen.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Runtime/Screen.hpp>
 
 class MenuScreen final : public atom::Screen {
 public:
@@ -66,16 +72,16 @@ atom::ScreenManager::GetInstance().LoadScreen(
 // 卸载：仍为 active 时返回 InUse（先切走），其余情况连同引用它的栈槽一起移除。
 atom::ScreenManager::GetInstance().UnloadScreen("menu");
 
-auto& window = atom::RenderWindow::GetInstance();
-window.Initialize("My Game", atom::algo::Vec2{1280, 720}); // 默认 RenderBackendId::SdlGpu
-window.Initialize("My Game", atom::algo::Vec2{1280, 720},
-                  atom::backend::RenderBackendId::SdlGpu); // 显式指定
-window.SetFPS(60);
-window.Run();
+auto& application = atom::runtime::Application::GetInstance();
+application.Initialize("My Game", atom::algo::Vec2{1280, 720}); // 默认 RenderBackendId::SdlGpu
+application.Initialize("My Game", atom::algo::Vec2{1280, 720},
+                       atom::backend::RenderBackendId::SdlGpu); // 显式指定
+application.Run();
 ```
 
 `Initialize` 的第三个参数选择**引擎内置**渲染后端（枚举 `atom::backend::RenderBackendId`），
-默认 `SdlGpu`（内部注册表 ID `"sdl_gpu"`）。
+默认 `SdlGpu`（内部注册表 ID `"sdl_gpu"`）。窗口和帧循环都归 `Application`：
+`RenderWindow` 的 `Initialize`/`Run` 是私有的，游戏侧只通过 `Application` 驱动。
 
 ### 渲染后端 vs 图形 API（两个正交的轴）
 
@@ -104,12 +110,17 @@ config.render_backend = atom::backend::RenderBackendId::SdlGpu;
 config.gpu_driver = atom::backend::GpuDriver::Vulkan;          // 默认 Auto
 config.window_mode = atom::window::WindowMode::Windowed;        // 默认 Windowed
 config.present_mode = atom::render::PresentMode::VSync;        // 默认 VSync
+config.fps = 60;                                               // 启动限帧；0 = 不限帧，默认 60
 application.Initialize(config);
 
-// 运行期修改（这是游戏内"显示设置"页要调的两个选项）
-window.SetWindowMode(atom::window::WindowMode::Borderless);
-window.SetPresentMode(atom::render::PresentMode::Immediate);
+// 运行期修改（这是游戏内"显示设置"页要调的两个选项；在帧边界生效）
+atom::display::DisplaySystem::GetInstance().RequestWindowMode(atom::window::WindowMode::Borderless);
+atom::display::DisplaySystem::GetInstance().RequestPresentMode(atom::render::PresentMode::Immediate);
 ```
+
+`config.fps` 是**启动**软件限帧，由 `Initialize` 应用一次，默认 `60`；`0` 表示不限帧，
+节奏完全交给呈现模式。它不进 `DisplaySettings`：呈现模式/窗口模式要重建 swapchain、必须延迟到帧边界，
+而帧率改动是立即生效的，运行期直接用 `window.SetFPS(...)`——两条路径各有唯一 owner。
 
 | `PresentMode` | 提交是否阻塞 | 名义上是否跟随刷新率 | **实测（SDL_GPU / D3D12，RTX 4060）** | 典型游戏内文案 |
 |---|---|---|---|---|
@@ -164,7 +175,7 @@ CPU record  6.637 ms      CPU submit  0.052 ms      GPU wait  0.002 ms
 swapchain 只能在帧边界重建，而设置页、配置文件、调试面板都想改它，状态放在窗口门面上会有多个所有者。
 
 ```cpp
-#include <Display/DisplaySystem.hpp>
+#include <Atom/Platform/Display/DisplaySystem.hpp>
 
 // 请求（排队，下一帧边界生效；重复请求同一值不会重建 swapchain）
 atom::display::DisplaySystem::GetInstance().RequestWindowMode(atom::window::WindowMode::Borderless);
@@ -195,8 +206,8 @@ const auto applied = atom::display::DisplaySystem::GetInstance().Applied();
 `atom::debugger::LogDebugger`（is-a `DebugPanel`），与自定义面板平级挂载。
 
 ```cpp
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
 
 class MyPanel final : public atom::debugger::DebugPanel {
 protected:
@@ -258,8 +269,8 @@ auto resizeConn = app.AddResizeObserver([](uint32_t w, uint32_t h) { /* 调整�
 轮询方式由引擎主循环自动驱动，`Runtime::Application::Run()` 在事件轮询前调用一次 `BeginFrame()`，每个规范化事件先进入状态机再分发给 Screen，所以 **业务代码不要自己再调 `BeginFrame()`**——同一帧调两次会把真实的按下边沿提前结算成 `Held`。
 
 ```cpp
-#include <Input/ActionMap.hpp>
-#include <Input/InputSystem.hpp>
+#include <Atom/Input/ActionMap.hpp>
+#include <Atom/Input/InputSystem.hpp>
 
 enum class Action { Jump, Pause };
 
@@ -327,8 +338,8 @@ if (!input.IsKeyboardCapturedByUi() && input.IsActionPressed(actions, Action::Ju
 正式游戏 UI 使用保留模式的 `UiTree`，不是 ImGui，也不把每一个按钮做成 ECS entity。`UiTree` 只负责页面内部的控件树、Yoga 布局、逆绘制顺序的命中测试、焦点与输入捕获；`ScreenManager` 仍负责菜单/设置/游戏/暂停这些页面级导航。
 
 ```cpp
-#include <UI/UiCanvas.hpp>
-#include <UI/UiTree.hpp>
+#include <Atom/Presentation/UI/UiCanvas.hpp>
+#include <Atom/Presentation/UI/UiTree.hpp>
 
 // Screen 持有它，而不是 Runtime 或 Window 持有它。
 atom::ui::UiTree ui;
@@ -413,9 +424,9 @@ SDL_GPU 在初始化 Renderer2D 时创建基础绘制管线。可选的后处理
 普通用户不需要创建 Decoder Registry 或 SDL3 Backend：
 
 ```cpp
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Media/Audio/Transitions/MusicCrossfade.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Resources/Media/Audio/Transitions/MusicCrossfade.hpp>
 
 atom::AudioMixer mixer;
 atom::MusicPlayer music{mixer};
@@ -464,8 +475,8 @@ APKG v2 可通过 VFS 直接打开为 `IFile`，并由 `MusicPlayer` 流式解�
 `packager_tool pack <input> <output.apkg> [package_path]` 创建资源包，再挂载播放。
 
 ```cpp
-#include <Filesystem/Vfs.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
 
 auto& vfs = atom::fs::Vfs::GetInstance();
 if (vfs.MountPackage("res", 100, "music.apkg") == atom::fs::Result::Success &&
@@ -479,9 +490,9 @@ if (vfs.MountPackage("res", 100, "music.apkg") == atom::fs::Result::Success &&
 ## 音效
 
 ```cpp
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/SFXPlayer.hpp>
-#include <Media/Audio/Resources/AudioClipCache.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/SFXPlayer.hpp>
+#include <Atom/Resources/Media/Audio/Resources/AudioClipCache.hpp>
 
 atom::AudioMixer mixer;
 atom::AudioClipCache clips;
@@ -509,7 +520,7 @@ mixer.SetSFXVolume(100.0f);
 TagLib 头）：
 
 ```cpp
-#include <Media/Audio/Metadata/AudioMetadataReader.hpp>
+#include <Atom/Resources/Media/Audio/Metadata/AudioMetadataReader.hpp>
 
 if (const auto meta = atom::AudioMetadataReader::Read("assets/menu.mp3")) {
     std::cout << meta->title << " - " << meta->artist << std::endl;
@@ -534,8 +545,8 @@ audio backend = sdl3
 游戏设置页面可以这样切换：
 
 ```cpp
-#include <Backend/Composition/BackendRuntime.hpp>
-#include <Backend/Contracts/Audio/AudioBackendId.hpp>
+#include <Atom/Backend/Composition/BackendRuntime.hpp>
+#include <Atom/Backend/Contracts/Audio/AudioBackendId.hpp>
 
 auto& backends = atom::backend::BackendRuntime::GetInstance();
 
@@ -632,8 +643,8 @@ Backend 切换后，Lua 页面同样需要重新调用 `Music:Load`/`SFX:Load`�
 ### 创建与实体生命周期
 
 ```cpp
-#include <ECS/Components.hpp>
-#include <ECS/EntityWorld.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/World/ECS/EntityWorld.hpp>
 
 auto created = atom::ecs::EntityWorld::Create();
 if (!created) {

@@ -1,0 +1,34 @@
+/**
+ * @file           : DecodedImageLoader.hpp
+ * @brief          : Loads and decodes images into CPU-side DecodedImage resources.
+**/
+
+#ifndef ATOM_MEDIA_IMAGE_DECODED_IMAGE_LOADER_HPP
+#define ATOM_MEDIA_IMAGE_DECODED_IMAGE_LOADER_HPP
+
+#include <memory>
+
+#include <Atom/Resources/Asset/IResourceLoader.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Resources/Media/Image/ImageDecoder.hpp>
+
+#include <Atom/Build/MediaImageExport.hpp>
+
+namespace atom::image {
+
+// Resource payload is a CPU-side DecodedImage. GPU upload remains a separate
+// step so decoding can be cached independently of Renderer2D lifetime.
+class ATOM_MEDIA_IMAGE_API DecodedImageLoader final : public asset::TypedResourceLoader<DecodedImage> {
+    public:
+        [[nodiscard]] auto Kind() const -> asset::AssetKind override {
+            return asset::AssetKind::Texture;
+        }
+
+    protected:
+        [[nodiscard]] auto LoadTyped(const fs::IFileSystem& filesystem, const asset::ResourceId& id,
+                                     std::shared_ptr<DecodedImage>& output) -> Result<void> override;
+};
+
+} // namespace atom::image
+
+#endif // ATOM_MEDIA_IMAGE_DECODED_IMAGE_LOADER_HPP

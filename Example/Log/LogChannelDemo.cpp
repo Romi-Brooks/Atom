@@ -18,7 +18,8 @@
 #include <cstddef>
 #include <iostream>
 
-#include <Log/LogSystem.hpp>
+#include <Atom/AtomMain.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 #include "GameChannels.hpp"
 
@@ -33,7 +34,7 @@ template <typename TChannel> auto PrintAllChannels(const char* title) -> void {
 }
 } // namespace
 
-auto main() -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     // Set the log level first
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);

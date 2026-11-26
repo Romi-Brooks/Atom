@@ -1,9 +1,9 @@
-#include <Backend/Contracts/Render/IRenderDevice.hpp>
-#include <Backend/Contracts/Window/IWindow.hpp>
-#include <Log/LogSystem.hpp>
+#include <Atom/Backend/Contracts/Render/IRenderDevice.hpp>
+#include <Atom/Backend/Contracts/Window/IWindow.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 #include <Test/Support/TestHelpers.hpp>
-#include <Runtime/Screen.hpp>
-#include <Runtime/ScreenManager.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
 
 #include <memory>
 #include <functional>
@@ -354,6 +354,9 @@ auto main() -> int {
         ATOM_CHECK(replacement_ptr->activates == 1);
 
         ATOM_CHECK(manager.UnloadScreen("reent-a") == atom::ScreenOpResult::Success);
+        // The replacement screen also refers to reentrant_counters.
+        manager.ClearScreens();
+        ATOM_CHECK(reentrant_counters.destroys == 2);
     }
 
     // --- Key auto-repeat never reaches a screen --------------------------

@@ -18,7 +18,7 @@
  *   Esc       退出
  */
 
-#include "Debugger/Panels/ThreadDebugger.hpp"
+#include <Atom/Debugger/Panels/ThreadDebugger.hpp>
 
 #include <array>
 #include <cstddef>
@@ -26,33 +26,30 @@
 #include <variant>
 #include <vector>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
-
-#include <Algorithm/Color/Color.hpp>
-#include <Algorithm/Geometry/Rect.hpp>
-#include <Algorithm/Vector/Vec2.hpp>
-#include <Backend/Contracts/Render/RenderBackendId.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Debugger/Panels/FpsDebugger.hpp>
-#include <Debugger/Panels/RenderDebugger.hpp>
-#include <Debugger/Panels/JobDebugger.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
-#include <Display/DisplaySystem.hpp>
-#include <Input/InputSystem.hpp>
-#include <Input/Key.hpp>
-#include <Log/LogSystem.hpp>
-#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
-#include <Physics/Contracts/IPhysicsBody.hpp>
-#include <Physics/Contracts/IPhysicsWorld.hpp>
-#include <Physics/Contracts/PhysicsTypes.hpp>
-#include <Physics/Shapes/Shape.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Runtime/ScreenManager.hpp>
+#include <Atom/AtomMain.hpp>
+#include <Atom/Core/Algorithm/Color/Color.hpp>
+#include <Atom/Core/Algorithm/Geometry/Rect.hpp>
+#include <Atom/Core/Algorithm/Vector/Vec2.hpp>
+#include <Atom/Backend/Contracts/Render/RenderBackendId.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Debugger/Panels/FpsDebugger.hpp>
+#include <Atom/Debugger/Panels/RenderDebugger.hpp>
+#include <Atom/Debugger/Panels/JobDebugger.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Platform/Display/DisplaySystem.hpp>
+#include <Atom/Input/InputSystem.hpp>
+#include <Atom/Input/Key.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/World/Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsBody.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsWorld.hpp>
+#include <Atom/World/Physics/Contracts/PhysicsTypes.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
 
 namespace {
 
@@ -302,7 +299,7 @@ class PhysicsScreen final : public atom::Screen {
         int ball_color_index_ = 0;
 };
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
 
@@ -317,8 +314,13 @@ auto main(int, char**) -> int {
 
     auto& window = atom::RenderWindow::GetInstance();
     auto& application = atom::runtime::Application::GetInstance();
-    const auto initialized = application.Initialize("Atom - Physics Demo", atom::algo::Vec2{1280.0f, 720.0f},
-                                               atom::backend::RenderBackendId::SdlGpu);
+    atom::runtime::ApplicationConfig config{};
+    config.title = "Atom - Physics Demo";
+    config.resolution = atom::algo::Vec2{1280.0f, 720.0f};
+    config.render_backend = atom::backend::RenderBackendId::SdlGpu;
+    // 启动帧上限：165 是这块 demo 的比较基准（0 会让读数随机器波动）。
+    config.fps = 165;
+    const auto initialized = application.Initialize(config);
     if (!initialized) {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
@@ -326,7 +328,6 @@ auto main(int, char**) -> int {
     // 呈现策略归 DisplaySystem：VSync 关 == PresentMode::Immediate（不限帧，
     // 切换在下一帧边界生效）。运行期可在 Display 面板里再改。
     atom::display::DisplaySystem::GetInstance().RequestVSync(false);
-    window.SetFPS(165);
 
     LOG_INFO(atom::log::core::Main,
              "Physics demo ready: click to drop a ball, R to reset, Space to pause, Esc to quit");

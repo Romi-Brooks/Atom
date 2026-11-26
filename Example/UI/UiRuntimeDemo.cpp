@@ -13,17 +13,14 @@
 #include <memory>
 #include <vector>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
+#include <Atom/AtomMain.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
 
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Runtime/ScreenManager.hpp>
-
-#include <Render/Renderer2D/Renderer2D.hpp>
-#include <UI/UiCanvas.hpp>
-#include <UI/UiTree.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Presentation/UI/UiCanvas.hpp>
+#include <Atom/Presentation/UI/UiTree.hpp>
 
 namespace {
 
@@ -283,7 +280,7 @@ class PausePage final : public UiPage {
 
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     auto& application = atom::runtime::Application::GetInstance();
     if (const auto result = application.Initialize("Atom UI Runtime Demo", {1280.0f, 720.0f}); !result)
         return 1;

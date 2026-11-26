@@ -18,23 +18,20 @@
 #include <string>
 #include <string_view>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
+#include <Atom/AtomMain.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Resources/Filesystem/Vfs.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Lua/LuaHost.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
-#include <Filesystem/FileSystem.hpp>
-#include <Filesystem/Vfs.hpp>
-#include <Log/LogSystem.hpp>
-#include <Lua/LuaHost.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
-
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
 
 namespace {
 // Usually, this directory is open to Lua script developers,
@@ -101,7 +98,7 @@ static auto HandleScriptFs() -> atom::fs::Result {
     return atom::fs::Result::Success;
 }
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_DEBUG);
 
@@ -152,7 +149,6 @@ auto main(int, char**) -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-    window.SetFPS(60);
 
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);

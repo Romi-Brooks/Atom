@@ -1,0 +1,183 @@
+name: Build Release SDK
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atom-sdk-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: ${{ matrix.toolchain.name }} / static and shared
+    runs-on: ${{ matrix.toolchain.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - { name: windows-mingw, runner: windows-2022, cc: gcc, cxx: g++ }
+          - { name: linux-gcc, runner: ubuntu-24.04, cc: gcc-14, cxx: g++-14 }
+    env:
+      SDK_TOOLCHAIN: ${{ matrix.toolchain.name }}
+      SDK_CC: ${{ matrix.toolchain.cc }}
+      SDK_CXX: ${{ matrix.toolchain.cxx }}
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Windows shader tools
+        if: runner.os == 'Windows'
+        uses: humbletim/install-vulkan-sdk@30ba978f977e81b72d091fc8888feb1fb26f9aff # v1.2
+        with:
+          version: 1.4.309.0
+          cache: false
+
+      - name: Install MinGW GCC
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@3c51bf698df1e37b2261f53cb67797b97761185c # v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc
+
+      - name: Expose native MinGW binaries
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: Join-Path $env:MSYS2_LOCATION ucrt64/bin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-14 g++-14 ninja-build pkg-config glslc spirv-tools \
+            libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
+            libxcursor-dev libxfixes-dev libxi-dev libxtst-dev libxss-dev \
+            libxkbcommon-dev libdrm-dev libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
+            libegl1-mesa-dev libdbus-1-dev libfribidi-dev libibus-1.0-dev libthai-dev \
+            libudev-dev libusb-1.0-0-dev libwayland-dev wayland-protocols libdecor-0-dev
+
+      - name: Build, test and package both SDK variants
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $compilerArgs = @("-DCMAKE_C_COMPILER=$env:SDK_CC", "-DCMAKE_CXX_COMPILER=$env:SDK_CXX")
+          if ($IsWindows) {
+              foreach ($tool in 'glslc', 'spirv-val', 'spirv-cross', 'dxc') {
+                  Get-Command $tool -CommandType Application | Out-Null
+              }
+              if ($env:VULKAN_SDK) { $compilerArgs += "-DATOM_DXC_ROOT=$env:VULKAN_SDK" }
+          }
+          $variants = [ordered]@{ static = 'OFF'; shared = 'ON' }
+          foreach ($kind in $variants.Keys) {
+              $build = "build-$kind"
+              cmake -S . -B $build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DATOM_BUILD_SHARED=$($variants[$kind])" -DATOM_ENABLE_DEBUGGER=ON @compilerArgs
+              $buildLog = "$build-build.log"
+              $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+              $PSNativeCommandUseErrorActionPreference = $false
+              cmake --build $build --parallel 3 2>&1 | Tee-Object -FilePath $buildLog
+              $buildExit = $LASTEXITCODE
+              $PSNativeCommandUseErrorActionPreference = $previousNativePreference
+              if ($buildExit -ne 0) {
+                  Select-String -Path $buildLog -Pattern 'error C[0-9]+|fatal error|error LNK|error:' |
+                      Select-Object -First 20 |
+                      ForEach-Object { Write-Host "::error ::$($_.Line.Trim())" }
+                  exit $buildExit
+              }
+              if ($kind -eq 'static') {
+                  cmake --build $build --target AtomSdkArchive --parallel 3
+              }
+              $ctestLog = "$build-ctest.log"
+              $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+              $PSNativeCommandUseErrorActionPreference = $false
+              ctest --test-dir $build --output-on-failure --timeout 90 --no-tests=error 2>&1 |
+                  Tee-Object -FilePath $ctestLog
+              $ctestExit = $LASTEXITCODE
+              $PSNativeCommandUseErrorActionPreference = $previousNativePreference
+              if ($ctestExit -ne 0) {
+                  Select-String -Path $ctestLog -Pattern 'FAILED|Failed|ATOM_CHECK|Expected|Actual|error:|Could not|Incorrect|what\(\)' |
+                      Select-Object -First 60 |
+                      ForEach-Object { Write-Host "::error ::$($_.Line.Trim())" }
+                  exit $ctestExit
+              }
+          }
+          $versionLine = Select-String -Path build-static/CMakeCache.txt -Pattern '^CMAKE_PROJECT_VERSION:STATIC=(.+)$'
+          if (!$versionLine) { throw 'The Atom project version is missing.' }
+          $version = $versionLine.Matches[0].Groups[1].Value
+          $package = "Atom-$version-$env:SDK_TOOLCHAIN-x64-Release"
+          $artifactDir = New-Item -ItemType Directory -Path artifacts
+          $stageDir = New-Item -ItemType Directory -Path stage
+          $packageDir = Join-Path $stageDir.FullName $package
+          foreach ($kind in $variants.Keys) {
+              cmake --install "build-$kind" --prefix (Join-Path $packageDir $kind)
+          }
+          $zip = Join-Path $artifactDir.FullName "$package.zip"
+          Push-Location $stageDir.FullName
+          try { cmake -E tar cf $zip --format=zip -- $package } finally { Pop-Location }
+          # The package is verified manually by the release owner with their
+          # own game; CI only builds, tests and packages it.
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: sdk-${{ matrix.toolchain.name }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: sdk-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish SDK release
+        shell: bash
+        working-directory: release-assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          windows=(Atom-*-windows-mingw-x64-Release.zip)
+          linux=(Atom-*-linux-gcc-x64-Release.zip)
+          if (( ${#windows[@]} != 1 || ${#linux[@]} != 1 )); then
+            echo "Expected one Windows MinGW ZIP and one Linux GCC ZIP." >&2
+            exit 1
+          fi
+          assets=("${windows[0]}" "${linux[0]}")
+          sha256sum "${assets[@]}" > SHA256SUMS.txt
+
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "Release tags must look like v<major>.<minor>.<patch>; got '$tag'." >&2
+            exit 1
+          fi
+          title="Atom SDK ${tag#v}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" SHA256SUMS.txt --clobber
+          else
+            gh release create "$tag" --title "$title" --generate-notes \
+              "${assets[@]}" SHA256SUMS.txt
+          fi

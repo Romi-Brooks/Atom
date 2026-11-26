@@ -4,8 +4,8 @@
  *                   rejects an oversized header before stb_image allocates.
  */
 
-#include <Log/LogSystem.hpp>
-#include <Media/Image/ImageDecoder.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Image/ImageDecoder.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <array>

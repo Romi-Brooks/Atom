@@ -17,9 +17,9 @@
  *     reason (FsNotFound).
 **/
 
-#include <Asset/ResourceManager.hpp>
-#include <Concurrency/JobSystem.hpp>
-#include <Filesystem/MemoryFileSystem.hpp>
+#include <Atom/Resources/Asset/ResourceManager.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
+#include <Atom/Resources/Filesystem/MemoryFileSystem.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <atomic>

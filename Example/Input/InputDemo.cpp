@@ -16,20 +16,17 @@
 #include <cmath>
 #include <string>
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
+#include <Atom/AtomMain.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
 
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Runtime/ScreenManager.hpp>
-
-#include <Debugger/Overlay.hpp>
-#include <Input/ActionMap.hpp>
-#include <Input/InputSystem.hpp>
-#include <Log/LogSystem.hpp>
-#include <Render/Renderer2D/Renderer2D.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Input/ActionMap.hpp>
+#include <Atom/Input/InputSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Presentation/Render/Renderer2D/Renderer2D.hpp>
 
 namespace {
 
@@ -473,7 +470,7 @@ class InputStatePanel final : public atom::debugger::DebugPanel {
 
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     // Windows console: make the debugger's UTF-8 output readable.
     atom::Log::SetConsoleOutputUtf8();
     atom::Log::SetViewLogLevel(atom::LogLevel::ATOM_INFO);
@@ -498,7 +495,6 @@ auto main(int, char**) -> int {
         LOG_ERROR(atom::log::core::Main, "Window initialization failed: " + initialized.error().Message());
         return 1;
     }
-    window.SetFPS(60);
 
     InputStatePanel panel{};
     panel.Attach(window);

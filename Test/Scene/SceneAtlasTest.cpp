@@ -12,8 +12,8 @@
  * Atom_Scene.SceneLoader.
  */
 
-#include <Scene/SceneSchema.hpp>
-#include <Sprite/SpriteAtlas.hpp>
+#include <Atom/World/Scene/SceneSchema.hpp>
+#include <Atom/Presentation/Sprite/SpriteAtlas.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 
@@ -193,7 +193,7 @@ auto main() -> int {
             }
         })";
         const scene::PrefabProvider prefabs =
-            [&provider](const std::string_view /*uri*/) -> Result<scene::EntityDesc> {
+            [&provider, kPrefab](const std::string_view /*uri*/) -> Result<scene::EntityDesc> {
             // Reuse the same ParsePrefab path the loader uses, with the atlas provider.
             auto parsed_prefab = scene::ParsePrefab(kPrefab, "res://prefabs/crate_atlas.prefab.json", provider);
             if (!parsed_prefab.Ok())

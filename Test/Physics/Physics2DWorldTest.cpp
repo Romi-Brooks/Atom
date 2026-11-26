@@ -15,10 +15,10 @@
  *      turn them into its own event type without a side table.
  */
 
-#include <Physics/Integration/Physics2DWorld.hpp>
+#include <Atom/World/Physics/Integration/Physics2DWorld.hpp>
 
-#include <ECS/Components.hpp>
-#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Atom/World/ECS/Components.hpp>
+#include <Atom/World/Physics/Backend/Internal/InternalPhysicsBackend.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

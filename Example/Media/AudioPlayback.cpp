@@ -8,26 +8,27 @@
   Copyright (c) 2026 Romi Brooks, All rights reserved.
 **/
 
-#ifdef ATOM_WINDOWS_GUI_ENTRY
-#include <SDL3/SDL_main.h>
-#endif
+#include <functional>
+#include <string>
+#include <utility>
 
-#include <Media/Audio/AudioBackend.hpp>
-#include <Media/Audio/Mixing/AudioMixer.hpp>
-#include <Media/Audio/Playback/MusicPlayer.hpp>
-#include <Media/Audio/Transitions/MusicCrossfade.hpp> // fade in plugin
+#include <Atom/AtomMain.hpp>
+#include <Atom/Resources/Media/Audio/AudioBackend.hpp>
+#include <Atom/Resources/Media/Audio/Mixing/AudioMixer.hpp>
+#include <Atom/Resources/Media/Audio/Playback/MusicPlayer.hpp>
+#include <Atom/Resources/Media/Audio/Transitions/MusicCrossfade.hpp> // fade in plugin
 
-#include <Filesystem/FileSystem.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
+#include <Atom/Resources/Filesystem/FileSystem.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
 
-#include <Runtime/ScreenManager.hpp>
-#include <Window/RenderWindow.hpp>
-#include <Runtime/Application.hpp>
-#include <Runtime/Screen.hpp>
-#include <Debugger/Overlay.hpp>
-#include <Debugger/Panels/LogDebugger.hpp>
+#include <Atom/Runtime/ScreenManager.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Runtime/Screen.hpp>
+#include <Atom/Debugger/Overlay.hpp>
+#include <Atom/Debugger/Panels/LogDebugger.hpp>
 
-#include <Log/LogSystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
 
 namespace {
 // replace it
@@ -37,37 +38,39 @@ constexpr auto Music2Name = "滴滴 - 覆予.mp3";
 
 class MusicDebugger final : public atom::debugger::DebugPanel {
     public:
-        MusicDebugger(atom::MusicPlayer& music, atom::audio::MusicCrossfade& fade)
-            : DebugPanel("MusicDebugger"), music_(music), fade_(fade) {}
+        // reload_tracks is what makes a backend switch usable: the runtime drops
+        // every source before the swap, so the caller has to load the tracks
+        // again against the new backend. See DrawBackendControls().
+        MusicDebugger(atom::MusicPlayer& music, atom::audio::MusicCrossfade& fade,
+                      std::function<bool()> reload_tracks)
+            : DebugPanel("MusicDebugger"), music_(music), fade_(fade), reload_tracks_(std::move(reload_tracks)) {}
 
     protected:
         auto OnDrawOverlay() -> void override {
             ImGui::Begin("Music Debugger");
 
             ImGui::Text("Press A to play music1, B to play music2");
-            static std::string now_key_playing;
 
             constexpr float fade_time = 2.0f;
 
             if (ImGui::Button("A")) {
-                if (now_key_playing != "registerId_1") {
+                if (playing_id_ != "registerId_1") {
                     fade_.Switch("registerId_1", fade_time);
-                    now_key_playing = "registerId_1";
+                    playing_id_ = "registerId_1";
                 }
             }
 
             if (ImGui::Button("B")) {
-                if (now_key_playing != "registerId_2") {
+                if (playing_id_ != "registerId_2") {
                     fade_.Switch("registerId_2", fade_time);
-                    now_key_playing = "registerId_2";
+                    playing_id_ = "registerId_2";
                 }
             }
 
             ImGui::Text("If one of them is playing, switch it to the aim song");
             ImGui::Separator();
 
-            const auto& backend_id = atom::audio::GetAudioBackendId();
-            ImGui::TextDisabled("Active audio backend: %s", backend_id.c_str());
+            DrawBackendControls();
             ImGui::Separator();
 
             // Seek / position. Everything comes from the MusicPlayer API; the
@@ -114,8 +117,64 @@ class MusicDebugger final : public atom::debugger::DebugPanel {
         }
 
     private:
+        // Hot backend switching. This is the pattern every gameplay/settings
+        // screen should follow:
+        //   1. SetAudioBackend() creates the replacement backend first, so a
+        //      failed switch leaves the current one (and its sources) intact.
+        //   2. On success the runtime notifies every registered player, and
+        //      MusicPlayer::OnAudioBackendChanging() calls Reset(): every track
+        //      (and its decoder + VFS file handle) is destroyed.
+        //   3. Playback is NOT migrated, so the owner reloads what it still
+        //      needs against the new backend and resumes explicitly.
+        auto SwitchBackend(const atom::backend::AudioBackendId id) -> void {
+            const auto generation = atom::audio::GetAudioBackendGeneration();
+            if (!atom::audio::SetAudioBackend(id))
+                return;
+            // Selecting the already-active backend is a no-op that does not
+            // reset anything, so it must not reload either (Load() would skip
+            // the already-loaded ids and the reload would be pointless).
+            if (atom::audio::GetAudioBackendGeneration() == generation)
+                return;
+
+            LOG_INFO(atom::log::audio::Music, "Audio backend switched to '" + atom::audio::GetAudioBackendId() +
+                                                  "' (generation " +
+                                                  std::to_string(atom::audio::GetAudioBackendGeneration()) + ")");
+
+            // Resume without the crossfade: its state points at sources that no
+            // longer exist, and a fade would need the old backend alive.
+            const std::string resume = playing_id_;
+            fade_.Reset();
+            playing_id_.clear();
+
+            if (!reload_tracks_())
+                return;
+            if (!resume.empty()) {
+                music_.Play(resume);
+                playing_id_ = resume;
+            }
+        }
+
+        auto DrawBackendControls() -> void {
+            ImGui::SeparatorText("Audio backend");
+            ImGui::Text("Active backend: %s (generation %llu)", atom::audio::GetAudioBackendId().c_str(),
+                        static_cast<unsigned long long>(atom::audio::GetAudioBackendGeneration()));
+
+            const int loaded = (music_.IsLoaded("registerId_1") ? 1 : 0) + (music_.IsLoaded("registerId_2") ? 1 : 0);
+            ImGui::Text("Tracks loaded: %d / 2", loaded);
+
+            if (ImGui::Button("Use native SDL3"))
+                SwitchBackend(atom::backend::AudioBackendId::Sdl3);
+            ImGui::SameLine();
+            if (ImGui::Button("Use SDL3_mixer"))
+                SwitchBackend(atom::backend::AudioBackendId::Sdl3Mixer);
+            ImGui::TextWrapped("A switch destroys every source owned by the old backend, including the decoded "
+                               "tracks. This demo reloads both files and resumes the track that was playing.");
+        }
+
         atom::MusicPlayer& music_;
         atom::audio::MusicCrossfade& fade_;
+        std::function<bool()> reload_tracks_;
+        std::string playing_id_;
 };
 
 class MusicScreen final : public atom::Screen {
@@ -157,7 +216,7 @@ class MusicScreen final : public atom::Screen {
 };
 } // namespace
 
-auto main(int, char**) -> int {
+auto atom::platform::ApplicationMain(int, char**) -> int {
     // For windows: Console Debugger OUTPUT CP will be set to UTF-8
     atom::Log::SetConsoleOutputUtf8();
 
@@ -215,15 +274,17 @@ auto main(int, char**) -> int {
         return 1;
     }
 
-    // It is recommended to limit the FPS when creating the window,
-    // or define a custom FPS limit; otherwise it will significantly
-    // consume GPU/CPU resources.
-    window.SetFPS(60);
-
     atom::debugger::LogDebugger log_panel{};
     log_panel.Attach(window);
 
-    MusicDebugger debugger{music, music_fade};
+    // Backend switches reset the MusicPlayer (see MusicDebugger::SwitchBackend),
+    // so the tracks are re-loaded from the same VFS files on demand.
+    const auto reload_tracks = [&music, &filesystem, &music1, &music2]() {
+        return music.Load("registerId_1", *filesystem, *music1) &&
+               music.Load("registerId_2", *filesystem, *music2);
+    };
+
+    MusicDebugger debugger{music, music_fade, reload_tracks};
     debugger.Attach(window);
 
     application.Run();

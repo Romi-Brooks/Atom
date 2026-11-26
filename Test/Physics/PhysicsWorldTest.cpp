@@ -1,9 +1,9 @@
-#include <Physics/Contracts/IPhysicsBody.hpp>
-#include <Physics/Contracts/IPhysicsWorld.hpp>
-#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
-#include <Physics/Contracts/PhysicsTypes.hpp>
-#include <Physics/PhysicsWorld/FixedStepper.hpp>
-#include <Physics/Shapes/Shape.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsBody.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsWorld.hpp>
+#include <Atom/World/Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Atom/World/Physics/Contracts/PhysicsTypes.hpp>
+#include <Atom/World/Physics/PhysicsWorld/FixedStepper.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <array>

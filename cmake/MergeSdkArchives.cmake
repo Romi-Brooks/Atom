@@ -1,0 +1,32 @@
+cmake_minimum_required(VERSION 3.20)
+include("${inputs}")
+get_filename_component(directory "${archive}" DIRECTORY)
+get_filename_component(filename "${archive}" NAME)
+file(MAKE_DIRECTORY "${directory}")
+set(pending "${filename}.new")
+file(REMOVE "${directory}/${pending}")
+
+if(msvc)
+    set(command_file "${directory}/merge.rsp")
+    file(WRITE "${command_file}" "/NOLOGO\n/OUT:\"${pending}\"\n")
+    foreach(input IN LISTS archives)
+        file(APPEND "${command_file}" "\"${input}\"\n")
+    endforeach()
+    execute_process(COMMAND "${archiver}" "@${command_file}"
+        WORKING_DIRECTORY "${directory}" RESULT_VARIABLE result)
+else()
+    # MRI accepts quoted input paths and retains every member of each archive.
+    set(command_file "${directory}/merge.mri")
+    file(WRITE "${command_file}" "CREATE ${pending}\n")
+    foreach(input IN LISTS archives)
+        file(APPEND "${command_file}" "ADDLIB \"${input}\"\n")
+    endforeach()
+    file(APPEND "${command_file}" "SAVE\nEND\n")
+    execute_process(COMMAND "${archiver}" -M INPUT_FILE "${command_file}"
+        WORKING_DIRECTORY "${directory}" RESULT_VARIABLE result OUTPUT_VARIABLE output)
+endif()
+
+if(NOT result STREQUAL "0" OR NOT EXISTS "${directory}/${pending}")
+    message(FATAL_ERROR "Failed to merge the Atom static archive: ${result}\n${output}")
+endif()
+file(RENAME "${directory}/${pending}" "${archive}")

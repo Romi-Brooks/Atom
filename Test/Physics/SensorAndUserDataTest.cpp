@@ -16,11 +16,11 @@
  *     with only Begin/End every listener would have to keep its own pair set.
  */
 
-#include <Physics/Backend/Internal/InternalPhysicsBackend.hpp>
-#include <Physics/Contracts/IPhysicsBackend.hpp>
-#include <Physics/Contracts/IPhysicsBody.hpp>
-#include <Physics/Contracts/IPhysicsWorld.hpp>
-#include <Physics/Shapes/Shape.hpp>
+#include <Atom/World/Physics/Backend/Internal/InternalPhysicsBackend.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsBackend.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsBody.hpp>
+#include <Atom/World/Physics/Contracts/IPhysicsWorld.hpp>
+#include <Atom/World/Physics/Shapes/Shape.hpp>
 
 #include <Test/Support/TestHelpers.hpp>
 

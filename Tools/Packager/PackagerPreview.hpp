@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 
-#include <Filesystem/PackageFileSystem.hpp>
-#include <Media/Image/ImageDecoder.hpp>
+#include <Atom/Resources/Filesystem/PackageFileSystem.hpp>
+#include <Atom/Resources/Media/Image/ImageDecoder.hpp>
 
 namespace atom::packager {
 

@@ -20,16 +20,16 @@
 #include <span>
 #include <utility>
 
-#include <Algorithm/Interpolation/Easing.hpp>
-#include <Concurrency/ThreadRegistry.hpp>
-#include <Debugger/FontLoader.hpp>
-#include <Log/LogSystem.hpp>
-#include <Media/Audio/AudioBackend.hpp>
-#include <Media/Audio/Metadata/AudioMetadataReader.hpp>
-#include <Media/Image/Analysis/ColorStatistics.hpp>
-#include <Media/Image/ImageDecoder.hpp>
-#include <Utilities/Utf8/Utf8.hpp>
-#include <Window/RenderWindow.hpp>
+#include <Atom/Core/Algorithm/Interpolation/Easing.hpp>
+#include <Atom/Core/Concurrency/ThreadRegistry.hpp>
+#include <Atom/Debugger/FontLoader.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Audio/AudioBackend.hpp>
+#include <Atom/Resources/Media/Audio/Metadata/AudioMetadataReader.hpp>
+#include <Atom/Resources/Media/Image/Analysis/ColorStatistics.hpp>
+#include <Atom/Resources/Media/Image/ImageDecoder.hpp>
+#include <Atom/Core/Utilities/Utf8/Utf8.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
 
 #ifdef _WIN32
 // Only this translation unit needs the process working-set query for the

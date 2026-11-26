@@ -12,7 +12,7 @@
  *   - shutdown drains and leaves handles observable
  */
 
-#include <Concurrency/JobSystem.hpp>
+#include <Atom/Core/Concurrency/JobSystem.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <atomic>

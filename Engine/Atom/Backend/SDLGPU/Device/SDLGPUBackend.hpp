@@ -1,0 +1,39 @@
+/**
+  * @file           : SDLGPUBackend.hpp
+  * @author         : Romi Brooks
+  * @brief          : SDL_GPU implementation of the render backend contract.
+  * @attention      : SDL_GPU native objects remain private to this backend.
+  * @date           : 2026/9/4
+  Copyright (c) 2026 Romi Brooks, All rights reserved.
+**/
+
+#ifndef ATOM_BACKEND_SDLGPU_BACKEND_HPP
+#define ATOM_BACKEND_SDLGPU_BACKEND_HPP
+
+#include <Atom/Backend/Contracts/Render/IRenderBackend.hpp>
+#include <Atom/Backend/SDLGPU/Device/SDLGPUDevice.hpp>
+#include <Atom/Backend/SDL3/Time/SDL3TimeSource.hpp>
+#include <Atom/Backend/SDL3/Window/SDL3Window.hpp>
+
+#include <Atom/Build/BackendsExport.hpp>
+
+namespace atom::backend::sdlgpu {
+
+class ATOM_BACKENDS_API SDLGPUBackend final : public render::IRenderBackend {
+    public:
+        ~SDLGPUBackend() override;
+        auto Initialize(const RenderBackendConfig& config) -> bool override;
+        auto Shutdown() -> void override;
+        [[nodiscard]] auto Window() -> window::IWindow& override;
+        [[nodiscard]] auto Device() -> render::IRenderDevice& override;
+        [[nodiscard]] auto TimeSource() -> backend::ITimeSource& override;
+
+    private:
+        sdl3::SDL3Window window_;
+        SDLGPUDevice device_;
+        sdl3::SDL3TimeSource time_source_;
+};
+
+} // namespace atom::backend::sdlgpu
+
+#endif // ATOM_BACKEND_SDLGPU_BACKEND_HPP

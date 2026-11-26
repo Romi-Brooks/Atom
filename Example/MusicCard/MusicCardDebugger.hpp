@@ -13,12 +13,12 @@
 
 #include <string>
 
-#include <Backend/Contracts/Audio/AudioBackendId.hpp>
-#include <Debugger/DebugPanel.hpp>
-#include <Display/DisplaySystem.hpp>
-#include <Log/LogSystem.hpp>
-#include <Media/Audio/AudioBackend.hpp>
-#include <Window/RenderWindow.hpp>
+#include <Atom/Backend/Contracts/Audio/AudioBackendId.hpp>
+#include <Atom/Debugger/DebugPanel.hpp>
+#include <Atom/Platform/Display/DisplaySystem.hpp>
+#include <Atom/Core/Log/LogSystem.hpp>
+#include <Atom/Resources/Media/Audio/AudioBackend.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
 
 #include <imgui.h>
 

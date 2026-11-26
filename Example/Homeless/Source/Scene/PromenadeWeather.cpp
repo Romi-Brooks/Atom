@@ -92,7 +92,7 @@ auto PromenadeScreen::DrawWater(float left, float right) -> void {
         if (sway != 0) {
             auto source = span;
             source.x += sway;
-            renderer_.DrawTexture(*scene_, span, white, &source, false, false, nearest);
+            renderer_.DrawTexture(*waterfront_, span, white, &source, false, false, nearest);
         }
     }
 }

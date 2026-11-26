@@ -1,4 +1,4 @@
-#include <Algorithm/Interpolation/Easing.hpp>
+#include <Atom/Core/Algorithm/Interpolation/Easing.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 auto main() -> int {

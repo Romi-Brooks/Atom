@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <array>
 
-#include <Display/DisplaySystem.hpp>
-#include <Runtime/Application.hpp>
-#include <Window/RenderWindow.hpp>
+#include <Atom/Platform/Display/DisplaySystem.hpp>
+#include <Atom/Runtime/Application.hpp>
+#include <Atom/Platform/Window/RenderWindow.hpp>
 
 namespace homeless {
 
@@ -162,11 +162,9 @@ auto GameOverlay::Activate(Action action, int direction) -> void {
     }
     case Action::Music:
         mixer_.SetMusicVolume(std::clamp(mixer_.GetMusicVolume() + direction * 10.0f, 0.0f, 100.0f));
-        ApplyAudioLevels();
         break;
     case Action::Sfx:
         mixer_.SetSFXVolume(std::clamp(mixer_.GetSFXVolume() + direction * 10.0f, 0.0f, 100.0f));
-        ApplyAudioLevels();
         break;
     }
 }

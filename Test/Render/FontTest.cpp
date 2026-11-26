@@ -3,7 +3,7 @@
  * @brief          : FreeType-backed Font provider smoke/regression coverage.
  */
 
-#include <Render/Text/Font.hpp>
+#include <Atom/Presentation/Render/Text/Font.hpp>
 #include <Test/Support/TestHelpers.hpp>
 
 #include <cstddef>
